@@ -1,0 +1,10 @@
+/target/
+/.venv/
+/runs/
+/vendor/tracefix/
+/output/
+__pycache__/
+*.pyc
+.DS_Store
+.env
+*.key
