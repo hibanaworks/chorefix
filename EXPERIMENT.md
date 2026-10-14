@@ -11,6 +11,9 @@ runtime state machine, while preserving task behavior and independent work?
 - Task set: every task from 1E through 16H, with no removed roles or tools.
 - Participant model: `gpt-6-luna`.
 - Participant reasoning effort: `xhigh`.
+- Hibana: published version `0.9.9`, matching main at
+  `f1c4dd4bab211b005687cfec15bb53a1f77500ed`.
+- Access-checked model harness: desktop bundled CLI `0.162.0-alpha.17.2`.
 - Failure conditions: deterministic S0, S1, S2 from the upstream simulator.
 - Repetitions: three per task and condition.
 - Same domain tool schemas, simulator, checklist, and failure schedule in both arms.
@@ -19,6 +22,11 @@ Baseline conditions are awaiting selection. A two-arm comparison has 864 runs.
 The paper's four baseline conditions plus Hibana have 2,160 runs for one model.
 Model transport, prompts, timeout, and tool-call limits must be fixed before the
 first scored run. Access smoke checks are not benchmark results.
+
+The public repository contains task inputs for all 48 cases but translated
+protocol fixtures for only 11 cases. These fixtures are not a substitute for a
+complete experiment corpus. Protocol generation and fidelity checks must be
+completed for all 48 cases before the scored matrix starts.
 
 ## Fidelity gate
 

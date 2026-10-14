@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Check requested Luna access and tool dispatch. This is not a scored run."""
 
+import argparse
 import asyncio
 import json
+import subprocess
 import time
 from pathlib import Path
 
@@ -11,11 +13,12 @@ MODEL = "gpt-6-luna"
 EFFORT = "xhigh"
 
 
-async def main():
-    output = ROOT / "output" / "luna-access"
-    output.mkdir(parents=True, exist_ok=True)
+async def main(binary: str, run_id: str):
+    version = subprocess.run([binary, "--version"], check=True, capture_output=True, text=True).stdout.strip()
+    output = ROOT / "output" / ("luna-access-" + version.split()[-1]) / run_id
+    output.mkdir(parents=True, exist_ok=False)
     process = await asyncio.create_subprocess_exec(
-        "codex", "app-server", "--listen", "stdio://",
+        binary, "app-server", "--listen", "stdio://",
         stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.DEVNULL,
     )
@@ -84,7 +87,7 @@ async def main():
                     await send({"id": message["id"], "error": {"code": -32601, "message": "Only the probe tool is available."}})
                 elif message.get("method") == "turn/completed":
                     turn = message["params"]["turn"]
-                    result = {"requested_model": MODEL, "returned_model": thread["model"], "reasoning_effort": EFFORT, "status": turn["status"], "probe_calls": calls, "elapsed_seconds": time.monotonic()-started, "error": turn.get("error"), "benchmark_result": False}
+                    result = {"requested_model": MODEL, "returned_model": thread["model"], "reasoning_effort": EFFORT, "app_server_binary": binary, "app_server_version": version, "status": turn["status"], "probe_calls": calls, "elapsed_seconds": time.monotonic()-started, "error": turn.get("error"), "benchmark_result": False}
                     (output / "result.json").write_text(json.dumps(result, indent=2) + "\n")
                     print(json.dumps(result))
                     if turn["status"] != "completed" or calls != 1:
@@ -96,4 +99,10 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--app-server-bin", required=True)
+    parser.add_argument("--run-id", required=True)
+    args = parser.parse_args()
+    if not args.run_id or any(c not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_" for c in args.run_id):
+        parser.error("run-id must use letters, digits, hyphens, and underscores")
+    asyncio.run(main(args.app_server_bin, args.run_id))

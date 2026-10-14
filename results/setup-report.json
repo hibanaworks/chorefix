@@ -1,0 +1,82 @@
+{
+  "benchmark_runs": 0,
+  "ported_protocols": 0,
+  "task_count": 48,
+  "checklist_items": 825,
+  "upstream_revision": "36b4bd108fcd74f7efb17613aebbe3fdf55499a9",
+  "hibana_version": "0.9.9",
+  "hibana_main_revision": "f1c4dd4bab211b005687cfec15bb53a1f77500ed",
+  "benchmark_manifest_sha256": "5479e21773838353d71177d8cd052e7d2f922905ef67468c8d0e4374cb846a9c",
+  "concurrent_access_checks": [
+    {
+      "participant": "agent-a",
+      "requested_model": "gpt-6-luna",
+      "returned_model": "gpt-6-luna",
+      "reasoning_effort": "xhigh",
+      "app_server_binary": "/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex",
+      "app_server_version": "codex-cli 0.162.0-alpha.17.2",
+      "status": "completed",
+      "probe_calls": 1,
+      "elapsed_seconds": 5.604851375101134,
+      "error": null,
+      "benchmark_result": false,
+      "confirmed_reasoning_effort": "xhigh",
+      "usage": {
+        "totalTokens": 28452,
+        "inputTokens": 28416,
+        "cachedInputTokens": 14848,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 36,
+        "reasoningOutputTokens": 0
+      },
+      "raw_events_sha256": "3d2a9131dd3ac8e5ae5988def63105199468a3ae8d65789c29d2e430fb3bd43f"
+    },
+    {
+      "participant": "agent-b",
+      "requested_model": "gpt-6-luna",
+      "returned_model": "gpt-6-luna",
+      "reasoning_effort": "xhigh",
+      "app_server_binary": "/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex",
+      "app_server_version": "codex-cli 0.162.0-alpha.17.2",
+      "status": "completed",
+      "probe_calls": 1,
+      "elapsed_seconds": 5.7645651248749346,
+      "error": null,
+      "benchmark_result": false,
+      "confirmed_reasoning_effort": "xhigh",
+      "usage": {
+        "totalTokens": 28452,
+        "inputTokens": 28416,
+        "cachedInputTokens": 14848,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 36,
+        "reasoningOutputTokens": 0
+      },
+      "raw_events_sha256": "c126c919bdaf944c96970eba7292d8a4d6dc2f89dd9de2888a25edc573dbb058"
+    },
+    {
+      "participant": "agent-c",
+      "requested_model": "gpt-6-luna",
+      "returned_model": "gpt-6-luna",
+      "reasoning_effort": "xhigh",
+      "app_server_binary": "/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex",
+      "app_server_version": "codex-cli 0.162.0-alpha.17.2",
+      "status": "completed",
+      "probe_calls": 1,
+      "elapsed_seconds": 5.451718790922314,
+      "error": null,
+      "benchmark_result": false,
+      "confirmed_reasoning_effort": "xhigh",
+      "usage": {
+        "totalTokens": 28538,
+        "inputTokens": 28459,
+        "cachedInputTokens": 14848,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 79,
+        "reasoningOutputTokens": 41
+      },
+      "raw_events_sha256": "ccf4638717ce144a4d4ef7893f9bf9b513ba7d031392ee50229934844a8f0180"
+    }
+  ],
+  "comparison_conditions": "awaiting selection"
+}
