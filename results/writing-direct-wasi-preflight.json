@@ -1,0 +1,115 @@
+{
+  "kind": "unscored_direct_wasi_model_preflight",
+  "date": "2026-10-16",
+  "status": "independently_audited",
+  "scored_benchmark": false,
+  "accepted_full_task_ports": 0,
+  "scored_episodes": 0,
+  "planned_scored_episodes": 2592,
+  "model": "gpt-6-luna",
+  "verification_source_revision": "20dbbebe20acbadd3324a56f510daa73e152064e",
+  "reasoning_effort": "xhigh",
+  "scenario_depth": 2,
+  "python_hash_seed": 0,
+  "domain_delay_multiplier": 1,
+  "artificial_barriers": false,
+  "execution_source_revision": "9ed7738d02d0ebdcb40706316ae5fd5c29425c79",
+  "runtime_source_revision": "4096a2a6d3da146e73d7633d25b434a4859fe33d",
+  "runtime_sha256": "bbeed751bbf811e6aadf97f5cc787fe8a00b9208889a02af5dca75ca210b35d5",
+  "core_revision": "c2001ec06944d7f3b299e16b5b3efb5b0ba0366a",
+  "wasip1_runtime_revision": "4ebdad1443cf49488eae924afe528f67f5a5953b",
+  "wash_revision": "12e137aba2cea74f353c198a8d7c92afc977627c",
+  "wash_sha256": "407e1fe263231022eb542a7d2a35e4d4705a58590f92b77bf21fe5f7c77258bc",
+  "total_participants": 15,
+  "total_domain_calls": 60,
+  "total_shell_calls": 91,
+  "inclusive_tokens": 1674159,
+  "model_mutants_rejected": 18,
+  "protocol_mutants_rejected": 7,
+  "evidence": "results/validation/writing-luna-20261016",
+  "cases": [
+    {
+      "task": "2E",
+      "elapsed_seconds": 30.418903208,
+      "inclusive_tokens": 327866,
+      "tool_calls": 18,
+      "max_model_turns": 3,
+      "max_disjoint_writes": 1,
+      "carrier_frames": 575,
+      "domain_calls": 12,
+      "source_manifest_sha256": "8e9cc4e670194556ccede02bf17af41425d7db60c83125285a8abc401d962cfa",
+      "consumer": "9ed7738d02d0ebdcb40706316ae5fd5c29425c79",
+      "consumer_diff": "",
+      "events_sha256": "21ee35a62f9ab6dfd938989a95dfb3f0105f556b318a4c00b7791bb55a889563",
+      "verifiers": {
+        "model": "07fcacf9983f81e7b589b10f3b26c30fdfc8877966133eb3e990bb1fe6908f48",
+        "protocol": "13b39fefb66ebc394bf8f38edc1c176028d92772f71b85852068c8729d23bbf1"
+      }
+    },
+    {
+      "task": "2M",
+      "elapsed_seconds": 32.885682583,
+      "inclusive_tokens": 551218,
+      "tool_calls": 30,
+      "max_model_turns": 5,
+      "max_disjoint_writes": 2,
+      "carrier_frames": 2425,
+      "domain_calls": 20,
+      "source_manifest_sha256": "8e9cc4e670194556ccede02bf17af41425d7db60c83125285a8abc401d962cfa",
+      "consumer": "9ed7738d02d0ebdcb40706316ae5fd5c29425c79",
+      "consumer_diff": "",
+      "events_sha256": "cfb9ae62e2e597700a15f124b96dcb7efd01f4e2c863ea31963ffa6db21ca414",
+      "verifiers": {
+        "model": "07fcacf9983f81e7b589b10f3b26c30fdfc8877966133eb3e990bb1fe6908f48",
+        "protocol": "13b39fefb66ebc394bf8f38edc1c176028d92772f71b85852068c8729d23bbf1"
+      }
+    },
+    {
+      "task": "2H",
+      "elapsed_seconds": 37.334704667,
+      "inclusive_tokens": 795075,
+      "tool_calls": 43,
+      "max_model_turns": 7,
+      "max_disjoint_writes": 3,
+      "carrier_frames": 2332,
+      "domain_calls": 28,
+      "source_manifest_sha256": "8e9cc4e670194556ccede02bf17af41425d7db60c83125285a8abc401d962cfa",
+      "consumer": "9ed7738d02d0ebdcb40706316ae5fd5c29425c79",
+      "consumer_diff": "",
+      "events_sha256": "fb4c15b3dad50c68965dcc0dee0da2afdf8139f25ae90bef45756b4da05ca62a",
+      "verifiers": {
+        "model": "07fcacf9983f81e7b589b10f3b26c30fdfc8877966133eb3e990bb1fe6908f48",
+        "protocol": "13b39fefb66ebc394bf8f38edc1c176028d92772f71b85852068c8729d23bbf1"
+      }
+    }
+  ],
+  "limitations": [
+    "Three qualification trials, not the scored comparison matrix or success-rate estimates",
+    "All writing scenarios disable normal injected failures in the unchanged simulator",
+    "Model and shell interface differs from the original baseline as recorded in experiment-contract.json",
+    "Protocol completion is checked independently of simulator task completion",
+    "Original frozen verifier rejected equivalent section formatting; v3 audit uses an explicitly supplied verifier and preserves all original run files"
+  ],
+  "failures": [
+    {
+      "run": "writing-luna-20261016-001/2E",
+      "phase": "before_model_start",
+      "model_calls": 0,
+      "error": "upstream file set changed",
+      "cause": "Rust inventory included package files outside original manifest scope"
+    },
+    {
+      "run": "writing-luna-20261016-002/2E",
+      "phase": "before_model_start",
+      "model_calls": 0,
+      "error": "upstream file set changed",
+      "cause": "Old binary was invoked after the new build was stopped by Clippy; no participant started"
+    },
+    {
+      "run": "writing-luna-20261016-003",
+      "phase": "original_posthoc_protocol_audit",
+      "error": "task fidelity mismatch",
+      "cause": "Verifier compared exact comma spacing and resource order instead of the same pair of sections; raw run data unchanged"
+    }
+  ]
+}

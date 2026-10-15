@@ -1,0 +1,41 @@
+{
+  "checked": [
+    {
+      "mutation": "forged_model",
+      "outer_hashes_recomputed": true,
+      "reason": "failed or altered participant report",
+      "status": "rejected"
+    },
+    {
+      "mutation": "incorrect_inclusive_usage",
+      "outer_hashes_recomputed": true,
+      "reason": "invalid inclusive token accounting",
+      "status": "rejected"
+    },
+    {
+      "mutation": "forged_command",
+      "outer_hashes_recomputed": true,
+      "reason": "model commands/replies differ from actual guest transport",
+      "status": "rejected"
+    },
+    {
+      "mutation": "missing_tool_reply",
+      "outer_hashes_recomputed": true,
+      "reason": "incomplete tool exchanges",
+      "status": "rejected"
+    },
+    {
+      "mutation": "false_simulator_score",
+      "outer_hashes_recomputed": true,
+      "reason": "protocol audit: Error: \"incomplete boundary evidence\"\n",
+      "status": "rejected"
+    },
+    {
+      "mutation": "changed_upstream_source",
+      "outer_hashes_recomputed": true,
+      "reason": "upstream bytes differ: benchmark/descriptions/2E/description.md",
+      "status": "rejected"
+    }
+  ],
+  "status": "passed"
+}
