@@ -1,0 +1,115 @@
+{
+  "audit_passed": true,
+  "task": "6E",
+  "kind": "direct_wasi_integration_preflight",
+  "scored_benchmark": false,
+  "scenario_depth": 2,
+  "participants": 3,
+  "shell_calls": 22,
+  "total_tokens": 396886,
+  "domain_calls": 10,
+  "protocol_frames": 1153,
+  "protocol_paths": [
+    {
+      "rpc": 1,
+      "caller": 4,
+      "owner": 7,
+      "close_frame": 120
+    },
+    {
+      "rpc": 2,
+      "caller": 3,
+      "owner": 7,
+      "close_frame": 348
+    },
+    {
+      "rpc": 3,
+      "caller": 11,
+      "owner": 5,
+      "close_frame": 395
+    },
+    {
+      "rpc": 4,
+      "caller": 3,
+      "owner": 7,
+      "close_frame": 661
+    },
+    {
+      "rpc": 5,
+      "caller": 12,
+      "owner": 6,
+      "close_frame": 680
+    },
+    {
+      "rpc": 6,
+      "caller": 11,
+      "owner": 5,
+      "close_frame": 761
+    },
+    {
+      "rpc": 7,
+      "caller": 4,
+      "owner": 7,
+      "close_frame": 784
+    },
+    {
+      "rpc": 8,
+      "caller": 3,
+      "owner": 7,
+      "close_frame": 987
+    },
+    {
+      "rpc": 9,
+      "caller": 12,
+      "owner": 6,
+      "close_frame": 1004
+    },
+    {
+      "rpc": 10,
+      "caller": 4,
+      "owner": 7,
+      "close_frame": 1113
+    }
+  ],
+  "notifications": [
+    {
+      "feature": "user_authentication",
+      "visit": 0,
+      "code_ready_frame": 386,
+      "review_feedback_frame": 399
+    },
+    {
+      "feature": "user_authentication",
+      "visit": 1,
+      "code_ready_frame": 752,
+      "review_feedback_frame": 789
+    },
+    {
+      "feature": "notification_feature",
+      "visit": 0,
+      "code_ready_frame": 671,
+      "review_feedback_frame": 684
+    },
+    {
+      "feature": "notification_feature",
+      "visit": 1,
+      "code_ready_frame": 995,
+      "review_feedback_frame": 1032
+    }
+  ],
+  "original_simulator_replay": "passed",
+  "elapsed_seconds": 60.88731579086743,
+  "versions": {
+    "consumer": "c07fe41262637a55476240d940d0e3f1e5d122cc",
+    "wash": "12e137aba2cea74f353c198a8d7c92afc977627c",
+    "tracefix": "36b4bd108fcd74f7efb17613aebbe3fdf55499a9",
+    "compiler": "rustc 1.95.0 (59807616e 2026-04-14)\nbinary: rustc\ncommit-hash: 59807616e1fa2540724bfbac14d7976d7e4a3860\ncommit-date: 2026-04-14\nhost: aarch64-apple-darwin\nrelease: 1.95.0\nLLVM version: 22.1.2",
+    "model_client": "codex-cli 0.162.0-alpha.17.2",
+    "model_client_sha256": "50ab38ba21d0d9f8346f32f41848382f15b556190f3c7a07e885a4fb73e379c8"
+  },
+  "binary_sha256": {
+    "runtime": "393846babbdd0ef17cace027794cc70db7b178462e80291ce33fce4a5f89f7ed",
+    "wash.wasm": "407e1fe263231022eb542a7d2a35e4d4705a58590f92b77bf21fe5f7c77258bc"
+  },
+  "result_sha256": "f2b30f9821929f1531d6bb19c0f4826d835c034af53c3c8bd8b553ccb0febe9c"
+}

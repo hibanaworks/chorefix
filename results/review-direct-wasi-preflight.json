@@ -2,7 +2,7 @@
   "kind": "direct_wasi_integration_preflight_ledger",
   "task": "6E",
   "scored_benchmark": false,
-  "scope": "Three unscored integration trials after the core repair; no comparative success-rate or performance estimate.",
+  "scope": "Four unscored integration observations across two application checkpoints; no comparative success-rate or performance estimate.",
   "hibana_version": "0.9.9",
   "hibana_git_revision": "c2001ec06944d7f3b299e16b5b3efb5b0ba0366a",
   "runtime_revision": "4ebdad1443cf49488eae924afe528f67f5a5953b",
@@ -292,6 +292,103 @@
         "wash.wasm": "407e1fe263231022eb542a7d2a35e4d4705a58590f92b77bf21fe5f7c77258bc"
       },
       "result_sha256": "0b11620b00a0f437c950d2a3f6d13d20a53b24bfc92de86e1094bdea460df101"
+    },
+    {
+      "run_id": "review-direct-endpoints-20261015-d2-001",
+      "scenario_depth": 2,
+      "scored_benchmark": false,
+      "assessment": "One original reviewer guest directly owns independent service caller endpoints from the same global.",
+      "protocol": {
+        "status": "complete",
+        "type": "run_result"
+      },
+      "simulator_complete": true,
+      "error": null,
+      "participants": [
+        {
+          "participant": "DEVELOPER_A",
+          "status": "completed",
+          "error": null,
+          "requested_model": "gpt-6-luna",
+          "returned_model": "gpt-6-luna",
+          "requested_effort": "xhigh",
+          "returned_effort": "xhigh",
+          "tool_calls": 7,
+          "elapsed_seconds": 54.66640762495808,
+          "usage": {
+            "totalTokens": 125862,
+            "inputTokens": 125265,
+            "cachedInputTokens": 99328,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 597,
+            "reasoningOutputTokens": 317
+          },
+          "raw_events_sha256": "ac9161b674fc824232286a70431996ee3bd6d0a14b152db1f38e9092f824dd55"
+        },
+        {
+          "participant": "DEVELOPER_B",
+          "status": "completed",
+          "error": null,
+          "requested_model": "gpt-6-luna",
+          "returned_model": "gpt-6-luna",
+          "requested_effort": "xhigh",
+          "returned_effort": "xhigh",
+          "tool_calls": 6,
+          "elapsed_seconds": 60.27139187511057,
+          "usage": {
+            "totalTokens": 110347,
+            "inputTokens": 109673,
+            "cachedInputTokens": 91392,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 674,
+            "reasoningOutputTokens": 418
+          },
+          "raw_events_sha256": "8b91ce7c357b394cc260dffdad83377ddf29037f528988961a4d18ac13c4039c"
+        },
+        {
+          "participant": "REVIEWER",
+          "status": "completed",
+          "error": null,
+          "requested_model": "gpt-6-luna",
+          "returned_model": "gpt-6-luna",
+          "requested_effort": "xhigh",
+          "returned_effort": "xhigh",
+          "tool_calls": 9,
+          "elapsed_seconds": 59.85374204092659,
+          "usage": {
+            "totalTokens": 160677,
+            "inputTokens": 159179,
+            "cachedInputTokens": 136960,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 1498,
+            "reasoningOutputTokens": 1126
+          },
+          "raw_events_sha256": "ec13504319adcdeca14197aec0abcf22f5c228cd87b88b1029a5ec1d98e35904"
+        }
+      ],
+      "elapsed_seconds": 60.88731579086743,
+      "inclusive_total_tokens": 396886,
+      "shell_calls": 22,
+      "domain_calls": 10,
+      "protocol_frames": 1153,
+      "audit": "results/validation/review-service-endpoints-luna-20261015/audit.json",
+      "evidence_directory": "results/validation/review-service-endpoints-luna-20261015",
+      "frozen_binary_directory": "output/direct-wasi-preflight/review-direct-endpoints-20261015-d2-001/6E",
+      "versions": {
+        "consumer": "c07fe41262637a55476240d940d0e3f1e5d122cc",
+        "wash": "12e137aba2cea74f353c198a8d7c92afc977627c",
+        "tracefix": "36b4bd108fcd74f7efb17613aebbe3fdf55499a9",
+        "compiler": "rustc 1.95.0 (59807616e 2026-04-14)\nbinary: rustc\ncommit-hash: 59807616e1fa2540724bfbac14d7976d7e4a3860\ncommit-date: 2026-04-14\nhost: aarch64-apple-darwin\nrelease: 1.95.0\nLLVM version: 22.1.2",
+        "model_client": "codex-cli 0.162.0-alpha.17.2",
+        "model_client_sha256": "50ab38ba21d0d9f8346f32f41848382f15b556190f3c7a07e885a4fb73e379c8"
+      },
+      "binary_sha256": {
+        "runtime": "393846babbdd0ef17cace027794cc70db7b178462e80291ce33fce4a5f89f7ed",
+        "wash.wasm": "407e1fe263231022eb542a7d2a35e4d4705a58590f92b77bf21fe5f7c77258bc"
+      },
+      "result_sha256": "f2b30f9821929f1531d6bb19c0f4826d835c034af53c3c8bd8b553ccb0febe9c",
+      "local_raw_archive": "output/direct-wasi-preflight/review-direct-endpoints-20261015-d2-001-evidence.tar.gz",
+      "local_raw_archive_sha256": "30f7a52cede52248e8689f3fd660aab891db2b7475d509d7d965a0604559dc6c"
     }
   ],
   "local_raw_archive": "output/direct-wasi-preflight/review-direct-20261015-evidence.tar.gz",

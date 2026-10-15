@@ -1,0 +1,9 @@
+{
+  "task": "2H",
+  "kind": "deterministic_native_boundary",
+  "model_calls": 0,
+  "scored_benchmark": false,
+  "runtime_binary_sha256": "8804e436f22b81a7fd849470626611e2bf01bcf1576a5cb3559ee6a81110a466",
+  "events_sha256": "c6f63a31bbd12defe903971e2c7215c4848676aeb3f777c436ed014ccaa5d0f1",
+  "simulator_source_sha256": "9dbd280bef440032896821f1fcd8e75e0ccc55572974ee81920a97f5d73f088b"
+}

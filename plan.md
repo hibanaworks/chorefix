@@ -546,3 +546,37 @@ WASIの値とmessageの変換はlocalsideで明示し、進行フラグや第二
 2Eだけの直列化を2M/Hへ一般化せず、5/7人の独立したwriteが並行できる条件を保つ。
 reviewは元課題どおり終端で、余分なretryを加えない。続いて残る全familyを完了し、
 比較側を変更せず48課題のfidelity、baseline corpus、採点実行と保守測定へ進む。
+
+
+## 2026-10-15: 実験優先への指示とwritingの単一global化
+
+- ユーザーの指示により論文の推敲は止め、残り実装と実験を優先する。現稿の質は未達。
+- c07fe41のサービス分離後Luna6E depth2も3参加者で完了。396,886 inclusive tokens、
+  22 shell/10 domain/1,153 frame、60.887秒。両feature各1回差し戻し、両merge成功。
+  実caller11/12、4組の通知、元simulator replay、全通信、usage監査と7改変拒否が成功。
+  source/生ログ/結果をreview-service-endpoints-luna-20261015へ保存。旧sourceと混ぜない。
+- 次の実装としてwriting 2E/M/Hの別session resource brokerを除去中。
+  全研究者と物理sectionを1つのglobal/sessionへ投影する。独立した準備をpar、
+  disjoint writeをpar、各sectionの2貸借をglobalの順序へ置く。reviewは終端のまま。
+  localsideには直接のsend/recvを残し、所有者表、段階enum、進行flag、bridgeは加えない。
+  3/5/7人と資源数は維持する。最初のcompileは型名Dとrole定数Dの衝突で失敗し、
+  型パラメータをWorkへ改名して検証中。これを受理済み移植とは数えない。
+  native検証後は実WASI/ChoreoFS要求をこのglobalへ接続し、元simulatorと独立性を検査する。
+
+- writingの投影拒否はreceive laneの送信元切替に因果handoffがなかったため。
+  物理sectionから次の研究者へのAvailableメッセージをglobalに追加し、実localsideが
+  recv後にAcquireする形へ修正中。ループ状態や所有者表は足さない。本体変更は不要。
+  同時に2Mの2 write/2Hの3 writeが同時にdomainへ入るbarrier試験を追加した。
+
+- writingは2資源の取得をparで分離し、実Available/Acquire/Grantedと返却通信を
+  localsideへ書き下して投影が成功した。nativeの5試験が成功。2Mの2 write、2Hの
+  3 writeが同時にdomainへ入ることをbarrierで確認し、reviewが資源を保持しない試験も成功。
+  取得をseqにした中間候補は異なる送信元の受信を同じlaneに置くため投影で拒否された。
+  診断を回避したのではなく、独立した取得をparで正しく記述した。本体は変更していない。
+- c07fe41のChoreoFix CI38741479487は成功済み。新しいwritingの全体ゲートは実施中。
+
+- writing単一globalの全体検証はRust27/Python43/Clippy/fmt成功。保存した元simulatorの
+  実プロセス3試験のreplayも成功し、domain callsは12/20/28、実write並行数は1/2/3、
+  section競合0。不完全区間と偽造結果のhash再計算コピーも監査が拒否した。
+  証拠はwriting-single-global-20261015。次は同じglobalへの実WASI/ChoreoFS接続。
+  ここはnative側の土台であり、全要件受理0/採点0を維持する。論文は編集再開しない。

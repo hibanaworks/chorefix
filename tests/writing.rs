@@ -137,6 +137,43 @@ async fn a_duplicate_write_does_not_run_after_returning_the_sections() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn medium_and_hard_retain_two_and_three_simultaneous_disjoint_writes() {
+    struct Concurrent {
+        input: Input,
+        writers: usize,
+        barrier: tokio::sync::Barrier,
+    }
+    impl Domain for Concurrent {
+        type Call = Call;
+        async fn request(&self, agent: &'static str) -> Result<Call, String> {
+            self.input.request(agent).await
+        }
+        async fn execute(&self, agent: &'static str, call: Call) -> Result<Value, String> {
+            if call.operation == Operation::Write
+                && ["RESEARCHER_A", "RESEARCHER_C", "RESEARCHER_E"]
+                    .into_iter()
+                    .take(self.writers)
+                    .any(|writer| writer == agent)
+            {
+                // Test-only overlap witness. Each domain call must be reached
+                // while the other disjoint write calls are still active.
+                self.barrier.wait().await;
+            }
+            self.input.execute(agent, call).await
+        }
+    }
+    for (count, writers) in [(5, 2), (7, 3)] {
+        let input = Concurrent {
+            input: Input::for_roles(count),
+            writers,
+            barrier: tokio::sync::Barrier::new(writers),
+        };
+        run(count, &input).await.unwrap();
+        assert_eq!(input.input.events.borrow().len(), count * 4);
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn disjoint_writes_overlap_and_a_review_does_not_hold_sections() {
     use tokio::sync::oneshot;
     struct Delayed {
