@@ -1,0 +1,29 @@
+{
+  "phase": "bounded-server",
+  "client": "neqo",
+  "server": "hibana-quic",
+  "status": "PASSED",
+  "exit_code": 0,
+  "cleanup_exit_code": 0,
+  "passed": true,
+  "results": [
+    {
+      "name": "rebind-addr",
+      "result": "succeeded",
+      "abbr": "BA"
+    },
+    {
+      "name": "rebind-port",
+      "result": "succeeded",
+      "abbr": "BP"
+    },
+    {
+      "name": "v2",
+      "result": "succeeded",
+      "abbr": "V2"
+    }
+  ],
+  "non_null_case_results": 3,
+  "unexecuted_case_results": 0,
+  "original_json_sha256": "efeec87d1849b15bcf692ef6e0233c80a4fdfb6ee66302cdf61dd0ccdae8575e"
+}

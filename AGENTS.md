@@ -67,6 +67,12 @@ and its exit visible in the global protocol and localside functions. Do not
 replace them with a stage enum, approval flags, or an application program counter.
 Do not add choices or repeated work that the task does not require.
 
+`roll` makes a fragment repeatable; it does not give a route implicit
+"right retries, left exits" semantics. Keep any success-dependent continuation
+inside the successful branch. Putting that continuation after a rolled route
+can admit it after a completed rejection visit too. Check the global rather
+than relying on the intended localside to stop only after success.
+
 Resolver registration is keyed by the compiled global program and resolver ID,
 not by the role argument alone. Independent owners with independent validation
 results need distinct resolver IDs. Reuse an ID only for the same policy owner

@@ -18,11 +18,16 @@ not sufficient to diagnose a certificate failure. The retained logs show no
 kernel PhaseInvariant or panic, but do not determine whether the root cause
 belongs to QUIC, the core, the peer or network behavior.
 
-Only that failed cell is retried on the same immutable source in run
-38812020642. The retry outcome is pending at this checkpoint and must be kept
-separate from the original failed workflow. Diagnostic key/TLS secret material
-is not included in this directory.
+Only that failed cell was retried on the same immutable source in run
+38812020642. It passed: one executed result, zero unexecuted, process exit 0 and
+cleanup exit 0. The retained retry source-pair and environment receipts match
+QUIC 2af1e69, core c03c7af3 and the original paired source trees. This is a
+separate attempt and does not turn the original failed workflow into a pass.
+Diagnostic key/TLS secret material is not included in this directory.
 
 A newer source c440479 selects core ef65 and adds failure-only application
-counter output. It does not change the old verdict. Its new full matrix is run
-38813319581; Linux runtime checks are run 38813324006. Both are pending.
+counter output. It does not change the old verdict. Its full matrix run
+38813319581 finished 42/44, with this same rebinding cell and server-side quiche
+handshakecorruption failing. That source has a separate failure record. It is
+not qualification of the newer core 594cac06. Linux runtime run 38813324006 is
+still pending at this update.

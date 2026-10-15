@@ -114,6 +114,7 @@ pub mod author_b {
     pub type DocAvailable = g::Msg<104, ()>;
     pub type RevisionReady = g::Msg<105, ()>;
     pub type WaitForARevision = g::Msg<106, ()>;
+    pub type ReadyForFeedback = g::Msg<108, ()>;
 }
 pub struct AuthorB;
 impl Messages for AuthorB {
@@ -218,31 +219,31 @@ pub struct Programs3E {
 }
 pub fn project_3e() -> Programs3E {
     let research = g::par(g::send::<A, A, Research>(), g::send::<B, B, Research>());
-    // A's DATABASE update and B's DOCUMENT write can execute together.
+    let references_a = g::seq(
+        references::<A, AuthorA>(),
+        g::send::<DATABASE, B, author_b::RefsAvailable>(),
+    );
+    // A's references and first review do not use B's document loan.
     // Each physical owner's own visits remain sequential in the projection.
     let initial = g::seq(
         research,
         g::seq(
             write::<A, AuthorA>(),
-            g::seq(
-                g::par(
-                    g::seq(
-                        references::<A, AuthorA>(),
-                        g::send::<DATABASE, B, author_b::RefsAvailable>(),
-                    ),
-                    write::<B, AuthorB>(),
-                ),
-                references::<B, AuthorB>(),
-            ),
+            g::par(references_a, write::<B, AuthorB>()),
         ),
     );
-    let submitted = g::par(
-        g::send::<A, EDITOR, author_a::Ready>(),
-        g::send::<B, EDITOR, author_b::Ready>(),
-    );
-    let start_a = g::par(
-        g::send::<EDITOR, A, author_a::BeginReview>(),
-        g::send::<EDITOR, DOCUMENT, author_a::BeginDocumentReview>(),
+    let first_review = g::par(
+        g::seq(
+            g::send::<A, EDITOR, author_a::Ready>(),
+            g::seq(
+                g::send::<EDITOR, A, author_a::BeginReview>(),
+                g::send::<EDITOR, EDITOR, ReviewA>(),
+            ),
+        ),
+        g::seq(
+            g::send::<B, EDITOR, author_b::ReadyForFeedback>(),
+            references::<B, AuthorB>(),
+        ),
     );
     let start_b = g::par(
         g::send::<EDITOR, B, author_b::BeginReview>(),
@@ -266,31 +267,37 @@ pub fn project_3e() -> Programs3E {
     );
     let passed_b = g::seq(g::send::<EDITOR, B, author_b::Accepted>(), combine);
     let review_b = g::seq(
-        start_b,
-        g::seq(
-            g::send::<EDITOR, EDITOR, ReviewB>(),
-            g::route(passed_b, revision::<B, AuthorB>())
-                .resolve::<REVIEW_B>()
-                .roll(),
-        ),
-    );
-    let passed_a = g::seq(g::send::<EDITOR, A, author_a::Accepted>(), review_b);
-    let review_a = g::seq(
-        start_a,
-        g::seq(
-            g::send::<EDITOR, EDITOR, ReviewA>(),
-            g::route(
-                passed_a,
-                g::seq(
-                    g::send::<EDITOR, B, author_b::WaitForARevision>(),
-                    revision::<A, AuthorA>(),
-                ),
-            )
-            .resolve::<REVIEW_A>()
+        g::send::<EDITOR, EDITOR, ReviewB>(),
+        g::route(passed_b, revision::<B, AuthorB>())
+            .resolve::<REVIEW_B>()
             .roll(),
+    );
+    let passed_a = g::seq(
+        g::send::<EDITOR, A, author_a::Accepted>(),
+        g::seq(
+            start_b,
+            g::seq(g::send::<B, EDITOR, author_b::Ready>(), review_b),
         ),
     );
-    let global = g::seq(initial, g::seq(submitted, review_a));
+    let review_a = g::route(
+        passed_a,
+        g::seq(
+            g::send::<EDITOR, B, author_b::WaitForARevision>(),
+            revision::<A, AuthorA>(),
+        ),
+    )
+    .resolve::<REVIEW_A>()
+    .roll();
+    let global = g::seq(
+        initial,
+        g::seq(
+            first_review,
+            g::seq(
+                g::send::<EDITOR, DOCUMENT, author_a::BeginDocumentReview>(),
+                review_a,
+            ),
+        ),
+    );
     Programs3E {
         a: project(&global),
         b: project(&global),

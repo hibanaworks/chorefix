@@ -142,6 +142,7 @@ pub(crate) async fn author_b<D: Domain>(
             }
             Operation::References => {
                 endpoint.recv::<author_b::RefsAvailable>().await?;
+                endpoint.send::<author_b::ReadyForFeedback>(&()).await?;
                 endpoint.send::<author_b::RefsRequest>(&()).await?;
                 endpoint.recv::<author_b::RefsGranted>().await?;
                 endpoint.send::<References>(&()).await?;
@@ -153,7 +154,6 @@ pub(crate) async fn author_b<D: Domain>(
                 )?;
                 endpoint.send::<author_b::RefsReturn>(&()).await?;
                 endpoint.recv::<author_b::RefsReturned>().await?;
-                endpoint.send::<author_b::Ready>(&()).await?;
                 loop {
                     let branch = endpoint.offer().await?;
                     match branch.label() {
@@ -162,6 +162,7 @@ pub(crate) async fn author_b<D: Domain>(
                         }
                         l if l == author_b::BeginReview::LOGICAL_LABEL => {
                             branch.recv::<author_b::BeginReview>().await?;
+                            endpoint.send::<author_b::Ready>(&()).await?;
                             break;
                         }
                         _ => return Err(RunError::Domain("unexpected review notification".into())),

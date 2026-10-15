@@ -11,11 +11,57 @@ pub(crate) async fn run<D: Domain>(
     input_a: &ReviewInput,
     input_b: &ReviewInput,
 ) -> Result<(), RunError<String>> {
+    let call = domain.request("EDITOR").await.map_err(RunError::Domain)?;
     endpoint.recv::<author_a::Ready>().await?;
-    endpoint.recv::<author_b::Ready>().await?;
     endpoint.send::<author_a::BeginReview>(&()).await?;
+    match call.operation() {
+        Operation::ReviewA => {
+            endpoint.send::<ReviewA>(&()).await?;
+            input_a.record(
+                domain
+                    .execute("EDITOR", call)
+                    .await
+                    .map_err(RunError::Domain)?,
+            );
+        }
+        Operation::ReviewB => {
+            endpoint.send::<ReviewB>(&()).await?;
+            return Err(RunError::Domain(
+                "unexpected admission of section B review".into(),
+            ));
+        }
+        Operation::Combine => {
+            endpoint.send::<CombineRequest>(&()).await?;
+            return Err(RunError::Domain(
+                "unexpected admission of early combine".into(),
+            ));
+        }
+        _ => {
+            return Err(RunError::Domain(
+                "tool does not belong to the editor".into(),
+            ));
+        }
+    }
+    endpoint.recv::<author_b::ReadyForFeedback>().await?;
     endpoint.send::<author_a::BeginDocumentReview>(&()).await?;
     loop {
+        match decide(input_a).map_err(RunError::Resolver)? {
+            DecisionArm::Left => {
+                endpoint.send::<author_a::Accepted>(&()).await?;
+                endpoint.send::<author_b::BeginReview>(&()).await?;
+                endpoint.send::<author_b::BeginDocumentReview>(&()).await?;
+                break;
+            }
+            DecisionArm::Right => {
+                endpoint.send::<author_b::WaitForARevision>(&()).await?;
+                endpoint.send::<author_a::NeedsRevision>(&()).await?;
+                endpoint.recv::<author_a::RevisionReady>().await?;
+                endpoint
+                    .send::<author_a::NeedsDocumentRevision>(&())
+                    .await?;
+                endpoint.recv::<author_a::Resubmitted>().await?;
+            }
+        }
         let call = domain.request("EDITOR").await.map_err(RunError::Domain)?;
         match call.operation() {
             Operation::ReviewA => {
@@ -26,23 +72,6 @@ pub(crate) async fn run<D: Domain>(
                         .await
                         .map_err(RunError::Domain)?,
                 );
-                match decide(input_a).map_err(RunError::Resolver)? {
-                    DecisionArm::Left => {
-                        endpoint.send::<author_a::Accepted>(&()).await?;
-                        endpoint.send::<author_b::BeginReview>(&()).await?;
-                        endpoint.send::<author_b::BeginDocumentReview>(&()).await?;
-                        break;
-                    }
-                    DecisionArm::Right => {
-                        endpoint.send::<author_b::WaitForARevision>(&()).await?;
-                        endpoint.send::<author_a::NeedsRevision>(&()).await?;
-                        endpoint.recv::<author_a::RevisionReady>().await?;
-                        endpoint
-                            .send::<author_a::NeedsDocumentRevision>(&())
-                            .await?;
-                        endpoint.recv::<author_a::Resubmitted>().await?;
-                    }
-                }
             }
             Operation::ReviewB => {
                 endpoint.send::<ReviewB>(&()).await?;
@@ -63,6 +92,7 @@ pub(crate) async fn run<D: Domain>(
             }
         }
     }
+    endpoint.recv::<author_b::Ready>().await?;
     loop {
         let call = domain.request("EDITOR").await.map_err(RunError::Domain)?;
         match call.operation() {

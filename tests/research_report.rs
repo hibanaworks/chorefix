@@ -91,7 +91,7 @@ async fn independent_request_futures_and_admitted_effects_have_overlapping_inter
         async fn request(&self, agent: &'static str) -> Result<Call, String> {
             let start = self.origin.elapsed().as_nanos();
             let call = self.input.request(agent).await?;
-            if call.operation == Operation::Research {
+            if call.operation == Operation::Research || call.operation == Operation::ReviewA {
                 tokio::time::sleep(std::time::Duration::from_millis(25)).await;
                 self.intervals.borrow_mut().push(json!({
                     "kind":"request", "agent":agent, "start_ns":start,
@@ -126,16 +126,18 @@ async fn independent_request_futures_and_admitted_effects_have_overlapping_inter
     let intervals = input.intervals.borrow();
     for kind in ["request", "effect"] {
         let spans: Vec<_> = intervals.iter().filter(|v| v["kind"] == kind).collect();
-        assert_eq!(spans.len(), 2);
+        assert_eq!(spans.len(), if kind == "request" { 3 } else { 2 });
         assert!(
-            spans[0]["start_ns"]
-                .as_u64()
+            spans
+                .iter()
+                .map(|span| span["start_ns"].as_u64().unwrap())
+                .max()
                 .unwrap()
-                .max(spans[1]["start_ns"].as_u64().unwrap())
-                < spans[0]["end_ns"]
-                    .as_u64()
-                    .unwrap()
-                    .min(spans[1]["end_ns"].as_u64().unwrap()),
+                < spans
+                    .iter()
+                    .map(|span| span["end_ns"].as_u64().unwrap())
+                    .min()
+                    .unwrap(),
             "{kind} futures did not overlap: {spans:?}"
         );
     }
@@ -198,6 +200,54 @@ async fn document_write_and_other_authors_reference_update_overlap() {
         .expect("independent resource effects were serialized")
         .unwrap();
 }
+#[tokio::test(flavor = "current_thread")]
+async fn section_review_and_revision_do_not_wait_for_unrelated_work() {
+    struct IndependentEffects {
+        input: Input,
+        pair: [(&'static str, Operation); 2],
+        both: tokio::sync::Barrier,
+    }
+    impl Domain for IndependentEffects {
+        type Call = Call;
+        async fn request(&self, agent: &'static str) -> Result<Call, String> {
+            self.input.request(agent).await
+        }
+        async fn execute(&self, agent: &'static str, call: Call) -> Result<Value, String> {
+            if self.pair.contains(&(agent, call.operation)) {
+                self.both.wait().await;
+            }
+            self.input.execute(agent, call).await
+        }
+    }
+    for (revisions, pair) in [
+        (
+            0,
+            [
+                ("EDITOR", Operation::ReviewA),
+                ("RESEARCHER_B", Operation::Write),
+            ],
+        ),
+        (
+            1,
+            [
+                ("RESEARCHER_A", Operation::Revise),
+                ("RESEARCHER_B", Operation::References),
+            ],
+        ),
+    ] {
+        let domain = IndependentEffects {
+            input: Input::new(revisions, 0),
+            pair,
+            both: tokio::sync::Barrier::new(2),
+        };
+        tokio::time::timeout(std::time::Duration::from_secs(3), report::run_3e(&domain))
+            .await
+            .unwrap_or_else(|_| panic!("independent effects serialized: {pair:?}"))
+            .unwrap();
+        assert!(domain.input.calls.borrow().values().all(VecDeque::is_empty));
+    }
+}
+
 #[tokio::test(flavor = "current_thread")]
 async fn early_combine_has_no_domain_effect() {
     let input = Input::new(0, 0);

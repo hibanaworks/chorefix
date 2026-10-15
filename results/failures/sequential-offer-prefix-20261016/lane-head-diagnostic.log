@@ -1,0 +1,80 @@
+   Compiling hibana v0.9.9 (/private/var/folders/2h/h7yy0vc92tz6sx58nlwt92kr0000gn/T/hibana-parallel-offer.8GMB3N)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.57s
+     Running tests/nested_resolver_reentry.rs (target/debug/deps/nested_resolver_reentry-6b7fa8e516e2b272)
+
+running 1 test
+DIAG admission idx=0 dependency=None reentry=None
+DIAG admission idx=0 lane_head=true
+DIAG admission idx=0 dependency=None reentry=None
+DIAG admission idx=0 lane_head=true
+DIAG admission idx=0 dependency=None reentry=None
+DIAG admission idx=0 lane_head=true
+DIAG admission idx=1 dependency=Some(Satisfied) reentry=None
+DIAG admission idx=1 lane_head=true
+DIAG admission idx=1 dependency=Some(Satisfied) reentry=None
+DIAG admission idx=1 lane_head=true
+DIAG admission idx=1 dependency=Some(Satisfied) reentry=None
+DIAG admission idx=1 lane_head=true
+DIAG admission idx=2 dependency=Some(Satisfied) reentry=None
+DIAG admission idx=2 lane_head=true
+DIAG admission idx=2 dependency=Some(Satisfied) reentry=None
+DIAG admission idx=2 lane_head=true
+DIAG admission idx=2 dependency=Some(Satisfied) reentry=None
+DIAG admission idx=2 lane_head=true
+DIAG admission idx=3 dependency=Some(Satisfied) reentry=None
+DIAG admission idx=3 lane_head=true
+DIAG admission idx=3 dependency=Some(Satisfied) reentry=None
+DIAG admission idx=3 lane_head=true
+DIAG admission idx=3 dependency=Some(Satisfied) reentry=None
+DIAG admission idx=3 lane_head=true
+DIAG admission idx=2 dependency=None reentry=None
+DIAG admission idx=2 lane_head=true
+DIAG admission idx=2 dependency=None reentry=None
+DIAG admission idx=2 lane_head=true
+DIAG admission idx=2 dependency=None reentry=None
+DIAG admission idx=2 lane_head=true
+DIAG admission idx=7 dependency=Some(Satisfied) reentry=None
+DIAG admission idx=7 lane_head=true
+DIAG admission idx=7 dependency=Some(Satisfied) reentry=None
+DIAG admission idx=7 lane_head=true
+DIAG admission idx=7 dependency=Some(Satisfied) reentry=None
+DIAG admission idx=7 lane_head=true
+DIAG admission idx=8 dependency=Some(Satisfied) reentry=None
+DIAG admission idx=8 lane_head=true
+DIAG admission idx=8 dependency=Some(Satisfied) reentry=None
+DIAG admission idx=8 lane_head=true
+DIAG admission idx=8 dependency=Some(Satisfied) reentry=None
+DIAG admission idx=8 lane_head=true
+DIAG admission idx=9 dependency=Some(Satisfied) reentry=None
+DIAG admission idx=9 lane_head=true
+DIAG admission idx=9 dependency=Some(Satisfied) reentry=None
+DIAG admission idx=9 lane_head=true
+DIAG admission idx=9 dependency=Some(Satisfied) reentry=None
+DIAG admission idx=9 lane_head=true
+DIAG admission idx=0 dependency=None reentry=None
+DIAG admission idx=0 lane_head=true
+DIAG admission idx=0 dependency=None reentry=None
+DIAG admission idx=0 lane_head=true
+DIAG admission idx=0 dependency=None reentry=None
+DIAG admission idx=0 lane_head=true
+DIAG offer stage=0 cursor=1
+DIAG offer stage=1 cursor=1
+DIAG offer stage=2 cursor=1
+DIAG offer stage=1 cursor=1
+DIAG admission idx=3 dependency=Some(Blocked) reentry=None
+DIAG admission idx=3 lane_head=false
+DIAG observed idx=3 lane=0 admission=Some(Invariant)
+
+thread 'sequential_parallel_prefix::next_resolver_preserves_a_parallel_rolled_prefix' (55946672) panicked at tests/sequential_resolver_parallel_prefix.rs:90:42:
+called `Result::unwrap()` on an `Err` value: EndpointError { operation: "offer", kind: PhaseInvariant }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test sequential_parallel_prefix::next_resolver_preserves_a_parallel_rolled_prefix ... FAILED
+
+failures:
+
+failures:
+    sequential_parallel_prefix::next_resolver_preserves_a_parallel_rolled_prefix
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `--test nested_resolver_reentry`

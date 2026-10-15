@@ -9,37 +9,43 @@
   独立した要求・model call・許可後のeffectをTokioで実際に並行実行する。
   両取得要求をgrant待ちより先に送り、両grantが必要なeffectの直前で待ち合わせる。
   baselineは変更せず、逐次取得からの手順変更を比較条件に明記する。
-- native 3Eの記録では、独立したrequest同士が約33.8ms、Aの参考文献更新とBの本文執筆が
-  約30.3ms重なった。25msの制御したasync fixtureであり、実モデルの性能測定ではない。
-  source、全frame、intervalは`results/validation/research-report-native-20261016/`。
-- 本体ef65f0956104441a7bcf2dc4eabbc62930e4c30dを選択した。
-  passive offerが未消費のprefixより先の受信をpreviewする不具合を修正した。
-  previewは候補の投影済みpathで依存を検査し、visitの新旧はcommit済み履歴で検査する。
-  正確に一致する将来のframeは同じportへ戻し、同じpollでの再取得だけを局所maskで防ぐ。
-  arm・進行・永続状態は追加しない。遅れて到着したframeにも同じ検査を使う。
-  3Eの回避用DocumentReviewReady ACKを2つ削除した。BeginDocumentReview通知は保つ。
-  別helper、permission flag、二重進行管理、独立flowの直列化は加えていない。
-- ef65のworkspace 888件（12ignored）、focused 11件、strict Clippy、no_std/thumb、
-  strict Miri 5件、Kani 10harness、全Lean監査（static709/generated506）・関連Z3が成功。
-  新境界はLean13命題/Z3 12UNSAT+過去不具合の1SAT。測定対象のflash94,832B、
-  SRAM5,306B、最大stack2,639B。Endpoint/futureのlayoutは不変。
-  本体CIはMiri3件をまとめた180秒枠で打切りになった。同じ3件は手元で320.86秒で成功。
-  e500c7e3はその試験群だけ既存480秒枠に揃えるCI変更で、runtime/test挙動は不変。
-- ef65のGit pinで実binaryを再buildし、以前失敗した実WASI 6Eの4条件だけを再試験して
-  4/4成功（14.69秒）。3EはRoot統合6件、独立probeの6+2件、Root strict Clippyが成功。
-  Root統合25ms async fixtureでは要求同士が約36.6ms、独立effectが約28.0ms重なった。
-  これは実モデルの測定ではない。全frameとinterval、source差分、実WASI4条件のログは
-  `results/validation/offer-prefix-dependency-20261016/`。
-- 旧core64d4f496を選んだQUIC4a72323のCI38801818511は44/44成功をsummaryで確認済み。
-  新候補のQUIC検証には流用しない。QUIC2af1e69/corec03の44cell CI38807924806は
-  43成功・neqo/rebind-addr/clientだけ失敗、未実行0。復号ログはclient idle-expired、
-  serverはpath probing失敗後NoAvailablePath。原因の所属は未確定。
-  同じsourceの失敗1cellだけを38812020642で再試験中。
-  ef65を選ぶQUIC c440479のlocal default593/hq598、driver strict Clippy、pin4、
-  clean source audit、paired exportは成功。driverのpre-connection UDP試験3件は
-  macOSで新旧coreとも失敗し、28/31成功。matrix/diagnosticのfilesystem試験もmacOSでは
-  通らないため、Linux実runtime CI38813324006で確認する。
-  新sourceの全44cellは38813319581へ投入済み。復号鍵と公開certificateは照合済み。
+- 本体594cac066d8b99b5caf852d061b8ee7121dd8698を選択した。
+  今回のoffer不具合はruntimeの判定ミス。projectionには必要な依存が記録されていたが、
+  依存未完了の将来frameに現在のlane headを要求し、同じwire keyを再利用する順序付きの
+  将来受信まで曖昧な有効候補と誤判定した。identity・競合・visit freshnessを検査した後、
+  prefix待ちなら同じportへ保持する。有効化には依存完了とlane headの両方を要求する。
+  保持ではeventやarmを選択せず進行しない。API・Endpoint/future field・wireは不変。
+  exact e500とhead順だけを直した部分修正の双方で、同じ強化再現試験が失敗する記録を保つ。
+- 594のworkspace 889件（失敗0、12ignored）、focused11件、strict Clippy、no_std/thumb、
+  strict Miri7件、Kani19harness、全Lean監査（static709/generated506）・関連Z3が成功。
+  更新境界はLean18命題、Z3 17UNSATと過去不具合2SAT。測定対象のflash94,908B、
+  SRAM5,306B、最大stack2,639B。検査対象のEndpoint/branch/futureはhost16Bで不変。
+  新しい記録は`results/validation/sequential-offer-prefix-20261016/`と対応するfailure。
+  本体CI38815889984/38815881940は進行中。e500のCI変更はMiri群だけ既存480秒枠へ
+  揃えたもので、runtime/test意味論は変えていない。594のMiri4件は344.38秒で成功。
+- native 3EではEditorの独立した初回requestを先に開始し、Aの初回reviewとB本文執筆、
+  A再考とB参考文献更新も並行にした。Bの次の受信peerが変わる箇所をReadyForFeedbackで
+  globalに明示した。B reviewとcombineはA受理枝の内側に置く。rollは繰り返し可能性であり、
+  暗黙の「右枝は再試行、左枝は終了」ではない。回避用DocumentReviewReady ACKは除去済み。
+  literal Endpoint操作のまま、別helper・進行flag・二重管理を加えていない。
+  exact Git pinの独立probeでnative7件＋prefix2件とstrict Clippyが成功。
+  3つの独立requestと2つのeffectの重なりを全frame/intervalに保存する。
+  25ms制御fixtureと明示したbarrier試験であり、実モデルの性能・重なりの証拠ではない。
+  Root統合、実binaryを再buildしたWASIの以前の失敗4条件は検証中。旧ef65の成功を流用しない。
+- QUIC9437c9a04587ccdeb9802e4fae3f33c8494db9a1を検証ブランチへpushし、6consumerを594へ
+  統一した。clean source/dependency auditと645fileのpaired exportは成功。
+  local default/hq/driver Clippy/pin試験は進行中。最初のbuildはディスク不足で停止したため、
+  失敗ログを残し、検証済みの一時build cacheを整理して同じ検査を再実行している。
+  全44cell CI38816922328とLinux runtime CI38816943242へ新sourceを投入した。
+  公開certificateと保持済み診断鍵のcertificateは照合済み。合格とはまだ扱わない。
+- 旧QUIC4a72323/core64d4は44/44成功。2af1e69/corec03は43/44でrebind-addr/clientだけ
+  失敗したが、同じsourceのその1cellだけの再試験38812020642は成功。別attemptとして保つ。
+  c440479/coreef65の全44cell CI38813319581は42成功・2失敗・未実行0で終了した。
+  失敗はneqo/rebind-addr/clientとquiche/handshakecorruption/server。handshakelossは両方向成功。
+  復号済みの選別したtextとverdictは`results/failures/quic-interop-coreef65-20261016/`。
+  原因の所属は未確定。旧sourceの成功・失敗を594の資格確認へ流用しない。
+  macOS filesystem試験はcanonical TMPDIRで失敗24件だけ再試験し23件成功。残る1件は
+  Linux /proc/self/fd を使う暗号化経路。旧source Linux CI38813324006は別途進行中。
 - 次は1Hのglobal自身が競合loanを拒否する形と、3Eの直接WASI/ChoreoFS接続を進める。
   1Hはnativeが通るだけでは受理しない。全48課題の独立task fidelity監査も未完了。
 - 完全受理0、採点済み比較0/2592。論文推敲を先行させない。

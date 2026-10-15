@@ -1,0 +1,17 @@
+......F.................
+======================================================================
+FAIL: test_failed_capture_is_authenticated_encrypted_and_exactly_recoverable (test_ci_diagnostics.Diagnostics.test_failed_capture_is_authenticated_encrypted_and_exactly_recoverable)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/private/tmp/hibana-quic-parallel-offer.8d18Xw/repo/tests/test_ci_diagnostics.py", line 346, in test_failed_capture_is_authenticated_encrypted_and_exactly_recoverable
+    self.assertEqual(result['state'], 'encrypted')
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'encryption-failed' != 'encrypted'
+- encryption-failed
++ encrypted
+
+
+----------------------------------------------------------------------
+Ran 24 tests in 1.858s
+
+FAILED (failures=1)

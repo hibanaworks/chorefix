@@ -1,0 +1,19 @@
+   Compiling hibana v0.9.9 (/private/tmp/hibana-sequential-prefix-before.ByP0Zg)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.64s
+     Running tests/nested_resolver_reentry.rs (target/debug/deps/nested_resolver_reentry-2a7f9c89d75c1695)
+
+running 1 test
+
+thread 'sequential_parallel_prefix::next_resolver_preserves_a_parallel_rolled_prefix' (55987478) panicked at tests/sequential_resolver_parallel_prefix.rs:105:25:
+assertion failed: matches!(offered.as_mut().poll(cx), Poll::Pending)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test sequential_parallel_prefix::next_resolver_preserves_a_parallel_rolled_prefix ... FAILED
+
+failures:
+
+failures:
+    sequential_parallel_prefix::next_resolver_preserves_a_parallel_rolled_prefix
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `--test nested_resolver_reentry`
