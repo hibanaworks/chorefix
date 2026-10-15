@@ -153,6 +153,56 @@ projection establish different properties; neither tool validates arbitrary
 agent output quality. A passing preflight is not a proof of distributed deadlock
 freedom or an experimental advantage.
 
+## Shell experiment
+
+Matching a task means preserving its goal, participants, shared resources,
+required dependencies and failure conditions. It does not require giving the
+model a fixed command sequence. The scored TraceFix comparison above retains
+the original simulator and tool interfaces.
+
+A separate shell experiment will test the model's freedom to do local work.
+The proposed boundary is a Wasm guest running under `hibana-wasip1-runtime`,
+with ChoreoFS objects answered by Hibana localside roles. The model chooses its
+commands, scripts and local work. Global protocols govern shared-object effects,
+resource handoffs, submission, review and publication. Every path to a protected
+effect must cross that boundary; a pathname, a shell command or an approval file
+cannot grant protocol authority. Refusal, waiting and retry paths must also be
+explicit in the protocol.
+
+Compare the same shell, runtime, object rights, task inputs, model instructions
+and budgets with and without task-specific Hibana coordination. Both conditions
+retain the same Wasm isolation and ABI checks. Only the task coordination rules
+change. A TraceFix adapter may be added only when it preserves that same command
+interface and decision scope. The shell experiment is separate from the frozen
+2,592-run matrix because its tools and environment differ from the original
+benchmark.
+
+Measure task completion, artifact quality, unauthorized committed effects,
+independent work, elapsed time and inclusive token use. Record refusals,
+crashes, stalls and incomplete work as well. Rejecting every effect is not a
+successful task. A valid protocol does not establish that an agent made a good
+review or produced a correct artifact.
+
+The current WASI shell is a bounded proof of concept, not a general-purpose
+shell: its existing commands include `ls`, `cat`, `echo` and `apply`. The existing
+demos show that ordinary guest filesystem calls follow the chosen choreography.
+The multi-agent shell experiment and its full command workload are not yet
+implemented or measured.
+
+The LLM terminal reference is `hibana-pico/examples/uno-q-heterogeneous`.
+Its Wasm guest writes the terminal transcript through `/llm/stdout`, reads the
+model's next command through `/llm/stdin`, and performs object writes through
+WASI. The global choreography combines independent context inputs with `par`
+and governs the effectful turns. For this experiment, the corresponding objects
+will represent private work, shared artifacts, review and publication. Task
+coordination belongs in `global.rs`; each localside must show its admitted
+operations directly.
+
+The shell tests must accept different legal command sequences for the same
+goal, reject unauthorized shared effects before they occur, and keep unrelated
+work independent. These tests establish that the boundary enforces task
+requirements without turning one demonstration's command recipe into the task.
+
 ## Sources
 
 - [TraceFix paper](https://arxiv.org/abs/2605.07935)
