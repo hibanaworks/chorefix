@@ -1,0 +1,73 @@
+{
+  "study": "ChoreoFix",
+  "kind": "shell_integration_preflight",
+  "scored_benchmark": false,
+  "model": "gpt-6-luna",
+  "reasoning_effort": "xhigh",
+  "hibana_version": "0.9.9",
+  "wasi_runtime_revision": "7905fa07bfd66db69ea7fb74883b7ca1e2b572bd",
+  "wasi_ci": {
+    "conclusion": "success",
+    "url": "https://github.com/hibanaworks/hibana-wasip1-runtime/actions/runs/38668826094"
+  },
+  "runs": [
+    {
+      "task": "9M",
+      "audit_passed": true,
+      "participants": 5,
+      "domain_calls": 10,
+      "scenario_depth": 2,
+      "maximum_concurrent_resource_users": 2,
+      "total_tokens": 309314,
+      "result_sha256": "d4b10be35e99c89a91709a19ca8fc1051daff5cf55c752fa816a42120c7ad51d",
+      "elapsed_seconds": 24.324213000014424,
+      "simulator_complete": true,
+      "simulator_violations": 0,
+      "model_tool_calls": 15,
+      "shell_command_counts": {
+        "help": 5,
+        "call": 10
+      },
+      "source_manifest_sha256": "6902ba7d7f455fe0600212e0729231fa03f1de219f311225307b55c8bef5aad1",
+      "runtime_binary_sha256": "796605401d40975a49e08e28133b0c4ae3372b41c8448684ddbd6c08275d99fe",
+      "wasi_runtime_sha256": "e93c78d05197800a1e39ce9339c89cb9431971009e41bd1ad556289c56a738a4",
+      "guest_sha256": "9b1acb936be7dbac08c482d11a8fc9bf946ee23d148f69e8cd5ef7af38b1dd34",
+      "evidence_directory": "output/shell-preflight/wasi-choreofs-001/9M"
+    },
+    {
+      "task": "1H",
+      "audit_passed": true,
+      "participants": 7,
+      "domain_calls": 70,
+      "scenario_depth": 2,
+      "maximum_concurrent_resource_users": 3,
+      "total_tokens": 1467427,
+      "result_sha256": "82942456825b017c373c3f30a257a91d77c612e847880f1f7ce7f8043c2ec722",
+      "elapsed_seconds": 55.60360458306968,
+      "simulator_complete": true,
+      "simulator_violations": 0,
+      "model_tool_calls": 84,
+      "shell_command_counts": {
+        "help": 7,
+        "call": 70,
+        "ls": 3,
+        "cat": 2,
+        "echo": 2
+      },
+      "source_manifest_sha256": "6902ba7d7f455fe0600212e0729231fa03f1de219f311225307b55c8bef5aad1",
+      "runtime_binary_sha256": "bb7f399ce2661ebec750cf1021408616706f94a5febdb23397e32d5ca9acd852",
+      "wasi_runtime_sha256": "e93c78d05197800a1e39ce9339c89cb9431971009e41bd1ad556289c56a738a4",
+      "guest_sha256": "9b1acb936be7dbac08c482d11a8fc9bf946ee23d148f69e8cd5ef7af38b1dd34",
+      "evidence_directory": "output/shell-preflight/wasi-choreofs-001/1H"
+    }
+  ],
+  "limitations": [
+    "Two unscored episodes, not the 2160-run comparison.",
+    "Six tasks implemented, no accepted full benchmark ports.",
+    "The bounded guest shell does not execute arbitrary POSIX programs.",
+    "All file operations use WASI and ChoreoFS. The immutable shell command implementation is trusted.",
+    "The original simulator scores domain operations, not arbitrary generated-code quality.",
+    "Multiple projected sessions are composed by trusted localside code. There is no claimed whole-system deadlock theorem.",
+    "No comparison of success rate, time, tokens or maintenance burden has completed."
+  ]
+}

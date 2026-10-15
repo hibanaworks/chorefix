@@ -12,9 +12,9 @@ from inventory import ROOT
 def matrix(config: dict) -> list[dict]:
     if config["model"] != "gpt-6-luna" or config["reasoning_effort"] != "xhigh":
         raise ValueError("participant model or reasoning effort changed")
-    conditions = {"topology_monitored", "mediator_enforced", "prompt_only", "chat_only", "latest_tracefix", "hibana"}
-    if len(config["conditions"]) != 6 or set(config["conditions"]) != conditions:
-        raise ValueError("the experiment requires the four paper conditions, latest TraceFix, and Hibana")
+    conditions = {"topology_monitored", "mediator_enforced", "prompt_only", "chat_only", "hibana"}
+    if len(config["conditions"]) != 5 or set(config["conditions"]) != conditions:
+        raise ValueError("the experiment requires the four original paper conditions and Hibana")
     if config["scenario_depths"] != [0, 1, 2] or config["repetitions"] != 3:
         raise ValueError("fault conditions or repetitions changed")
     tasks = [f"{number}{level}" for number in range(1, 17) for level in "EMH"]
@@ -28,7 +28,7 @@ def matrix(config: dict) -> list[dict]:
             "seed": repetition,
             "condition": condition,
         })
-    if len(runs) != config["expected_runs"] or len(runs) != 2592:
+    if len(runs) != config["expected_runs"] or len(runs) != 2160:
         raise ValueError("matrix size does not match the selected experiment")
     if len({r["run_id"] for r in runs}) != len(runs):
         raise ValueError("duplicate run identity")

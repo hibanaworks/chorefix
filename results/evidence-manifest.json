@@ -1,0 +1,15 @@
+{
+  "archive": "output/choreofix-evidence-wasi-choreofs-001.tar.gz",
+  "sha256": "24dec5dd8388447bf2e5e42484aac0adb9c04abf509151393ecedd70898f216b",
+  "bytes": 10209906,
+  "scored_benchmark": false,
+  "contains": [
+    "immutable task and WASI executables",
+    "actual Wasm guest",
+    "source snapshots and hashes",
+    "raw model, shell and task RPC events",
+    "simulator events and independent audits",
+    "runtime qualification logs and exported proof evidence"
+  ],
+  "released": false
+}

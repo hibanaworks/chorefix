@@ -18,21 +18,21 @@ runtime state machine, while preserving task behavior and independent work?
 - Repetitions: three per task and condition.
 - Same domain tool schemas, simulator, checklist, and failure schedule in all arms.
 
-The selected conditions are Topology-monitored, Mediator-enforced, Prompt-only,
-Chat-only, latest TraceFix, and Hibana. Each condition has 432 runs. The full
-matrix has 2,592 runs: 48 tasks × 3 fault conditions × 3 repetitions × 6 conditions.
-The four paper runtimes are pinned to their first public release,
-`87b01a2c0ae53c5045c9ce3d43cd0235b1831275`. The latest TraceFix runtime is pinned
-to `36b4bd108fcd74f7efb17613aebbe3fdf55499a9`, independently checked against
-remote main before starting the implementation. Its order checks and corrective
-guidance remain enabled. The five baselines share the same domain inputs and
-participant model. They retain their own coordination implementations.
+The selected conditions are the original paper's Topology-monitored,
+Mediator-enforced, Prompt-only, Chat-only, and Hibana. Each condition has 432
+runs. The full matrix has 2,160 runs: 48 tasks × 3 fault conditions × 3
+repetitions × 5 conditions. The four paper runtimes stay at their first public
+release, `87b01a2c0ae53c5045c9ce3d43cd0235b1831275`, without changes to their
+coordination logic. The latest TraceFix runtime is outside this comparison.
+The task descriptions and tool metadata are byte-identical between that release
+and the recorded benchmark revision. The four baselines share the same domain
+inputs and participant model. They retain their own coordination implementations.
 Model transport, prompts, timeout, and tool-call limits must be fixed before the
 first scored run. Access smoke checks are not benchmark results.
 
 The common episode limit is 600 seconds and 200 tool calls per participant.
 These limits and the single Luna model differ from the paper's runs. This is
-a comparison of the six implementations under one recorded configuration,
+a comparison of the five implementations under one recorded configuration,
 not a numerical reproduction of the paper's reported results.
 
 The public repository contains task inputs for all 48 cases but translated

@@ -1,0 +1,40 @@
+name: quality
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  boundary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.14'
+      - name: Install Rust and the guest target
+        run: |
+          rustup toolchain install 1.95.0 --profile minimal --component clippy --component rustfmt
+          rustup target add --toolchain 1.95.0 wasm32-wasip1
+      - name: Restore the recorded upstream sources
+        run: python tools/bootstrap_upstream.py
+      - name: Install the locked Python environment
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install -r requirements.lock
+      - name: Check projected task implementations
+        run: |
+          cargo +1.95.0 fmt --check
+          cargo +1.95.0 fmt --manifest-path guests/shell/Cargo.toml --check
+          cargo +1.95.0 test --locked
+          cargo +1.95.0 clippy --locked --all-targets -- -D warnings
+          cargo +1.95.0 clippy --locked --manifest-path guests/shell/Cargo.toml --target wasm32-wasip1 --release -- -D warnings
+      - name: Check the actual WASI and task effect boundary
+        run: |
+          bash tools/build_shell.sh
+          PYTHONPATH=. .venv/bin/pytest -q tests
+          .venv/bin/python tools/inventory.py --check
+          .venv/bin/python tools/runtime_inventory.py --check
+          .venv/bin/python tools/matrix.py
+          git diff --exit-code -- benchmark/matrix.jsonl

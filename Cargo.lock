@@ -19,8 +19,17 @@ name = "hibana-tracefix"
 version = "0.1.0"
 dependencies = [
  "hibana",
+ "hibana-wasip1-runtime",
  "serde_json",
  "tokio",
+]
+
+[[package]]
+name = "hibana-wasip1-runtime"
+version = "0.1.0"
+source = "git+https://github.com/hibanaworks/hibana-wasip1-runtime?rev=7905fa07bfd66db69ea7fb74883b7ca1e2b572bd#7905fa07bfd66db69ea7fb74883b7ca1e2b572bd"
+dependencies = [
+ "hibana",
 ]
 
 [[package]]

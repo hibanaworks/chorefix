@@ -83,10 +83,9 @@
     "mediator_enforced",
     "prompt_only",
     "chat_only",
-    "latest_tracefix",
     "hibana"
   ],
-  "selected_runs": 2592,
+  "selected_runs": 2160,
   "mechanism_protocols": [
     "9E",
     "9M",
@@ -415,5 +414,46 @@
       "tools/run_preflight.py": "6790b884f78a801b1749368271d15b0a9ff4124a62865bb6027ae2f422527b18"
     }
   },
-  "shared_runtime_preflight_evidence": "output/integration-preflight/endpoint-one-kit-001/1H"
+  "shared_runtime_preflight_evidence": "output/integration-preflight/endpoint-one-kit-001/1H",
+  "shell_preflights": [
+    {
+      "task": "9M",
+      "audit_passed": true,
+      "participants": 5,
+      "domain_calls": 10,
+      "scenario_depth": 2,
+      "maximum_concurrent_resource_users": 2,
+      "total_tokens": 309314,
+      "result_sha256": "d4b10be35e99c89a91709a19ca8fc1051daff5cf55c752fa816a42120c7ad51d",
+      "elapsed_seconds": 24.324213000014424,
+      "simulator_complete": true,
+      "simulator_violations": 0,
+      "model_tool_calls": 15,
+      "source_manifest_sha256": "6902ba7d7f455fe0600212e0729231fa03f1de219f311225307b55c8bef5aad1",
+      "runtime_binary_sha256": "796605401d40975a49e08e28133b0c4ae3372b41c8448684ddbd6c08275d99fe",
+      "wasi_runtime_sha256": "e93c78d05197800a1e39ce9339c89cb9431971009e41bd1ad556289c56a738a4",
+      "guest_sha256": "9b1acb936be7dbac08c482d11a8fc9bf946ee23d148f69e8cd5ef7af38b1dd34",
+      "evidence_directory": "output/shell-preflight/wasi-choreofs-001/9M"
+    },
+    {
+      "task": "1H",
+      "audit_passed": true,
+      "participants": 7,
+      "domain_calls": 70,
+      "scenario_depth": 2,
+      "maximum_concurrent_resource_users": 3,
+      "total_tokens": 1467427,
+      "result_sha256": "82942456825b017c373c3f30a257a91d77c612e847880f1f7ce7f8043c2ec722",
+      "elapsed_seconds": 55.60360458306968,
+      "simulator_complete": true,
+      "simulator_violations": 0,
+      "model_tool_calls": 84,
+      "source_manifest_sha256": "6902ba7d7f455fe0600212e0729231fa03f1de219f311225307b55c8bef5aad1",
+      "runtime_binary_sha256": "bb7f399ce2661ebec750cf1021408616706f94a5febdb23397e32d5ca9acd852",
+      "wasi_runtime_sha256": "e93c78d05197800a1e39ce9339c89cb9431971009e41bd1ad556289c56a738a4",
+      "guest_sha256": "9b1acb936be7dbac08c482d11a8fc9bf946ee23d148f69e8cd5ef7af38b1dd34",
+      "evidence_directory": "output/shell-preflight/wasi-choreofs-001/1H"
+    }
+  ],
+  "wasi_runtime_revision": "7905fa07bfd66db69ea7fb74883b7ca1e2b572bd"
 }

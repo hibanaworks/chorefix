@@ -1,4 +1,4 @@
-# Hibana TraceFix experiment
+# ChoreoFix
 
 This repository tests whether Hibana can enforce the communication procedures
 in TraceFix with multiple GPT-6 Luna agents using xhigh reasoning.
@@ -12,10 +12,19 @@ Hibana owns coordination progress. Participant code does not keep another state
 machine or flags to decide which communication step is allowed. The external
 simulator owns the domain environment and checks task outcomes.
 
-The upstream implementation is pinned to
-`36b4bd108fcd74f7efb17613aebbe3fdf55499a9`. Its current runtime checks step order,
-which differs from the topology-only monitor described in the paper. Results
-will state the baseline revision explicitly.
+The original four TraceFix runtime conditions are pinned to the first public
+release `87b01a2c0ae53c5045c9ce3d43cd0235b1831275`. Their coordination logic is
+unchanged. The recorded benchmark inputs are at
+`36b4bd108fcd74f7efb17613aebbe3fdf55499a9`; their descriptions and tool metadata
+are byte-identical to the paper release. The latest TraceFix runtime is outside
+this comparison.
+
+## Research draft
+
+**ChoreoFix: Enforcing Multi-Agent Coordination from Global Protocols** uses
+Fix to mean fixing the permitted coordination relation. It does not claim
+automatic protocol repair. [The draft](paper/choreofix.tex) states the mechanism,
+trust boundary, measured integration results, and unfinished evaluation.
 
 ## Status
 
@@ -24,15 +33,15 @@ Three concurrent GPT-6 Luna access checks completed with xhigh reasoning and
 successful tool calls. These checks are recorded in
 [the setup report](results/setup-report.json), separately from benchmark results.
 
-The selected comparison includes the paper's four runtime conditions, the latest
-TraceFix runtime, and Hibana. The full matrix contains 2,592 runs using one
+The selected comparison includes the paper's four runtime conditions and
+Hibana. The full matrix contains 2,160 runs using one
 participant model. No scored benchmark runs have started.
 
 The Rust ports for 9E, 9M, and 9H use all three, five, and seven philosophers and
 their forks. Fifteen real Luna xhigh participants completed an integration
 preflight against the original simulator. Every participant called `think` and
 `eat`, and the simulator recorded no resource conflicts. Raw events were checked
-separately. These are setup results, not the six-condition benchmark results.
+separately. These are setup results, not the five-condition benchmark results.
 
 ## Follow the protocol
 
@@ -80,7 +89,7 @@ on the heap explicitly. This does not add an allocation fallback to Hibana.
 
 Six tasks have Rust implementations. The full 48-task port and independent
 checklist review remain unfinished. No implementation is yet accepted for the
-scored six-condition comparison.
+scored five-condition comparison.
 
 Model access and byte queues belong in `imp/`. Those queues carry requests and
 responses. They do not decide which protocol step is allowed. The external
@@ -160,34 +169,50 @@ required dependencies and failure conditions. It does not require giving the
 model a fixed command sequence. The scored TraceFix comparison above retains
 the original simulator and tool interfaces.
 
-A separate shell experiment will test the model's freedom to do local work.
-The proposed boundary is a Wasm guest running under `hibana-wasip1-runtime`,
-with ChoreoFS objects answered by Hibana localside roles. The model chooses its
-commands, scripts and local work. Global protocols govern shared-object effects,
-resource handoffs, submission, review and publication. Every path to a protected
-effect must cross that boundary; a pathname, a shell command or an approval file
-cannot grant protocol authority. Refusal, waiting and retry paths must also be
-explicit in the protocol.
+A separate shell integration uses a real Wasm guest under
+`hibana-wasip1-runtime`, pinned to `7905fa07bfd66db69ea7fb74883b7ca1e2b572bd`.
+Both the experiment and runtime use published Hibana `=0.9.9`. The local updated
+runtime source is saved in that commit; there is no mutable sibling core patch.
 
-Compare the same shell, runtime, object rights, task inputs, model instructions
-and budgets with and without task-specific Hibana coordination. Both conditions
-retain the same Wasm isolation and ABI checks. Only the task coordination rules
-change. A TraceFix adapter may be added only when it preserves that same command
-interface and decision scope. The shell experiment is separate from the frozen
-2,592-run matrix because its tools and environment differ from the original
-benchmark.
+Every file operation goes through WASI and ChoreoFS. This includes terminal I/O,
+work files, scripts, and the tool request/reply objects. The guest has no second
+filesystem and no host filesystem access. The answering role owns file contents
+and offsets. ChoreoFS provides object and fd facts. Neither records task progress.
+
+Read [the WASI global protocol](src/shell/global.rs) and its
+[guest](src/shell/localside/guest.rs) and
+[answering role](src/shell/localside/environment.rs). They govern ABI request and
+reply order. The task-specific globals and localsides above still authorize the
+actual domain work. A pathname, approval file or WASI write cannot replace that
+authorization. The test sends an early `eat` through the real guest and ChoreoFS;
+the task endpoint rejects it before an execute request reaches the simulator.
+
+The shell supports `help`, `ls`, `cat`, `echo`, `apply`, `script`, and `call`.
+Eight bounded work objects hold notes or scripts. A `call` writes its original
+tool arguments to `/tools/call` and reads the actual result from `/tools/reply`.
+The shell does not run arbitrary POSIX binaries or provide a Rust compiler.
+It demonstrates choice among command sequences within this recorded profile,
+not unrestricted program execution. No fixed command script is given to the
+model. The original task description and input data define its work.
+
+This integration is separate from the 2,160-run comparison. TraceFix keeps its
+original interfaces. Completion rates from these different interfaces cannot
+isolate the effect of coordination. A future causal shell comparison would
+require the same guest and object rights in both conditions.
 
 Measure task completion, artifact quality, unauthorized committed effects,
 independent work, elapsed time and inclusive token use. Record refusals,
 crashes, stalls and incomplete work as well. Rejecting every effect is not a
-successful task. A valid protocol does not establish that an agent made a good
-review or produced a correct artifact.
+successful task. The original simulator checks task effects; it does not assess
+arbitrary source-code quality. The shell adds no such quality guarantee.
 
-The current WASI shell is a bounded proof of concept, not a general-purpose
-shell: its existing commands include `ls`, `cat`, `echo` and `apply`. The existing
-demos show that ordinary guest filesystem calls follow the chosen choreography.
-The multi-agent shell experiment and its full command workload are not yet
-implemented or measured.
+Build and test the actual boundary:
+
+```sh
+bash tools/build_shell.sh
+PYTHONPATH=. .venv/bin/pytest -q tests/test_shell.py
+.venv/bin/python tools/run_shell_preflight.py --tasks 1H 9M --scenario 2 --run-id wasi-choreofs-001
+```
 
 The LLM terminal reference is `hibana-pico/examples/uno-q-heterogeneous`.
 Its Wasm guest writes the terminal transcript through `/llm/stdout`, reads the
@@ -202,6 +227,25 @@ The shell tests must accept different legal command sequences for the same
 goal, reject unauthorized shared effects before they occur, and keep unrelated
 work independent. These tests establish that the boundary enforces task
 requirements without turning one demonstration's command recipe into the task.
+
+## Measured shell integration
+
+[The independently audited results](results/shell-preflight.json) cover two
+unscored episodes with GPT-6 Luna xhigh. Task 9M completed with five participants,
+10 domain calls and at most two concurrent resource users. Task 1H completed
+with seven participants, 70 domain calls and at most three concurrent commits.
+Each developer's tests failed twice before succeeding. Both simulators recorded
+zero resource violations and all task and guest runtimes exited successfully.
+
+The recorded elapsed times were 24.32 and 55.60 seconds. Inclusive token use was
+309,314 and 1,467,427. These are integration measurements with a different tool
+interface, not estimates of a comparative speed, cost or success advantage.
+Some 1H participants chose listings, reads and notes. None chose a script in
+these model episodes. Real script execution is covered by the boundary tests.
+
+The WASI dependency's [quality workflow passed](https://github.com/hibanaworks/hibana-wasip1-runtime/actions/runs/38668826094).
+The experiment CI checks the actual guest, ChoreoFS and task boundary without
+issuing model calls.
 
 ## Sources
 
