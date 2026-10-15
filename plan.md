@@ -401,3 +401,11 @@ WASIの値とmessageの変換はlocalsideで明示し、進行フラグや第二
    通し、WASI→Endpoint→ChoreoFS→元simulatorの保存イベントを監査する。
 4. その境界を残り48課題へ広げ、原論文4条件と最新版を変更せず比較し、
    全2592実行・独立監査・分析・論文を完了する。未完了を縮めて完了とはしない。
+
+- 16Eの実装とLuna試行資料は25a2290としてmainへpush済み。
+  外部QUICの42件はjob名だけでなく、ダウンロードした各方向verdict、
+  core/TLS pin、source tree hash、simulator、ケース集合、終了コードから再確認した。
+  成果物はinterop-attempt1-artifacts.tar.gz、集計はinterop-attempt1-audit.json。
+- 6Eの失敗した2候補のsource、実carrier events、stderr、試験ログと、
+  成功する縮小例をresults/validation/review-wasi-failures-20261015/へ保存した。
+  これらの候補を本体の修正済み・完全移植済みという証拠にしない。

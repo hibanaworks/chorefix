@@ -1,0 +1,24 @@
+{
+  "status": "unresolved_not_an_accepted_port",
+  "core_commit": "f86451b3fa65508e351fd48db32af5129a0539b6",
+  "readiness_candidate": {
+    "depth0": "passed",
+    "depth1": "failed",
+    "depth2": "failed",
+    "localized_error": "developer WASI role 0 result: EndpointError recv PhaseInvariant"
+  },
+  "explicit_outcome_candidate": {
+    "depth0": "timeout at merge/closure",
+    "depth1": "repo offer PhaseInvariant",
+    "depth2": "repo offer PhaseInvariant"
+  },
+  "passing_reductions": [
+    "two roles with nested rolls",
+    "three roles with parallel prefix and route",
+    "four roles with a forwarded REPO and a validation resolver",
+    "seven roles with two parallel rolled features and one shared REPO"
+  ],
+  "root_cause": "not established; do not call these passing reductions a reproducer",
+  "scored_benchmark": false,
+  "model_calls": 0
+}

@@ -1,5 +1,5 @@
 {
-  "status": "core_fix_pushed_local_gates_passed",
+  "status": "core_ci_passed_external_interop_partial",
   "core_commit": "f86451b3fa65508e351fd48db32af5129a0539b6",
   "base": "f1c4dd4bab211b005687cfec15bb53a1f77500ed",
   "branch": "fix/roll-reentry-projection",
@@ -37,12 +37,12 @@
     "tests_and_doctests_passed": 598,
     "failed": 0
   },
-  "github_ci": "in_progress",
+  "github_ci": "passed",
   "fully_accepted_ports": 0,
   "scored_runs": 0,
   "development_subagents_used": false,
   "files_sha256": {
-    "README.md": "69f5f8e29e3ff3382ace5fcc167c04b3c344144d69456c2054c18cba66269266",
+    "README.md": "4594e68fde9fb6d06b75773b4d7364a598a21c33b1429b8fb743d07cb9a50540",
     "core-fix.patch.gz": "35937727195d646d3952d0eeaaf881eb1b9d0e055a79a2c1be63cb5c8c4378d4",
     "github-pr-status.json": "bd792d414345e9733215c6ef68c9505b1a57a2632f3b3054247aec9f636e307b",
     "roll-projection-final-clippy-001.log.gz": "e0dc3de2a4b33dcfecf31207be631d7b9454685dfc0738e2ef0d08cc0a6c7c08",
@@ -54,7 +54,10 @@
     "roll-projection-final-quic-hq-001.log.gz": "6fac4e53419ea49012b1d0c29cacf065c62ebe8d1204a1890d65c7d909b7ef37",
     "roll-projection-final-quic-tree-001.log.gz": "625a0379ce7b930818763549bc87c1279cf7068035fc429c65fe5bbd80b10f78",
     "roll-projection-final-workspace-002.log.gz": "e5ef93ebe5ae98035076620c4a104d871de17c5d0fb09db068656168dd923ff7",
-    "roll-scope-local-contract-001.log.gz": "223328489a6a69e5d1a39be5a977a5a4959c6ffc82abd38e7853daba6aa91a6b"
+    "roll-scope-local-contract-001.log.gz": "223328489a6a69e5d1a39be5a977a5a4959c6ffc82abd38e7853daba6aa91a6b",
+    "interop-attempt1-audit.json": "3a28145ed11efaa7e332203660a9aa4754d373ba1926149bac0515a761a7db31",
+    "interop-attempt1-artifacts.tar.gz": "f43565e8258e633b92eb6a9706cbe6e0aa4d11996abe57661f3d0ceefaef3091",
+    "github-pr-status-completed.json": "f770f8991e64aa42e5bb74e8f4ceb2b326756068ec4437232b2065965c36b6d1"
   },
   "github_workflow_runs": [
     38718027357,
@@ -74,5 +77,11 @@
     "roll-projection-final-quic-tree-001.log": "110ff48077957d7a94d77f04fef7741eb3e0334d29fa58fbd1c64dc9c3654369",
     "roll-projection-final-workspace-002.log": "06d36724311ab7cf813989d5c6bc157cbaba90f50b11b8401d7c6a2088ceba81",
     "roll-scope-local-contract-001.log": "8e1544672f22272d5fd99259f2a4358466d261a58513fc25706899ad4b9eba85"
+  },
+  "external_interop": {
+    "passed": 42,
+    "failed": 0,
+    "unexecuted": 2,
+    "retry_run": 38723148382
   }
 }
