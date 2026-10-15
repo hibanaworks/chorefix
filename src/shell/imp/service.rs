@@ -6,24 +6,6 @@ use hibana_wasip1_runtime::{
 };
 use serde_json::Value;
 use std::cell::RefCell;
-use tokio::sync::{mpsc, oneshot};
-
-/// Observed WASI requests and their completion channels, not protocol stages.
-pub enum Import {
-    Open(
-        protocol::PathOpenReq,
-        oneshot::Sender<protocol::PathOpenedRet>,
-    ),
-    Write(
-        protocol::FdWriteReq,
-        oneshot::Sender<protocol::FdWriteDoneRet>,
-    ),
-    Close(
-        protocol::FdRequest,
-        oneshot::Sender<(protocol::FdClosedRet, Vec<u8>)>,
-    ),
-}
-pub type Imports = mpsc::UnboundedReceiver<Import>;
 
 pub trait Domain {
     fn execute(
@@ -73,20 +55,22 @@ impl Default for Validation {
 /// resource-owner state. Only the owner's projected localside admits effects.
 pub struct File {
     path: &'static [u8],
+    fd: u8,
     pub bytes: Vec<u8>,
 }
 impl File {
-    pub fn new(path: &'static [u8]) -> Self {
+    pub fn new(path: &'static [u8], fd: u8) -> Self {
         Self {
             path,
+            fd,
             bytes: Vec::new(),
         }
     }
     pub fn objects(&self) -> ChoreoFsObjectSet<'static, 1> {
         ChoreoFsObjectSet::new([ChoreoFsObject::writable(
             self.path,
-            ObjectId(4),
-            FdSpec::new(4, 1 << 6, 1),
+            ObjectId(self.fd as u32),
+            FdSpec::new(self.fd, 1 << 6, 1),
             protocol::FdBinding::write(protocol::FdWriteRow::Object),
         )])
     }

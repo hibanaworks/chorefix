@@ -91,6 +91,8 @@ class DirectWasi:
                 message = json.loads(raw)
                 self.record("receive", message)
                 match message["type"]:
+                    case "protocol_frame":
+                        pass  # Persisted observation only, never task authority.
                     case "execute":
                         execution = asyncio.create_task(self.execute(message))
                         executions.add(execution)

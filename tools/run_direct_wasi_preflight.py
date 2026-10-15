@@ -43,7 +43,7 @@ async def run(run_id, scenario):
                     for path in (ROOT / base).rglob("*")
                     if path.is_file() and "__pycache__" not in path.parts]
     source_files += [ROOT / name for name in (
-        "Cargo.toml", "Cargo.lock", "experiment.json", "requirements.lock",
+        "Cargo.toml", "Cargo.lock", "experiment.json", "requirements.lock", "AGENTS.md", "plan.md",
         "tools/run_direct_wasi_preflight.py", "tools/audit_direct_wasi.py",
         "tools/build_shell.sh", "vendor/hibana-wash/Cargo.toml",
         "vendor/hibana-wash/Cargo.lock", "vendor/hibana-wash/scripts/build.sh",

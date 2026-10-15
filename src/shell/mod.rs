@@ -5,9 +5,9 @@ pub(crate) mod imp {
     pub mod environment;
     pub mod error;
     pub mod private_fs;
+    pub mod service;
 }
 pub(crate) mod localside {
-    pub mod direct_guest;
     pub mod environment;
     pub mod guest;
     pub mod private_io;

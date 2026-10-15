@@ -1,3 +1,4 @@
+use super::super::global::*;
 use crate::shell::{ShellResult, global::Exit};
 use hibana_wasip1_runtime::{
     exchange::{HibanaWasiGuest, WasiBoundaryStep, WasiImportCompletion, WasiImportRequest},
@@ -7,7 +8,6 @@ use hibana_wasip1_runtime::{
 pub async fn run<const ROLE: u8>(
     guest: &mut HibanaWasiGuest<'_>,
     endpoint: &mut hibana::Endpoint<'_, ROLE>,
-    service: tokio::sync::mpsc::UnboundedSender<crate::tasks::cicd::choreofs::imp::Import>,
     reply_bytes: std::rc::Rc<std::cell::RefCell<Vec<u8>>>,
 ) -> ShellResult<i32> {
     let mut fuel_id = 0u16;
@@ -20,23 +20,8 @@ pub async fn run<const ROLE: u8>(
                     pending.complete(WasiImportCompletion::FdWrite(completion))?;
                 }
                 WasiImportRequest::FdWriteObject(request) => {
-                    let (reply, response) = tokio::sync::oneshot::channel();
-                    let completion = if service
-                        .send(crate::tasks::cicd::choreofs::imp::Import::Write(
-                            request, reply,
-                        ))
-                        .is_ok()
-                    {
-                        response.await.map_err(|_| {
-                            crate::shell::ShellError::message("service write owner closed")
-                        })?
-                    } else {
-                        protocol::FdWriteDoneRet(protocol::FdWriteDone::new_with_errno(
-                            request.0.fd(),
-                            0,
-                            8,
-                        ))
-                    };
+                    endpoint.send::<Write>(&request).await?;
+                    let completion = endpoint.recv::<Written>().await?;
                     pending.complete(WasiImportCompletion::FdWriteObject(completion))?;
                 }
                 WasiImportRequest::FdRead(request) => {
@@ -50,27 +35,14 @@ pub async fn run<const ROLE: u8>(
                     pending.complete(WasiImportCompletion::FdReaddir(completion))?;
                 }
                 WasiImportRequest::PathOpen(request) => {
-                    // Static object binding identifies a service request; it
-                    // grants no phase. Only the task Endpoint can admit it.
                     let path = request
                         .0
                         .path()
                         .strip_prefix(b"/")
                         .unwrap_or(request.0.path());
-                    let completion = if path.starts_with(b"service/") && path != b"service/result" {
-                        let (reply, response) = tokio::sync::oneshot::channel();
-                        if service
-                            .send(crate::tasks::cicd::choreofs::imp::Import::Open(
-                                request, reply,
-                            ))
-                            .is_ok()
-                        {
-                            response.await.map_err(|_| {
-                                crate::shell::ShellError::message("service open owner closed")
-                            })?
-                        } else {
-                            protocol::PathOpenedRet(protocol::PathOpened::new(0, 8))
-                        }
+                    let completion = if path.starts_with(SERVICE_PREFIX) && path != RESULT_PATH {
+                        endpoint.send::<Open>(&request).await?;
+                        endpoint.recv::<Opened>().await?
                     } else {
                         endpoint.send::<protocol::PathOpenReqMsg>(&request).await?;
                         endpoint.recv::<protocol::PathOpenRetMsg>().await?
@@ -139,21 +111,29 @@ pub async fn run<const ROLE: u8>(
                     pending.complete(WasiImportCompletion::PathFilestatGet(completion))?;
                 }
                 WasiImportRequest::FdClose(request) => {
-                    let completion = if request.0.fd() == 4 {
-                        let (reply, response) = tokio::sync::oneshot::channel();
-                        if service
-                            .send(crate::tasks::cicd::choreofs::imp::Import::Close(
-                                request.0, reply,
-                            ))
-                            .is_ok()
-                        {
-                            let (completion, bytes) = response.await.map_err(|_| {
-                                crate::shell::ShellError::message("service close owner closed")
-                            })?;
-                            reply_bytes.replace(bytes);
-                            completion
-                        } else {
-                            protocol::FdClosedRet(protocol::FdClosed::new_with_errno(4, 8))
+                    let completion = if request.0.fd() == SERVICE_FD {
+                        endpoint.send::<Commit>(&request).await?;
+                        let branch = endpoint.offer().await?;
+                        match branch.label() {
+                            8 => {
+                                let bytes = branch.recv::<Committed<'_>>().await?.to_vec();
+                                endpoint.recv::<ServiceDone>().await?;
+                                reply_bytes.replace(bytes);
+                                protocol::FdClosedRet(protocol::FdClosed::new(request.0.fd()))
+                            }
+                            9 => {
+                                reply_bytes.replace(branch.recv::<Rejected<'_>>().await?.to_vec());
+                                protocol::FdClosedRet(protocol::FdClosed::new_with_errno(
+                                    request.0.fd(),
+                                    28,
+                                ))
+                            }
+                            16 => branch.recv::<Unavailable>().await?,
+                            _ => {
+                                return Err(crate::shell::ShellError::message(
+                                    "unexpected service completion",
+                                ));
+                            }
                         }
                     } else {
                         endpoint.send::<protocol::FdCloseReqMsg>(&request).await?;
@@ -201,6 +181,7 @@ pub async fn run<const ROLE: u8>(
             }
             WasiBoundaryStep::Exit(exit) => {
                 let status = exit.status() as i32;
+                endpoint.send::<ServiceExit>(&status).await?;
                 endpoint.send::<Exit>(&status).await?;
                 return Ok(status);
             }

@@ -118,7 +118,7 @@
   "execution": "real Hibana WASI engine, projected Endpoints, ChoreoFS, unchanged TraceFix 16E simulator",
   "checks": {
     "wash_parser_tests": 3,
-    "consumer_rust_tests": 28,
+    "consumer_rust_tests": 26,
     "consumer_python_tests": 30,
     "wash_real_wasi_tests": 6,
     "fmt": "passed",
@@ -183,5 +183,11 @@
     "miri_ignored_correspondence_export_tests": 2
   },
   "runtime_ci_conclusion": "success",
-  "direct_luna_preflight": "results/direct-wasi-preflight.json"
+  "direct_luna_preflight": "results/direct-wasi-preflight.json",
+  "connection_16e": {
+    "request_reply_path": "verified by real guest tests and carrier trace",
+    "evidence": "results/validation/projected-wasi-connection.json",
+    "full_task_fidelity_accepted": false,
+    "all_48_tasks_accepted": false
+  }
 }

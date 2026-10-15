@@ -1,7 +1,7 @@
 //! Terminal and simulator RPC correlation. No task progress or permissions.
 use crate::{
+    shell::imp::service::Domain,
     shell::{ShellError, ShellResult},
-    tasks::cicd::choreofs::imp::Domain,
 };
 use serde_json::{Value, json};
 use std::{
@@ -14,6 +14,7 @@ use tokio::{
 };
 
 pub struct Bus {
+    pub(crate) transport: crate::imp::transport::InMemoryTransport,
     output: Mutex<Stdout>,
     sequence: Cell<u64>,
     replies: RefCell<BTreeMap<u64, oneshot::Sender<Value>>>,
@@ -29,46 +30,44 @@ pub struct Terminal {
     identifier: Option<u64>,
 }
 impl Bus {
-    pub fn open() -> (Self, Reader, [Terminal; 3]) {
-        let (a, ar) = mpsc::unbounded_channel();
-        let (b, br) = mpsc::unbounded_channel();
-        let (c, cr) = mpsc::unbounded_channel();
-        let terminals = BTreeMap::from([("DEVELOPER", a), ("TESTER", b), ("DEPLOYER", c)]);
+    pub fn open<const N: usize>(agents: [&'static str; N]) -> (Self, Reader, [Terminal; N]) {
+        let mut senders = BTreeMap::new();
+        let terminals = agents.map(|agent| {
+            let (sender, commands) = mpsc::unbounded_channel();
+            senders.insert(agent, sender);
+            Terminal {
+                agent,
+                commands,
+                identifier: None,
+            }
+        });
         (
             Self {
+                transport: crate::imp::transport::InMemoryTransport::new(),
                 output: Mutex::new(tokio::io::stdout()),
                 sequence: Cell::new(0),
                 replies: RefCell::new(BTreeMap::new()),
             },
             Reader {
                 input: BufReader::new(tokio::io::stdin()).lines(),
-                terminals,
+                terminals: senders,
             },
-            [
-                Terminal {
-                    agent: "DEVELOPER",
-                    commands: ar,
-                    identifier: None,
-                },
-                Terminal {
-                    agent: "TESTER",
-                    commands: br,
-                    identifier: None,
-                },
-                Terminal {
-                    agent: "DEPLOYER",
-                    commands: cr,
-                    identifier: None,
-                },
-            ],
+            terminals,
         )
     }
     pub async fn emit(&self, value: Value) -> ShellResult<()> {
-        let mut bytes =
-            serde_json::to_vec(&value).map_err(|error| ShellError::message(error.to_string()))?;
-        bytes.push(b'\n');
         let mut output = self.output.lock().await;
-        output.write_all(&bytes).await?;
+        for observation in self
+            .transport
+            .take_observations()
+            .into_iter()
+            .chain([value])
+        {
+            let mut bytes = serde_json::to_vec(&observation)
+                .map_err(|error| ShellError::message(error.to_string()))?;
+            bytes.push(b'\n');
+            output.write_all(&bytes).await?;
+        }
         output.flush().await?;
         Ok(())
     }

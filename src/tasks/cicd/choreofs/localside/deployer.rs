@@ -1,98 +1,107 @@
-use super::super::{
-    global::*,
-    imp::{Import, Imports},
+use super::super::global::*;
+use crate::shell::{
+    ShellError, ShellResult,
+    imp::service::{Domain, File, Validation},
 };
-use crate::shell::{ShellError, ShellResult};
 use hibana::Endpoint;
 use hibana_wasip1_runtime::protocol;
-use serde_json::Value;
+use serde_json::json;
 
-pub async fn run(endpoint: &mut Endpoint<'_, DEPLOYER>, mut imports: Imports) -> ShellResult<()> {
-    // Wait for a real service open. Private shell work has no request here.
-    let (open, opened) = loop {
-        match imports
-            .recv()
-            .await
-            .ok_or_else(|| ShellError::message("guest closed before service open"))?
-        {
-            Import::Open(request, reply) => break (request, reply),
-            Import::Write(request, reply) => {
-                let _ = reply.send(protocol::FdWriteDoneRet(
-                    protocol::FdWriteDone::new_with_errno(request.0.fd(), 0, 8),
-                ));
-            }
-            Import::Close(request, reply) => {
-                let _ = reply.send((
-                    protocol::FdClosedRet(protocol::FdClosed::new_with_errno(request.fd(), 8)),
-                    Vec::new(),
-                ));
-            }
-        }
-    };
+pub async fn run<D: Domain>(
+    endpoint: &mut Endpoint<'_, DEPLOYER>,
+    domain: &D,
+    deploy: &Validation,
+) -> ShellResult<()> {
     endpoint.recv::<TestsPassed>().await?;
+    let request = endpoint.recv::<Open>().await?;
     endpoint.send::<Acquire>(&()).await?;
     endpoint.recv::<Granted>().await?;
-    endpoint.send::<Open>(&open).await?;
-    let response = endpoint.recv::<Opened>().await?;
-    let _ = opened.send(response);
+    let mut file = File::new(b"service/deploy_application", SERVICE_FD);
+    endpoint.send::<Opened>(&file.open(request)).await?;
     loop {
-        match imports
-            .recv()
-            .await
-            .ok_or_else(|| ShellError::message("guest closed before service commit"))?
-        {
-            Import::Open(request, reply) => {
-                endpoint.send::<Open>(&request).await?;
-                let response = endpoint.recv::<Opened>().await?;
-                let _ = reply.send(response);
+        let branch = endpoint.offer().await?;
+        match branch.label() {
+            3 => {
+                let request = branch.recv::<Open>().await?;
+                endpoint.send::<Opened>(&file.open(request)).await?;
             }
-            Import::Write(request, reply) => {
-                endpoint.send::<Write>(&request).await?;
-                let response = endpoint.recv::<Written>().await?;
-                let _ = reply.send(response);
+            5 => {
+                let request = branch.recv::<Write>().await?;
+                endpoint.send::<Written>(&file.write(request)).await?;
             }
-            Import::Close(request, reply) => {
-                endpoint
-                    .send::<Commit>(&protocol::FdCloseReq(request))
-                    .await?;
-                let branch = endpoint.offer().await?;
-                match branch.label() {
-                    8 => {
-                        let bytes = branch.recv::<Committed<'_>>().await?.to_vec();
-                        let value: Value = serde_json::from_slice(&bytes)
-                            .map_err(|error| ShellError::message(error.to_string()))?;
-                        let _ = reply.send((
-                            protocol::FdClosedRet(protocol::FdClosed::new(request.fd())),
-                            bytes,
-                        ));
-                        if value["success"] != true {
+            7 => {
+                let request = branch.recv::<Commit>().await?;
+                deploy.record(file.arguments(request.0, "target"));
+                let decision = endpoint.offer().await?;
+                match decision.label() {
+                    12 => {
+                        decision.recv::<Materialize>().await?;
+                        let result = domain
+                            .execute("DEPLOYER", "deploy_application", deploy.take()?)
+                            .await
+                            .map_err(ShellError::message)?;
+                        let bytes = serde_json::to_vec(&result)
+                            .map_err(|e| ShellError::message(e.to_string()))?;
+                        endpoint.send::<Committed<'_>>(&bytes.as_slice()).await?;
+                        if result["success"] != true {
                             return Err(ShellError::message(format!(
-                                "domain operation failed: {value}"
+                                "domain operation failed: {result}"
                             )));
                         }
                         break;
                     }
                     9 => {
-                        let bytes = branch.recv::<Rejected<'_>>().await?.to_vec();
-                        let _ = reply.send((
-                            protocol::FdClosedRet(protocol::FdClosed::new_with_errno(
-                                request.fd(),
-                                28,
-                            )),
-                            bytes,
-                        ));
+                        let bytes = serde_json::to_vec(
+                            &json!({"status":"invalid_arguments", "error":deploy.rejection()?}),
+                        )
+                        .map_err(|e| ShellError::message(e.to_string()))?;
+                        decision.send::<Rejected<'_>>(&bytes.as_slice()).await?;
                     }
-                    _ => return Err(ShellError::message("unexpected service close reply")),
+                    _ => return Err(ShellError::message("unexpected argument decision")),
                 }
             }
+            _ => return Err(ShellError::message("unexpected service request")),
         }
     }
-    // The affine service receiver is consumed. A later syscall receives a
-    // closed-direction error, rather than another permission from a done flag.
-    drop(imports);
     endpoint.send::<Return>(&()).await?;
     endpoint.recv::<Returned>().await?;
+    endpoint.send::<ServiceDone>(&()).await?;
     endpoint.send::<DeployedToDeveloper>(&()).await?;
     endpoint.send::<DeployedToTester>(&()).await?;
-    Ok(())
+
+    loop {
+        let branch = endpoint.offer().await?;
+        match branch.label() {
+            3 => {
+                branch.recv::<Open>().await?;
+                endpoint
+                    .send::<Opened>(&protocol::PathOpenedRet(protocol::PathOpened::new(0, 8)))
+                    .await?;
+            }
+            5 => {
+                let request = branch.recv::<Write>().await?;
+                endpoint
+                    .send::<Written>(&protocol::FdWriteDoneRet(
+                        protocol::FdWriteDone::new_with_errno(request.0.fd(), 0, 8),
+                    ))
+                    .await?;
+            }
+            7 => {
+                let request = branch.recv::<Commit>().await?;
+                endpoint
+                    .send::<Unavailable>(&protocol::FdClosedRet(
+                        protocol::FdClosed::new_with_errno(request.0.fd(), 8),
+                    ))
+                    .await?;
+            }
+            241 => {
+                let status = branch.recv::<ServiceExit>().await?;
+                if status != 0 {
+                    return Err(ShellError::message("guest failed"));
+                }
+                return Ok(());
+            }
+            _ => return Err(ShellError::message("unexpected closed-service request")),
+        }
+    }
 }

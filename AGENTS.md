@@ -71,6 +71,24 @@ Use ChoreoFS operation results to materialize the admitted object operation.
 Static object binding identifies the operation; parsing payloads does not infer
 a route or repair an out-of-order protocol.
 
+The WASI-driving role itself must send each shared-operation request through
+its projected Endpoint. The global must connect that request to the service
+owner's receive, the admitted operation, and the reply to the WASI role:
+
+WASI Endpoint -> global request -> owner Endpoint -> ChoreoFS -> global reply.
+
+Putting WASI and task protocols beside each other with `par` does not establish
+this connection. Do not forward shared requests between those graphs with
+`mpsc`, oneshot, callbacks, a shared queue, or another unprojected channel and
+then validate them at a later Endpoint. Channels may implement the Transport
+that carries projected messages; they may not supply missing choreography edges.
+Keep these Endpoint sends and receives visible in the actual WASI localside.
+Do not introduce a relay role, a progress flag, an operation-permission table,
+or a second state machine to repair missing global connections. Payload, fd and
+path conversion belongs at the ABI boundary; coordination belongs in the global.
+Component tests, simulator completion and green CI cannot establish this
+architecture without checking the actual request/reply path.
+
 A generic `/tools/call` JSON service followed by a separate task validator is
 not the target architecture. Passing that integration does not qualify a direct
 ChoreoFS boundary. Do not hide this gap by renaming a helper or a file.

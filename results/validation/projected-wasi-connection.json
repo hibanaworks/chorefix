@@ -1,0 +1,211 @@
+{
+  "kind": "projected_wasi_connection_validation",
+  "scope": "16E connection only; full-task fidelity and the other 47 tasks are not accepted",
+  "scored_benchmark": false,
+  "hibana_version": "0.9.9",
+  "runtime_revision": "4ebdad1443cf49488eae924afe528f67f5a5953b",
+  "wash_revision": "12e137aba2cea74f353c198a8d7c92afc977627c",
+  "rust_tests": 26,
+  "python_tests": 30,
+  "real_wasi_tests": 6,
+  "source_sha256": {
+    "AGENTS.md": "066c15f88e897c4b72160ef283fac5b24579a3255232c1dd2fe70e28b87a1efb",
+    "plan.md": "906ed579efc76a03d3c1162952fa661a9683ddc2b12bc99afd0139fa3b10d03a",
+    "src/imp/direct_wasi.py": "9163882bfb3e94a930016ff5995f4226ce20de81b9251c5ee4469f52bd56ea26",
+    "src/imp/transport.rs": "dee8698df84bc7c2a691b9eb09cd2fac1dece10b4f952861490537132a741597",
+    "src/shell/imp/bus.rs": "ae2e4ac82fd4ef6647acf46135058e924a402073baea825dcc5f265c5d32def1",
+    "src/shell/imp/service.rs": "0154f0dea3f3e441b328d8e95158e6c89449d151dd0b84693b7da923bd60ced8",
+    "src/tasks/cicd/choreofs/global.rs": "6fde86f41e7a28f7b2f80b94d75ded852a44e387e152dd77c78cd4a1d81da796",
+    "src/tasks/cicd/choreofs/localside/deployer.rs": "cd9773c63edaa091f7351dde8fcc19606d5b055f48991d2be2f1fca45452bd1c",
+    "src/tasks/cicd/choreofs/localside/developer.rs": "cb1d59ffe0b71be6b9294b93c1ad0cfc08979e59c088622905802661f3393813",
+    "src/tasks/cicd/choreofs/localside/infrastructure.rs": "513827f1e44e6a57a10ab50a14dd28430a595a0da91129e6428af68b5b3500f6",
+    "src/tasks/cicd/choreofs/localside/mod.rs": "85ca98181720c10afce615c60f6869a9ae8da68ebfde12301969ad8ed43d7b24",
+    "src/tasks/cicd/choreofs/localside/tester.rs": "20c51dad99203e2f7fd627c5ade4a572a07ba2c51580caf49a75d18730c7070e",
+    "src/tasks/cicd/choreofs/localside/wasi.rs": "e9eb2cbd7aaaf2fc20940357de7f33feb707340ed349ba17175c65655b27c97b",
+    "src/tasks/cicd/choreofs/mod.rs": "55e03245af653cd96687d9ac3644941a37820ddc6cc2f794b81b377e1e3d5f12",
+    "src/tasks/cicd/choreofs/tests.rs": "7cd8c8be4b6da63d4ed503a49cfe915d711279e4c79c537d25e31ee92bb5f205",
+    "tests/test_cicd_wasi.py": "24193410e63a0d27d2366426e01a73230ddb0a80fbc080c062a02253d2e08938",
+    "tools/audit_direct_wasi.py": "d4979460fcebd9520e91b02d1abaff1e085697588cf1c31df9b63a875017ffa0"
+  },
+  "binaries_sha256": {
+    "target/debug/cicd-wasi": "d84875e6f84d4e655174912bf183025b9bc47a72c2b066c78f06b971fadc4f78",
+    "vendor/hibana-wash/target/wasm32-wasip1/release/hibana-wash.wasm": "407e1fe263231022eb542a7d2a35e4d4705a58590f92b77bf21fe5f7c77258bc"
+  },
+  "checks": [
+    {
+      "scenario_depth": 0,
+      "log": "output/projected-wasi-pytest-004/test_real_guest_recovers_then_0/runtime/events.jsonl",
+      "sha256": "0c29944f7792483fb7d179563d8270924471ab982fdc41a1bc41c1850f9e6e61",
+      "trace": {
+        "frames": 323,
+        "observations": 646,
+        "paths": [
+          {
+            "agent": "DEVELOPER",
+            "wasi_role": 0,
+            "owner_role": 3,
+            "close_frame": 180,
+            "reply_frame": 181
+          },
+          {
+            "agent": "TESTER",
+            "wasi_role": 1,
+            "owner_role": 4,
+            "close_frame": 196,
+            "reply_frame": 197
+          },
+          {
+            "agent": "DEPLOYER",
+            "wasi_role": 2,
+            "owner_role": 5,
+            "close_frame": 212,
+            "reply_frame": 213
+          }
+        ],
+        "notifications": [
+          {
+            "source": 3,
+            "target": 4,
+            "frame": 185
+          },
+          {
+            "source": 4,
+            "target": 5,
+            "frame": 201
+          },
+          {
+            "source": 5,
+            "target": 3,
+            "frame": 217
+          },
+          {
+            "source": 5,
+            "target": 4,
+            "frame": 218
+          }
+        ]
+      }
+    },
+    {
+      "scenario_depth": 1,
+      "log": "output/projected-wasi-pytest-004/test_real_guest_recovers_then_1/runtime/events.jsonl",
+      "sha256": "aa404c0cdc375befdf3a6fbf621459fd01a75af4ea7693bb874ea7fc816be35a",
+      "trace": {
+        "frames": 323,
+        "observations": 646,
+        "paths": [
+          {
+            "agent": "DEVELOPER",
+            "wasi_role": 0,
+            "owner_role": 3,
+            "close_frame": 180,
+            "reply_frame": 181
+          },
+          {
+            "agent": "TESTER",
+            "wasi_role": 1,
+            "owner_role": 4,
+            "close_frame": 196,
+            "reply_frame": 197
+          },
+          {
+            "agent": "DEPLOYER",
+            "wasi_role": 2,
+            "owner_role": 5,
+            "close_frame": 212,
+            "reply_frame": 213
+          }
+        ],
+        "notifications": [
+          {
+            "source": 3,
+            "target": 4,
+            "frame": 185
+          },
+          {
+            "source": 4,
+            "target": 5,
+            "frame": 201
+          },
+          {
+            "source": 5,
+            "target": 3,
+            "frame": 217
+          },
+          {
+            "source": 5,
+            "target": 4,
+            "frame": 218
+          }
+        ]
+      }
+    },
+    {
+      "scenario_depth": 2,
+      "log": "output/projected-wasi-pytest-004/test_real_guest_recovers_then_2/runtime/events.jsonl",
+      "sha256": "fe72eb0e26376ed10181b4522739e19e89a0896528f416111ac9f18adc637031",
+      "trace": {
+        "frames": 323,
+        "observations": 646,
+        "paths": [
+          {
+            "agent": "DEVELOPER",
+            "wasi_role": 0,
+            "owner_role": 3,
+            "close_frame": 180,
+            "reply_frame": 181
+          },
+          {
+            "agent": "TESTER",
+            "wasi_role": 1,
+            "owner_role": 4,
+            "close_frame": 196,
+            "reply_frame": 197
+          },
+          {
+            "agent": "DEPLOYER",
+            "wasi_role": 2,
+            "owner_role": 5,
+            "close_frame": 212,
+            "reply_frame": 213
+          }
+        ],
+        "notifications": [
+          {
+            "source": 3,
+            "target": 4,
+            "frame": 185
+          },
+          {
+            "source": 4,
+            "target": 5,
+            "frame": 201
+          },
+          {
+            "source": 5,
+            "target": 3,
+            "frame": 217
+          },
+          {
+            "source": 5,
+            "target": 4,
+            "frame": 218
+          }
+        ]
+      }
+    }
+  ],
+  "negative_checks": [
+    "invalid arguments have no domain effect, followed by successful resubmission",
+    "early dependants wait",
+    "duplicate service returns an error before downstream work completes",
+    "premature guest exit fails without effects",
+    "missing close observation is rejected by audit",
+    "altered WASI source is rejected by audit"
+  ],
+  "limits": [
+    "deterministic scripts are not model success-rate evidence",
+    "the carrier trace observes transport receipt, not an independent proof of every Endpoint implementation line",
+    "no scored benchmark episodes"
+  ]
+}

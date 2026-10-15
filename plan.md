@@ -54,7 +54,7 @@ ChoreoFSのパス/fd/rightsの事実だけでタスク効果を許可しない�
 共有操作のopen/write/closeをタスクglobalへ接続し、受信stepと必要な許可stepの
 消費後に効果を出す。汎用JSON RPCの後段に別の手順検査を置く構成で済ませない。
 
-## 現在の状態
+## 接続修正前の記録
 
 - この作業を始めた時点のpushは `c49ab0aaa5b7cff685e7a237ec446e9ead71ddba`。
   そのコミットのGitHub CI成功は確認済み。
@@ -172,9 +172,51 @@ ChoreoFSのパス/fd/rightsの事実だけでタスク効果を許可しない�
   4試行の全資料は`output/direct-wasi-preflight/wash-std-20261015-evidence.tar.gz`。
   16Eは元から全depthで障害注入を無効にしている。再考や比較の成功率には数えない。
 
+## 接続設計の修正
+
+ユーザーの指摘により、従来の`par(task, private_io)`と`mpsc`での接続を未達と判定した。
+WASI側Endpointを出た後に別のRustチャネルでタスクroleへ要求を渡していたため、
+shared effect直前のEndpoint検査だけではglobalに接続全体を書いたことにならない。
+既存の4回のLuna試行、機構試験、CIは部品の動作資料として保管する。
+raw-event auditの成功はこの設計条件の受理を意味しない。
+
+最小の修正はWASIを駆動するrole自身をサービス要求の送信元にすることである。
+`VM Endpoint -> global request -> service owner Endpoint -> ChoreoFS -> global reply`
+を同じglobalに記述する。`mpsc`/oneshotによるgraph間転送は削除する。
+WASIの値とmessageの変換はlocalsideで明示し、進行フラグや第二の許可表は作らない。
+まず16Eでこの経路と元要件を検証してから6Eへ進む。
+
+## 現在の検証済み状態
+
+- 16Eのサービス転送用`Import` enum、mpsc/oneshot、task-client relayを削除した。
+  WASI側自身がglobalのOpen/Write/Commitを送り、所有者が受信する。
+  `src/tasks/cicd/choreofs/localside/wasi.rs`に実際のEndpoint操作を書き下した。
+  ChoreoFSのcodec・オブジェクトbytesだけを`src/shell/imp/service.rs`へ置く。
+- 先行して届くOpenと前段の完了通知は`par`で独立に受ける。
+  資源の貸借、共有効果、build→test→deployは`seq`で結ぶ。
+  引数の検証結果をresolverが読み、拒否からの再提出を`route`と`roll`で表す。
+- 成功後のサービス拒否と後続の仕事を`par`に置いた。
+  元課題のdeployment-complete通知2件も残し、各所有者は受信まで完了しない。
+  サービス終了は明示的な分岐。後続待ちを代用するflagやRustチャネルはない。
+- Endpoint機構試験1件と実WASI試験6件が通った。
+  不正引数からの再提出、先行要求、chunked write、後続を待たない重複拒否、
+  原simulatorの3効果、root listing、私有script、heap拡張、終了を確認した。
+  作業前のexitは投影された送信stepに合わず失敗し、domain効果を出さない。
+- 実Transportの送受信・requeueを追記専用ログへ残す。
+  ログは権限や進行判断に使わず、各効果より前のWASI→所有者close受信と、
+  実結果の返送、元課題の4通知を別scriptで検査する。
+  close欠落と送信元改変を検査が拒否することも確認した。
+- 現在のRust全26試験、Python全30試験が成功。
+  元48課題825 checklistと比較matrixの内容は不変。
+  本体・WASI runtime・washのソースは今回変更していない。
+- この接続での新しいLuna試行、最新CI、16E全要件の独立したfidelity受理は未完了。
+  全48課題の受理は0、採点済み比較も0のまま。旧4試行は部品資料として保管する。
+
+
 ## 次の一手
 
-1. 16Eの元要件と実装のfidelityを独立監査し、完全移植として受理できるか確認する。
+1. 修正した16EでLuna xhighを実行し、実際のrequest/reply trace、元要件と
+   実装のfidelityを監査する。
    続いて6Eなど元から再考を必要とする課題を、同じ実WASI・ChoreoFS接続へ移す。
    特定タスクのコマンド列を組み込まず、modelがscriptを組み立てる。
    std版wash、公開runtime、各guest1MiBのbackingを使う。大型Bashは採用しない。

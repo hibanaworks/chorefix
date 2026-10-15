@@ -5,6 +5,7 @@
 use std::{
     cell::RefCell,
     collections::VecDeque,
+    rc::Rc,
     task::{Context, Poll, Waker},
 };
 
@@ -14,15 +15,21 @@ use hibana::runtime::{
     wire::Payload,
 };
 
+#[derive(Clone)]
 pub(crate) struct InMemoryTransport {
-    state: RefCell<IoQueues>,
+    state: Rc<RefCell<IoQueues>>,
 }
 
 impl InMemoryTransport {
     pub(crate) fn new() -> Self {
         Self {
-            state: RefCell::new(IoQueues::default()),
+            state: Rc::new(RefCell::new(IoQueues::default())),
         }
+    }
+
+    /// Append-only observations; no observer can authorize an operation.
+    pub(crate) fn take_observations(&self) -> Vec<serde_json::Value> {
+        std::mem::take(&mut self.state.borrow_mut().observations)
     }
 }
 
@@ -30,9 +37,12 @@ impl InMemoryTransport {
 struct IoQueues {
     frames: VecDeque<Frame>,
     waiters: Vec<Waiter>,
+    next_frame: u64,
+    observations: Vec<serde_json::Value>,
 }
 
 struct Frame {
+    id: u64,
     session: SessionId,
     lane: u8,
     source: u8,
@@ -42,6 +52,13 @@ struct Frame {
 }
 
 impl Frame {
+    fn observation(&self, action: &str) -> serde_json::Value {
+        serde_json::json!({"type":"protocol_frame", "action":action,
+            "frame_id":self.id, "session":self.session.raw(), "lane":self.lane,
+            "source":self.source, "target":self.target, "frame_label":self.label,
+            "payload":self.payload})
+    }
+
     fn received(&self) -> ReceivedFrame<'_> {
         let session = self.session.raw().to_be_bytes();
         let header = FrameHeader::from_bytes([
@@ -127,7 +144,8 @@ impl Transport for InMemoryTransport {
         if outgoing.lane() != tx.lane {
             return Poll::Ready(Err(TransportError::Failed));
         }
-        let frame = Frame {
+        let mut frame = Frame {
+            id: 0,
             session: tx.session,
             lane: tx.lane,
             source: tx.local_role,
@@ -137,6 +155,9 @@ impl Transport for InMemoryTransport {
         };
         let wake = {
             let mut state = self.state.borrow_mut();
+            frame.id = state.next_frame;
+            state.next_frame += 1;
+            state.observations.push(frame.observation("send"));
             let wake = state
                 .waiters
                 .iter()
@@ -168,6 +189,9 @@ impl Transport for InMemoryTransport {
                 .iter()
                 .position(|frame| frame.is_for(rx))
                 .and_then(|index| state.frames.remove(index));
+            if let Some(frame) = &frame {
+                state.observations.push(frame.observation("receive"));
+            }
             if frame.is_none() {
                 if let Some(waiter) = state.waiters.iter_mut().find(|waiter| waiter.is_for_rx(rx)) {
                     waiter.waker = context.waker().clone();
@@ -193,7 +217,9 @@ impl Transport for InMemoryTransport {
 
     fn requeue(&self, rx: &mut Self::Rx<'_>) -> Result<(), TransportError> {
         let frame = rx.current.take().ok_or(TransportError::Failed)?;
-        self.state.borrow_mut().frames.push_front(frame);
+        let mut state = self.state.borrow_mut();
+        state.observations.push(frame.observation("requeue"));
+        state.frames.push_front(frame);
         Ok(())
     }
 }

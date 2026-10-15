@@ -4,6 +4,7 @@ These deterministic hibana-wash scripts test the boundary, not model success.
 """
 
 import asyncio
+import copy
 import importlib
 import json
 from pathlib import Path
@@ -11,6 +12,7 @@ from pathlib import Path
 import pytest
 from benchmark.tools import load_tools
 from src.imp.direct_wasi import DirectWasi
+from tools.audit_direct_wasi import audit_protocol_path
 
 ROOT = Path(__file__).resolve().parents[1]
 AGENTS = ["DEVELOPER", "TESTER", "DEPLOYER"]
@@ -89,6 +91,22 @@ async def test_real_guest_recovers_then_runs_the_original_pipeline_once(tmp_path
         events = [json.loads(line) for line in
                   (tmp_path / "runtime/events.jsonl").read_text().splitlines()]
         assert len([event for event in events if event["direction"] == "domain_start"]) == 3
+        trace = audit_protocol_path(events)
+        assert [(path["wasi_role"], path["owner_role"]) for path in trace["paths"]] == [(0, 3), (1, 4), (2, 5)]
+        # A simulator success without its real projected request is insufficient.
+        close = trace["paths"][0]["close_frame"]
+        missing = [event for event in events if not (
+            event["direction"] == "receive" and event["message"]["type"] == "protocol_frame"
+            and event["message"]["frame_id"] == close
+        )]
+        with pytest.raises(AssertionError):
+            audit_protocol_path(missing)
+        altered = copy.deepcopy(events)
+        for event in altered:
+            if event["direction"] == "receive" and event["message"]["type"] == "protocol_frame" and event["message"]["frame_id"] == close:
+                event["message"]["source"] = 8
+        with pytest.raises(AssertionError):
+            audit_protocol_path(altered)
     finally:
         await runtime.stop()
 
@@ -103,16 +121,14 @@ async def test_guest_exit_before_work_is_a_failed_run_with_no_domain_effect(tmp_
         load_tools("16E", sim=sim), AGENTS, tmp_path / "runtime",
     ), 10)
     try:
-        # The task receiver may observe the guest's dropped sender before the
-        # terminal exit event. Either observation must retain the task failure.
-        try:
-            exited = await runtime.command("DEVELOPER", "exit")
-            assert exited == {"exit_status": 0, "stdout": ""}
-        except RuntimeError as error:
-            assert "guest closed before service open" in str(error)
+        # Exit has no projected service step before the assigned work. The
+        # endpoint rejects it before any effect; no channel-closure workaround.
+        with pytest.raises(RuntimeError, match="LabelMismatch"):
+            await runtime.command("DEVELOPER", "exit")
         verdict = await asyncio.wait_for(runtime.result, 5)
         assert verdict["status"] == "failed"
-        assert "guest closed before service open" in verdict["error"]
+        assert 'operation: "send"' in verdict["error"]
+        assert "actual: 241" in verdict["error"]
         assert not sim.events
         assert not sim.is_complete()
         await runtime.reader

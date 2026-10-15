@@ -49,15 +49,23 @@ preflight against the original simulator. Every participant called `think` and
 `eat`, and the simulator recorded no resource conflicts. Raw events were checked
 separately. These are setup results, not the five-condition benchmark results.
 
-The new [16E ChoreoFS protocol](src/tasks/cicd/choreofs/global.rs) puts service
-open/write/close requests and task dependencies in the same composed global.
-Three mechanism tests and four real-WASI integration tests cover rejected
-arguments, corrected work, early dependants, duplicate effects and premature
-exit against the unchanged simulator. They now run the independent
-[hibana-wash](https://github.com/hibanaworks/hibana-wash) guest pinned by the
-`vendor/hibana-wash` submodule. Its script tests also cover quotes, variables,
-conditions, loops, pipes, redirects, saved scripts, and error recovery.
-These are deterministic mechanism tests, not scored model experiments.
+The [16E global protocol](src/tasks/cicd/choreofs/global.rs) connects each WASI
+role directly to its service owner. The
+[WASI localside](src/tasks/cicd/choreofs/localside/wasi.rs) sends the actual
+open/write/close requests through its Endpoint. The owner receives them, uses
+ChoreoFS to materialize object operations, consumes the resolved local operation,
+and returns the result through the same projected protocol. There is no
+channel forwarding requests between separate protocol graphs.
+
+One Endpoint mechanism test and six real-WASI tests cover invalid arguments,
+corrected work, early dependants, duplicate effects, guest exit, and shell scripts.
+They use the independent [hibana-wash](https://github.com/hibanaworks/hibana-wash)
+guest pinned by `vendor/hibana-wash`. Resource loans, build/test notifications,
+and both deployment-complete notifications remain explicit messages. Closed
+services answer errors while downstream work continues. A carrier trace checks
+that each close arrives from its WASI role before the shared effect, and that
+the actual result returns to that role. Missing requests and altered sources
+fail the audit. This validates this connection on 16E, not all 48 task ports.
 
 The former rust-bash candidate exceeded the runtime's capacities and was
 retired. Its [qualification record](results/validation/bash-guest-qualification.json)
@@ -68,9 +76,10 @@ can request more through the projected memory-growth protocol, up to its
 1 MiB caller-supplied backing.
 Four unscored Luna attempts on this direct boundary are retained in
 [the run ledger](results/direct-wasi-preflight.json), including two integration
-failures and a preliminary recording error. The final corrected attempt passed
+failures and a preliminary recording error. The final component attempt passed
 [a separate raw-event audit](results/audits/direct-wasi-wash-std-004-16E.json).
-This is one integration check on 16E, which has no injected domain failures.
+This is one component check on 16E, which has no injected domain failures.
+That earlier audit checks component outcomes, not the corrected connection above.
 It does not establish task fidelity across all 48 tasks or a comparative result.
 See [the work plan](plan.md) for the remaining experiment gates.
 
@@ -263,7 +272,7 @@ filesystem and no host filesystem access. The answering role owns file contents
 and offsets. ChoreoFS provides object and fd facts. Neither records task progress.
 
 For the direct 16E boundary, read [the composed global](src/tasks/cicd/choreofs/global.rs),
-[guest localside](src/shell/localside/direct_guest.rs),
+[guest localside](src/tasks/cicd/choreofs/localside/wasi.rs),
 [private I/O localside](src/shell/localside/private_io.rs), and
 [task localsides](src/tasks/cicd/choreofs/localside/).
 The global governs shared service requests, dependencies, and private WASI I/O.
