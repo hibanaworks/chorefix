@@ -1,0 +1,24 @@
+{
+  "carrier_frames": 2120,
+  "domain_calls": 10,
+  "guest_exits": 5,
+  "kind": "deterministic_direct_wasi_boundary",
+  "max_disjoint_eaters": 2,
+  "model_calls": 0,
+  "original_test_delays": {
+    "a_review_waits_for_b_write": false,
+    "constrained_tool": "eat",
+    "first_effect_barrier": [
+      "PHILOSOPHER_A",
+      "PHILOSOPHER_C"
+    ]
+  },
+  "parallel_acquisition_observed": true,
+  "parallel_return_observed": true,
+  "participants": 5,
+  "scored_benchmark": false,
+  "simulator_complete": true,
+  "status": "passed",
+  "task": "9M",
+  "violations": 0
+}

@@ -1,0 +1,109 @@
+{
+  "task": "9M",
+  "stage": "qualified_direct_wasi_boundary",
+  "accepted_for_scored_comparison": false,
+  "source_revision": "1876bfba80b37428d237e4fb7164a0544a12dbea",
+  "scored_benchmark": false,
+  "model_calls": 0,
+  "original_rules": [
+    {
+      "id": "R1",
+      "classification": "problem_constraint",
+      "evidence": "physical fork Endpoint has two explicit affine visits; audit rejects overlapping fork intervals"
+    },
+    {
+      "id": "R2",
+      "classification": "problem_constraint",
+      "evidence": "physical fork Endpoint has two explicit affine visits; audit rejects overlapping fork intervals"
+    },
+    {
+      "id": "R3",
+      "classification": "problem_constraint",
+      "evidence": "physical fork Endpoint has two explicit affine visits; audit rejects overlapping fork intervals"
+    },
+    {
+      "id": "R4",
+      "classification": "problem_constraint",
+      "evidence": "physical fork Endpoint has two explicit affine visits; audit rejects overlapping fork intervals"
+    },
+    {
+      "id": "R5",
+      "classification": "problem_constraint",
+      "evidence": "physical fork Endpoint has two explicit affine visits; audit rejects overlapping fork intervals"
+    },
+    {
+      "id": "RA1",
+      "classification": "problem_constraint",
+      "evidence": "actual grants precede eat; both returns and acknowledgements precede guest exit"
+    },
+    {
+      "id": "RA2",
+      "classification": "problem_constraint",
+      "evidence": "actual grants precede eat; both returns and acknowledgements precede guest exit"
+    },
+    {
+      "id": "RA3",
+      "classification": "problem_constraint",
+      "evidence": "actual grants precede eat; both returns and acknowledgements precede guest exit"
+    },
+    {
+      "id": "RA4",
+      "classification": "problem_constraint",
+      "evidence": "actual grants precede eat; both returns and acknowledgements precede guest exit"
+    },
+    {
+      "id": "RA5",
+      "classification": "problem_constraint",
+      "evidence": "actual grants precede eat; both returns and acknowledgements precede guest exit"
+    },
+    {
+      "id": "O1",
+      "classification": "problem_constraint",
+      "evidence": "actual grants precede eat; both returns and acknowledgements precede guest exit"
+    },
+    {
+      "id": "DL1",
+      "classification": "hazard_to_prevent",
+      "evidence": "single global orders the physical fork handoffs; complete concurrent boundary run observed, without a second owner table"
+    }
+  ],
+  "audit": {
+    "carrier_frames": 2120,
+    "domain_calls": 10,
+    "guest_exits": 5,
+    "kind": "deterministic_direct_wasi_boundary",
+    "max_disjoint_eaters": 2,
+    "model_calls": 0,
+    "original_test_delays": {
+      "a_review_waits_for_b_write": false,
+      "constrained_tool": "eat",
+      "first_effect_barrier": [
+        "PHILOSOPHER_A",
+        "PHILOSOPHER_C"
+      ]
+    },
+    "parallel_acquisition_observed": true,
+    "parallel_return_observed": true,
+    "participants": 5,
+    "scored_benchmark": false,
+    "simulator_complete": true,
+    "status": "passed",
+    "task": "9M",
+    "violations": 0
+  },
+  "interface_differences": [
+    "The projected owner supplies agent_id; the philosopher string remains data and cannot select a different participant, matching the original simulator",
+    "Finite one-think, one-eat execution matches the default original step set; subsequent shared effects are rejected",
+    "Two independent acquisition and return requests are issued before awaiting either reply"
+  ],
+  "limits": [
+    "Deterministic qualification, with artificial first-eater barriers; no model trial is claimed here",
+    "Observed completion is not a termination claim for an uncooperative model",
+    "No scored comparison or success-rate estimate"
+  ],
+  "remaining": [
+    "Run and audit the model path with this exact qualified build",
+    "Complete the full task-fidelity acceptance review and comparison harness"
+  ],
+  "caller_binding_test": "ANOTHER_DISPLAY_NAME is passed as the philosopher string; actual effects and replies still identify the projected caller"
+}

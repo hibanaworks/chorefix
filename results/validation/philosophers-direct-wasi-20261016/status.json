@@ -1,0 +1,95 @@
+{
+  "kind": "deterministic_direct_wasi_boundary_qualification",
+  "source_revision": "1876bfba80b37428d237e4fb7164a0544a12dbea",
+  "status": "passed",
+  "model_calls": 0,
+  "scored_benchmark": false,
+  "accepted_full_task_ports": 0,
+  "scored_episodes": 0,
+  "planned_scored_episodes": 2592,
+  "core_revision": "c2001ec06944d7f3b299e16b5b3efb5b0ba0366a",
+  "wasip1_runtime_revision": "4ebdad1443cf49488eae924afe528f67f5a5953b",
+  "wash_revision": "12e137aba2cea74f353c198a8d7c92afc977627c",
+  "rust_tests": 27,
+  "python_tests": 43,
+  "standalone_runner_tests": 4,
+  "explicit_process_integration": 1,
+  "clippy": "passed",
+  "original_task_and_baseline_bytes": "unchanged",
+  "caller_binding": "Projecting the caller fixes agent_id. A different philosopher string cannot retarget the effect, matching the original simulator.",
+  "cases": [
+    {
+      "carrier_frames": 1272,
+      "domain_calls": 6,
+      "guest_exits": 3,
+      "kind": "deterministic_direct_wasi_boundary",
+      "max_disjoint_eaters": 1,
+      "model_calls": 0,
+      "original_test_delays": {
+        "a_review_waits_for_b_write": false,
+        "constrained_tool": "eat",
+        "first_effect_barrier": [
+          "PHILOSOPHER_A"
+        ]
+      },
+      "parallel_acquisition_observed": true,
+      "parallel_return_observed": true,
+      "participants": 3,
+      "scored_benchmark": false,
+      "simulator_complete": true,
+      "status": "passed",
+      "task": "9E",
+      "violations": 0
+    },
+    {
+      "carrier_frames": 2120,
+      "domain_calls": 10,
+      "guest_exits": 5,
+      "kind": "deterministic_direct_wasi_boundary",
+      "max_disjoint_eaters": 2,
+      "model_calls": 0,
+      "original_test_delays": {
+        "a_review_waits_for_b_write": false,
+        "constrained_tool": "eat",
+        "first_effect_barrier": [
+          "PHILOSOPHER_A",
+          "PHILOSOPHER_C"
+        ]
+      },
+      "parallel_acquisition_observed": true,
+      "parallel_return_observed": true,
+      "participants": 5,
+      "scored_benchmark": false,
+      "simulator_complete": true,
+      "status": "passed",
+      "task": "9M",
+      "violations": 0
+    },
+    {
+      "carrier_frames": 2968,
+      "domain_calls": 14,
+      "guest_exits": 7,
+      "kind": "deterministic_direct_wasi_boundary",
+      "max_disjoint_eaters": 3,
+      "model_calls": 0,
+      "original_test_delays": {
+        "a_review_waits_for_b_write": false,
+        "constrained_tool": "eat",
+        "first_effect_barrier": [
+          "PHILOSOPHER_A",
+          "PHILOSOPHER_C",
+          "PHILOSOPHER_E"
+        ]
+      },
+      "parallel_acquisition_observed": true,
+      "parallel_return_observed": true,
+      "participants": 7,
+      "scored_benchmark": false,
+      "simulator_complete": true,
+      "status": "passed",
+      "task": "9H",
+      "violations": 0
+    }
+  ],
+  "protocol_mutants_rejected": 21
+}

@@ -1,0 +1,94 @@
+{
+  "format_version": 1,
+  "kind": "build_qualification_for_external_experiment_runner",
+  "source_revision": "1876bfba80b37428d237e4fb7164a0544a12dbea",
+  "source_archive": {
+    "path": "results/validation/philosophers-direct-wasi-20261016/source.tar.gz",
+    "sha256": "512e1c803a68651dde36c5503be329e6b60d240552fd25c64f3826da3823ce2d"
+  },
+  "wash_sha256": "407e1fe263231022eb542a7d2a35e4d4705a58590f92b77bf21fe5f7c77258bc",
+  "checks": [
+    {
+      "path": "results/validation/philosophers-direct-wasi-20261016/rust-tests-002.log.gz",
+      "sha256": "cf63a2a6dd3bb299a52f6f40a085257c9a3eece56759758367e25b56853c3f11"
+    },
+    {
+      "path": "results/validation/philosophers-direct-wasi-20261016/clippy-002.log.gz",
+      "sha256": "189331996667274962c1c8bb09fceb2246d21e0090558b78c11ede36bf678e17"
+    },
+    {
+      "path": "results/validation/philosophers-direct-wasi-20261016/python-tests.log.gz",
+      "sha256": "a4f7c7f521c34e2bfd962d6d07d04225cddca72eb6915fb068d6c71a53432a88"
+    },
+    {
+      "path": "results/validation/philosophers-direct-wasi-20261016/inventory.json",
+      "sha256": "95a89538bff920b96c98003685f707d2fc6ba7f6fc4cd5d97aa99f0960814085"
+    },
+    {
+      "path": "results/validation/philosophers-direct-wasi-20261016/baseline-inventory.json",
+      "sha256": "0b41c7c0aa880819e3d75c534a7d4b20ee24a6bc76d833d13c13a897fb6468e1"
+    }
+  ],
+  "cases": {
+    "2E": {
+      "audit": {
+        "path": "results/validation/writing-duplicate-binding-20261016/2E/audit.json",
+        "sha256": "606c2f4c1825b60a474bbe9cd9d0c6e1a5f1125413a328c4e14998aacc74c9e2"
+      },
+      "runtime_path": "output/qualified-direct-wasi-20261016-v2/writing-wasi",
+      "runtime_sha256": "9e8794c292a5b98e26136a81a8eff2f4f1d2ea90453f3ecfda6ef2dfe76c1745",
+      "protocol_verifier_path": "output/qualified-direct-wasi-20261016-v2/writing-boundary",
+      "protocol_verifier_sha256": "f17496eb01f58d1e49428b9f8fdd267a96c1635061c28afb7aa3aa0a97eee6cf"
+    },
+    "2M": {
+      "audit": {
+        "path": "results/validation/writing-duplicate-binding-20261016/2M/audit.json",
+        "sha256": "c08b9b37b3f1c1dffb808b8f95f05f6774b81c07e6c10563e0c88a748973e172"
+      },
+      "runtime_path": "output/qualified-direct-wasi-20261016-v2/writing-wasi",
+      "runtime_sha256": "9e8794c292a5b98e26136a81a8eff2f4f1d2ea90453f3ecfda6ef2dfe76c1745",
+      "protocol_verifier_path": "output/qualified-direct-wasi-20261016-v2/writing-boundary",
+      "protocol_verifier_sha256": "f17496eb01f58d1e49428b9f8fdd267a96c1635061c28afb7aa3aa0a97eee6cf"
+    },
+    "2H": {
+      "audit": {
+        "path": "results/validation/writing-duplicate-binding-20261016/2H/audit.json",
+        "sha256": "dad9c4f25fcc35c3999fd0873ec84877a0bd897a4288a8e4d99304fee844b812"
+      },
+      "runtime_path": "output/qualified-direct-wasi-20261016-v2/writing-wasi",
+      "runtime_sha256": "9e8794c292a5b98e26136a81a8eff2f4f1d2ea90453f3ecfda6ef2dfe76c1745",
+      "protocol_verifier_path": "output/qualified-direct-wasi-20261016-v2/writing-boundary",
+      "protocol_verifier_sha256": "f17496eb01f58d1e49428b9f8fdd267a96c1635061c28afb7aa3aa0a97eee6cf"
+    },
+    "9E": {
+      "audit": {
+        "path": "results/validation/philosophers-direct-wasi-20261016/9E/audit.json",
+        "sha256": "611fed776e469c6fc4e3536493a506152f173dbde48b2864f9ce61f95a9b114a"
+      },
+      "runtime_path": "output/qualified-direct-wasi-20261016-v2/philosophers-wasi",
+      "runtime_sha256": "2edb74534547405a90d35bfb6f3c26016b17867187208d09aeae331e6a775255",
+      "protocol_verifier_path": "output/qualified-direct-wasi-20261016-v2/philosophers-boundary",
+      "protocol_verifier_sha256": "0165a73c0dccd2095ebefa3eaa55b020b4bec55257965b704834112797e146a5"
+    },
+    "9M": {
+      "audit": {
+        "path": "results/validation/philosophers-direct-wasi-20261016/9M/audit.json",
+        "sha256": "1d6ce68f4d6ad65ada45c74371206432bf1b6b38fd0547a055709ceddeed0c3b"
+      },
+      "runtime_path": "output/qualified-direct-wasi-20261016-v2/philosophers-wasi",
+      "runtime_sha256": "2edb74534547405a90d35bfb6f3c26016b17867187208d09aeae331e6a775255",
+      "protocol_verifier_path": "output/qualified-direct-wasi-20261016-v2/philosophers-boundary",
+      "protocol_verifier_sha256": "0165a73c0dccd2095ebefa3eaa55b020b4bec55257965b704834112797e146a5"
+    },
+    "9H": {
+      "audit": {
+        "path": "results/validation/philosophers-direct-wasi-20261016/9H/audit.json",
+        "sha256": "946ba13fb8485f6c44b429e3009a87af255c89d8f00f07610c05dd0728e30233"
+      },
+      "runtime_path": "output/qualified-direct-wasi-20261016-v2/philosophers-wasi",
+      "runtime_sha256": "2edb74534547405a90d35bfb6f3c26016b17867187208d09aeae331e6a775255",
+      "protocol_verifier_path": "output/qualified-direct-wasi-20261016-v2/philosophers-boundary",
+      "protocol_verifier_sha256": "0165a73c0dccd2095ebefa3eaa55b020b4bec55257965b704834112797e146a5"
+    }
+  }
+}
