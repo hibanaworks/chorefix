@@ -395,7 +395,7 @@ pub fn run(root: &Path, verifier: &Path) -> Result<Value> {
         .sum();
     Ok(
         json!({"status":"passed","task":fixture["task"],"kind":"unscored_direct_wasi_model_preflight",
-        "scored_benchmark":false,"participants":participants,"model_calls":maximum,"max_simultaneous_model_turns":maximum,
+        "scored_benchmark":false,"participants":participants,"participant_turns":participants.len(),"max_simultaneous_model_turns":maximum,
         "inclusive_tokens":total,"protocol":protocol,"events_sha256":result["events_sha256"],
         "protocol_verifier_sha256":digest(verifier)?,"model_verifier_sha256":digest(&std::env::current_exe()?)?}),
     )
@@ -547,7 +547,10 @@ pub fn check_mutants(root: &Path, output: &Path, verifier: &Path) -> Result<Valu
             .to_string();
         checked.push(json!({"mutation":kind,"status":"rejected","reason":error,"outer_hashes_recomputed":true}));
     }
-    let report = json!({"status":"passed","checked":checked});
+    let report = json!({"status":"passed","checked":checked,
+        "model_verifier_sha256":digest(&std::env::current_exe()?)?,
+        "protocol_verifier_sha256":digest(verifier)?,
+        "original_events_sha256":digest(&root.join("events.jsonl"))?});
     crate::evidence::save(&output.join("report.json"), &report)?;
     Ok(report)
 }
