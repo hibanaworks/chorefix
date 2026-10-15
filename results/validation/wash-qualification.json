@@ -1,0 +1,105 @@
+{
+  "kind": "hibana_wash_mechanism_qualification",
+  "scored_benchmark": false,
+  "shell_repository": "https://github.com/hibanaworks/hibana-wash",
+  "shell_revision": "38a168e929d27df904bdcff3c1d647ae84af47af",
+  "hibana_version": "0.9.9",
+  "runtime_revision": "7905fa07bfd66db69ea7fb74883b7ca1e2b572bd",
+  "module": {
+    "module": "vendor/hibana-wash/target/wasm32-wasip1/release/hibana-wash.wasm",
+    "sha256": "943a435caabbeb7cf700db08fca370fbd9b24c653ef6662199e7405cd3e9e3c6",
+    "bytes": 28762,
+    "imports": [
+      {
+        "module": "wasi_snapshot_preview1",
+        "name": "fd_read",
+        "kind": 0,
+        "type": 0
+      },
+      {
+        "module": "wasi_snapshot_preview1",
+        "name": "proc_exit",
+        "kind": 0,
+        "type": 1
+      },
+      {
+        "module": "wasi_snapshot_preview1",
+        "name": "path_open",
+        "kind": 0,
+        "type": 2
+      },
+      {
+        "module": "wasi_snapshot_preview1",
+        "name": "fd_close",
+        "kind": 0,
+        "type": 3
+      },
+      {
+        "module": "wasi_snapshot_preview1",
+        "name": "fd_write",
+        "kind": 0,
+        "type": 0
+      },
+      {
+        "module": "wasi_snapshot_preview1",
+        "name": "fd_readdir",
+        "kind": 0,
+        "type": 4
+      }
+    ],
+    "memories": [
+      {
+        "flags": 1,
+        "minimum": 1,
+        "maximum": 1
+      }
+    ],
+    "tables": [],
+    "types": 20,
+    "max_function_parameters": 10,
+    "max_function_results": 1,
+    "defined_functions": 67,
+    "globals": 1,
+    "largest_function_body_bytes": 5278,
+    "max_declared_locals": 15,
+    "data_segments": 1,
+    "non_wasi_imports": [],
+    "inspection_scope": "declarations only; not module validation or execution"
+  },
+  "execution": "real Hibana WASI engine, projected Endpoints, ChoreoFS, unchanged TraceFix 16E simulator",
+  "checks": {
+    "wash_parser_tests": 3,
+    "consumer_rust_tests": 28,
+    "consumer_python_tests": 29,
+    "wash_real_wasi_tests": 5,
+    "fmt": "passed",
+    "clippy": "passed",
+    "inventories": "passed"
+  },
+  "wash_ci": "https://github.com/hibanaworks/hibana-wash/actions/runs/38687896215",
+  "consumer_tests": [
+    "tests/test_cicd_wasi.py",
+    "tests/test_wash.py"
+  ],
+  "scope": [
+    "multiline scripts",
+    "quotes and variables",
+    "if/for/while",
+    "pipes and redirection",
+    "saved scripts",
+    "ordinary errors and reconsideration",
+    "script budget exhaustion",
+    "agent-chosen private names",
+    "rejection without effects",
+    "early dependant waits",
+    "duplicate effect rejection",
+    "original simulator completion"
+  ],
+  "remaining": [
+    "broader resource and syntax-combination checks",
+    "native Luna xhigh episodes on the new boundary",
+    "remaining 48-task ports and task-fidelity acceptance",
+    "2592 scored comparisons",
+    "paper evidence and final report"
+  ]
+}

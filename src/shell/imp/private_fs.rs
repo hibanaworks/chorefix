@@ -15,26 +15,11 @@ const READ_WRITE: FdBinding = FdBinding {
     write: Some(FdWriteRow::Base),
     readdir: None,
 };
-const WORK_PATHS: [&[u8]; 8] = [
-    b"work/0", b"work/1", b"work/2", b"work/3", b"work/4", b"work/5", b"work/6", b"work/7",
+// Unbound slots have unrepresentable guest paths. They are not files or
+// permissions. A successful private create binds a caller-chosen name.
+const UNBOUND_PATHS: [&[u8]; 8] = [
+    b"\0slot0", b"\0slot1", b"\0slot2", b"\0slot3", b"\0slot4", b"\0slot5", b"\0slot6", b"\0slot7",
 ];
-
-const fn listing() -> [u8; 200] {
-    let mut listing = [0; 200];
-    let mut index = 0;
-    while index < 8 {
-        let base = index * 25;
-        // d_next is the byte offset used by this fixed directory's cookie.
-        listing[base] = ((index + 1) * 25) as u8;
-        listing[base + 8] = (index + 6) as u8;
-        listing[base + 16] = 1;
-        listing[base + 20] = protocol::WASIP1_FILETYPE_REGULAR_FILE;
-        listing[base + 24] = b'0' + index as u8;
-        index += 1;
-    }
-    listing
-}
-const WORK_LISTING: [u8; 200] = listing();
 
 // File contents, offsets and flags are filesystem data, never task progress or
 // ownership authority. All file operations consume ChoreoFS operation results.
@@ -42,6 +27,8 @@ pub struct PrivateFs<'a> {
     input: Vec<u8>,
     reply: Rc<RefCell<Vec<u8>>>,
     work: [Vec<u8>; 8],
+    paths: [Vec<u8>; 8],
+    listing: Vec<u8>,
     offsets: [usize; 15],
     fd_flags: [u16; 15],
     output: Vec<u8>,
@@ -55,6 +42,8 @@ impl<'a> PrivateFs<'a> {
             input: Vec::new(),
             reply,
             work: std::array::from_fn(|_| Vec::new()),
+            paths: std::array::from_fn(|_| Vec::new()),
+            listing: Vec::new(),
             offsets: [0; 15],
             fd_flags: [0; 15],
             output: Vec::new(),
@@ -65,6 +54,31 @@ impl<'a> PrivateFs<'a> {
 }
 
 impl PrivateFs<'_> {
+    fn work_path(&self, index: usize) -> &[u8] {
+        if self.paths[index].is_empty() {
+            UNBOUND_PATHS[index]
+        } else {
+            &self.paths[index]
+        }
+    }
+    fn refresh_listing(&mut self) {
+        self.listing.clear();
+        for (index, path) in self.paths.iter().enumerate() {
+            let Some(name) = path.strip_prefix(b"work/") else {
+                continue;
+            };
+            let next = (self.listing.len() + 24 + name.len()) as u64;
+            self.listing.extend_from_slice(&next.to_le_bytes());
+            self.listing
+                .extend_from_slice(&(index as u64 + 6).to_le_bytes());
+            self.listing
+                .extend_from_slice(&(name.len() as u32).to_le_bytes());
+            self.listing
+                .extend_from_slice(&[protocol::WASIP1_FILETYPE_REGULAR_FILE, 0, 0, 0]);
+            self.listing.extend_from_slice(name);
+        }
+    }
+
     fn objects<'b>(&'b self, reply: &'b [u8]) -> ChoreoFsObjectSet<'b, 14> {
         ChoreoFsObjectSet::new([
             ChoreoFsObject::readable(
@@ -101,56 +115,56 @@ impl PrivateFs<'_> {
                 FdBinding::read(FdReadRow::Base),
             ),
             ChoreoFsObject::read_write(
-                WORK_PATHS[0],
+                self.work_path(0),
                 ObjectId(6),
                 FdSpec::new(6, READ | WRITE, 1),
                 &self.work[0],
                 READ_WRITE,
             ),
             ChoreoFsObject::read_write(
-                WORK_PATHS[1],
+                self.work_path(1),
                 ObjectId(7),
                 FdSpec::new(7, READ | WRITE, 1),
                 &self.work[1],
                 READ_WRITE,
             ),
             ChoreoFsObject::read_write(
-                WORK_PATHS[2],
+                self.work_path(2),
                 ObjectId(8),
                 FdSpec::new(8, READ | WRITE, 1),
                 &self.work[2],
                 READ_WRITE,
             ),
             ChoreoFsObject::read_write(
-                WORK_PATHS[3],
+                self.work_path(3),
                 ObjectId(9),
                 FdSpec::new(9, READ | WRITE, 1),
                 &self.work[3],
                 READ_WRITE,
             ),
             ChoreoFsObject::read_write(
-                WORK_PATHS[4],
+                self.work_path(4),
                 ObjectId(10),
                 FdSpec::new(10, READ | WRITE, 1),
                 &self.work[4],
                 READ_WRITE,
             ),
             ChoreoFsObject::read_write(
-                WORK_PATHS[5],
+                self.work_path(5),
                 ObjectId(11),
                 FdSpec::new(11, READ | WRITE, 1),
                 &self.work[5],
                 READ_WRITE,
             ),
             ChoreoFsObject::read_write(
-                WORK_PATHS[6],
+                self.work_path(6),
                 ObjectId(12),
                 FdSpec::new(12, READ | WRITE, 1),
                 &self.work[6],
                 READ_WRITE,
             ),
             ChoreoFsObject::read_write(
-                WORK_PATHS[7],
+                self.work_path(7),
                 ObjectId(13),
                 FdSpec::new(13, READ | WRITE, 1),
                 &self.work[7],
@@ -160,7 +174,7 @@ impl PrivateFs<'_> {
                 b"work",
                 ObjectId(14),
                 FdSpec::new(14, READDIR, 1),
-                &WORK_LISTING,
+                &self.listing,
                 FdBinding::readdir(FdReaddirRow::Base),
             ),
         ])
@@ -172,13 +186,13 @@ impl PrivateFs<'_> {
                 .terminal
                 .read_command(self.bus, std::mem::take(&mut self.output))
                 .await?;
-            if command.len() > 4095 || command.as_bytes().contains(&0) {
+            if command.len() > 4096 || command.as_bytes().contains(&0) {
                 return Err(ShellError::message(
                     "shell command exceeds guest input bound",
                 ));
             }
-            self.input = command.as_bytes().to_vec();
-            self.input.push(b'\n');
+            self.input = (command.len() as u32).to_le_bytes().to_vec();
+            self.input.extend_from_slice(command.as_bytes());
             self.offsets[0] = 0;
         }
         let index = read.fd() as usize;
@@ -241,6 +255,22 @@ impl PrivateFs<'_> {
             return Err(ShellError::message("non-root path_open"));
         }
         let path = normalize(request.path());
+        let created = if !self.paths.iter().any(|existing| existing == path)
+            && request.open_flags() & 1 != 0
+            && request.rights_base() & WRITE != 0
+            && let Some(name) = path.strip_prefix(b"work/")
+        {
+            if name.is_empty() || name.len() > 64 || name.contains(&b'/') || name.contains(&0) {
+                return Ok(protocol::PathOpenedRet(protocol::PathOpened::new(0, 28)));
+            }
+            let Some(index) = self.paths.iter().position(Vec::is_empty) else {
+                return Ok(protocol::PathOpenedRet(protocol::PathOpened::new(0, 22)));
+            };
+            self.paths[index].extend_from_slice(path);
+            Some(index)
+        } else {
+            None
+        };
         let request = protocol::PathOpen::new(3, request.rights_base(), path)?
             .with_flags(request.open_flags() as u32, request.fd_flags() as u32)?;
         let open = self
@@ -261,6 +291,12 @@ impl PrivateFs<'_> {
             }
             self.offsets[fd] = 0;
             self.fd_flags[fd] = request.fd_flags();
+        }
+        if let Some(index) = created {
+            if !open.is_open() {
+                self.paths[index].clear();
+            }
+            self.refresh_listing();
         }
         Ok(open.opened_ret())
     }

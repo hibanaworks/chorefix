@@ -53,14 +53,17 @@ The new [16E ChoreoFS protocol](src/tasks/cicd/choreofs/global.rs) puts service
 open/write/close requests and task dependencies in the same composed global.
 Three mechanism tests and four real-WASI integration tests cover rejected
 arguments, corrected work, early dependants, duplicate effects and premature
-exit against the unchanged simulator. These tests use the older bounded guest
-and do not establish general shell freedom.
+exit against the unchanged simulator. They now run the independent
+[hibana-wash](https://github.com/hibanaworks/hibana-wash) guest pinned by the
+`vendor/hibana-wash` submodule. Its script tests also cover quotes, variables,
+conditions, loops, pipes, redirects, saved scripts, and error recovery.
+These are deterministic mechanism tests, not scored model experiments.
 
-The [Bash guest](guests/bash/README.md) now builds with Rust 1.95 and imports
-only WASI Preview 1. It does not yet start in the bounded runtime: its real
-module exceeds the current descriptor and execution capacities. The
-[qualification record](results/validation/bash-guest-qualification.json) keeps
-this failure and the remaining gates explicit. See [the work plan](plan.md).
+The former rust-bash candidate exceeded the runtime's capacities and was
+retired. Its [qualification record](results/validation/bash-guest-qualification.json)
+remains as failed evidence. Wash has no external Rust dependencies or guest FS.
+All file operations go through WASI, projected Endpoints, and ChoreoFS.
+See [the work plan](plan.md) for the remaining experiment gates.
 
 ## Follow the protocol
 
@@ -258,7 +261,9 @@ actual domain work. A pathname, approval file or WASI write cannot replace that
 authorization. The test sends an early `eat` through the real guest and ChoreoFS;
 the task endpoint rejects it before an execute request reaches the simulator.
 
-The shell supports `help`, `ls`, `cat`, `echo`, `apply`, `script`, and `call`.
+The older integration guest supports `help`, `ls`, `cat`, `echo`, `apply`,
+`script`, and `call`. It remains for recorded preflight regressions. The direct
+16E boundary uses the separate hibana-wash guest described above.
 Eight bounded work objects hold notes or scripts. A `call` writes its original
 tool arguments to `/tools/call` and reads the actual result from `/tools/reply`.
 The shell does not run arbitrary POSIX binaries or provide a Rust compiler.
@@ -280,6 +285,7 @@ arbitrary source-code quality. The shell adds no such quality guarantee.
 Build and test the actual boundary:
 
 ```sh
+git submodule update --init --recursive
 bash tools/build_shell.sh
 PYTHONPATH=. .venv/bin/pytest -q tests/test_shell.py
 .venv/bin/python tools/run_shell_preflight.py --tasks 1H 9M --scenario 2 --run-id wasi-choreofs-001

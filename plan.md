@@ -83,50 +83,56 @@ ChoreoFSのパス/fd/rightsの事実だけでタスク効果を許可しない�
   ログは`output/direct-wasi-pytest-004/`。固定コマンドによる境界試験であり、
   モデルの自由度や比較成功率を検証したものではない。
 - fmtと`cargo +1.95.0 clippy --locked --all-targets -- -D warnings`は通った。
-  Rust全28試験とPythonの自repo全28試験も通った。
+  Rust全28試験とPythonの自repo全29試験も通った。
   pytestの探索先は`tests/`へ固定し、2つの未変更upstreamや調査用cloneを
   自repoの試験と混在させない。upstream試験はそれぞれを明示して別途実行する。
-  この新しい経路のLuna試行、汎用シェル、全48課題の受理はまだ完了していない。
+  この新しい経路のLuna試行と全48課題の受理はまだ完了していない。
   `ChoreoFS File`のバッファはデータであり、タスク状態や追加の権限には使わない。
 - 自己送信の分岐を`branch.send`で消費できると思ったのは呼出側の取り違えだった。
   現行0.9.9では`branch.recv`が空のローカル操作を消費する。自己送受信なので
   これを通信方向の不整合とは断定できない。本体は変更していない。
   根拠は`results/validation/hibana099-local-action-api.md`。
-- 汎用シェル候補を`guests/bash/`に実装した。rust-bashの固定revをWASI向けに
-  パッチし、実ファイル操作はguestの`std::fs`を通る。別のFSやJS実行系を使わない。
-  stable Rust 1.95のrelease buildとstrict Clippyは通ったが、まだ動作済みではない。
-  実moduleは5,255,753 bytes、101 types、7,108関数、1,937 table entries、
-  最大540 locals、最大body 83,955 bytes、初期memory 43 pages。
-  25 importsはすべてWASI Preview 1で、非WASI importは0。
-  現runtimeでの起動は`Wasm(Unsupported(10025))`で拒否された。
-  このコードは`too many core wasm function types`に対応する。simulator効果は0。
-  容量調査であり、モデル実験や採点済み実行には数えない。
-  原ログは`output/bash-guest-probe-001/`、宣言値は`output/bash-guest-profile.json`。
+- `rust-bash`候補は採用しない。5,255,753-byte moduleの起動は容量超過で
+  拒否されていた。失敗資料は`results/validation/bash-guest-qualification.json`に保存し、
+  guest本体・依存パッチ・準備スクリプトは現行経路とCIから除いた。
+- 独立リポジトリ`https://github.com/hibanaworks/hibana-wash`を作成した。
+  初期コミットは`38a168e929d27df904bdcff3c1d647ae84af47af`。
+  `vendor/hibana-wash` submoduleで固定し、ソースの別コピーを実装として持たない。
+  dependency-free / no_std / no allocatorの小さいWASI shellである。
+  引用符、変数、条件、反復、パイプ、リダイレクト、保存したscriptを実装し、
+  タスク名・段階・許可表は持たない。guest内FSやnative FS経路も持たない。
+  実体は6個のWASI importsを使い、既存のprojected EndpointとChoreoFSへ渡る。
+  正確なmodule宣言と採用範囲は`results/validation/wash-qualification.json`に保存する。
+  wash単体のRust test/build/strict ClippyとGitHub CIは通った。
+- 16Eの実WASI接続はwashへ切り替えた。従来の4試験と、新しいscript機構試験1件が
+  元のsimulatorで通った。複数行、変数、for/while、if、pipe、redirect、script読込、
+  エラー後の続行、計算予算の終了と再考、私有ファイル名の選択を確認した。
+  private objectは8個まで、名前はmodelが選ぶ。名前や内容はタスク権限を与えない。
+  既存の制限guestは旧経路の回帰試験用に残す。旧model preflightはまだその経路であり、
+  washのmodel試験として数えない。新経路へのharness移行とLuna実行は次の作業。
 - `a1ece11608ae19c8f548bac52f15b531236f1f80`のCIで、タスク拒否後に
   別のmodelからRPCが届くと、閉じたログへの書き込みエラーで元の拒否を隠す競合が出た。
   実際の終了verdictを送信境界で保持し、RPC Futureの回収を修正した。
   意図的にlogger/stream終了後へ送信する回帰試験を加え、Python全28件が通った。
   これはRPCの寿命処理であり、タスク進行や許可をPythonへ移す変更ではない。
+  修正版`7fa7406f8b8a0f2a5d3f2247496be796214694b6`のGitHub CI成功も確認した。
 - runtimeの更新は既存コピーを触らず
   `output/upstream/hibana-wasip1-shell`の`development/caller-workspace-shell`で作業中。
   関数ごとにlocals型配列を複製せず、宣言をmodule bytesから借用する変更を加えた。
   localsの値は宣言型で初期化され、書き込み前に型を検査する。
-  Rust 79件（2 ignored）、関連Miri 5件、strict Clippy、thumbv8m no_stdは通った。
-  未push・実験未採用であり、まだ大きいシェルを実行できる状態ではない。
+  関数bodyの制御位置をu32へ広げ、80,000 bytesを飛び越すif/block/loop試験も加えた。
+  現在のRust 80件（2 ignored）、strict Clippy、thumbv8m no_stdは通った。
+  VM 26,512 bytes / CodeBody 32 bytes / Frame 560 bytes。
+  u32変更前の関連Miri 5件とruntime gatesは通ったが、u32変更後には再実行していない。
+  この変更は未push・実験未採用で保留する。washには既存の固定revを使う。
 
 ## 次の一手
 
-1. シェルの言語・作業用ファイル・利用できるプログラムを整え、モデルが自由に
-   コマンドやスクリプトを組み立てられるようにする。実際のWASI runtimeの
-   syscallとVM容量の制約も解決する。別エンジンやhost shellで代用しない。
-   候補シェルはまず実WASI moduleの依存importと容量を測り、JS importや
-   別のFSが必要な実装を動作済みとして採用しない。
-   次はWASI runtimeのcaller-provided workspace化を進める。224関数・32locals等の
-   固定配列を巨大化した別modeやheap fallbackを追加しない。関数bodyのu16位置も
-   実moduleの83,955 bytesを表せる形へ直す。小さい組込みguestの予算を維持する。
-   その後、seek/作成/削除/rename/link等の実WASI要求をglobalとChoreoFSへ追加し、
-   作業用ファイルの固定8名制限と4095-byte入力制限をなくす。
-   シェル内の変数・構文の状態と、禁止するタスク連携の二重管理を混同しない。
+1. `hibana-wash`の残る資源境界とscriptの組合せを検査し、原論文の課題を実行する
+   model harnessを16Eの新しい実WASI・ChoreoFS経路へ移す。
+   特定タスクのコマンド列を組み込まず、modelがscriptを組み立てる。
+   現在の64KiBと公開WASI runtimeで進め、大型Bash用のruntime拡張は再開しない。
+   shell内の構文・変数・exit statusと、禁止するタスク連携の二重管理を混同しない。
 2. 実Luna xhigh参加者で再検証し、元のsimulatorと独立監査を通す。
    その後、残りの移植にも同じ境界を適用する。
 

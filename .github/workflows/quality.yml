@@ -10,6 +10,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          submodules: true
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
           python-version: '3.14'
@@ -27,9 +29,12 @@ jobs:
         run: |
           cargo +1.95.0 fmt --check
           cargo +1.95.0 fmt --manifest-path guests/shell/Cargo.toml --check
+          cargo +1.95.0 fmt --manifest-path vendor/hibana-wash/Cargo.toml --check
+          cargo +1.95.0 test --locked --manifest-path vendor/hibana-wash/Cargo.toml --lib
           cargo +1.95.0 test --locked
           cargo +1.95.0 clippy --locked --all-targets -- -D warnings
           cargo +1.95.0 clippy --locked --manifest-path guests/shell/Cargo.toml --target wasm32-wasip1 --release -- -D warnings
+          cargo +1.95.0 clippy --locked --manifest-path vendor/hibana-wash/Cargo.toml --target wasm32-wasip1 --release -- -D warnings
       - name: Check the actual WASI and task effect boundary
         run: |
           bash tools/build_shell.sh
@@ -38,11 +43,7 @@ jobs:
           .venv/bin/python tools/runtime_inventory.py --check
           .venv/bin/python tools/matrix.py
           git diff --exit-code -- benchmark/matrix.jsonl benchmark/latest-matrix.jsonl
-      - name: Build and inspect the candidate WASI Bash guest
+      - name: Inspect hibana-wash imports and memory
         run: |
-          python tools/prepare_bash_guest.py
-          cargo +1.95.0 fmt --manifest-path guests/bash/Cargo.toml --check
-          cargo +1.95.0 build --locked --manifest-path guests/bash/Cargo.toml --target wasm32-wasip1 --release
-          cargo +1.95.0 clippy --locked --manifest-path guests/bash/Cargo.toml --target wasm32-wasip1 --release -- -D warnings
-          python tools/profile_wasi_guest.py guests/bash/target/wasm32-wasip1/release/choreofix-bash-guest.wasm > bash-guest-profile.json
-          python -c 'import json; p=json.load(open("bash-guest-profile.json")); assert not p["non_wasi_imports"], p["non_wasi_imports"]'
+          python vendor/hibana-wash/tools/profile.py vendor/hibana-wash/target/wasm32-wasip1/release/hibana-wash.wasm > wash-profile.json
+          python -c 'import json; p=json.load(open("wash-profile.json")); assert not p["non_wasi_imports"]; assert len(p["imports"]) == 6; assert p["memories"] == [{"flags": 1, "minimum": 1, "maximum": 1}]'

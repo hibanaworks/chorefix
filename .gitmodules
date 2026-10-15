@@ -1,0 +1,3 @@
+[submodule "vendor/hibana-wash"]
+	path = vendor/hibana-wash
+	url = https://github.com/hibanaworks/hibana-wash.git

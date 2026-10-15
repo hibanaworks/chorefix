@@ -54,6 +54,11 @@ the current bounded guest has already met.
 
 Use the real `hibana-wasip1-runtime` and ChoreoFS. Do not substitute a native
 host shell, host filesystem, another Wasm engine, or a second virtual filesystem.
+The shell is the small, dependency-free `hibana-wash` WASI guest, pinned as the
+`vendor/hibana-wash` submodule from its own repository. Keep shell
+syntax and file I/O here, never task-specific commands, permission tables, or
+coordination state. Do not grow the runtime merely to embed a general Bash
+implementation. Shell variables and syntax are computation, not task authority.
 ChoreoFS is the object interface to projected communication. It is not a second
 authorization engine. A pathname, fd fact, rights mask, directory listing, or
 successful open does not authorize a task effect.

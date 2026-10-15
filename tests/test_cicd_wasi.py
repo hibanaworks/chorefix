@@ -1,6 +1,6 @@
 """Real guest imports, projected ChoreoFS services, unchanged 16E simulator.
 
-These deterministic commands test the boundary, not model freedom or success.
+These deterministic hibana-wash scripts test the boundary, not model success.
 """
 
 import asyncio
@@ -27,7 +27,7 @@ async def test_real_guest_recovers_then_runs_the_original_pipeline_once(tmp_path
     registry = load_tools("16E", sim=sim)
     runtime = await asyncio.wait_for(DirectWasi.start(
         ROOT / "target/debug/cicd-wasi",
-        ROOT / "guests/shell/target/wasm32-wasip1/release/choreofix-shell-guest.wasm",
+        ROOT / "vendor/hibana-wash/target/wasm32-wasip1/release/hibana-wash.wasm",
         registry, AGENTS, tmp_path / "runtime",
     ), 10)
     try:
@@ -37,15 +37,15 @@ async def test_real_guest_recovers_then_runs_the_original_pipeline_once(tmp_path
         note = await runtime.command("DEVELOPER", 'cat /work/2')
         assert "private notes" in note["stdout"]
         unknown = await runtime.command("DEVELOPER", 'not_a_command')
-        assert "help" in unknown["stdout"]
+        assert "command not found" in unknown["stdout"]
         missing = await runtime.command("DEVELOPER", 'cat /missing')
-        assert "help" in missing["stdout"]
+        assert "denied" in missing["stdout"]
         denied = await runtime.command(
             "DEVELOPER", 'echo {} > /service/deploy_application',
         )
         assert "denied" in denied["stdout"]
         await runtime.command(
-            "DEVELOPER", 'echo {"wrong":"application"} > /service/compile_and_test',
+            "DEVELOPER", "echo '{\"wrong\":\"application\"}' > /service/compile_and_test",
         )
         rejected = await runtime.command("DEVELOPER", 'cat /service/result')
         assert "invalid_arguments" in rejected["stdout"]
@@ -53,23 +53,23 @@ async def test_real_guest_recovers_then_runs_the_original_pipeline_once(tmp_path
         # Start dependants first. Their actual open imports must wait; private
         # work and shell parsing alone cannot authorize the shared effect.
         test = asyncio.create_task(runtime.command(
-            "TESTER", 'echo {"suite":"integration"} > /service/run_integration_tests',
+            "TESTER", "echo '{\"suite\":\"integration\"}' > /service/run_integration_tests",
         ))
         deploy = asyncio.create_task(runtime.command(
-            "DEPLOYER", 'echo {"target":"production"} > /service/deploy_application',
+            "DEPLOYER", "echo '{\"target\":\"production\"}' > /service/deploy_application",
         ))
         await asyncio.sleep(0.05)
         assert not test.done() and not deploy.done()
         assert not sim.events
         await asyncio.wait_for(runtime.command(
-            "DEVELOPER", 'echo {"component":"application"} > /service/compile_and_test',
+            "DEVELOPER", "echo '{\"component\":\"application\"}' > /service/compile_and_test",
         ), 5)
         await asyncio.wait_for(asyncio.gather(test, deploy), 5)
         for agent in AGENTS:
             reply = await runtime.command(agent, 'cat /service/result')
             assert '"success":true' in reply["stdout"]
         duplicate = await runtime.command(
-            "DEVELOPER", 'echo {"component":"application"} > /service/compile_and_test',
+            "DEVELOPER", "echo '{\"component\":\"application\"}' > /service/compile_and_test",
         )
         assert "denied" in duplicate["stdout"]
         assert [event.tool for event in sim.events] == [
@@ -78,7 +78,7 @@ async def test_real_guest_recovers_then_runs_the_original_pipeline_once(tmp_path
         assert sim.is_complete()
         assert not sim.violations
         exits = await asyncio.wait_for(asyncio.gather(*(
-            runtime.command(agent, "exit") for agent in AGENTS
+            runtime.command(agent, "exit 0") for agent in AGENTS
         )), 5)
         assert exits == [{"exit_status": 0}] * 3
         assert await asyncio.wait_for(runtime.result, 5) == {
@@ -99,7 +99,7 @@ async def test_guest_exit_before_work_is_a_failed_run_with_no_domain_effect(tmp_
     sim = module.SimpleCICDSim()
     runtime = await asyncio.wait_for(DirectWasi.start(
         ROOT / "target/debug/cicd-wasi",
-        ROOT / "guests/shell/target/wasm32-wasip1/release/choreofix-shell-guest.wasm",
+        ROOT / "vendor/hibana-wash/target/wasm32-wasip1/release/hibana-wash.wasm",
         load_tools("16E", sim=sim), AGENTS, tmp_path / "runtime",
     ), 10)
     try:
