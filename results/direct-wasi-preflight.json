@@ -155,7 +155,8 @@
         "TESTER/events.jsonl": "11e62068af20ce771fc4be69cc1bbe2344db7d3741c203dd6c155d9a58260454",
         "TESTER/participant.json": "e51a2365e511a54c0fbf12267ece0f7d7294f5480a03ca0dac1dfee15e280be4"
       },
-      "assessment": "Task and models completed, but the first recorder mistakenly used the parent Git revision for the extracted TraceFix archive. Preserve as preliminary evidence, not the final qualified run."
+      "assessment": "Task and models completed, but the first recorder mistakenly used the parent Git revision for the extracted TraceFix archive. Preserve as preliminary evidence, not the final qualified run.",
+      "connection_scope": "Historical component run with an unprojected WASI-to-task bridge; not evidence of the corrected connection."
     },
     {
       "run_id": "wash-std-luna-002",
@@ -288,7 +289,8 @@
         "TESTER/events.jsonl": "e37a39365a4bd0ee49253101777572bb8a651f1466f1794db4be4f6710f9286d",
         "TESTER/participant.json": "91804217f38070df55c6a6073e97f4c08d3146c9f5b3227fca3a75f862761c6e"
       },
-      "assessment": "Consumer integration failure: opening root reused preopen fd 3; later path operations were rejected. Two domain operations completed. Preserve this failed attempt."
+      "assessment": "Consumer integration failure: opening root reused preopen fd 3; later path operations were rejected. Two domain operations completed. Preserve this failed attempt.",
+      "connection_scope": "Historical component run with an unprojected WASI-to-task bridge; not evidence of the corrected connection."
     },
     {
       "run_id": "wash-std-luna-003",
@@ -435,7 +437,8 @@
         "TESTER/events.jsonl": "03e7fe4670406471c457223dc9356d3798d9d33d65ac0be96c27558adc592285",
         "TESTER/participant.json": "e8d1e2e8aaf36c7e320dd3f4d48e4de09912285ff33ddb7211fb37964170e9e8"
       },
-      "assessment": "Task protocol and simulator completed, but terminal exit discarded script output. A model called the closed guest again and ended with a harness error. Preserve this incomplete participant outcome."
+      "assessment": "Task protocol and simulator completed, but terminal exit discarded script output. A model called the closed guest again and ended with a harness error. Preserve this incomplete participant outcome.",
+      "connection_scope": "Historical component run with an unprojected WASI-to-task bridge; not evidence of the corrected connection."
     },
     {
       "run_id": "wash-std-luna-004",
@@ -582,7 +585,169 @@
         "TESTER/events.jsonl": "54a561881b266a4513bbc80ebaa16028c10d62ae5188c5361053984b94740dd0",
         "TESTER/participant.json": "3a549770dd0e35656a569ec3ce0663bfe4476ad2972419bc47464a6cd3087ed8"
       },
-      "assessment": "All three models, the projected protocol, and the original simulator completed. Separate persisted-event audit passed."
+      "assessment": "All three models, the projected protocol, and the original simulator completed. Separate persisted-event audit passed.",
+      "connection_scope": "Historical component run with an unprojected WASI-to-task bridge; not evidence of the corrected connection."
+    },
+    {
+      "scored_benchmark": false,
+      "scenario_depth": 0,
+      "protocol": {
+        "status": "complete",
+        "type": "run_result"
+      },
+      "simulator_complete": true,
+      "simulator_events": [
+        {
+          "timestamp": 1896776.46298275,
+          "agent": "DEVELOPER",
+          "tool": "compile_and_test",
+          "args": {
+            "component": "application"
+          },
+          "success": true,
+          "result": {
+            "component": "application",
+            "status": "compiled and tested",
+            "developer": "DEVELOPER"
+          },
+          "violations": []
+        },
+        {
+          "timestamp": 1896776.56735325,
+          "agent": "TESTER",
+          "tool": "run_integration_tests",
+          "args": {
+            "suite": "integration"
+          },
+          "success": true,
+          "result": {
+            "suite": "integration",
+            "status": "tests passed",
+            "engineer": "TESTER"
+          },
+          "violations": []
+        },
+        {
+          "timestamp": 1896780.206397458,
+          "agent": "DEPLOYER",
+          "tool": "deploy_application",
+          "args": {
+            "target": "production"
+          },
+          "success": true,
+          "result": {
+            "target": "production",
+            "status": "deployed and smoke-tested",
+            "engineer": "DEPLOYER"
+          },
+          "violations": []
+        }
+      ],
+      "simulator_violations": [],
+      "participants": [
+        {
+          "participant": "DEPLOYER",
+          "status": "completed",
+          "error": null,
+          "requested_model": "gpt-6-luna",
+          "returned_model": "gpt-6-luna",
+          "requested_effort": "xhigh",
+          "returned_effort": "xhigh",
+          "tool_calls": 4,
+          "elapsed_seconds": 15.640803084010258,
+          "usage": {
+            "totalTokens": 77611,
+            "inputTokens": 77292,
+            "cachedInputTokens": 67328,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 319,
+            "reasoningOutputTokens": 173
+          },
+          "raw_events_sha256": "fd24d83dd7e78239d74a66cb9f409bd6f175104afb956bf902d9eaf9c5db7520"
+        },
+        {
+          "participant": "DEVELOPER",
+          "status": "completed",
+          "error": null,
+          "requested_model": "gpt-6-luna",
+          "returned_model": "gpt-6-luna",
+          "requested_effort": "xhigh",
+          "returned_effort": "xhigh",
+          "tool_calls": 6,
+          "elapsed_seconds": 40.74340591696091,
+          "usage": {
+            "totalTokens": 113881,
+            "inputTokens": 112008,
+            "cachedInputTokens": 92416,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 1873,
+            "reasoningOutputTokens": 1656
+          },
+          "raw_events_sha256": "b0a7f4386eaed4524b2e4ba3d7f1a3344ecffe9294589c3a8bf894b7487dad7a"
+        },
+        {
+          "participant": "TESTER",
+          "status": "completed",
+          "error": null,
+          "requested_model": "gpt-6-luna",
+          "returned_model": "gpt-6-luna",
+          "requested_effort": "xhigh",
+          "returned_effort": "xhigh",
+          "tool_calls": 3,
+          "elapsed_seconds": 15.765004124958068,
+          "usage": {
+            "totalTokens": 62162,
+            "inputTokens": 61830,
+            "cachedInputTokens": 58368,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 332,
+            "reasoningOutputTokens": 213
+          },
+          "raw_events_sha256": "8a7895acf7cdc32caad66291b889377ba53ccc2fe00f7da37dc47ed5179cfa3d"
+        }
+      ],
+      "error": null,
+      "elapsed_seconds": 41.35298379091546,
+      "runtime_exit_code": 0,
+      "binary_sha256": {
+        "runtime": "d84875e6f84d4e655174912bf183025b9bc47a72c2b066c78f06b971fadc4f78",
+        "wash.wasm": "407e1fe263231022eb542a7d2a35e4d4705a58590f92b77bf21fe5f7c77258bc"
+      },
+      "run_id": "projected-wasi-005",
+      "versions": {
+        "consumer": "aaea2c4b599d57c6232624f638ef44da9f0ee746",
+        "wash": "12e137aba2cea74f353c198a8d7c92afc977627c",
+        "tracefix": "36b4bd108fcd74f7efb17613aebbe3fdf55499a9"
+      },
+      "source_manifest_sha256": "a230d3b5fa6205bb0e7db9b98a6489bd6df573791a3b64c7a1b82a16ad9b6dd9",
+      "last_observed_total_tokens": 253654,
+      "usage_may_be_partial": false,
+      "raw_directory": "output/direct-wasi-preflight/projected-wasi-005/16E",
+      "raw_file_sha256": {
+        "source-manifest.json": "a230d3b5fa6205bb0e7db9b98a6489bd6df573791a3b64c7a1b82a16ad9b6dd9",
+        "TESTER-prompt.txt": "62ff21361787c5b80d77f9058bf70a7d4a15fafd44f64b3dfed7e201c2c7293f",
+        "result.json": "85186094bd90d7ee623e7963655cb7b8d41dd6bd9de3ada731a45ca4939f1330",
+        "DEVELOPER-prompt.txt": "f2ec0b9b66821a70c111aa2ca0570d5bbcce96c062cc0bfe0ca7de5b164919dc",
+        "DEPLOYER-prompt.txt": "bb766bbeef5f701b15150f203b514b97cb23353ec0507f48558e0b9111c69bb2",
+        "DEPLOYER/events.jsonl": "fd24d83dd7e78239d74a66cb9f409bd6f175104afb956bf902d9eaf9c5db7520",
+        "DEPLOYER/participant.json": "1daf53b59907ebc651d41bd90bd7095d77091d94f915432b991e50f39f29e833",
+        "DEVELOPER/events.jsonl": "b0a7f4386eaed4524b2e4ba3d7f1a3344ecffe9294589c3a8bf894b7487dad7a",
+        "DEVELOPER/participant.json": "e5596c5fc1a11ad24e7d9b2e347d43cc5cf1da5872e1cfca22c6adb97ed2200e",
+        "io/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "io/events.jsonl": "c9e19d33ba8b132ead325ee1e4c3f6e7bc68e50e5b7cacb761d808583cb6d8f3",
+        "TESTER/events.jsonl": "8a7895acf7cdc32caad66291b889377ba53ccc2fe00f7da37dc47ed5179cfa3d",
+        "TESTER/participant.json": "c10c4522e2f64df83fd079057212dc02a5e94e3b68ec2c12c86463cb8c4bc970"
+      },
+      "assessment": "All three Luna xhigh models, the projected request/reply path, all four original notifications, and the unmodified simulator completed. Independent persisted-event audit passed. This qualifies the 16E connection only, not full-task fidelity or a scored comparison.",
+      "audit": "results/audits/projected-wasi-005-16E.json"
+    }
+  ],
+  "additional_raw_archives": [
+    {
+      "run_id": "projected-wasi-005",
+      "path": "output/direct-wasi-preflight/projected-wasi-005-evidence.tar.gz",
+      "sha256": "53f2f3ace713587bd920d1c9a0cac6d2d4e0bcd9990199d8797b2749af9259be",
+      "location": "local workspace; source snapshots, binaries, raw model and carrier events included"
     }
   ]
 }

@@ -1,0 +1,70 @@
+{
+  "kind": "direct_wasi_integration_preflight",
+  "task": "16E",
+  "scored_benchmark": false,
+  "audit_passed": true,
+  "participants": 3,
+  "domain_calls": 3,
+  "protocol_path": {
+    "frames": 357,
+    "observations": 714,
+    "paths": [
+      {
+        "agent": "DEVELOPER",
+        "wasi_role": 0,
+        "owner_role": 3,
+        "close_frame": 134,
+        "reply_frame": 135
+      },
+      {
+        "agent": "TESTER",
+        "wasi_role": 1,
+        "owner_role": 4,
+        "close_frame": 212,
+        "reply_frame": 241
+      },
+      {
+        "agent": "DEPLOYER",
+        "wasi_role": 2,
+        "owner_role": 5,
+        "close_frame": 257,
+        "reply_frame": 263
+      }
+    ],
+    "notifications": [
+      {
+        "source": 3,
+        "target": 4,
+        "frame": 139
+      },
+      {
+        "source": 4,
+        "target": 5,
+        "frame": 245
+      },
+      {
+        "source": 5,
+        "target": 3,
+        "frame": 268
+      },
+      {
+        "source": 5,
+        "target": 4,
+        "frame": 269
+      }
+    ]
+  },
+  "shell_calls": 13,
+  "total_tokens": 253654,
+  "elapsed_seconds": 41.35298379091546,
+  "result_sha256": "85186094bd90d7ee623e7963655cb7b8d41dd6bd9de3ada731a45ca4939f1330",
+  "binary_sha256": {
+    "runtime": "d84875e6f84d4e655174912bf183025b9bc47a72c2b066c78f06b971fadc4f78",
+    "wash.wasm": "407e1fe263231022eb542a7d2a35e4d4705a58590f92b77bf21fe5f7c77258bc"
+  },
+  "versions": {
+    "consumer": "aaea2c4b599d57c6232624f638ef44da9f0ee746",
+    "wash": "12e137aba2cea74f353c198a8d7c92afc977627c",
+    "tracefix": "36b4bd108fcd74f7efb17613aebbe3fdf55499a9"
+  }
+}

@@ -206,17 +206,25 @@ WASIの値とmessageの変換はlocalsideで明示し、進行フラグや第二
   ログは権限や進行判断に使わず、各効果より前のWASI→所有者close受信と、
   実結果の返送、元課題の4通知を別scriptで検査する。
   close欠落と送信元改変を検査が拒否することも確認した。
+- 16Eのprivate I/Oは自分の/workを随時読み書きし、自分の/service/resultを随時読む。
+  読み取りもEndpointとChoreoFSを通るが、共有readのtask依存制約は未検証。
+  そうした制約を持つ元課題では、read要求・前提・応答もglobalに書く。
+  private namespaceの分離とresultのread-onlyは実ゲスト試験で検査する。
 - 現在のRust全26試験、Python全30試験が成功。
   元48課題825 checklistと比較matrixの内容は不変。
   本体・WASI runtime・washのソースは今回変更していない。
-- この接続での新しいLuna試行、最新CI、16E全要件の独立したfidelity受理は未完了。
+- この接続でLuna xhigh 3人の試行`projected-wasi-005`が完了。
+  41.353秒、inclusive total_tokens=253,654。3効果、4通知、実request/replyを
+  保存ログから別scriptで監査した。監査は
+  `results/audits/projected-wasi-005-16E.json`。
+  ソース・binary・raw eventsのarchiveは結果台帳にhash付きで記録した。
+  最新CIと16E全要件の独立したfidelity受理は未完了。
   全48課題の受理は0、採点済み比較も0のまま。旧4試行は部品資料として保管する。
 
 
 ## 次の一手
 
-1. 修正した16EでLuna xhighを実行し、実際のrequest/reply trace、元要件と
-   実装のfidelityを監査する。
+1. 修正した16Eの最新CIを確認し、元要件と実装のfidelityを監査する。
    続いて6Eなど元から再考を必要とする課題を、同じ実WASI・ChoreoFS接続へ移す。
    特定タスクのコマンド列を組み込まず、modelがscriptを組み立てる。
    std版wash、公開runtime、各guest1MiBのbackingを使う。大型Bashは採用しない。

@@ -63,6 +63,12 @@ ChoreoFS is the object interface to projected communication. It is not a second
 authorization engine. A pathname, fd fact, rights mask, directory listing, or
 successful open does not authorize a task effect.
 
+Shell freedom does not grant access to other participants' private objects or
+the host filesystem. Private computation may read and write its own objects
+without task ordering constraints. If an original task constrains a shared
+read, put that read's request, dependency, and reply in the global too. Do not
+silently treat all reads as unrestricted or claim that 16E proves such a gate.
+
 Put shared-service WASI requests and task dependencies in the global protocol.
 Keep the corresponding `Endpoint::send`, `recv`, `offer`, and branch operations
 visible in the localsides. The receiver must consume the projected request and

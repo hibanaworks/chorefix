@@ -81,6 +81,12 @@ failures and a preliminary recording error. The final component attempt passed
 This is one component check on 16E, which has no injected domain failures.
 That earlier audit checks component outcomes, not the corrected connection above.
 It does not establish task fidelity across all 48 tasks or a comparative result.
+
+A new Luna xhigh trial uses the corrected connection. All three participants
+completed, with three domain operations and all four notifications.
+[The independent audit](results/audits/projected-wasi-005-16E.json) checks the
+actual request/reply carrier trace as well as source, model, and token records.
+This is one unscored 16E integration trial, not a success-rate comparison.
 See [the work plan](plan.md) for the remaining experiment gates.
 
 ## Follow the protocol
@@ -270,6 +276,13 @@ Every file operation goes through WASI and ChoreoFS. This includes terminal I/O,
 work files, scripts, and the tool request/reply objects. The guest has no second
 filesystem and no host filesystem access. The answering role owns file contents
 and offsets. ChoreoFS provides object and fd facts. Neither records task progress.
+
+In 16E, each guest can read and write its own `/work` objects and read its own
+`/service/result` at any time. Those namespaces are separate between guests;
+the result object is read-only. The task constraints govern the effectful
+build/test/deploy services. This test does not establish a task-dependent gate
+on shared reads. Tasks that require one must include the read and its
+dependencies in their global protocol.
 
 For the direct 16E boundary, read [the composed global](src/tasks/cicd/choreofs/global.rs),
 [guest localside](src/tasks/cicd/choreofs/localside/wasi.rs),

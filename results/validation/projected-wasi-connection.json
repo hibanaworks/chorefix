@@ -9,8 +9,8 @@
   "python_tests": 30,
   "real_wasi_tests": 6,
   "source_sha256": {
-    "AGENTS.md": "066c15f88e897c4b72160ef283fac5b24579a3255232c1dd2fe70e28b87a1efb",
-    "plan.md": "906ed579efc76a03d3c1162952fa661a9683ddc2b12bc99afd0139fa3b10d03a",
+    "AGENTS.md": "6e004750afcb864720a6a5c6c2f910e343340dfbe6fd8b16db842e7205f62a3a",
+    "plan.md": "57b425b0ad9e45ac6f7997bdc295d760ddf8696a92c84e0716edd8d8d8aa76d9",
     "src/imp/direct_wasi.py": "9163882bfb3e94a930016ff5995f4226ce20de81b9251c5ee4469f52bd56ea26",
     "src/imp/transport.rs": "dee8698df84bc7c2a691b9eb09cd2fac1dece10b4f952861490537132a741597",
     "src/shell/imp/bus.rs": "ae2e4ac82fd4ef6647acf46135058e924a402073baea825dcc5f265c5d32def1",
@@ -24,7 +24,7 @@
     "src/tasks/cicd/choreofs/localside/wasi.rs": "e9eb2cbd7aaaf2fc20940357de7f33feb707340ed349ba17175c65655b27c97b",
     "src/tasks/cicd/choreofs/mod.rs": "55e03245af653cd96687d9ac3644941a37820ddc6cc2f794b81b377e1e3d5f12",
     "src/tasks/cicd/choreofs/tests.rs": "7cd8c8be4b6da63d4ed503a49cfe915d711279e4c79c537d25e31ee92bb5f205",
-    "tests/test_cicd_wasi.py": "24193410e63a0d27d2366426e01a73230ddb0a80fbc080c062a02253d2e08938",
+    "tests/test_cicd_wasi.py": "9090cfb340ba1ab00aa58bc4474d77e94db797ae9e8bb3890404e69d431d42c5",
     "tools/audit_direct_wasi.py": "d4979460fcebd9520e91b02d1abaff1e085697588cf1c31df9b63a875017ffa0"
   },
   "binaries_sha256": {
@@ -34,162 +34,162 @@
   "checks": [
     {
       "scenario_depth": 0,
-      "log": "output/projected-wasi-pytest-004/test_real_guest_recovers_then_0/runtime/events.jsonl",
-      "sha256": "0c29944f7792483fb7d179563d8270924471ab982fdc41a1bc41c1850f9e6e61",
+      "log": "output/projected-wasi-pytest-006/test_real_guest_recovers_then_0/runtime/events.jsonl",
+      "sha256": "773089b0cb2da1f248294ab7983fc31dc92c59606e94bd977e94e75c56880126",
       "trace": {
-        "frames": 323,
-        "observations": 646,
+        "frames": 445,
+        "observations": 890,
         "paths": [
           {
             "agent": "DEVELOPER",
             "wasi_role": 0,
             "owner_role": 3,
-            "close_frame": 180,
-            "reply_frame": 181
+            "close_frame": 302,
+            "reply_frame": 303
           },
           {
             "agent": "TESTER",
             "wasi_role": 1,
             "owner_role": 4,
-            "close_frame": 196,
-            "reply_frame": 197
+            "close_frame": 318,
+            "reply_frame": 319
           },
           {
             "agent": "DEPLOYER",
             "wasi_role": 2,
             "owner_role": 5,
-            "close_frame": 212,
-            "reply_frame": 213
+            "close_frame": 334,
+            "reply_frame": 335
           }
         ],
         "notifications": [
           {
             "source": 3,
             "target": 4,
-            "frame": 185
+            "frame": 307
           },
           {
             "source": 4,
             "target": 5,
-            "frame": 201
+            "frame": 323
           },
           {
             "source": 5,
             "target": 3,
-            "frame": 217
+            "frame": 339
           },
           {
             "source": 5,
             "target": 4,
-            "frame": 218
+            "frame": 340
           }
         ]
       }
     },
     {
       "scenario_depth": 1,
-      "log": "output/projected-wasi-pytest-004/test_real_guest_recovers_then_1/runtime/events.jsonl",
-      "sha256": "aa404c0cdc375befdf3a6fbf621459fd01a75af4ea7693bb874ea7fc816be35a",
+      "log": "output/projected-wasi-pytest-006/test_real_guest_recovers_then_1/runtime/events.jsonl",
+      "sha256": "1fa173e2b4505c696f635cb51de3ce733327d63451b1e4f4e33942e718b2f044",
       "trace": {
-        "frames": 323,
-        "observations": 646,
+        "frames": 445,
+        "observations": 890,
         "paths": [
           {
             "agent": "DEVELOPER",
             "wasi_role": 0,
             "owner_role": 3,
-            "close_frame": 180,
-            "reply_frame": 181
+            "close_frame": 302,
+            "reply_frame": 303
           },
           {
             "agent": "TESTER",
             "wasi_role": 1,
             "owner_role": 4,
-            "close_frame": 196,
-            "reply_frame": 197
+            "close_frame": 318,
+            "reply_frame": 319
           },
           {
             "agent": "DEPLOYER",
             "wasi_role": 2,
             "owner_role": 5,
-            "close_frame": 212,
-            "reply_frame": 213
+            "close_frame": 334,
+            "reply_frame": 335
           }
         ],
         "notifications": [
           {
             "source": 3,
             "target": 4,
-            "frame": 185
+            "frame": 307
           },
           {
             "source": 4,
             "target": 5,
-            "frame": 201
+            "frame": 323
           },
           {
             "source": 5,
             "target": 3,
-            "frame": 217
+            "frame": 339
           },
           {
             "source": 5,
             "target": 4,
-            "frame": 218
+            "frame": 340
           }
         ]
       }
     },
     {
       "scenario_depth": 2,
-      "log": "output/projected-wasi-pytest-004/test_real_guest_recovers_then_2/runtime/events.jsonl",
-      "sha256": "fe72eb0e26376ed10181b4522739e19e89a0896528f416111ac9f18adc637031",
+      "log": "output/projected-wasi-pytest-006/test_real_guest_recovers_then_2/runtime/events.jsonl",
+      "sha256": "81efaf476a2022cf4ddfd29bf7db0ab996d821dc4dd38af514f65af076ab1657",
       "trace": {
-        "frames": 323,
-        "observations": 646,
+        "frames": 445,
+        "observations": 890,
         "paths": [
           {
             "agent": "DEVELOPER",
             "wasi_role": 0,
             "owner_role": 3,
-            "close_frame": 180,
-            "reply_frame": 181
+            "close_frame": 302,
+            "reply_frame": 303
           },
           {
             "agent": "TESTER",
             "wasi_role": 1,
             "owner_role": 4,
-            "close_frame": 196,
-            "reply_frame": 197
+            "close_frame": 318,
+            "reply_frame": 319
           },
           {
             "agent": "DEPLOYER",
             "wasi_role": 2,
             "owner_role": 5,
-            "close_frame": 212,
-            "reply_frame": 213
+            "close_frame": 334,
+            "reply_frame": 335
           }
         ],
         "notifications": [
           {
             "source": 3,
             "target": 4,
-            "frame": 185
+            "frame": 307
           },
           {
             "source": 4,
             "target": 5,
-            "frame": 201
+            "frame": 323
           },
           {
             "source": 5,
             "target": 3,
-            "frame": 217
+            "frame": 339
           },
           {
             "source": 5,
             "target": 4,
-            "frame": 218
+            "frame": 340
           }
         ]
       }
@@ -201,11 +201,35 @@
     "duplicate service returns an error before downstream work completes",
     "premature guest exit fails without effects",
     "missing close observation is rejected by audit",
-    "altered WASI source is rejected by audit"
+    "altered WASI source is rejected by audit",
+    "same private pathname has separate contents for each guest",
+    "another participant cannot read private files",
+    "result is readable before work but cannot be forged by a guest write"
   ],
   "limits": [
     "deterministic scripts are not model success-rate evidence",
     "the carrier trace observes transport receipt, not an independent proof of every Endpoint implementation line",
     "no scored benchmark episodes"
-  ]
+  ],
+  "luna_preflight": {
+    "run_id": "projected-wasi-005",
+    "source_revision": "aaea2c4b599d57c6232624f638ef44da9f0ee746",
+    "participants": 3,
+    "model": "gpt-6-luna",
+    "effort": "xhigh",
+    "total_tokens": 253654,
+    "elapsed_seconds": 41.35298379091546,
+    "audit": "results/audits/projected-wasi-005-16E.json",
+    "scored_benchmark": false
+  },
+  "read_scope": {
+    "private_files": "own namespace, no task order restriction",
+    "result": "own read-only result, no task order restriction",
+    "task_gated_shared_read": "not validated on 16E; required reads must be part of the corresponding task global"
+  },
+  "raw_archive": {
+    "path": "output/projected-wasi-connection-validation-evidence.tar.gz",
+    "sha256": "97a07786be0e6cbba23c7ae12a20d6f4b278fee06221dba6b9ebc358405c8f92",
+    "location": "local workspace"
+  }
 }

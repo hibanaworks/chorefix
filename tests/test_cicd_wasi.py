@@ -38,6 +38,16 @@ async def test_real_guest_recovers_then_runs_the_original_pipeline_once(tmp_path
         await runtime.command("DEVELOPER", 'echo private notes > /work/2')
         note = await runtime.command("DEVELOPER", 'cat /work/2')
         assert "private notes" in note["stdout"]
+        # Read freedom applies to one's own private objects, not another
+        # participant's namespace or the host filesystem.
+        assert "No such file" in (await runtime.command("TESTER", 'cat /work/2'))["stdout"]
+        await runtime.command("TESTER", 'echo tester notes > /work/2')
+        assert "private notes" in (await runtime.command("DEVELOPER", 'cat /work/2'))["stdout"]
+        assert "tester notes" in (await runtime.command("TESTER", 'cat /work/2'))["stdout"]
+        assert (await runtime.command("DEVELOPER", 'cat /service/result'))["stdout"] == "wash> "
+        forged = await runtime.command("DEVELOPER", 'echo forged > /service/result')
+        assert "wash:" in forged["stdout"]
+        assert (await runtime.command("DEVELOPER", 'cat /service/result'))["stdout"] == "wash> "
         unknown = await runtime.command("DEVELOPER", 'not_a_command')
         assert "command not found" in unknown["stdout"]
         missing = await runtime.command("DEVELOPER", 'cat /missing')
