@@ -1,0 +1,1 @@
+Stopped obsolete compilation after its confirmed E0080 diagnostic; corrected source is built by the existing second Cargo invocation.

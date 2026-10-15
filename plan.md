@@ -856,3 +856,10 @@ reviewは元課題どおり終端で、余分なretryを加えない。続いて
   実行し、循環待ちなし。独立commitの同時開始も各回で確認した。Rust runnerの
   実WASI process試験も成功し、独立simulator操作中にstdoutを読み続けることを確認。
   現在、9正常構成と8Eの2終端失敗を同じ新実行ファイルで再資格検証中。
+
+- 実装source29344a8をpush。新buildの9正常構成と8E終端失敗2件が全て検証成功。
+  1Mのcommit2並行、writing/diningの1/2/3並行を再確認。8Eでは通知前open2件の後、
+  各結果を2回readし、depth1/2のdomain_complete=falseを維持。24改変も拒否。
+  更新後Python43件と元資料/比較側のinventoryも成功。資格記録とfidelityへ追加し、
+  古い実行ファイルを上書きしない新frozen directoryを使う。次に清潔なconsumerを
+  commitして8Eの実Luna試行へ進む。採点0/2592、全要件受理0のまま。
