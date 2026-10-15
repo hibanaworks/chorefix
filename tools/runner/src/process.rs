@@ -221,6 +221,7 @@ mod tests {
                 .duration_since(std::time::UNIX_EPOCH)?
                 .as_nanos()
         ));
+        std::fs::create_dir_all(output.parent().ok_or("probe output parent")?)?;
         std::fs::create_dir(&output)?;
         let trace = Arc::new(Trace::create(&output.join("events.jsonl"))?);
         let (simulator, fixture, simulator_loop) =
