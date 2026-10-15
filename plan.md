@@ -341,3 +341,21 @@ WASIの値とmessageの変換はlocalsideで明示し、進行フラグや第二
 - 次はこの本体の投影条件に合う直接WASI choreographyへ16E/6Eを整理する。
   APIやtask進行フラグで経路を足さない。元の課題要件の独立監査が終わるまで
   全要件受理0・採点済み0を保つ。
+
+## 修正版本体の外部QUIC interop
+
+- 593成功・598成功は通常構成とhq構成の別々の試験数で、どちらも失敗0。
+  これらは外部peerとのinteropではなく、QUIC内の試験とdoctest。
+- 修正版本体`f86451b`を直接依存とTLS経由の両方で選ぶ検証ブランチを
+  QUICへpushした。QUIC commitは`2115eed459e6bc98b6293cbf4d4adabc8daea7f6`。
+  draft PR: https://github.com/hibanaworks/hibana-quic/pull/1 。
+- 外部44ケースは https://github.com/hibanaworks/hibana-quic/actions/runs/38720774555
+  で実行中。Linuxのplan jobは成功。結果が揃うまでinterop合格とは数えない。
+  失敗時の診断用鍵はrepo/CI外に保存し、CMS AES-256-GCMの復号往復を確認済み。
+- 全ての独立consumerのCargo lockとpatchが同じcore commitか検査する。
+  HQ driver check、source pinning 4試験、matrix verifier 13試験、
+  staged QUIC/TLS source auditは成功。mainとregistryは変更していない。
+- 別途進めている16Eの直接WASI接続には、ownerの明示的な反復開始と
+  owner→WASIのRequestReadyをglobalに記述した。修正版本体を使う隔離consumerで
+  Rustの対象1試験と実guestの4試験が成功。完全移植受理や採点済み実行には
+  まだ数えない。6Eの整理とfidelity監査は未完了。

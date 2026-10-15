@@ -1,0 +1,19 @@
+{
+  "status": "external_interop_running",
+  "core_commit": "f86451b3fa65508e351fd48db32af5129a0539b6",
+  "quic_commit": "2115eed459e6bc98b6293cbf4d4adabc8daea7f6",
+  "quic_pull_request": "https://github.com/hibanaworks/hibana-quic/pull/1",
+  "workflow_url": "https://github.com/hibanaworks/hibana-quic/actions/runs/38720774555",
+  "workflow_id": 38720774555,
+  "expected_case_directions": 44,
+  "plan_conclusion": "success",
+  "external_interop_passed": false,
+  "diagnostic_key_roundtrip": "CMS AuthEnvelopedData AES-256-GCM encrypt and decrypt passed; key outside repository and CI",
+  "driver_hq_check": "passed",
+  "source_pin_unit_tests": 4,
+  "matrix_unit_tests": 13,
+  "staged_source_audit": "passed",
+  "published_registry_modified": false,
+  "plan_log_sha256": "43baa6f8133d3cdd8d6c3946da33d0163fedcccbfcf009923e2a0b8a870e6e18",
+  "plan_log_gzip_sha256": "863fd5dda9f9d2ab829ad98a7d14c6f5c0d36a602d512261b065dd3a9dce787a"
+}
