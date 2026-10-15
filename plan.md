@@ -14,7 +14,7 @@
 - 合計予定2,592実行。採点済み比較実行は現在0。
 - 実験参加モデルはすべて `gpt-6-luna` / `xhigh`。
 - Hibanaは公開済み `=0.9.9`。WASI runtimeの現在の固定revは
-  `7905fa07bfd66db69ea7fb74883b7ca1e2b572bd`。
+  `4ebdad1443cf49488eae924afe528f67f5a5953b`。
 - 原論文側rev: `87b01a2c0ae53c5045c9ce3d43cd0235b1831275`。
   最新版側の記録済みrev: `36b4bd108fcd74f7efb17613aebbe3fdf55499a9`。
   最新版と呼ぶ比較を確定する前にリモートを再確認する。
@@ -98,10 +98,10 @@ ChoreoFSのパス/fd/rightsの事実だけでタスク効果を許可しない�
 - 独立リポジトリ`https://github.com/hibanaworks/hibana-wash`を作成した。
   初期コミットは`38a168e929d27df904bdcff3c1d647ae84af47af`。
   `vendor/hibana-wash` submoduleで固定し、ソースの別コピーを実装として持たない。
-  dependency-free / no_std / no allocatorの小さいWASI shellである。
+  初期版はno_stdだったが、現在は可読性を優先したdependency-free / stdのWASI shellである。
   引用符、変数、条件、反復、パイプ、リダイレクト、保存したscriptを実装し、
   タスク名・段階・許可表は持たない。guest内FSやnative FS経路も持たない。
-  実体は6個のWASI importsを使い、既存のprojected EndpointとChoreoFSへ渡る。
+  現在の実体は13個のWASI importsを使い、projected EndpointとChoreoFSへ渡る。
   正確なmodule宣言と採用範囲は`results/validation/wash-qualification.json`に保存する。
   wash単体のRust test/build/strict ClippyとGitHub CIは通った。
 - 16Eの実WASI接続はwashへ切り替えた。従来の4試験と、新しいscript機構試験1件が
@@ -116,22 +116,47 @@ ChoreoFSのパス/fd/rightsの事実だけでタスク効果を許可しない�
   意図的にlogger/stream終了後へ送信する回帰試験を加え、Python全28件が通った。
   これはRPCの寿命処理であり、タスク進行や許可をPythonへ移す変更ではない。
   修正版`7fa7406f8b8a0f2a5d3f2247496be796214694b6`のGitHub CI成功も確認した。
-- runtimeの更新は既存コピーを触らず
-  `output/upstream/hibana-wasip1-shell`の`development/caller-workspace-shell`で作業中。
-  関数ごとにlocals型配列を複製せず、宣言をmodule bytesから借用する変更を加えた。
-  localsの値は宣言型で初期化され、書き込み前に型を検査する。
-  関数bodyの制御位置をu32へ広げ、80,000 bytesを飛び越すif/block/loop試験も加えた。
-  現在のRust 80件（2 ignored）、strict Clippy、thumbv8m no_stdは通った。
-  VM 26,512 bytes / CodeBody 32 bytes / Frame 560 bytes。
-  u32変更前の関連Miri 5件とruntime gatesは通ったが、u32変更後には再実行していない。
-  この変更は未push・実験未採用で保留する。washには既存の固定revを使う。
+## std版washとruntimeの更新
+
+- washはstdのString/Vec/BTreeMapとstd::fs/std::ioを使う。
+  guest内FSやnative FS経路は持たない。共有redirectのcloseエラーを保持し、
+  directoryだけは既存WASI境界の96-byte replyに合わせて要求する。
+- std版washは`12e137aba2cea74f353c198a8d7c92afc977627c`をpush済み。
+  単体parser 3件、strict Clippy、GitHub CIは成功。
+  moduleは136,726 bytes、349関数、23 types、124 table entries、最大19 locals。
+  WASI以外のimportsは0。ChoreoFixのsubmoduleもこのrevを使う。
+- runtimeは隔離コピー`output/upstream/hibana-wasip1-shell`で修正した。
+  `hibana = "=0.9.9"`は既存の依存を維持し、metadataでも確認した。
+  locals宣言をmodule bytesから借用し、active frameだけへ展開する。
+  localsはpayloadと唯一の型tagへ分け、書き込み前に型を検査する。
+  関数bodyの制御位置をu32へ広げ、80,000 bytesを飛び越すif/block/loopも検証した。
+- 関数384、table128、call frames64、value stack128、control frames512、
+  control targets320。VM実測51,472 bytes / CodeBody24 bytes / Frame336 bytes。
+  VM予算64KiB、default guest込み128KiB、Pico2 fixtureのRAM予算160KiB。
+  Pico2 link実測はflash79,848 bytes、24KiB stack予約込みRAM136,664 bytes。
+  実機動作やworst-case stack測定は、このlink結果には含まれない。
+- runtime full gatesは成功。Rust/Miri 81件（2 ignored）、strict Clippy、
+  Lean 30定理と実VM/ChoreoFS 680判断の照合、Z3 4 UNSAT/3 SAT、
+  Pico2、WASI std demo、doc、packageを通した。
+  ログは`results/validation/wasi-std-runtime-gates.log`。
+  runtimeは`4ebdad1443cf49488eae924afe528f67f5a5953b`を
+  remote defaultの`development/affine-wasi-boundary`へpush済み。
+  古い32KiB予算の成功を新しい結果として使わない。
+- ChoreoFixでは各guestに1MiBのbackingを用意し、最初はmoduleの64KiB。
+  `MemoryGrowReq`をlocalsideで受信し、`would_fit()`の結果を`MemoryGrowRet`で返す。
+  メモリ許可も既存globalを通す。stdlibのheapと実行器のstack容量は区別する。
+- 隔離試験ではstd moduleの実接続5件と51,200-byte pipeのheap拡張が通った。
+  ChoreoFixでも公開runtime revを選び、実接続5件を含むPython全29件、
+  Rust全28件、parser3件、fmt、全targetと両guestのstrict Clippy、
+  inventoryと比較matrix不変を確認した。
+  この結合確認後もLuna試行と採点済み比較は未完了である。
 
 ## 次の一手
 
 1. `hibana-wash`の残る資源境界とscriptの組合せを検査し、原論文の課題を実行する
    model harnessを16Eの新しい実WASI・ChoreoFS経路へ移す。
    特定タスクのコマンド列を組み込まず、modelがscriptを組み立てる。
-   現在の64KiBと公開WASI runtimeで進め、大型Bash用のruntime拡張は再開しない。
+   std版wash、公開runtime、各guest1MiBのbackingを使う。大型Bashは採用しない。
    shell内の構文・変数・exit statusと、禁止するタスク連携の二重管理を混同しない。
 2. 実Luna xhigh参加者で再検証し、元のsimulatorと独立監査を通す。
    その後、残りの移植にも同じ境界を適用する。

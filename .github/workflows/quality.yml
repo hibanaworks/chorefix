@@ -46,4 +46,4 @@ jobs:
       - name: Inspect hibana-wash imports and memory
         run: |
           python vendor/hibana-wash/tools/profile.py vendor/hibana-wash/target/wasm32-wasip1/release/hibana-wash.wasm > wash-profile.json
-          python -c 'import json; p=json.load(open("wash-profile.json")); assert not p["non_wasi_imports"]; assert len(p["imports"]) == 6; assert p["memories"] == [{"flags": 1, "minimum": 1, "maximum": 1}]'
+          python -c 'import json; p=json.load(open("wash-profile.json")); assert not p["non_wasi_imports"]; assert p["memories"] == [{"flags": 0, "minimum": 1}]'

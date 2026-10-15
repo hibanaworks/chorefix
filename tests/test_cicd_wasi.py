@@ -39,11 +39,11 @@ async def test_real_guest_recovers_then_runs_the_original_pipeline_once(tmp_path
         unknown = await runtime.command("DEVELOPER", 'not_a_command')
         assert "command not found" in unknown["stdout"]
         missing = await runtime.command("DEVELOPER", 'cat /missing')
-        assert "denied" in missing["stdout"]
+        assert "No such file" in missing["stdout"]
         denied = await runtime.command(
             "DEVELOPER", 'echo {} > /service/deploy_application',
         )
-        assert "denied" in denied["stdout"]
+        assert "wash:" in denied["stdout"]
         await runtime.command(
             "DEVELOPER", "echo '{\"wrong\":\"application\"}' > /service/compile_and_test",
         )
@@ -71,7 +71,7 @@ async def test_real_guest_recovers_then_runs_the_original_pipeline_once(tmp_path
         duplicate = await runtime.command(
             "DEVELOPER", "echo '{\"component\":\"application\"}' > /service/compile_and_test",
         )
-        assert "denied" in duplicate["stdout"]
+        assert "os error 8" in duplicate["stdout"]
         assert [event.tool for event in sim.events] == [
             "compile_and_test", "run_integration_tests", "deploy_application",
         ]

@@ -2,67 +2,116 @@
   "kind": "hibana_wash_mechanism_qualification",
   "scored_benchmark": false,
   "shell_repository": "https://github.com/hibanaworks/hibana-wash",
-  "shell_revision": "38a168e929d27df904bdcff3c1d647ae84af47af",
+  "shell_revision": "12e137aba2cea74f353c198a8d7c92afc977627c",
   "hibana_version": "0.9.9",
-  "runtime_revision": "7905fa07bfd66db69ea7fb74883b7ca1e2b572bd",
+  "runtime_revision": "4ebdad1443cf49488eae924afe528f67f5a5953b",
   "module": {
     "module": "vendor/hibana-wash/target/wasm32-wasip1/release/hibana-wash.wasm",
-    "sha256": "943a435caabbeb7cf700db08fca370fbd9b24c653ef6662199e7405cd3e9e3c6",
-    "bytes": 28762,
+    "sha256": "407e1fe263231022eb542a7d2a35e4d4705a58590f92b77bf21fe5f7c77258bc",
+    "bytes": 136726,
     "imports": [
+      {
+        "module": "wasi_snapshot_preview1",
+        "name": "path_open",
+        "kind": 0,
+        "type": 6
+      },
+      {
+        "module": "wasi_snapshot_preview1",
+        "name": "fd_readdir",
+        "kind": 0,
+        "type": 7
+      },
+      {
+        "module": "wasi_snapshot_preview1",
+        "name": "fd_close",
+        "kind": 0,
+        "type": 8
+      },
+      {
+        "module": "wasi_snapshot_preview1",
+        "name": "environ_get",
+        "kind": 0,
+        "type": 2
+      },
+      {
+        "module": "wasi_snapshot_preview1",
+        "name": "environ_sizes_get",
+        "kind": 0,
+        "type": 2
+      },
+      {
+        "module": "wasi_snapshot_preview1",
+        "name": "fd_fdstat_get",
+        "kind": 0,
+        "type": 2
+      },
+      {
+        "module": "wasi_snapshot_preview1",
+        "name": "fd_filestat_get",
+        "kind": 0,
+        "type": 2
+      },
+      {
+        "module": "wasi_snapshot_preview1",
+        "name": "fd_prestat_get",
+        "kind": 0,
+        "type": 2
+      },
+      {
+        "module": "wasi_snapshot_preview1",
+        "name": "fd_prestat_dir_name",
+        "kind": 0,
+        "type": 3
+      },
       {
         "module": "wasi_snapshot_preview1",
         "name": "fd_read",
         "kind": 0,
-        "type": 0
+        "type": 9
+      },
+      {
+        "module": "wasi_snapshot_preview1",
+        "name": "fd_write",
+        "kind": 0,
+        "type": 9
+      },
+      {
+        "module": "wasi_snapshot_preview1",
+        "name": "path_filestat_get",
+        "kind": 0,
+        "type": 10
       },
       {
         "module": "wasi_snapshot_preview1",
         "name": "proc_exit",
         "kind": 0,
         "type": 1
-      },
-      {
-        "module": "wasi_snapshot_preview1",
-        "name": "path_open",
-        "kind": 0,
-        "type": 2
-      },
-      {
-        "module": "wasi_snapshot_preview1",
-        "name": "fd_close",
-        "kind": 0,
-        "type": 3
-      },
-      {
-        "module": "wasi_snapshot_preview1",
-        "name": "fd_write",
-        "kind": 0,
-        "type": 0
-      },
-      {
-        "module": "wasi_snapshot_preview1",
-        "name": "fd_readdir",
-        "kind": 0,
-        "type": 4
       }
     ],
     "memories": [
       {
-        "flags": 1,
-        "minimum": 1,
-        "maximum": 1
+        "flags": 0,
+        "minimum": 1
       }
     ],
-    "tables": [],
-    "types": 20,
-    "max_function_parameters": 10,
+    "tables": [
+      {
+        "element_type": 112,
+        "flags": 1,
+        "minimum": 124,
+        "maximum": 124
+      }
+    ],
+    "types": 23,
+    "max_function_parameters": 11,
     "max_function_results": 1,
-    "defined_functions": 67,
-    "globals": 1,
-    "largest_function_body_bytes": 5278,
-    "max_declared_locals": 15,
-    "data_segments": 1,
+    "defined_functions": 349,
+    "globals": 2,
+    "element_segments": 1,
+    "largest_function_body_bytes": 9336,
+    "max_declared_locals": 19,
+    "data_segments": 2,
     "non_wasi_imports": [],
     "inspection_scope": "declarations only; not module validation or execution"
   },
@@ -74,9 +123,11 @@
     "wash_real_wasi_tests": 5,
     "fmt": "passed",
     "clippy": "passed",
-    "inventories": "passed"
+    "inventories": "passed",
+    "guest_clippy": "passed",
+    "selected_hibana_version": "0.9.9"
   },
-  "wash_ci": "https://github.com/hibanaworks/hibana-wash/actions/runs/38687896215",
+  "wash_ci": "https://github.com/hibanaworks/hibana-wash/actions/runs/38691035778",
   "consumer_tests": [
     "tests/test_cicd_wasi.py",
     "tests/test_wash.py"
@@ -93,7 +144,8 @@
     "rejection without effects",
     "early dependant waits",
     "duplicate effect rejection",
-    "original simulator completion"
+    "original simulator completion",
+    "heap growth through projected request/reply"
   ],
   "remaining": [
     "broader resource and syntax-combination checks",
@@ -101,5 +153,30 @@
     "remaining 48-task ports and task-fidelity acceptance",
     "2592 scored comparisons",
     "paper evidence and final report"
-  ]
+  ],
+  "shell_implementation": "Rust std; no external Rust dependencies; no guest filesystem",
+  "guest_memory": {
+    "initial_bytes": 65536,
+    "backing_bytes_per_guest": 1048576,
+    "growth_authority": "projected MemoryGrowReq/MemoryGrowRet in the I/O localside",
+    "heap_growth_test_pipeline_bytes": 51200
+  },
+  "runtime_ci": "https://github.com/hibanaworks/hibana-wasip1-runtime/actions/runs/38691651987",
+  "runtime_local_gates": {
+    "result": "passed",
+    "rust_tests": 81,
+    "miri_tests": 81,
+    "ignored_correspondence_export_tests": 2,
+    "lean_theorems": 30,
+    "actual_vm_and_choreofs_decisions": 680,
+    "z3_unsat": 4,
+    "z3_sat_witnesses": 3,
+    "pico2_flash_bytes": 79848,
+    "pico2_ram_including_reserved_stack_bytes": 136664,
+    "reserved_stack_bytes": 24576,
+    "vm_host_bytes": 51472,
+    "physical_execution": "not verified",
+    "worst_case_stack": "not verified",
+    "log": "results/validation/wasi-std-runtime-gates.log"
+  }
 }

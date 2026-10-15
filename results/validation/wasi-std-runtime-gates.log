@@ -1,0 +1,153 @@
+Evidence: /var/folders/2h/h7yy0vc92tz6sx58nlwt92kr0000gn/T/wasi-poll-evidence-990y_lu_
+tests: Rust target removed
+tests: passed (/var/folders/2h/h7yy0vc92tz6sx58nlwt92kr0000gn/T/wasi-poll-evidence-990y_lu_/tests.log)
+clippy: Rust target removed
+clippy: passed (/var/folders/2h/h7yy0vc92tz6sx58nlwt92kr0000gn/T/wasi-poll-evidence-990y_lu_/clippy.log)
+pico2: Rust target removed
+pico2: passed (/var/folders/2h/h7yy0vc92tz6sx58nlwt92kr0000gn/T/wasi-poll-evidence-990y_lu_/pico2.log)
+ownership: Rust target removed
+ownership: passed (/var/folders/2h/h7yy0vc92tz6sx58nlwt92kr0000gn/T/wasi-poll-evidence-990y_lu_/ownership.log)
+Lean: 20 model theorems and 520 actual VM decisions passed (/var/folders/2h/h7yy0vc92tz6sx58nlwt92kr0000gn/T/wasi-poll-evidence-990y_lu_/lean.log)
+Lean: 10 path-rights theorems and 160 actual ChoreoFS decisions passed
+Z3: 4 UNSAT guarantees and 3 SAT witnesses passed over 64-bit rights
+Evidence: /var/folders/2h/h7yy0vc92tz6sx58nlwt92kr0000gn/T/wasi-pico2-evidence-j44bymdt
+host: passed, all Rust products removed (/var/folders/2h/h7yy0vc92tz6sx58nlwt92kr0000gn/T/wasi-pico2-evidence-j44bymdt/host.log)
+clippy: passed, all Rust products removed (/var/folders/2h/h7yy0vc92tz6sx58nlwt92kr0000gn/T/wasi-pico2-evidence-j44bymdt/clippy.log)
+Pico 2 link: flash=79,848 B, RAM including stack reservation=136,664 B
+pico2: passed, all Rust products removed (/var/folders/2h/h7yy0vc92tz6sx58nlwt92kr0000gn/T/wasi-pico2-evidence-j44bymdt/pico2.log)
+   Compiling wasi-std-shell-app v0.1.0 (/var/folders/2h/h7yy0vc92tz6sx58nlwt92kr0000gn/T/wasi-shell-check.3U1Cix/guest)
+    Finished `release` profile [optimized] target(s) in 0.53s
+choreography: direct ChoreoFS write blocked
+wasi std shell app
+wasi> usage: help | ls PATH | cat PATH | echo TEXT > PATH | apply SOURCE TARGET | exit
+wasi> ChoreoFS object write attempt: fd=4 bytes=[49]
+Hibana: ChoreoFS write did not advance on this localside -> EndpointError { operation: "send", kind: PhaseInvariant }
+Output: led.green = unchanged
+choreography: sequenced ChoreoFS write
+wasi std shell app
+wasi> commands:
+  help
+  ls /objects
+  cat /objects/log
+  echo 1 > /outputs/led/green
+  apply /objects/log /outputs/led/green
+  exit
+wasi> log
+wasi> session=attached
+wasi> write denied errno=2
+wasi> applied
+wasi> Output: led.green = on
+    Checking hibana v0.9.9
+ Documenting hibana-wasip1-runtime v0.1.0 (/Users/ovm/Code/hibanaworks/hibana-tracefix/output/upstream/hibana-wasip1-shell)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.16s
+   Generated /var/folders/2h/h7yy0vc92tz6sx58nlwt92kr0000gn/T//wasi-runtime-check.fz0nUX/doc/hibana_wasip1_runtime/index.html
+   Compiling proc-macro2 v1.0.106
+   Compiling quote v1.0.46
+   Compiling unicode-ident v1.0.24
+   Compiling syn v2.0.118
+   Compiling futures-macro v0.3.32
+   Compiling futures-core v0.3.32
+   Compiling pin-project-lite v0.2.17
+   Compiling slab v0.4.12
+   Compiling futures-task v0.3.32
+   Compiling futures-util v0.3.32
+   Compiling futures-executor v0.3.32
+   Compiling hibana v0.9.9
+   Compiling hibana-wasip1-runtime v0.1.0 (/Users/ovm/Code/hibanaworks/hibana-tracefix/output/upstream/hibana-wasip1-shell)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 6.08s
+     Running unittests src/lib.rs (/var/folders/2h/h7yy0vc92tz6sx58nlwt92kr0000gn/T//wasi-runtime-check.IeS8rX/miri/aarch64-apple-darwin/debug/deps/hibana_wasip1_runtime-e1ff083349cb39d2)
+
+running 83 tests
+test choreofs::tests::borrowed_read_write_files_keep_contents_and_attenuate_open_rights ... ok
+test choreofs::tests::choreofs_builds_object_operation_tokens ... ok
+test choreofs::tests::export_actual_path_rights_decisions ... ignored, exports actual ChoreoFS decisions for the Lean correspondence gate
+test choreofs::tests::object_set_expands_choreofs_and_ledger_facts ... ok
+test choreofs::tests::path_open_rejects_absent_or_conflicting_io_rights_without_poisoning_reentry ... ok
+test choreofs::tests::path_open_still_requires_both_actual_binding_and_ledger_right ... ok
+test engine::wasm::machine::tests::absent_memory_and_table_reject_even_zero_length_operations ... ok
+test engine::wasm::machine::tests::active_data_segment_is_consumed_by_initialization ... ok
+test engine::wasm::machine::tests::active_element_segment_cannot_expand_the_initial_table ... ok
+test engine::wasm::machine::tests::active_element_segment_is_consumed_without_growing_the_table ... ok
+test engine::wasm::machine::tests::borrowed_local_declarations_initialize_each_wasm_value_kind ... ok
+test engine::wasm::machine::tests::br_table_capacity_accepts_the_boundary_and_rejects_one_more ... ok
+test engine::wasm::machine::tests::completion_writeback_bounds_are_checked_before_finishing_import ... ok
+test engine::wasm::machine::tests::core_wasip1_path_helpers_write_meaningful_choreofs_results ... ok
+test engine::wasm::machine::tests::core_wasip1_trampoline_maps_args_and_environment_imports ... ok
+test engine::wasm::machine::tests::core_wasip1_trampoline_maps_fd_write ... ok
+test engine::wasm::machine::tests::core_wasip1_trampoline_maps_proc_exit_as_app_termination ... ok
+test engine::wasm::machine::tests::core_wasip1_trampoline_maps_syscall_surface ... ok
+test engine::wasm::machine::tests::core_wasm_engine_executes_float_basics ... ok
+test engine::wasm::machine::tests::core_wasm_engine_executes_if_else_and_block_results ... ok
+test engine::wasm::machine::tests::core_wasm_engine_executes_passive_data_memory_init ... ok
+test engine::wasm::machine::tests::core_wasm_engine_executes_sign_extension_ops ... ok
+test engine::wasm::machine::tests::core_wasm_engine_executes_table_ref_basics ... ok
+test engine::wasm::machine::tests::core_wasm_engine_runs_local_function_calls_without_wasi_imports ... ok
+test engine::wasm::machine::tests::core_wasm_memory_grow_invalid_grant_keeps_pending_request ... ok
+test engine::wasm::machine::tests::core_wasm_memory_grow_is_generic_engine_event_not_lease_policy ... ok
+test engine::wasm::machine::tests::core_wasm_memory_grow_reject_keeps_pages_unchanged ... ok
+test engine::wasm::machine::tests::core_wasm_prefers_wasi_start_over_incompatible_rust_main_export_in_any_order ... ok
+test engine::wasm::machine::tests::core_wasm_rejects_duplicate_sections_before_state_overwrite ... ok
+test engine::wasm::machine::tests::core_wasm_rejects_start_with_parameters_at_load_time ... ok
+test engine::wasm::machine::tests::core_wasm_start_export_must_name_a_local_function ... ok
+test engine::wasm::machine::tests::failed_active_data_preflight_preserves_guest_memory ... ok
+test engine::wasm::machine::tests::fd_write_prefix_preflights_all_iovecs_and_zero_vectors_are_empty ... ok
+test engine::wasm::machine::tests::float_rounding_and_integer_conversion_boundaries_are_exact ... ok
+test engine::wasm::machine::tests::fuel_budget_stops_before_import_and_pending_completion_boundaries ... ok
+test engine::wasm::machine::tests::fuel_budget_stops_before_memory_grow_pending_and_waits_for_completion ... ok
+test engine::wasm::machine::tests::guest_memory_read_bounds_are_checked_before_exposing_payloads ... ok
+test engine::wasm::machine::tests::large_function_body_keeps_if_block_and_loop_targets_exact ... ok
+test engine::wasm::machine::tests::leb_decoders_reject_bits_outside_the_declared_integer_width ... ok
+test engine::wasm::machine::tests::local_set_rejects_another_kind_without_changing_the_declared_kind ... ok
+test engine::wasm::machine::tests::multiregion_wasi_completion_preflights_before_publication ... ok
+test engine::wasm::machine::tests::packed_locals_preserve_all_value_bits_and_kinds ... ok
+test engine::wasm::machine::tests::path_open_inheriting_rights_never_become_base_io_rights ... ok
+test engine::wasm::machine::tests::poll_oneoff_writes_ready_event_at_linear_memory_zero ... ok
+test engine::wasm::machine::tests::poll_tests::completion_rejects_extra_reordered_and_mismatched_events_atomically ... ok
+test engine::wasm::machine::tests::poll_tests::duplicate_userdata_consumes_distinct_subscription_occurrences ... ok
+test engine::wasm::machine::tests::poll_tests::export_actual_poll_decisions ... ignored, exports actual VM decisions for the Lean correspondence gate
+test engine::wasm::machine::tests::poll_tests::input_output_alias_uses_the_complete_snapshot_before_writing ... ok
+test engine::wasm::machine::tests::poll_tests::invalid_tail_output_or_count_never_writes_a_prefix ... ok
+test engine::wasm::machine::tests::poll_tests::malformed_last_subscription_preserves_all_outputs ... ok
+test engine::wasm::machine::tests::poll_tests::mixed_fd_and_absolute_clock_events_preserve_all_records ... ok
+test engine::wasm::machine::tests::poll_tests::poll_accepts_the_full_fd_domain_and_rejects_one_more_without_writing ... ok
+test engine::wasm::machine::tests::table_grow_respects_the_module_declared_maximum ... ok
+test engine::wasm::machine::tests::typed_completion_rejects_mismatched_pending_import ... ok
+test engine::wasm::machine::tests::unsupported_sqrt_fault_is_sticky ... ok
+test engine::wasm::machine::tests::untyped_select_rejects_mixed_operand_types ... ok
+test engine::wasm::machine::tests::vm_object_stays_within_runtime_budget ... ok
+test engine::wasm::machine::tests::wasip1_import_signature_mismatch_is_a_domain_error ... ok
+test engine::wasm::machine::tests::wasm_vm_rejects_non_wasip1_import_module ... ok
+test engine::wasm::machine::tests::wasm_vm_rejects_unknown_wasip1_import_name_at_load_time ... ok
+test engine::wasm::machine::tests::zero_length_bulk_memory_ops_accept_one_past_end_and_dropped_data ... ok
+test engine::wasm::tests::facade_returns_explicit_exit_when_start_returns ... ok
+test exchange::tests::binding_table_and_pending_token_stay_small ... ok
+test exchange::tests::canonical_argument_and_environment_lists_preserve_every_entry ... ok
+test exchange::tests::directory_child_rights_and_file_base_rights_are_distinct ... ok
+test exchange::tests::exact_path_and_clock_values_fail_fast ... ok
+test exchange::tests::failed_in_place_initialization_consumes_storage ... ok
+test exchange::tests::fd_binding_capacity_counts_live_entries_not_fd_numbers ... ok
+test exchange::tests::fd_binding_transitions_are_prepared_before_publication ... ok
+test exchange::tests::file_stat_cannot_report_rights_absent_from_the_open_binding ... ok
+test exchange::tests::inline_io_len_only_clamps_partial_transfer_imports ... ok
+test protocol::wasi::poll::tests::events_are_nonempty_canonical_and_encode_atomically ... ok
+test protocol::wasi::poll::tests::fixed_fd_domain_bounds_poll_storage ... ok
+test protocol::wasi::poll::tests::padding_is_canonical_and_never_grants_a_different_interest ... ok
+test protocol::wasi::poll::tests::subscriptions_preserve_clock_semantics_and_both_fd_interests ... ok
+test protocol::wasi::poll::tests::subscriptions_reject_invalid_kind_clock_flags_and_fd_domain ... ok
+test protocol::wasi::tests::argument_and_environment_payloads_have_one_canonical_list_shape ... ok
+test protocol::wasi::tests::io_chunk_wire_is_inline_bytes_only ... ok
+test protocol::wasi::tests::memory_grow_request_and_decision_are_typed_wire_states ... ok
+test protocol::wasi::tests::path_open_flags_and_duplex_stat_are_exact_wire_data ... ok
+test protocol::wasi::tests::payload_capacities_accept_the_exact_boundary_and_reject_one_more ... ok
+test protocol::wasi::tests::schema_registry_is_unique_and_protocol_local ... ok
+test protocol::wasi::tests::typed_wasi_rows_do_not_carry_private_union_tags ... ok
+
+test result: ok. 81 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 97.89s
+
+   Packaging hibana-wasip1-runtime v0.1.0 (/Users/ovm/Code/hibanaworks/hibana-tracefix/output/upstream/hibana-wasip1-shell)
+    Updating crates.io index
+    Packaged 41 files, 641.4KiB (113.6KiB compressed)
+   Verifying hibana-wasip1-runtime v0.1.0 (/Users/ovm/Code/hibanaworks/hibana-tracefix/output/upstream/hibana-wasip1-shell)
+   Compiling hibana v0.9.9
+   Compiling hibana-wasip1-runtime v0.1.0 (/var/folders/2h/h7yy0vc92tz6sx58nlwt92kr0000gn/T/wasi-runtime-check.BmJXyt/package/hibana-wasip1-runtime-0.1.0)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.89s

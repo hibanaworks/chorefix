@@ -125,9 +125,11 @@ pub async fn run_guests(
     let mut afs = PrivateFs::new(aterm, bus, abytes.clone());
     let mut bfs = PrivateFs::new(bterm, bus, bbytes.clone());
     let mut cfs = PrivateFs::new(cterm, bus, cbytes.clone());
-    let mut amemory = vec![0; DEFAULT_GUEST_MEMORY_BYTES];
-    let mut bmemory = vec![0; DEFAULT_GUEST_MEMORY_BYTES];
-    let mut cmemory = vec![0; DEFAULT_GUEST_MEMORY_BYTES];
+    // Backing capacity is supplied here; committing additional pages still
+    // requires the projected MemoryGrow request/reply in each I/O localside.
+    let mut amemory = vec![0; 16 * DEFAULT_GUEST_MEMORY_BYTES];
+    let mut bmemory = vec![0; 16 * DEFAULT_GUEST_MEMORY_BYTES];
+    let mut cmemory = vec![0; 16 * DEFAULT_GUEST_MEMORY_BYTES];
     let mut astore = HibanaWasiGuestStorage::uninit();
     let mut bstore = HibanaWasiGuestStorage::uninit();
     let mut cstore = HibanaWasiGuestStorage::uninit();

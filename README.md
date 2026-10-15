@@ -61,8 +61,11 @@ These are deterministic mechanism tests, not scored model experiments.
 
 The former rust-bash candidate exceeded the runtime's capacities and was
 retired. Its [qualification record](results/validation/bash-guest-qualification.json)
-remains as failed evidence. Wash has no external Rust dependencies or guest FS.
-All file operations go through WASI, projected Endpoints, and ChoreoFS.
+remains as failed evidence. Wash uses Rust `std` with no external Rust
+dependencies or guest FS. All file operations go through WASI, projected
+Endpoints, and ChoreoFS. Each guest starts with 64 KiB of committed memory and
+can request more through the projected memory-growth protocol, up to its
+1 MiB caller-supplied backing.
 See [the work plan](plan.md) for the remaining experiment gates.
 
 ## Follow the protocol
@@ -244,22 +247,30 @@ model a fixed command sequence. The scored TraceFix comparison above retains
 the original simulator and tool interfaces.
 
 A separate shell integration uses a real Wasm guest under
-`hibana-wasip1-runtime`, pinned to `7905fa07bfd66db69ea7fb74883b7ca1e2b572bd`.
-Both the experiment and runtime use published Hibana `=0.9.9`. The local updated
-runtime source is saved in that commit; there is no mutable sibling core patch.
+`hibana-wasip1-runtime`, pinned to `4ebdad1443cf49488eae924afe528f67f5a5953b`.
+Both the experiment and runtime use published Hibana `=0.9.9`. The runtime
+source is saved in that public commit; there is no mutable sibling core patch.
 
 Every file operation goes through WASI and ChoreoFS. This includes terminal I/O,
 work files, scripts, and the tool request/reply objects. The guest has no second
 filesystem and no host filesystem access. The answering role owns file contents
 and offsets. ChoreoFS provides object and fd facts. Neither records task progress.
 
-Read [the WASI global protocol](src/shell/global.rs) and its
+For the direct 16E boundary, read [the composed global](src/tasks/cicd/choreofs/global.rs),
+[guest localside](src/shell/localside/direct_guest.rs),
+[private I/O localside](src/shell/localside/private_io.rs), and
+[task localsides](src/tasks/cicd/choreofs/localside/).
+The global governs shared service requests, dependencies, and private WASI I/O.
+The receiving role consumes the permitted local step before applying a shared
+effect. A pathname, fd right or WASI write does not replace that authorization.
+Memory growth also uses an explicit request and reply in the same projected
+protocol. Shell computation and private file contents hold no task authority.
+
+The older [WASI global](src/shell/global.rs),
 [guest](src/shell/localside/guest.rs) and
-[answering role](src/shell/localside/environment.rs). They govern ABI request and
-reply order. The task-specific globals and localsides above still authorize the
-actual domain work. A pathname, approval file or WASI write cannot replace that
-authorization. The test sends an early `eat` through the real guest and ChoreoFS;
-the task endpoint rejects it before an execute request reaches the simulator.
+[answering role](src/shell/localside/environment.rs) remain for historical
+preflight regressions. Their early-`eat` test rejects the request before the
+simulator receives an execute request.
 
 The older integration guest supports `help`, `ls`, `cat`, `echo`, `apply`,
 `script`, and `call`. It remains for recorded preflight regressions. The direct

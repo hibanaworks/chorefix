@@ -82,8 +82,13 @@ pub async fn run<const ROLE: u8>(
                     .await?;
             }
             protocol::LABEL_ENGINE_MEMORY_GROW => {
-                let _request = branch.recv::<protocol::MemoryGrowReqMsg>().await?;
-                let response = protocol::MemoryGrowRet(protocol::MemoryGrowDecision::reject());
+                let request = branch.recv::<protocol::MemoryGrowReqMsg>().await?;
+                let decision = if request.0.would_fit() {
+                    protocol::MemoryGrowDecision::grant()
+                } else {
+                    protocol::MemoryGrowDecision::reject()
+                };
+                let response = protocol::MemoryGrowRet(decision);
                 endpoint
                     .send::<protocol::MemoryGrowRetMsg>(&response)
                     .await?;

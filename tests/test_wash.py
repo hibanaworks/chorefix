@@ -47,6 +47,15 @@ done
         listing = await runtime.command("DEVELOPER", "ls /work")
         assert "agent-notes.txt\n" in listing["stdout"]
         assert "grant\n" in listing["stdout"]
+        # A 51,200-byte pipeline cannot fit alongside std, its heap and stack
+        # in the initial 64KiB page. It needs real, choreographed memory growth.
+        script = "pad='" + "x" * 512 + """'; n=0
+while [ "$n" -lt 100 ]; do
+    printf '%s' "$pad"
+    expr "$n" + 1 | read n
+done | wc"""
+        grown = await runtime.command("DEVELOPER", script)
+        assert "51200\n" in grown["stdout"]
         assert not sim.events
         # A nonterminating computation reaches the shell budget and returns an
         # ordinary error. It does not fault or rebuild a task Endpoint.
