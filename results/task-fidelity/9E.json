@@ -1,6 +1,6 @@
 {
   "task": "9E",
-  "stage": "qualified_direct_wasi_boundary",
+  "stage": "model_path_qualified",
   "accepted_for_scored_comparison": false,
   "source_revision": "1876bfba80b37428d237e4fb7164a0544a12dbea",
   "scored_benchmark": false,
@@ -81,8 +81,10 @@
     "No scored comparison or success-rate estimate"
   ],
   "remaining": [
-    "Run and audit the model path with this exact qualified build",
     "Complete the full task-fidelity acceptance review and comparison harness"
   ],
-  "caller_binding_test": "ANOTHER_DISPLAY_NAME is passed as the philosopher string; actual effects and replies still identify the projected caller"
+  "caller_binding_test": "ANOTHER_DISPLAY_NAME is passed as the philosopher string; actual effects and replies still identify the projected caller",
+  "model_trials": [
+    "results/validation/qualified-luna-20261016/9E/audit.json"
+  ]
 }

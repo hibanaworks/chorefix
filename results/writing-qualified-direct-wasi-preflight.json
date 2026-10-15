@@ -1,0 +1,53 @@
+{
+  "kind": "unscored_qualified_direct_wasi_model_preflight",
+  "scored_benchmark": false,
+  "accepted_full_task_ports": 0,
+  "scored_episodes": 0,
+  "planned_scored_episodes": 2592,
+  "model": "gpt-6-luna",
+  "reasoning_effort": "xhigh",
+  "scenario_depth": 2,
+  "python_hash_seed": 0,
+  "domain_delay_multiplier": 1,
+  "artificial_barriers": false,
+  "execution_source_revision": "5646c0beac79f40e3d8e8954d7116278173588a3",
+  "runtime_source_revision": "1876bfba80b37428d237e4fb7164a0544a12dbea",
+  "verification_source_revision": "dc790b55786f70ce906fd25cb3ade3711f7eaf90",
+  "qualification_record": "results/qualified-direct-wasi-build.json",
+  "evidence": "results/validation/qualified-luna-20261016",
+  "core_revision": "c2001ec06944d7f3b299e16b5b3efb5b0ba0366a",
+  "wasip1_runtime_revision": "4ebdad1443cf49488eae924afe528f67f5a5953b",
+  "wash_revision": "12e137aba2cea74f353c198a8d7c92afc977627c",
+  "notes": [
+    "Participant turns count one App Server turn per subject, not underlying inference requests",
+    "Inclusive tokens are the actual recorded inputTokens plus outputTokens, including cached input",
+    "These trials do not estimate success rates or comparative performance",
+    "New version-2 runs use a Git-pinned build qualification record; earlier version-1 evidence keeps its recorded verifier source"
+  ],
+  "cases": [
+    {
+      "task": "2M",
+      "case_path": "output/direct-wasi-preflight/writing-qualified-luna-20261016-001/2M",
+      "participants": 5,
+      "max_simultaneous_turns": 5,
+      "inclusive_tokens": 551222,
+      "shell_calls": 30,
+      "elapsed_seconds": 32.718961708,
+      "domain_calls": 20,
+      "max_disjoint_operations": 2,
+      "carrier_frames": 1493,
+      "simulator_complete": true,
+      "violations": 0,
+      "status": "passed",
+      "events_sha256": "4b080f7a76d1f75eb5d255b6a48f51245f5c23c2195acb94d14315bb80929600",
+      "verifiers": {
+        "model": "72c24d84e5ea879248654b86ad54273dd7fbeb3d45e4045cbb742e8ac237d4af",
+        "protocol": "f17496eb01f58d1e49428b9f8fdd267a96c1635061c28afb7aa3aa0a97eee6cf"
+      }
+    }
+  ],
+  "total_participant_turns": 5,
+  "total_domain_calls": 20,
+  "inclusive_tokens": 551222,
+  "model_mutants_rejected": 8
+}

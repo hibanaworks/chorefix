@@ -745,3 +745,26 @@ reviewは元課題どおり終端で、余分なretryを加えない。続いて
   明示確認し、qualificationは実行Git commitのblobへ照合する。Python版も記録する。
   元9E simulator/toolsの実import先がvendor/tracefixであることも現物で確認した。
   c5101a7のCI38760206495は成功。新しいportを含むCIはこれからpushして検査する。
+
+## 2026-10-16: qualified buildによる実Luna 4試行
+
+- 5646c0bの清潔なsourceから、runtime1876bfbを明示固定して9E/M/Hと更新後2Mを各depth2で
+  1回実行。全20参加者は実応答でgpt-6-luna/xhigh、native toolなし。全50 domain操作、
+  shell91回、inclusive tokens1,741,193。人工barrierなし、原delay倍率1.0、seed0。
+- 9E/M/Hのモデルturnは3/5/7人で重なり、食事は実並行1/2/3件。21.960/37.516/27.070秒、
+  tokens247,716/390,114/552,141。2Mは5人同時turn、実write2件、32.719秒、551,222tokens。
+  全4試行でprotocolと元simulatorが完了し、資源違反0。比較の成功率/性能推定にはしない。
+- 最終model verifier dc790b5で再監査し、各8改変、計32件を外側hash再計算後も拒否。
+  actual model/effort、task/人数/資源、seed/depth/delay、全command/reply、全frame、
+  元simulator記録、inclusive usage、Git-pinned qualificationと実binaryを照合した。
+  participant_turnsは参加者ごとのApp Server turn数であり、内部推論request件数ではない。
+- 生の実行ファイルは変えず、source/全model event/Frame/prompt/usage/結果と監査を
+  qualified-luna-20261016へ保存。binary付き完全archiveはoutputに保持する。
+  philosophers-direct-wasi-preflight.jsonとwriting-qualified-direct-wasi-preflight.jsonが
+  今回の集計。旧writing3試行とreview/16Eの記録は元sourceの証拠として分けて保持する。
+- 次は残るfamilyの単一global/実WASI接続と、48課題のfull-fidelity受理、比較側の実行。
+  現在のdesign_baselines.pyはSYSTEM_PROMPTへの追記とverify_spec前の追加gateを持つ。
+  そのまま元baseline条件の証拠には使わない。公式比較では元のprompt/tool/runtime挙動を
+  保ち、Lunaへの入出力・記録だけをadapterにする。既存の設計試行は開発資料として保つ。
+  新規実験toolはRustを基本とし、Pythonは必要な元simulator/元baselineの接続に限る。
+  紙面推敲は再開せず、全要件受理0、採点比較0/2592を維持して残りを進める。

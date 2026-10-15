@@ -1,0 +1,93 @@
+{
+  "kind": "unscored_qualified_direct_wasi_model_preflight",
+  "scored_benchmark": false,
+  "accepted_full_task_ports": 0,
+  "scored_episodes": 0,
+  "planned_scored_episodes": 2592,
+  "model": "gpt-6-luna",
+  "reasoning_effort": "xhigh",
+  "scenario_depth": 2,
+  "python_hash_seed": 0,
+  "domain_delay_multiplier": 1,
+  "artificial_barriers": false,
+  "execution_source_revision": "5646c0beac79f40e3d8e8954d7116278173588a3",
+  "runtime_source_revision": "1876bfba80b37428d237e4fb7164a0544a12dbea",
+  "verification_source_revision": "dc790b55786f70ce906fd25cb3ade3711f7eaf90",
+  "qualification_record": "results/qualified-direct-wasi-build.json",
+  "evidence": "results/validation/qualified-luna-20261016",
+  "core_revision": "c2001ec06944d7f3b299e16b5b3efb5b0ba0366a",
+  "wasip1_runtime_revision": "4ebdad1443cf49488eae924afe528f67f5a5953b",
+  "wash_revision": "12e137aba2cea74f353c198a8d7c92afc977627c",
+  "notes": [
+    "Participant turns count one App Server turn per subject, not underlying inference requests",
+    "Inclusive tokens are the actual recorded inputTokens plus outputTokens, including cached input",
+    "These trials do not estimate success rates or comparative performance",
+    "New version-2 runs use a Git-pinned build qualification record; earlier version-1 evidence keeps its recorded verifier source"
+  ],
+  "cases": [
+    {
+      "task": "9E",
+      "case_path": "output/direct-wasi-preflight/philosophers-luna-20261016-001/9E",
+      "participants": 3,
+      "max_simultaneous_turns": 3,
+      "inclusive_tokens": 247716,
+      "shell_calls": 13,
+      "elapsed_seconds": 21.959667292,
+      "domain_calls": 6,
+      "max_disjoint_operations": 1,
+      "carrier_frames": 321,
+      "simulator_complete": true,
+      "violations": 0,
+      "status": "passed",
+      "events_sha256": "e08e612bcec9781f3af65d0d5c552c4be23db72ef7788b1036fc736b7e3c1b83",
+      "verifiers": {
+        "model": "72c24d84e5ea879248654b86ad54273dd7fbeb3d45e4045cbb742e8ac237d4af",
+        "protocol": "0165a73c0dccd2095ebefa3eaa55b020b4bec55257965b704834112797e146a5"
+      }
+    },
+    {
+      "task": "9M",
+      "case_path": "output/direct-wasi-preflight/philosophers-luna-20261016-001/9M",
+      "participants": 5,
+      "max_simultaneous_turns": 5,
+      "inclusive_tokens": 390114,
+      "shell_calls": 20,
+      "elapsed_seconds": 37.515525959,
+      "domain_calls": 10,
+      "max_disjoint_operations": 2,
+      "carrier_frames": 1057,
+      "simulator_complete": true,
+      "violations": 0,
+      "status": "passed",
+      "events_sha256": "0d4c693c6e53e24d0d3efb00a05696f572a2d62417e6a031a5996ebdae2c4c8f",
+      "verifiers": {
+        "model": "72c24d84e5ea879248654b86ad54273dd7fbeb3d45e4045cbb742e8ac237d4af",
+        "protocol": "0165a73c0dccd2095ebefa3eaa55b020b4bec55257965b704834112797e146a5"
+      }
+    },
+    {
+      "task": "9H",
+      "case_path": "output/direct-wasi-preflight/philosophers-luna-20261016-001/9H",
+      "participants": 7,
+      "max_simultaneous_turns": 7,
+      "inclusive_tokens": 552141,
+      "shell_calls": 28,
+      "elapsed_seconds": 27.070419208,
+      "domain_calls": 14,
+      "max_disjoint_operations": 3,
+      "carrier_frames": 1097,
+      "simulator_complete": true,
+      "violations": 0,
+      "status": "passed",
+      "events_sha256": "e08329a89b787ccd049817e4cdb1658c5592dd1ce1d12aa08f154a1f42c01f96",
+      "verifiers": {
+        "model": "72c24d84e5ea879248654b86ad54273dd7fbeb3d45e4045cbb742e8ac237d4af",
+        "protocol": "0165a73c0dccd2095ebefa3eaa55b020b4bec55257965b704834112797e146a5"
+      }
+    }
+  ],
+  "total_participant_turns": 15,
+  "total_domain_calls": 30,
+  "inclusive_tokens": 1189971,
+  "model_mutants_rejected": 24
+}

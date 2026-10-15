@@ -1,0 +1,106 @@
+{
+  "events_sha256": "0d4c693c6e53e24d0d3efb00a05696f572a2d62417e6a031a5996ebdae2c4c8f",
+  "inclusive_tokens": 390114,
+  "kind": "unscored_direct_wasi_model_preflight",
+  "max_simultaneous_model_turns": 5,
+  "model_verifier_sha256": "72c24d84e5ea879248654b86ad54273dd7fbeb3d45e4045cbb742e8ac237d4af",
+  "participant_turns": 5,
+  "participants": [
+    {
+      "inclusive_tokens": 77871,
+      "participant": "PHILOSOPHER_A",
+      "tool_calls": 4,
+      "turn_end_unix_ns": "1792081881880850000",
+      "turn_start_unix_ns": "1792081862678327000",
+      "usage": {
+        "cacheWriteInputTokens": 0,
+        "cachedInputTokens": 61184,
+        "inputTokens": 77545,
+        "outputTokens": 326,
+        "reasoningOutputTokens": 146,
+        "totalTokens": 77871
+      }
+    },
+    {
+      "inclusive_tokens": 78292,
+      "participant": "PHILOSOPHER_B",
+      "tool_calls": 4,
+      "turn_end_unix_ns": "1792081888344574000",
+      "turn_start_unix_ns": "1792081862592809000",
+      "usage": {
+        "cacheWriteInputTokens": 0,
+        "cachedInputTokens": 61184,
+        "inputTokens": 77875,
+        "outputTokens": 417,
+        "reasoningOutputTokens": 237,
+        "totalTokens": 78292
+      }
+    },
+    {
+      "inclusive_tokens": 77853,
+      "participant": "PHILOSOPHER_C",
+      "tool_calls": 4,
+      "turn_end_unix_ns": "1792081883970675000",
+      "turn_start_unix_ns": "1792081862490923000",
+      "usage": {
+        "cacheWriteInputTokens": 0,
+        "cachedInputTokens": 67328,
+        "inputTokens": 77526,
+        "outputTokens": 327,
+        "reasoningOutputTokens": 148,
+        "totalTokens": 77853
+      }
+    },
+    {
+      "inclusive_tokens": 78230,
+      "participant": "PHILOSOPHER_D",
+      "tool_calls": 4,
+      "turn_end_unix_ns": "1792081897159713000",
+      "turn_start_unix_ns": "1792081862622072000",
+      "usage": {
+        "cacheWriteInputTokens": 0,
+        "cachedInputTokens": 61184,
+        "inputTokens": 77830,
+        "outputTokens": 400,
+        "reasoningOutputTokens": 216,
+        "totalTokens": 78230
+      }
+    },
+    {
+      "inclusive_tokens": 77868,
+      "participant": "PHILOSOPHER_E",
+      "tool_calls": 4,
+      "turn_end_unix_ns": "1792081899531945000",
+      "turn_start_unix_ns": "1792081862889233000",
+      "usage": {
+        "cacheWriteInputTokens": 0,
+        "cachedInputTokens": 67328,
+        "inputTokens": 77544,
+        "outputTokens": 324,
+        "reasoningOutputTokens": 143,
+        "totalTokens": 77868
+      }
+    }
+  ],
+  "protocol": {
+    "carrier_frames": 1057,
+    "domain_calls": 10,
+    "guest_exits": 5,
+    "kind": "model_direct_wasi_protocol",
+    "max_disjoint_eaters": 2,
+    "model_calls": null,
+    "original_test_delays": {},
+    "parallel_acquisition_observed": true,
+    "parallel_return_observed": true,
+    "participants": 5,
+    "scored_benchmark": false,
+    "simulator_complete": true,
+    "status": "passed",
+    "task": "9M",
+    "violations": 0
+  },
+  "protocol_verifier_sha256": "0165a73c0dccd2095ebefa3eaa55b020b4bec55257965b704834112797e146a5",
+  "scored_benchmark": false,
+  "status": "passed",
+  "task": "9M"
+}
