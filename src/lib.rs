@@ -1,4 +1,5 @@
 mod imp;
+mod resource;
 pub mod tasks;
 
 pub use imp::bridge;

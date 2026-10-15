@@ -59,15 +59,233 @@
       "wasi_runtime_sha256": "e93c78d05197800a1e39ce9339c89cb9431971009e41bd1ad556289c56a738a4",
       "guest_sha256": "9b1acb936be7dbac08c482d11a8fc9bf946ee23d148f69e8cd5ef7af38b1dd34",
       "evidence_directory": "output/shell-preflight/wasi-choreofs-001/1H"
+    },
+    {
+      "task": "2H",
+      "audit_passed": true,
+      "participants": 7,
+      "domain_calls": 28,
+      "scenario_depth": 2,
+      "maximum_concurrent_resource_users": 3,
+      "total_tokens": 655140,
+      "result_sha256": "f477ca4bf24e1553c1f79ae2d819f70f0299af7e4248a0a4e9bd5a9a25475dce",
+      "elapsed_seconds": 25.981673165922984,
+      "simulator_complete": true,
+      "simulator_violations": 0,
+      "model_tool_calls": 35,
+      "shell_command_counts": {
+        "help": 7,
+        "call": 28
+      },
+      "source_manifest_sha256": "11d5bac0e90f3fd75a8659a0c8914f86541ed94d605183f3c5189eb5e114e735",
+      "runtime_binary_sha256": "5b06bd80a9ae1d57dfef3b506df0c431c10ef21eab7b6b0b8a7da92b760901de",
+      "wasi_runtime_sha256": "60d98659c37357da477c8958b7d92c7c6fb8343f236ab5bf90f001c5250d5f4d",
+      "guest_sha256": "9b1acb936be7dbac08c482d11a8fc9bf946ee23d148f69e8cd5ef7af38b1dd34",
+      "evidence_directory": "output/shell-preflight/writing-choreofs-001/2H",
+      "failure_injection": "disabled by original task simulator"
+    },
+    {
+      "task": "16E",
+      "audit_passed": true,
+      "participants": 3,
+      "domain_calls": 3,
+      "scenario_depth": 2,
+      "maximum_concurrent_resource_users": 1,
+      "total_tokens": 257973,
+      "result_sha256": "0dea096040604801d28d4b3b42f2ceab8f23890c8e0ed7abdc1a6d041ba17615",
+      "elapsed_seconds": 38.655327582964674,
+      "simulator_complete": true,
+      "simulator_violations": 0,
+      "model_tool_calls": 8,
+      "shell_command_counts": {
+        "help": 3,
+        "call": 3,
+        "ls": 2
+      },
+      "source_manifest_sha256": "733baf3611fca04a5f0c480a1d1978745ad3475f47a402bd0ef052f0096eea54",
+      "runtime_binary_sha256": "deb9742eae6f31fcb34b3d238944a81b1b26ab395365dbafc903e1ea1ce66ea7",
+      "wasi_runtime_sha256": "d0a36bb485cc93fed5c84e939b3233695ade17e54536573d90fba0cd979dc16d",
+      "guest_sha256": "9b1acb936be7dbac08c482d11a8fc9bf946ee23d148f69e8cd5ef7af38b1dd34",
+      "evidence_directory": "output/shell-preflight/cicd-choreofs-001/16E",
+      "failure_injection": "disabled by original task simulator"
+    },
+    {
+      "task": "9M",
+      "audit_passed": true,
+      "participants": 5,
+      "domain_calls": 10,
+      "scenario_depth": 2,
+      "maximum_concurrent_resource_users": 2,
+      "total_tokens": 294684,
+      "rejected_request_count": 0,
+      "rejected_requests": [],
+      "result_sha256": "781f943c5b35853d385e12944a7cf579529c3b8080bb832b03b1bbc8ca677881",
+      "run_id": "direct-localside-001",
+      "elapsed_seconds": 23.674264207948,
+      "simulator_complete": true,
+      "simulator_violations": 0,
+      "model_tool_calls": 14,
+      "shell_command_counts": {
+        "help": 4,
+        "call": 10
+      },
+      "source_manifest_sha256": "7b60292b20d808ea0e6f7c86c5f5c21461c54467daf059eff3aa10ce3794efd0",
+      "runtime_binary_sha256": "ae995e2bd86145f607acde5ba6b9d2a5ecbd8ecbf1d94d48fe3f50d80075c54b",
+      "wasi_runtime_sha256": "68b38f76acb393058775b65a3b0eaefcf44cef3f28caebfb092bee7d7fb6f7a1",
+      "guest_sha256": "9b1acb936be7dbac08c482d11a8fc9bf946ee23d148f69e8cd5ef7af38b1dd34",
+      "evidence_directory": "output/shell-preflight/direct-localside-001/9M"
+    },
+    {
+      "task": "1H",
+      "audit_passed": true,
+      "participants": 7,
+      "domain_calls": 70,
+      "scenario_depth": 2,
+      "maximum_concurrent_resource_users": 3,
+      "total_tokens": 1411942,
+      "rejected_request_count": 0,
+      "rejected_requests": [],
+      "result_sha256": "a4858983cc934c657f34ebe95224859f382b80f8e803dfc1fda7a34ae3913033",
+      "run_id": "direct-localside-001",
+      "elapsed_seconds": 55.67672087508254,
+      "simulator_complete": true,
+      "simulator_violations": 0,
+      "model_tool_calls": 81,
+      "shell_command_counts": {
+        "help": 7,
+        "call": 70,
+        "ls": 3,
+        "cat": 1
+      },
+      "source_manifest_sha256": "7b60292b20d808ea0e6f7c86c5f5c21461c54467daf059eff3aa10ce3794efd0",
+      "runtime_binary_sha256": "1742fcdadc9b38e1e35317bfa894113feb531c20495d2c1fe9d08f7dd36a8026",
+      "wasi_runtime_sha256": "68b38f76acb393058775b65a3b0eaefcf44cef3f28caebfb092bee7d7fb6f7a1",
+      "guest_sha256": "9b1acb936be7dbac08c482d11a8fc9bf946ee23d148f69e8cd5ef7af38b1dd34",
+      "evidence_directory": "output/shell-preflight/direct-localside-001/1H"
+    },
+    {
+      "task": "2H",
+      "audit_passed": true,
+      "participants": 7,
+      "domain_calls": 28,
+      "scenario_depth": 2,
+      "maximum_concurrent_resource_users": 3,
+      "total_tokens": 640499,
+      "rejected_request_count": 0,
+      "rejected_requests": [],
+      "result_sha256": "625c70505ed4d4825cbeb07a32f035f16570cb8204b442717f21671db95db012",
+      "run_id": "direct-localside-001",
+      "elapsed_seconds": 30.156579582951963,
+      "simulator_complete": true,
+      "simulator_violations": 0,
+      "model_tool_calls": 34,
+      "shell_command_counts": {
+        "help": 6,
+        "call": 28
+      },
+      "source_manifest_sha256": "7b60292b20d808ea0e6f7c86c5f5c21461c54467daf059eff3aa10ce3794efd0",
+      "runtime_binary_sha256": "f5a3e1f8868415a130a003e76aee758064860e902c91620af5896e7dba565c16",
+      "wasi_runtime_sha256": "68b38f76acb393058775b65a3b0eaefcf44cef3f28caebfb092bee7d7fb6f7a1",
+      "guest_sha256": "9b1acb936be7dbac08c482d11a8fc9bf946ee23d148f69e8cd5ef7af38b1dd34",
+      "evidence_directory": "output/shell-preflight/direct-localside-001/2H",
+      "failure_injection": "disabled by original task simulator"
+    },
+    {
+      "task": "16E",
+      "audit_passed": true,
+      "participants": 3,
+      "domain_calls": 3,
+      "scenario_depth": 2,
+      "maximum_concurrent_resource_users": 1,
+      "total_tokens": 271576,
+      "rejected_request_count": 4,
+      "rejected_requests": [
+        {
+          "agent": "DEVELOPER",
+          "request": {
+            "arguments": {
+              "message": "build-complete",
+              "to": "TESTER"
+            },
+            "tool": "send_notification"
+          },
+          "boundary": "tool_schema",
+          "response": {
+            "status": "invalid_tool_arguments",
+            "error": "'send_notification'"
+          }
+        },
+        {
+          "agent": "DEVELOPER",
+          "request": {
+            "arguments": {},
+            "tool": "list_tools"
+          },
+          "boundary": "tool_schema",
+          "response": {
+            "status": "invalid_tool_arguments",
+            "error": "'list_tools'"
+          }
+        },
+        {
+          "agent": "DEVELOPER",
+          "request": {
+            "arguments": {
+              "message": "build-complete",
+              "recipient": "TESTER"
+            },
+            "tool": "notify"
+          },
+          "boundary": "tool_schema",
+          "response": {
+            "status": "invalid_tool_arguments",
+            "error": "'notify'"
+          }
+        },
+        {
+          "agent": "DEVELOPER",
+          "request": {
+            "arguments": {
+              "message": "build-complete",
+              "recipient": "TESTER"
+            },
+            "tool": "send_message"
+          },
+          "boundary": "tool_schema",
+          "response": {
+            "status": "invalid_tool_arguments",
+            "error": "'send_message'"
+          }
+        }
+      ],
+      "result_sha256": "805ce01670e151ef5bcf73ac824c82ed8a6a8afa0a0790142841a7bdc13bda0b",
+      "run_id": "direct-localside-001",
+      "elapsed_seconds": 41.20608554081991,
+      "simulator_complete": true,
+      "simulator_violations": 0,
+      "model_tool_calls": 14,
+      "shell_command_counts": {
+        "help": 3,
+        "call": 7,
+        "ls": 3,
+        "cat": 1
+      },
+      "source_manifest_sha256": "7b60292b20d808ea0e6f7c86c5f5c21461c54467daf059eff3aa10ce3794efd0",
+      "runtime_binary_sha256": "bce3abdeca1d47f03f8bd237871611cf6d092df79dd2dcec7e5dde3d4eb72a0a",
+      "wasi_runtime_sha256": "68b38f76acb393058775b65a3b0eaefcf44cef3f28caebfb092bee7d7fb6f7a1",
+      "guest_sha256": "9b1acb936be7dbac08c482d11a8fc9bf946ee23d148f69e8cd5ef7af38b1dd34",
+      "evidence_directory": "output/shell-preflight/direct-localside-001/16E",
+      "failure_injection": "disabled by original task simulator"
     }
   ],
   "limitations": [
-    "Two unscored episodes, not the 2160-run comparison.",
-    "Six tasks implemented, no accepted full benchmark ports.",
+    "Eight unscored episodes across implementation checkpoints, not the 2160-run comparison.",
+    "Ten tasks implemented, no accepted full benchmark ports.",
     "The bounded guest shell does not execute arbitrary POSIX programs.",
     "All file operations use WASI and ChoreoFS. The immutable shell command implementation is trusted.",
     "The original simulator scores domain operations, not arbitrary generated-code quality.",
     "Multiple projected sessions are composed by trusted localside code. There is no claimed whole-system deadlock theorem.",
     "No comparison of success rate, time, tokens or maintenance burden has completed."
-  ]
+  ],
+  "latest_implementation_run_id": "direct-localside-001"
 }

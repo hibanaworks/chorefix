@@ -1,15 +1,17 @@
 {
-  "archive": "output/choreofix-evidence-wasi-choreofs-001.tar.gz",
-  "sha256": "24dec5dd8388447bf2e5e42484aac0adb9c04abf509151393ecedd70898f216b",
-  "bytes": 10209906,
+  "archive": "output/choreofix-evidence-direct-localside-001.tar.gz",
+  "sha256": "06f0196480b9ee3215c24d2c032ac03a2457398ef34b72b8070ac8a115cf4cfc",
+  "bytes": 37780996,
   "scored_benchmark": false,
   "contains": [
+    "eight unscored shell episodes across implementation checkpoints",
     "immutable task and WASI executables",
-    "actual Wasm guest",
+    "actual Wasm guests",
     "source snapshots and hashes",
-    "raw model, shell and task RPC events",
+    "raw model, shell and task RPC events including schema rejections",
     "simulator events and independent audits",
-    "runtime qualification logs and exported proof evidence"
+    "runtime qualification logs and exported proof evidence",
+    "current research draft source and rendered PDF"
   ],
   "released": false
 }

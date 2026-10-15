@@ -4,9 +4,33 @@
 import argparse
 import hashlib
 import json
+import jsonschema
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def admitted_effects(events, schemas, agent, rejected):
+    """Account for every request, including schema errors returned before RPC."""
+    admitted = []
+    for index, entry in enumerate(events):
+        message = entry["message"]
+        if entry["direction"] != "receive" or message.get("type") != "effect":
+            continue
+        request = message["request"]
+        try:
+            jsonschema.validate(request["arguments"], schemas[request["tool"]]["parameters"])
+        except (KeyError, jsonschema.ValidationError) as failure:
+            # Invalid requests must have the exact validation response and must
+            # be absent from forwarded RPCs (checked separately below).
+            reply = events[index+1]
+            assert reply["direction"] == "send"
+            assert reply["message"] == {"status":"invalid_tool_arguments", "error":str(failure)}
+            rejected.append({"agent":agent, "request":request,
+                             "boundary":"tool_schema", "response":reply["message"]})
+        else:
+            admitted.append(request)
+    return admitted
 
 
 def audit(directory):
@@ -29,15 +53,30 @@ def audit(directory):
     assert saved_manifest == result["source_manifest"]
     for relative, digest in saved_manifest.items():
         assert hashlib.sha256((directory / "source" / relative).read_bytes()).hexdigest() == digest
-    expected = json.loads((ROOT / "vendor/tracefix/benchmark/descriptions" / result["task"] / "metadata.json").read_text())["agents"]
+    inputs = ROOT / "vendor/tracefix/benchmark/descriptions" / result["task"]
+    expected = json.loads((inputs / "metadata.json").read_text())["agents"]
+    tools = [entry["function"] for entry in json.loads((inputs / "tools.json").read_text())]
+    schemas_by_agent = {agent:{tool["name"]:tool for tool in tools if agent in tool["agent_ids"]} for agent in expected}
+    rejected = []
+    accepted_by_agent = {}
     assert {agent["participant"] for agent in result["participants"]} == set(expected)
     total_tokens = 0
-    codebase = result["task"].startswith("1")
+    family = result["task"][:-1]
+    codebase = family == "1"
     depth = result["scenario_depth"]
     retries = depth if result["task"] == "1H" else 0
-    expected_calls = (["design_feature"] + ["implement_code", "commit_changes", "run_local_tests"]*(retries+1)
-                      if codebase else ["think", "eat"])
+    expected_calls = {
+        "1": ["design_feature"] + ["implement_code", "commit_changes", "run_local_tests"]*(retries+1),
+        "2": ["read_literature", "draft_content", "write_to_document", "review_own_work"],
+        "9": ["think", "eat"],
+        "16": ["compile_and_test", "run_integration_tests", "deploy_application"],
+    }[family]
+    expected_by_agent = {agent:expected_calls for agent in expected}
+    if family == "16":
+        expected_by_agent = {"DEVELOPER":["compile_and_test"], "TESTER":["run_integration_tests"], "DEPLOYER":["deploy_application"]}
+    shared_tools = {"1":{"commit_changes"}, "2":{"write_to_document"}, "9":{"eat"}, "16":set(expected_calls)}[family]
     for agent in result["participants"]:
+        expected_calls = expected_by_agent[agent["participant"]]
         assert agent["status"] == "completed"
         assert agent["returned_model"] == agent["requested_model"] == "gpt-6-luna"
         assert agent["returned_effort"] == agent["requested_effort"] == "xhigh"
@@ -66,7 +105,8 @@ def audit(directory):
             events = [json.loads(line) for line in shell_path.read_text().splitlines()]
             observed_commands = [entry["message"]["command"] for entry in events if entry["direction"] == "send" and "command" in entry["message"]]
             assert observed_commands == (commands if commands and commands[-1] == "exit" else commands + ["exit"])
-            effects = [entry["message"]["request"] for entry in events if entry["direction"] == "receive" and entry["message"]["type"] == "effect"]
+            effects = admitted_effects(events, schemas_by_agent[agent["participant"]], agent["participant"], rejected)
+            accepted_by_agent[agent["participant"]] = effects
             assert [effect["tool"] for effect in effects] == expected_calls
             assert events[-1]["message"] == {"type":"exit", "status":0}
         else:
@@ -76,12 +116,13 @@ def audit(directory):
     assert hashlib.sha256(log.read_bytes()).hexdigest() == result["bridge_events_sha256"]
     entries = [json.loads(line) for line in log.read_text().splitlines()]
     executed = [entry["message"] for entry in entries if entry["direction"] == "receive" and entry["message"]["type"] == "execute"]
-    assert len(executed) == len(expected_calls)*len(expected)
+    assert len(executed) == sum(len(calls) for calls in expected_by_agent.values())
     assert len({call["id"] for call in executed}) == len(executed)
     for agent in expected:
+        expected_calls = expected_by_agent[agent]
         if shell:
             events = [json.loads(line) for line in (directory / (agent + "-shell") / "events.jsonl").read_text().splitlines()]
-            effects = [entry["message"]["request"] for entry in events if entry["direction"] == "receive" and entry["message"]["type"] == "effect"]
+            effects = accepted_by_agent[agent]
             forwarded = [entry["message"] for entry in entries if entry["direction"] == "send" and entry["message"]["type"] == "call" and entry["message"]["agent"] == agent]
             assert effects == [{"tool":call["tool"], "arguments":call["arguments"]} for call in forwarded]
         assert [call["tool"] for call in executed if call["agent"] == agent] == expected_calls
@@ -92,7 +133,7 @@ def audit(directory):
     active = set()
     maximum = 0
     for entry in entries:
-        if entry["direction"] not in {"domain_start", "domain_end"} or entry["message"]["tool"] != ("commit_changes" if codebase else "eat"):
+        if entry["direction"] not in {"domain_start", "domain_end"} or entry["message"]["tool"] not in shared_tools:
             continue
         agent = entry["message"]["agent"]
         if entry["direction"] == "domain_start":
@@ -105,6 +146,7 @@ def audit(directory):
     return {"task": result["task"], "kind":result["kind"], "scored_benchmark":False,
             "audit_passed":True, "runtime":result["runtime"], "runtime_exit_code":result["runtime_exit_code"], "participants":len(expected), "domain_calls":len(executed),
             "scenario_depth":depth, "maximum_concurrent_resource_users":maximum, "total_tokens":total_tokens,
+            "rejected_request_count":len(rejected), "rejected_requests":rejected,
             "result_sha256":hashlib.sha256((directory / "result.json").read_bytes()).hexdigest(),
             "source_manifest": result["source_manifest"]}
 

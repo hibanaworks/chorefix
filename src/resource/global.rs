@@ -1,12 +1,21 @@
-//! A module has one active loan. The borrower is message data; every loan uses
-//! the same projected request/grant/return/acknowledgement sequence.
-use super::imp::Borrower;
+//! One resource permits one active projected loan at a time.
 use hibana::{
     g,
     runtime::program::{RoleProgram, project},
 };
 
-pub type Request = g::Msg<1, Borrower>;
+pub type AcquireFirst = g::Msg<10, ()>;
+pub type GrantedFirst = g::Msg<11, ()>;
+pub type ReturnFirst = g::Msg<12, ()>;
+pub type ReturnedFirst = g::Msg<13, ()>;
+pub type AcquireSecond = g::Msg<20, ()>;
+pub type GrantedSecond = g::Msg<21, ()>;
+pub type ReturnSecond = g::Msg<22, ()>;
+pub type ReturnedSecond = g::Msg<23, ()>;
+pub type ClosedFirst = g::Msg<30, ()>;
+pub type ClosedSecond = g::Msg<31, ()>;
+
+pub type Request = g::Msg<1, ()>;
 pub type Granted = g::Msg<2, ()>;
 pub type Return = g::Msg<3, ()>;
 pub type Returned = g::Msg<4, ()>;

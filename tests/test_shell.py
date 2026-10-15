@@ -71,7 +71,7 @@ async def test_wasi_choreofs_cannot_bypass_the_task_endpoint(tmp_path):
         # If an execute request appears, the actual effect boundary was crossed.
         assert reply["type"] == "run_result"
         assert reply["status"] == "failed"
-        assert "LabelMismatch" in reply["error"]
+        assert "PhaseInvariant" in reply["error"]
         return {"protocol_error":reply["error"]}
     try:
         await shell.command('echo approved > /work/7', dispatch)

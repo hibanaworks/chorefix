@@ -1,4 +1,5 @@
 //! Developer workflows and all resource handoffs. Domain calls are local steps.
+use crate::resource::global::*;
 use hibana::{
     g,
     runtime::program::{Projectable, RoleProgram, project},
@@ -9,53 +10,9 @@ pub type Implement = g::Msg<2, ()>;
 pub type Commit = g::Msg<3, ()>;
 pub type Test = g::Msg<4, ()>;
 pub type Finished = g::Msg<5, ()>;
-pub type AcquireFirst = g::Msg<10, ()>;
-pub type GrantedFirst = g::Msg<11, ()>;
-pub type ReturnFirst = g::Msg<12, ()>;
-pub type ReturnedFirst = g::Msg<13, ()>;
-pub type AcquireSecond = g::Msg<20, ()>;
-pub type GrantedSecond = g::Msg<21, ()>;
-pub type ReturnSecond = g::Msg<22, ()>;
-pub type ReturnedSecond = g::Msg<23, ()>;
-pub type ClosedFirst = g::Msg<30, ()>;
-pub type ClosedSecond = g::Msg<31, ()>;
 pub type Passed = g::Msg<150, ()>;
 pub type Attempt = g::Msg<151, ()>;
 
-// Every developer acquires modules in this common order. These are static
-// resource addresses, not a runtime ownership table.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[repr(u8)]
-pub enum Resource {
-    Auth,
-    Database,
-    Api,
-    Payment,
-    Notify,
-    Analytics,
-    Search,
-}
-pub const MODULES_1H: [[Resource; 2]; 7] = [
-    [Resource::Auth, Resource::Database],
-    [Resource::Database, Resource::Api],
-    [Resource::Api, Resource::Payment],
-    [Resource::Payment, Resource::Notify],
-    [Resource::Notify, Resource::Analytics],
-    [Resource::Analytics, Resource::Search],
-    [Resource::Auth, Resource::Search],
-];
-pub const MODULES_1E: [[Resource; 2]; 3] = [
-    [Resource::Auth, Resource::Database],
-    [Resource::Database, Resource::Api],
-    [Resource::Auth, Resource::Api],
-];
-pub const MODULES_1M: [[Resource; 2]; 5] = [
-    [Resource::Auth, Resource::Database],
-    [Resource::Database, Resource::Api],
-    [Resource::Api, Resource::Payment],
-    [Resource::Payment, Resource::Notify],
-    [Resource::Auth, Resource::Notify],
-];
 pub const A: u8 = 0;
 pub const A_FIRST: u8 = 7;
 pub const A_SECOND: u8 = 8;

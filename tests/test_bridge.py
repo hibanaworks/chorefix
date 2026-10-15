@@ -30,7 +30,7 @@ def test_early_eat_never_reaches_simulator():
         assert reply["type"] == "run_result"
         assert reply["status"] == "failed"
         assert "Endpoint" in reply["error"]
-        assert "LabelMismatch" in reply["error"]
+        assert "PhaseInvariant" in reply["error"]
     finally:
         process.stdin.close()
         if process.poll() is None:
@@ -56,7 +56,7 @@ def test_duplicate_think_cannot_execute_a_second_domain_operation():
         assert reply["type"] == "run_result"
         assert reply["status"] == "failed"
         assert "Endpoint" in reply["error"]
-        assert "LabelMismatch" in reply["error"]
+        assert "PhaseInvariant" in reply["error"]
     finally:
         process.stdin.close()
         if process.poll() is None:

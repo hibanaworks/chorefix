@@ -126,7 +126,7 @@ async def run(task, run_id, scenario):
         snapshot.parent.mkdir(parents=True, exist_ok=True)
         snapshot.write_bytes(content)
     (output / "source-manifest.json").write_text(json.dumps(source_hashes, indent=2)+"\n")
-    binary = ROOT / "target/debug" / ("codebase" if task.startswith("1") else "philosophers")
+    binary = ROOT / "target/debug" / {"1":"codebase", "2":"writing", "9":"philosophers", "16":"cicd"}[task[:-1]]
     binary_content = binary.read_bytes()
     runtime_binary_sha256 = hashlib.sha256(binary_content).hexdigest()
     runtime_snapshot = output / "runtime"
@@ -149,7 +149,7 @@ async def run(task, run_id, scenario):
             jsonschema.validate(arguments, by_name[name]["parameters"])
             return await bridge.call(agent, name, arguments)
 
-        if task.startswith("1"):
+        if task[:-1] == "1":
             features = {step.agent_id:step.feature for step in module._DESIGN_STEPS}
             feature = features[agent]
             modules = ", ".join(metadata["agent_resources"][agent])
@@ -164,6 +164,25 @@ run_local_tests(feature_name="{feature}") in that order.
 Hibana endpoints coordinate both module leases. Calls wait for those leases.
 Do all real domain calls. Do not simulate a tool result in text. Finish only
 when the workflow described above is complete. Use only the supplied tools.
+"""
+        elif task[:-1] == "2":
+            topic = {step.agent_id:step.topic for step in module._READ_STEPS}[agent]
+            section = {step.agent_id:step.section for step in module._DRAFT_STEPS}[agent]
+            sections = ", ".join(metadata["agent_resources"][agent])
+            prompt = f"""You are {agent} in the original TraceFix task {task}.
+Call read_literature(topic="{topic}"), draft_content(section_name="{section}"),
+write_to_document(sections="{sections}"), review_own_work(section_name="{section}")
+in that order. Review is terminal even if it finds issues. Do not repeat work.
+Hibana endpoints coordinate both section loans. Perform actual calls with the
+supplied tools. Finish after the review response.
+"""
+        elif task == "16E":
+            prompt = f"""You are {agent} in the original TraceFix task 16E.
+DEVELOPER calls compile_and_test(component="application").
+TESTER calls run_integration_tests(suite="integration").
+DEPLOYER calls deploy_application(target="production").
+Perform only your role's domain call. Hibana coordinates notifications and
+infrastructure loans. A call may wait for a prerequisite. Use the actual tool.
 """
         else:
             prompt = f"""You are {agent} in the original TraceFix task {task}.
@@ -229,7 +248,7 @@ when the workflow described above is complete. Use only the supplied tools.
 
 async def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--tasks", nargs="+", choices=["1E", "1M", "1H", "9E", "9M", "9H"], required=True)
+    parser.add_argument("--tasks", nargs="+", choices=["1E", "1M", "1H", "2E", "2M", "2H", "9E", "9M", "9H", "16E"], required=True)
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--scenario", type=int, choices=[0,1,2], default=0)
     args = parser.parse_args()

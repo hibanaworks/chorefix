@@ -53,7 +53,7 @@ async def run(task, run_id, scenario):
         snapshot.parent.mkdir(parents=True, exist_ok=True)
         snapshot.write_bytes(content)
     (output / "source-manifest.json").write_text(json.dumps(source_hashes, indent=2)+"\n")
-    binary = ROOT / "target/debug" / ("codebase" if task.startswith("1") else "philosophers")
+    binary = ROOT / "target/debug" / {"1":"codebase", "2":"writing", "9":"philosophers", "16":"cicd"}[task[:-1]]
     binary_content = binary.read_bytes()
     runtime_binary_sha256 = hashlib.sha256(binary_content).hexdigest()
     runtime_snapshot = output / "runtime"
@@ -94,8 +94,13 @@ async def run(task, run_id, scenario):
 
         task_description = (metadata_path.parent / "description.md").read_text()
         inputs = {"participant":agent, "resources":metadata["agent_resources"][agent]}
-        if task.startswith("1"):
+        if task[:-1] == "1":
             inputs["feature_name"] = {step.agent_id:step.feature for step in module._DESIGN_STEPS}[agent]
+        if task[:-1] == "2":
+            inputs["topic"] = {step.agent_id:step.topic for step in module._READ_STEPS}[agent]
+            inputs["section_name"] = {step.agent_id:step.section for step in module._DRAFT_STEPS}[agent]
+        if task == "16E":
+            inputs.update({"component":"application", "suite":"integration", "target":"production"})
         prompt = f"""You are {agent}. Complete your work in the task below with actual tool effects.
 {task_description}
 
@@ -181,7 +186,7 @@ only after your assigned work is complete. A private file cannot grant rights.
 
 async def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--tasks", nargs="+", choices=["1E", "1M", "1H", "9E", "9M", "9H"], required=True)
+    parser.add_argument("--tasks", nargs="+", choices=["1E", "1M", "1H", "2E", "2M", "2H", "9E", "9M", "9H", "16E"], required=True)
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--scenario", type=int, choices=[0,1,2], default=0)
     args = parser.parse_args()

@@ -9,6 +9,7 @@ use hibana::runtime::{SessionKitStorage, ids::SessionId};
 
 /// Execute the 9E protocol with a supplied domain implementation.
 pub async fn run_9e<D: Domain>(domain: &D) -> Result<(), RunError<D::Error>> {
+    use global::{A, B, C, FORK_A, FORK_B, FORK_C, ForkA, ForkB, ForkC};
     let programs = global::project_9e();
     let mut slab = [0; 32 * 1024];
     let mut storage = SessionKitStorage::<InMemoryTransport>::uninit();
@@ -36,21 +37,21 @@ pub async fn run_9e<D: Domain>(domain: &D) -> Result<(), RunError<D::Error>> {
         .enter(session, &programs.fork_c)
         .map_err(RunError::Attach)?;
     tokio::try_join!(
-        localside::philosopher::a(&mut a, domain),
-        localside::philosopher::b(&mut b, domain),
-        localside::philosopher::c(&mut c, domain),
+        localside::philosopher::run::<A, ForkA, ForkC, D>("PHILOSOPHER_A", &mut a, domain),
+        localside::philosopher::run::<B, ForkB, ForkA, D>("PHILOSOPHER_B", &mut b, domain),
+        localside::philosopher::run::<C, ForkC, ForkB, D>("PHILOSOPHER_C", &mut c, domain),
         async {
-            localside::fork::a(&mut fork_a)
+            localside::fork::run::<FORK_A, ForkA>(&mut fork_a)
                 .await
                 .map_err(RunError::Endpoint)
         },
         async {
-            localside::fork::b(&mut fork_b)
+            localside::fork::run::<FORK_B, ForkB>(&mut fork_b)
                 .await
                 .map_err(RunError::Endpoint)
         },
         async {
-            localside::fork::c(&mut fork_c)
+            localside::fork::run::<FORK_C, ForkC>(&mut fork_c)
                 .await
                 .map_err(RunError::Endpoint)
         },
@@ -288,6 +289,7 @@ mod tests {
 
     #[tokio::test(flavor = "current_thread")]
     async fn completion_is_consumed_once() {
+        use global::{A, B, C, FORK_A, FORK_B, FORK_C, ForkA, ForkB, ForkC};
         let programs = global::project_9e();
         let journal = Journal {
             inputs: RefCell::new(
@@ -310,21 +312,21 @@ mod tests {
         let mut fork_b = rendezvous.enter(session, &programs.fork_b).unwrap();
         let mut fork_c = rendezvous.enter(session, &programs.fork_c).unwrap();
         tokio::try_join!(
-            localside::philosopher::a(&mut a, &journal),
-            localside::philosopher::b(&mut b, &journal),
-            localside::philosopher::c(&mut c, &journal),
+            localside::philosopher::run::<A, ForkA, ForkC, _>("PHILOSOPHER_A", &mut a, &journal),
+            localside::philosopher::run::<B, ForkB, ForkA, _>("PHILOSOPHER_B", &mut b, &journal),
+            localside::philosopher::run::<C, ForkC, ForkB, _>("PHILOSOPHER_C", &mut c, &journal),
             async {
-                localside::fork::a(&mut fork_a)
+                localside::fork::run::<FORK_A, ForkA>(&mut fork_a)
                     .await
                     .map_err(RunError::Endpoint)
             },
             async {
-                localside::fork::b(&mut fork_b)
+                localside::fork::run::<FORK_B, ForkB>(&mut fork_b)
                     .await
                     .map_err(RunError::Endpoint)
             },
             async {
-                localside::fork::c(&mut fork_c)
+                localside::fork::run::<FORK_C, ForkC>(&mut fork_c)
                     .await
                     .map_err(RunError::Endpoint)
             },

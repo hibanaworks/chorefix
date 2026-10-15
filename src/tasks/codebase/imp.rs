@@ -2,43 +2,6 @@ use hibana::runtime::resolver::{DecisionArm, ResolverError};
 use serde_json::Value;
 use std::cell::RefCell;
 
-/// Which of a module's two inbound Endpoint requests was received.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Borrower {
-    First,
-    Second,
-}
-
-impl hibana::runtime::wire::WireEncode for Borrower {
-    fn encode_into(&self, out: &mut [u8]) -> Result<usize, hibana::runtime::wire::CodecError> {
-        let byte = match self {
-            Self::First => 0_u8,
-            Self::Second => 1_u8,
-        };
-        hibana::runtime::wire::WireEncode::encode_into(&byte, out)
-    }
-}
-impl hibana::runtime::wire::WirePayload for Borrower {
-    const SCHEMA_ID: u32 = 0x5452_0001;
-    type Decoded<'a> = Self;
-    fn validate_payload(
-        input: hibana::runtime::wire::Payload<'_>,
-    ) -> Result<(), hibana::runtime::wire::CodecError> {
-        match input.as_bytes() {
-            [0 | 1] => Ok(()),
-            [] => Err(hibana::runtime::wire::CodecError::Truncated),
-            _ => Err(hibana::runtime::wire::CodecError::Malformed),
-        }
-    }
-    fn decode_validated_payload(input: hibana::runtime::wire::Payload<'_>) -> Self {
-        match input.as_bytes() {
-            [0] => Self::First,
-            [1] => Self::Second,
-            _ => unreachable!("validated borrower"),
-        }
-    }
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Operation {
     Design,
@@ -66,6 +29,22 @@ pub trait Domain {
 pub(crate) struct ToolResponse {
     pub(crate) operation: Operation,
     pub(crate) result: Value,
+}
+
+pub(crate) fn response(
+    operation: Operation,
+    result: Value,
+) -> Result<ToolResponse, crate::RunError<String>> {
+    match result["success"].as_bool() {
+        Some(true) => Ok(ToolResponse { operation, result }),
+        Some(false) if operation == Operation::Test => Ok(ToolResponse { operation, result }),
+        Some(false) => Err(crate::RunError::Domain(format!(
+            "domain operation failed: {result}"
+        ))),
+        None => Err(crate::RunError::Domain(
+            "domain response has no success outcome".into(),
+        )),
+    }
 }
 
 #[derive(Default)]
@@ -100,23 +79,6 @@ mod tests {
             resolver::ResolverRef,
         },
     };
-
-    #[test]
-    fn borrower_codec_rejects_unknown_variants_and_extra_bytes() {
-        use hibana::runtime::wire::{Payload, WireEncode, WirePayload};
-        for borrower in [Borrower::First, Borrower::Second] {
-            let mut bytes = [0; 1];
-            assert_eq!(borrower.encode_into(&mut bytes).unwrap(), 1);
-            Borrower::validate_payload(Payload::new(&bytes)).unwrap();
-            assert_eq!(
-                Borrower::decode_validated_payload(Payload::new(&bytes)),
-                borrower
-            );
-        }
-        assert!(Borrower::validate_payload(Payload::new(&[2])).is_err());
-        assert!(Borrower::validate_payload(Payload::new(&[0, 0])).is_err());
-        assert!(Borrower::validate_payload(Payload::new(&[])).is_err());
-    }
 
     #[tokio::test(flavor = "current_thread")]
     async fn controller_cannot_send_against_the_resolver_on_roll_reentry() {

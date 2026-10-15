@@ -20,9 +20,9 @@ roles drive their endpoints before carrying out domain effects. A bounded WASI
 shell lets agents use work files and scripts. Every file operation goes through
 ChoreoFS. The shell cannot grant a task step by choosing a pathname or writing
 an approval file.
-We have implemented six complete task structures from two TraceFix families.
-Two unscored shell integration episodes used twelve GPT-6 Luna participants
-with xhigh reasoning. Both completed in the original simulator with no recorded
+We have implemented ten complete task structures from four TraceFix families.
+Four unscored shell integration episodes used twenty-two GPT-6 Luna participants
+with xhigh reasoning. All completed in the original simulators with no recorded
 resource violations. The seven-developer episode included two failed tests
 followed by success for every developer. These checks establish an executable
 boundary and recovery path. They do not establish a success-rate, speed, token,
@@ -109,17 +109,26 @@ let attempts = g::route(finish, attempt)
     .resolve::<RESOLVER>().roll();
 g::seq(g::send::<DEV, DEV, Design>(), attempts)
 \end{lstlisting}
-The effect adapter dispatches the operation actually requested by the model.
-It does not substitute the operation expected at that point in the function.
-The projected endpoint rejects a mismatch before the domain call below.
+The localside dispatches the operation actually requested by the model.
+Each handler writes its communication directly. No helper hides the endpoint
+operations. For example, the commit handler borrows both resources, asks its
+endpoint to admit the commit, executes the real tool, and returns both loans.
+The projected endpoint rejects an out-of-order request before the domain call.
 \begin{lstlisting}
-match operation {
-    Operation::Design => endpoint.send::<Design>(&()).await?,
-    Operation::Implement => endpoint.send::<Implement>(&()).await?,
-    Operation::Commit => endpoint.send::<Commit>(&()).await?,
-    Operation::Test => endpoint.send::<Test>(&()).await?,
+Operation::Commit => {
+    endpoint.send::<AcquireFirst>(&()).await?;
+    endpoint.recv::<GrantedFirst>().await?;
+    endpoint.send::<AcquireSecond>(&()).await?;
+    endpoint.recv::<GrantedSecond>().await?;
+    endpoint.send::<Commit>(&()).await?;
+    let result = domain.execute(agent, call).await
+        .map_err(RunError::Domain)?;
+    response(operation, result)?;
+    endpoint.send::<ReturnSecond>(&()).await?;
+    endpoint.send::<ReturnFirst>(&()).await?;
+    endpoint.recv::<ReturnedSecond>().await?;
+    endpoint.recv::<ReturnedFirst>().await?;
 }
-let result = domain.execute(agent, call).await?;
 \end{lstlisting}
 These are excerpts. The repository contains the complete global, projection,
 role attachment, and localside functions. Message enums describe actual input
@@ -134,14 +143,28 @@ its current owner.
 In 1H, a developer designs once and repeats implementation, commit, and test
 when the actual test result fails. A resolver admits another attempt or the
 completion arm. Both module returns can progress independently. The modules
-can be lent again before the former borrower finishes its local test. In 1E
+can be lent again before the former borrower finishes its local test. A
+withheld commit request also holds no module: another developer can commit
+while the first model is still choosing its next request. In 1E
 and 1M, the original test is terminal. Their globals have no retry choice.
 
-The workflow and reusable resource services use separate projected sessions.
+The writing family uses the same resource service for shared sections. Its
+three, five, or seven researchers read literature, draft locally, borrow two
+sections, write, return both sections, then review locally. Review is terminal
+in all three original tasks. No retry is invented for that family.
+
+The workflow and reusable resource services in these two families use separate
+projected sessions.
 Their localside bridges are explicit. They do not form one proved global
 session for the whole process. A common acquisition order prevents the
 cross-session resource cycle in this implementation. Projection alone does
 not establish that property for arbitrary compositions of sessions.
+
+The 16E build/test/deploy task instead fits in one projected global containing
+all three participants and both infrastructure roles. Each resource is returned
+before the next participant starts its dependent work. The deployer sends two
+independent completion notifications. The original task has no failure loop;
+we retain its combined build/test and deploy/smoke-test operations.
 
 \subsection{WASI and ChoreoFS}
 The model sees one shell tool. Commands enter a real Wasm guest under
@@ -198,7 +221,7 @@ matched controls for our runs.
 Every port must retain the original roles, resources, dependencies, failure
 paths, and required independence. All 825 checklist items remain in the
 manifest. A passing compilation or generated TLC model is not by itself a
-fidelity verdict. At present six tasks are implemented and none has passed the
+fidelity verdict. At present ten tasks are implemented and none has passed the
 full independent benchmark acceptance gate. No scored episode has started.
 
 \subsection{Outcomes and accounting}
@@ -243,11 +266,13 @@ properties and three SAT witnesses. These counts describe that gate's scope.
 The linked Pico 2 resource fixture uses 80,688 bytes of flash and 117,464 bytes
 of RAM including its stack reservation. It is a runtime fixture, not the full
 agent shell application and not evidence of physical board execution.
-The agent implementation also passes 17 Rust tests and six Python process and
+The agent implementation also passes 23 Rust tests and eleven Python process and
 boundary tests.
 
 \subsection{Actual shell integration}
-Table~\ref{tab:preflight} contains two unscored episodes. All twelve participants
+Table~\ref{tab:preflight} contains the latest four unscored episodes, from the
+direct-localside implementation. Earlier checkpoint probes remain in the
+repository evidence and are separate from this table. All twenty-two participants
 used the requested model and reasoning setting. Saved raw model calls, shell
 RPCs, task requests, simulator events, source copies, and binary hashes were
 checked independently. Each guest and task runtime exited successfully.
@@ -259,20 +284,37 @@ checked independently. Each guest and task runtime exited successfully.
 \toprule
 Task & Roles & Domain calls & Max. resource users & Seconds & Tokens \\
 \midrule
-9M & 5 & 10 & 2 & 24.32 & 309,314 \\
-1H & 7 & 70 & 3 & 55.60 & 1,467,427 \\
+9M & 5 & 10 & 2 & 23.67 & 294,684 \\
+1H & 7 & 70 & 3 & 55.68 & 1,411,942 \\
+2H & 7 & 28 & 3 & 30.16 & 640,499 \\
+16E & 3 & 3 & 1 & 41.21 & 271,576 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 The 9M episode completed with ten domain calls. In 1H, every developer observed
 two failed tests followed by success. The episode made seven design calls and
-21 calls each to implement, commit, and test. Both simulators completed with
+21 calls each to implement, commit, and test. All four simulators completed with
 zero recorded resource violations.
 
-The 1H agents made 84 shell calls. Besides the 70 domain calls, they chose seven
-help commands, three listings, two file reads, and two writes. One participant
-used work files for notes. No participant chose a script in these episodes.
+The 2H writing episode used all seven researchers and seven shared sections.
+Each researcher read, drafted, wrote, and reviewed, for 28 domain calls. Up to
+three disjoint writes overlapped. The original task makes review terminal and
+disables failure injection. Depth 2 therefore did not inject review failures.
+The episode used 34 shell calls: six help commands and 28 domain calls.
+
+The 16E episode completed the three original combined operations with three
+participants. It retained the required linear order and had at most one active
+infrastructure user. Its original simulator also disables failure injection. One model additionally
+requested four undeclared notification or discovery tools. All four were
+rejected by static schema validation before task RPC or simulator execution.
+They remain in raw records, model tool counts, and inclusive tokens. They are
+schema rejections, not endpoint-protocol rejections. The declared coordination
+notifications were sent by the endpoint localsides.
+
+The 1H agents made 81 shell calls. Besides the 70 domain calls, they chose seven
+help commands, three listings, and one file read. No participant chose a script
+in this batch. Earlier probes include private work-file writes.
 Actual script execution is established by deterministic boundary tests rather
 than attributed to the model runs.
 
@@ -290,7 +332,7 @@ Generated files and generic engine code must be counted separately from manual
 edits. TraceFix may also derive execution data from one source. A claim of lower
 maintenance cost must be measured rather than inferred from filenames.
 
-The main blockers to a completed empirical paper are the remaining 42 task
+The main blockers to a completed empirical paper are the remaining 38 task
 ports, independent fidelity acceptance of all 48, a runnable and accepted
 baseline corpus, the 2,160 scored episodes, analysis with uncertainty, and the
 maintenance measurements. The shell profile also limits the kinds of work an

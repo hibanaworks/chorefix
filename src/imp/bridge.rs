@@ -16,6 +16,8 @@ struct Call {
 
 pub struct PhilosopherCall(Call);
 pub struct CodeCall(Call);
+pub struct WritingCall(Call);
+pub struct CicdCall(Call);
 
 impl WorkRequest for PhilosopherCall {
     fn work(&self) -> Work {
@@ -36,6 +38,31 @@ impl crate::tasks::codebase::Request for CodeCall {
             "commit_changes" => Operation::Commit,
             "run_local_tests" => Operation::Test,
             _ => unreachable!("validated code tool name"),
+        }
+    }
+}
+
+impl crate::tasks::writing::Request for WritingCall {
+    fn operation(&self) -> crate::tasks::writing::Operation {
+        use crate::tasks::writing::Operation;
+        match self.0.tool.as_str() {
+            "read_literature" => Operation::Literature,
+            "draft_content" => Operation::Draft,
+            "write_to_document" => Operation::Write,
+            "review_own_work" => Operation::Review,
+            _ => unreachable!("validated writing tool name"),
+        }
+    }
+}
+
+impl crate::tasks::cicd::Request for CicdCall {
+    fn operation(&self) -> crate::tasks::cicd::Operation {
+        use crate::tasks::cicd::Operation;
+        match self.0.tool.as_str() {
+            "compile_and_test" => Operation::Compile,
+            "run_integration_tests" => Operation::Test,
+            "deploy_application" => Operation::Deploy,
+            _ => unreachable!("validated CI/CD tool name"),
         }
     }
 }
@@ -208,5 +235,39 @@ impl Bridge {
             Err(error) => json!({"type":"run_result", "status":"failed", "error":error}),
         };
         self.emit(message).await
+    }
+}
+
+impl crate::tasks::writing::Domain for Bridge {
+    type Call = WritingCall;
+    async fn request(&self, agent: &'static str) -> Result<WritingCall, String> {
+        let call = self.request_call(agent).await?;
+        if !matches!(
+            call.tool.as_str(),
+            "read_literature" | "draft_content" | "write_to_document" | "review_own_work"
+        ) {
+            return Err("unknown writing tool".into());
+        }
+        Ok(WritingCall(call))
+    }
+    async fn execute(&self, agent: &'static str, call: WritingCall) -> Result<Value, String> {
+        self.execute_call(agent, call.0).await
+    }
+}
+
+impl crate::tasks::cicd::Domain for Bridge {
+    type Call = CicdCall;
+    async fn request(&self, agent: &'static str) -> Result<CicdCall, String> {
+        let call = self.request_call(agent).await?;
+        if !matches!(
+            call.tool.as_str(),
+            "compile_and_test" | "run_integration_tests" | "deploy_application"
+        ) {
+            return Err("unknown CI/CD tool".into());
+        }
+        Ok(CicdCall(call))
+    }
+    async fn execute(&self, agent: &'static str, call: CicdCall) -> Result<Value, String> {
+        self.execute_call(agent, call.0).await
     }
 }

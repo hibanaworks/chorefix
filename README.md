@@ -69,11 +69,11 @@ and the two returns independent. Acquiring modules in one common order prevents
 a cycle while retaining concurrent commits on disjoint modules.
 
 Follow [the developer](src/tasks/codebase/localside/developer.rs) to see those
-operations in order. [The module localside](src/tasks/codebase/localside/module.rs)
+operations in order. [The module localside](src/resource/localside.rs)
 receives only projected requests. It forwards requests, grants, returns and
-acknowledgements through Endpoints. [Each module's global protocol](src/tasks/codebase/global_resource.rs)
-permits one outstanding loan. Borrower identity is enum message data, not a
-resource state machine. In 1H both borrowers send explicit completion messages before the module closes.
+acknowledgements through Endpoints. [Each module's global protocol](src/resource/global.rs)
+permits one outstanding loan. The broker records which request arrived. The resource needs only an ordinary
+request, grant, return and acknowledgement; it stores no borrower identity. In 1H both borrowers send explicit completion messages before the module closes.
 In 1E/1M each borrower has one loan; the module closes after both projected loans
 return. No lease request or return uses a separate channel.
 
@@ -82,12 +82,47 @@ wait for its former borrower's local test. A regression test holds A's test open
 while B commits using a returned module. Another test checks that a controller
 cannot send against its declared resolver when a repeated choice starts again.
 
+[The writing protocol](src/tasks/writing/global.rs) covers 2E, 2M and 2H,
+with all three, five and seven researchers and shared sections. Literature and
+drafting are local. Each shared write needs two section grants. Researchers
+return the sections before reviewing their own work. Review is terminal at all
+three levels, even when it finds issues. The original simulator disables
+failure injection for this family; setting scenario depth 2 does not create
+review failures. [The researcher functions](src/tasks/writing/localside/researcher.rs)
+show these operations directly. The same resource protocol handles modules and
+sections. Tests keep disjoint writes concurrent and allow another researcher
+to write while a former borrower is still reviewing.
+
+[The CI/CD protocol](src/tasks/cicd/global.rs) covers the original 16E pipeline.
+It includes the developer, tester, deployer, build server and deployment
+environment in one global. The developer releases the build server before
+notifying the tester. Deployment follows the tests-passed message and ends by
+notifying both other participants. The independent final notifications use
+`g::par`. Each [localside function](src/tasks/cicd/localside/) follows its role
+explicitly. No separate progress or resource state is kept. The original 16E
+simulator disables failure injection and supplies combined build/test and
+deploy/smoke-test tools. This port preserves that behavior. 16M and 16H remain
+unimplemented.
+
+Task localsides match the tool request that actually arrived. Each handler
+shows its Endpoint sends and receives directly, before the corresponding domain
+effect. No helper performs these communication steps, and there is no stored
+expected step, phase, completion flag, or owner table. `Operation` values name
+actual incoming tools. The retry resolver reads the actual tool response.
+Neither stores the next permitted step; the Endpoint holds that progress.
+
+A model can pause before requesting a commit without holding the modules.
+A regression test withholds A's commit request until B commits on a shared
+module. This prevents the application from holding resources while waiting for
+its next model request. File offsets, WASI flags and RPC reply identifiers stay
+in the I/O layer and do not authorize task work.
+
 The host programs and tests use Tokio's current-thread runtime with async/await.
 Hibana endpoints stay on that runtime. Tokio schedules I/O and futures; the
 projected programs authorize communication. The host supplies descriptor memory
 on the heap explicitly. This does not add an allocation fallback to Hibana.
 
-Six tasks have Rust implementations. The full 48-task port and independent
+Ten tasks have Rust implementations. The full 48-task port and independent
 checklist review remain unfinished. No implementation is yet accepted for the
 scored five-condition comparison.
 
@@ -230,22 +265,37 @@ requirements without turning one demonstration's command recipe into the task.
 
 ## Measured shell integration
 
-[The independently audited results](results/shell-preflight.json) cover two
-unscored episodes with GPT-6 Luna xhigh. Task 9M completed with five participants,
-10 domain calls and at most two concurrent resource users. Task 1H completed
-with seven participants, 70 domain calls and at most three concurrent commits.
-Each developer's tests failed twice before succeeding. Both simulators recorded
-zero resource violations and all task and guest runtimes exited successfully.
+[The independently audited results](results/shell-preflight.json) retain every
+saved shell episode. The latest implementation batch, `direct-localside-001`,
+used GPT-6 Luna xhigh and the direct localsides above:
 
-The recorded elapsed times were 24.32 and 55.60 seconds. Inclusive token use was
-309,314 and 1,467,427. These are integration measurements with a different tool
-interface, not estimates of a comparative speed, cost or success advantage.
-Some 1H participants chose listings, reads and notes. None chose a script in
-these model episodes. Real script execution is covered by the boundary tests.
+| Task | Participants | Domain calls | Max. shared users | Seconds | Inclusive tokens |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 9M | 5 | 10 | 2 | 23.67 | 294,684 |
+| 1H | 7 | 70 | 3 | 55.68 | 1,411,942 |
+| 2H | 7 | 28 | 3 | 30.16 | 640,499 |
+| 16E | 3 | 3 | 1 | 41.21 | 271,576 |
 
-The WASI dependency's [quality workflow passed](https://github.com/hibanaworks/hibana-wasip1-runtime/actions/runs/38668826094).
-The experiment CI checks the actual guest, ChoreoFS and task boundary without
-issuing model calls.
+All four tasks completed in the unchanged simulator with zero recorded resource
+violations. Each 1H developer saw two failed tests before success. All task and
+WASI processes exited successfully. The source and binary snapshots, raw model
+calls, task requests and simulator events were checked separately.
+
+In 16E, a model also requested four undeclared notification or discovery tools.
+The static tool schema boundary rejected them before task RPC or simulator
+execution. They remain in the logs and count toward model calls and tokens.
+These are schema rejections, not Hibana protocol rejections. The declared
+notifications were sent by the localsides through Endpoints.
+
+The models chose help commands, listings and file reads. None chose a script
+in this batch. Real script execution and private work writes are covered by the
+boundary tests and earlier retained probes. These unscored integration results
+do not estimate a success, speed, cost or maintenance advantage.
+
+The [WASI quality workflow](https://github.com/hibanaworks/hibana-wasip1-runtime/actions/workflows/quality.yml)
+and [experiment quality workflow](https://github.com/hibanaworks/hibana-tracefix/actions/workflows/quality.yml)
+check their respective runtime boundaries. The experiment CI issues no model
+calls.
 
 ## Sources
 

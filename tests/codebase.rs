@@ -267,3 +267,46 @@ async fn terminal_test_failure_does_not_start_another_attempt() {
     assert_eq!(domain.events.borrow().len(), 12);
     assert!(domain.calls.borrow().values().all(VecDeque::is_empty));
 }
+
+#[tokio::test(flavor = "current_thread")]
+async fn waiting_for_a_model_commit_request_does_not_hold_its_modules() {
+    use tokio::sync::oneshot;
+    struct DelayedRequest {
+        input: Input,
+        wait_for_b: RefCell<Option<oneshot::Receiver<()>>>,
+        b_committed: RefCell<Option<oneshot::Sender<()>>>,
+    }
+    impl Domain for DelayedRequest {
+        type Call = Call;
+        async fn request(&self, agent: &'static str) -> Result<Call, String> {
+            let call = self.input.request(agent).await?;
+            if agent == "DEVELOPER_A" && call.operation == Operation::Commit {
+                let wait = self.wait_for_b.borrow_mut().take().unwrap();
+                wait.await.unwrap();
+            }
+            Ok(call)
+        }
+        async fn execute(&self, agent: &'static str, call: Call) -> Result<Value, String> {
+            if agent == "DEVELOPER_B" && call.operation == Operation::Commit {
+                self.b_committed
+                    .borrow_mut()
+                    .take()
+                    .unwrap()
+                    .send(())
+                    .unwrap();
+            }
+            self.input.execute(agent, call).await
+        }
+    }
+    let (b_committed, wait_for_b) = oneshot::channel();
+    let input = DelayedRequest {
+        input: Input::failures_then_pass(0),
+        wait_for_b: RefCell::new(Some(wait_for_b)),
+        b_committed: RefCell::new(Some(b_committed)),
+    };
+    tokio::time::timeout(std::time::Duration::from_secs(5), codebase::run_1h(&input))
+        .await
+        .expect("an idle model held a module needed by B")
+        .unwrap();
+    assert_eq!(input.input.events.borrow().len(), 28);
+}

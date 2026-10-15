@@ -1,13 +1,13 @@
 pub mod global;
-pub mod global_resource;
 mod imp;
 mod localside;
 
+use crate::resource::{global as resource, localside as resource_roles};
 use crate::{RunError, imp::transport::InMemoryTransport};
 use hibana::runtime::{SessionKitStorage, ids::SessionId, resolver::ResolverRef};
 pub use imp::{Domain, Operation, Request};
 use imp::{TestInput, decide};
-use localside::module::{First, Second};
+use resource_roles::{First, Second};
 
 /// Seven concurrent workflows. Every inter-role operation uses an Endpoint.
 pub async fn run_1h<D: Domain>(domain: &D) -> Result<(), RunError<String>> {
@@ -147,7 +147,7 @@ pub async fn run_1h<D: Domain>(domain: &D) -> Result<(), RunError<String>> {
     let mut result_g = rendezvous
         .enter(session, &programs.result_g)
         .map_err(RunError::Attach)?;
-    let resource_programs = global_resource::project_resource();
+    let resource_programs = resource::project_resource();
     let mut auth_broker = rendezvous
         .enter(SessionId::new(2), &resource_programs.broker)
         .map_err(RunError::Attach)?;
@@ -239,48 +239,48 @@ pub async fn run_1h<D: Domain>(domain: &D) -> Result<(), RunError<String>> {
     };
     let modules = async {
         tokio::try_join!(
-            localside::module::broker::<A_FIRST, G_FIRST, First, First>(
+            resource_roles::broker::<A_FIRST, G_FIRST, First, First>(
                 &mut a_first,
                 &mut g_first,
                 &mut auth_broker
             ),
-            localside::module::resource(&mut auth_resource),
-            localside::module::broker::<A_SECOND, B_FIRST, Second, First>(
+            resource_roles::resource(&mut auth_resource),
+            resource_roles::broker::<A_SECOND, B_FIRST, Second, First>(
                 &mut a_second,
                 &mut b_first,
                 &mut database_broker
             ),
-            localside::module::resource(&mut database_resource),
-            localside::module::broker::<B_SECOND, C_FIRST, Second, First>(
+            resource_roles::resource(&mut database_resource),
+            resource_roles::broker::<B_SECOND, C_FIRST, Second, First>(
                 &mut b_second,
                 &mut c_first,
                 &mut api_broker
             ),
-            localside::module::resource(&mut api_resource),
-            localside::module::broker::<C_SECOND, D_FIRST, Second, First>(
+            resource_roles::resource(&mut api_resource),
+            resource_roles::broker::<C_SECOND, D_FIRST, Second, First>(
                 &mut c_second,
                 &mut d_first,
                 &mut payment_broker
             ),
-            localside::module::resource(&mut payment_resource),
-            localside::module::broker::<D_SECOND, E_FIRST, Second, First>(
+            resource_roles::resource(&mut payment_resource),
+            resource_roles::broker::<D_SECOND, E_FIRST, Second, First>(
                 &mut d_second,
                 &mut e_first,
                 &mut notify_broker
             ),
-            localside::module::resource(&mut notify_resource),
-            localside::module::broker::<E_SECOND, F_FIRST, Second, First>(
+            resource_roles::resource(&mut notify_resource),
+            resource_roles::broker::<E_SECOND, F_FIRST, Second, First>(
                 &mut e_second,
                 &mut f_first,
                 &mut analytics_broker
             ),
-            localside::module::resource(&mut analytics_resource),
-            localside::module::broker::<F_SECOND, G_SECOND, Second, Second>(
+            resource_roles::resource(&mut analytics_resource),
+            resource_roles::broker::<F_SECOND, G_SECOND, Second, Second>(
                 &mut f_second,
                 &mut g_second,
                 &mut search_broker
             ),
-            localside::module::resource(&mut search_resource),
+            resource_roles::resource(&mut search_resource),
         )?;
         Ok::<(), RunError<String>>(())
     };
@@ -326,7 +326,7 @@ pub async fn run_1e<D: Domain>(domain: &D) -> Result<(), RunError<String>> {
     let mut c_second = rendezvous
         .enter(session, &programs.c_second)
         .map_err(RunError::Attach)?;
-    let resource_programs = global_resource::project_resource();
+    let resource_programs = resource::project_resource();
     let mut auth_broker = rendezvous
         .enter(SessionId::new(2), &resource_programs.broker)
         .map_err(RunError::Attach)?;
@@ -355,24 +355,24 @@ pub async fn run_1e<D: Domain>(domain: &D) -> Result<(), RunError<String>> {
     };
     let modules = async {
         tokio::try_join!(
-            localside::module::broker_once::<A_FIRST, C_FIRST, First, First>(
+            resource_roles::broker_once::<A_FIRST, C_FIRST, First, First>(
                 &mut a_first,
                 &mut c_first,
                 &mut auth_broker
             ),
-            localside::module::resource(&mut auth_resource),
-            localside::module::broker_once::<A_SECOND, B_FIRST, Second, First>(
+            resource_roles::resource(&mut auth_resource),
+            resource_roles::broker_once::<A_SECOND, B_FIRST, Second, First>(
                 &mut a_second,
                 &mut b_first,
                 &mut database_broker
             ),
-            localside::module::resource(&mut database_resource),
-            localside::module::broker_once::<B_SECOND, C_SECOND, Second, Second>(
+            resource_roles::resource(&mut database_resource),
+            resource_roles::broker_once::<B_SECOND, C_SECOND, Second, Second>(
                 &mut b_second,
                 &mut c_second,
                 &mut api_broker
             ),
-            localside::module::resource(&mut api_resource),
+            resource_roles::resource(&mut api_resource),
         )?;
         Ok::<(), RunError<String>>(())
     };
@@ -436,7 +436,7 @@ pub async fn run_1m<D: Domain>(domain: &D) -> Result<(), RunError<String>> {
     let mut e_second = rendezvous
         .enter(session, &programs.e_second)
         .map_err(RunError::Attach)?;
-    let resource_programs = global_resource::project_resource();
+    let resource_programs = resource::project_resource();
     let mut auth_broker = rendezvous
         .enter(SessionId::new(2), &resource_programs.broker)
         .map_err(RunError::Attach)?;
@@ -479,36 +479,36 @@ pub async fn run_1m<D: Domain>(domain: &D) -> Result<(), RunError<String>> {
     };
     let modules = async {
         tokio::try_join!(
-            localside::module::broker_once::<A_FIRST, E_FIRST, First, First>(
+            resource_roles::broker_once::<A_FIRST, E_FIRST, First, First>(
                 &mut a_first,
                 &mut e_first,
                 &mut auth_broker
             ),
-            localside::module::resource(&mut auth_resource),
-            localside::module::broker_once::<A_SECOND, B_FIRST, Second, First>(
+            resource_roles::resource(&mut auth_resource),
+            resource_roles::broker_once::<A_SECOND, B_FIRST, Second, First>(
                 &mut a_second,
                 &mut b_first,
                 &mut database_broker
             ),
-            localside::module::resource(&mut database_resource),
-            localside::module::broker_once::<B_SECOND, C_FIRST, Second, First>(
+            resource_roles::resource(&mut database_resource),
+            resource_roles::broker_once::<B_SECOND, C_FIRST, Second, First>(
                 &mut b_second,
                 &mut c_first,
                 &mut api_broker
             ),
-            localside::module::resource(&mut api_resource),
-            localside::module::broker_once::<C_SECOND, D_FIRST, Second, First>(
+            resource_roles::resource(&mut api_resource),
+            resource_roles::broker_once::<C_SECOND, D_FIRST, Second, First>(
                 &mut c_second,
                 &mut d_first,
                 &mut payment_broker
             ),
-            localside::module::resource(&mut payment_resource),
-            localside::module::broker_once::<D_SECOND, E_SECOND, Second, Second>(
+            resource_roles::resource(&mut payment_resource),
+            resource_roles::broker_once::<D_SECOND, E_SECOND, Second, Second>(
                 &mut d_second,
                 &mut e_second,
                 &mut notify_broker
             ),
-            localside::module::resource(&mut notify_resource),
+            resource_roles::resource(&mut notify_resource),
         )?;
         Ok::<(), RunError<String>>(())
     };
