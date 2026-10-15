@@ -1,0 +1,16 @@
+{
+  "status": "repaired_in_core_local_validation_passed_quic_pending",
+  "production_core": "c2001ec06944d7f3b299e16b5b3efb5b0ba0366a",
+  "historical_diagnosis": {
+    "status": "unresolved_runtime_defect",
+    "production_core": "40b544895081c952d719444b5fadcd2e953e165e",
+    "native_reproduction": "two parallel rolled request/explicit-resolver/local-effect/reply protocols, three roles, both requests queued before offer. clean production trace stops after RequestA, RequestB, MaterializeB, leaving MaterializeA pending. No WASI/ChoreoFS.",
+    "six_e": "after inactive-prerequisite fix: depths 0/1 passed and depth2 timed out in one invocation; depth2 passed alone. Repeated diagnostic execution also stalled at depth1 before any review. This is ordering-dependent, not established as a second-revision-specific fault.",
+    "candidate_scope": "diagnostic-only changes; not a production fix. Native three-role candidate passed, four-role nested-par candidate initially stalled; later admission candidate passed native four-role but actual 6E candidates still returned an old review decision after closing. Do not adopt those broad readiness candidates.",
+    "scored_benchmark": false,
+    "model_calls": 0
+  },
+  "current_evidence": "../static-controller-continuation-20261015/",
+  "scored_benchmark": false,
+  "model_calls": 0
+}

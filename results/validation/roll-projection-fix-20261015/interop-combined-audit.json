@@ -1,0 +1,395 @@
+{
+  "status": "all_44_candidate_cells_passed_across_two_runs",
+  "single_workflow_qualification": false,
+  "quic_commit": "2115eed459e6bc98b6293cbf4d4adabc8daea7f6",
+  "core_commit": "f86451b3fa65508e351fd48db32af5129a0539b6",
+  "candidate_passed": 44,
+  "candidate_failed": 0,
+  "unexecuted": 0,
+  "source_pair": {
+    "trees": {
+      "hibana-quic": "68c66ca84957cbae49b89cfad8c6f925ff47e10795ed89ddda8159d13042e5a9",
+      "hibana-tls": "25f147c791a078341c5e608467a57d37ffb82c59737bcdaab7ab30d480ce8fc5"
+    },
+    "file_count": 645,
+    "tls_repository": "https://github.com/hibanaworks/hibana-tls",
+    "tls_revision": "6e5ece518c30a1478f75f17d23aec72b10208fd8",
+    "hibana_version": "0.9.9",
+    "hibana_revision": "f86451b3fa65508e351fd48db32af5129a0539b6"
+  },
+  "common_pins": {
+    "RUNNER_REVISION": "740c05a10b61d65e8abd3ad38d60898004d335d9",
+    "NEQO_REVISION": "ff4f4c61d14d1ee689b8ee1fdfab236f67c9bd95",
+    "HIBANA_VERSION": "0.9.9",
+    "HIBANA_REVISION": "f86451b3fa65508e351fd48db32af5129a0539b6",
+    "HIBANA_TLS_REVISION": "6e5ece518c30a1478f75f17d23aec72b10208fd8",
+    "SIM_IMAGE": "martenseemann/quic-network-simulator@sha256:c23d82a55caffe681b1bdae65d4d30d23e1283141a414a7f02ee56cf15f9c6b9"
+  },
+  "cells": [
+    {
+      "case": "chacha20",
+      "direction": "client",
+      "group": "neqo-basic",
+      "reference": "neqo",
+      "result": "succeeded",
+      "run_id": 38720774555
+    },
+    {
+      "case": "handshake",
+      "direction": "client",
+      "group": "neqo-basic",
+      "reference": "neqo",
+      "result": "succeeded",
+      "run_id": 38720774555
+    },
+    {
+      "case": "ipv6",
+      "direction": "client",
+      "group": "neqo-basic",
+      "reference": "neqo",
+      "result": "succeeded",
+      "run_id": 38720774555
+    },
+    {
+      "case": "longrtt",
+      "direction": "client",
+      "group": "neqo-basic",
+      "reference": "neqo",
+      "result": "succeeded",
+      "run_id": 38720774555
+    },
+    {
+      "case": "transfer",
+      "direction": "client",
+      "group": "neqo-basic",
+      "reference": "neqo",
+      "result": "succeeded",
+      "run_id": 38720774555
+    },
+    {
+      "case": "chacha20",
+      "direction": "server",
+      "group": "neqo-basic",
+      "reference": "neqo",
+      "result": "succeeded",
+      "run_id": 38720774555
+    },
+    {
+      "case": "handshake",
+      "direction": "server",
+      "group": "neqo-basic",
+      "reference": "neqo",
+      "result": "succeeded",
+      "run_id": 38720774555
+    },
+    {
+      "case": "ipv6",
+      "direction": "server",
+      "group": "neqo-basic",
+      "reference": "neqo",
+      "result": "succeeded",
+      "run_id": 38720774555
+    },
+    {
+      "case": "longrtt",
+      "direction": "server",
+      "group": "neqo-basic",
+      "reference": "neqo",
+      "result": "succeeded",
+      "run_id": 38720774555
+    },
+    {
+      "case": "transfer",
+      "direction": "server",
+      "group": "neqo-basic",
+      "reference": "neqo",
+      "result": "succeeded",
+      "run_id": 38720774555
+    },
+    {
+      "case": "blackhole",
+      "direction": "client",
+      "group": "neqo-recovery",
+      "reference": "neqo",
+      "result": "succeeded",
+      "run_id": 38720774555
+    },
+    {
+      "case": "keyupdate",
+      "direction": "client",
+      "group": "neqo-recovery",
+      "reference": "neqo",
+      "result": "succeeded",
+      "run_id": 38720774555
+    },
+    {
+      "case": "resumption",
+      "direction": "client",
+      "group": "neqo-recovery",
+      "reference": "neqo",
+      "result": "succeeded",
+      "run_id": 38720774555
+    },
+    {
+      "case": "transfercorruption",
+      "direction": "client",
+      "group": "neqo-recovery",
+      "reference": "neqo",
+      "result": "succeeded",
+      "run_id": 38720774555
+    },
+    {
+      "case": "transferloss",
+      "direction": "client",
+      "group": "neqo-recovery",
+      "reference": "neqo",
+      "result": "succeeded",
+      "run_id": 38720774555
+    },
+    {
+      "case": "blackhole",
+      "direction": "server",
+      "group": "neqo-recovery",
+      "reference": "neqo",
+      "result": "succeeded",
+      "run_id": 38720774555
+    },
+    {
+      "case": "keyupdate",
+      "direction": "server",
+      "group": "neqo-recovery",
+      "reference": "neqo",
+      "result": "succeeded",
+      "run_id": 38720774555
+    },
+    {
+      "case": "resumption",
+      "direction": "server",
+      "group": "neqo-recovery",
+      "reference": "neqo",
+      "result": "succeeded",
+      "run_id": 38720774555
+    },
+    {
+      "case": "transfercorruption",
+      "direction": "server",
+      "group": "neqo-recovery",
+      "reference": "neqo",
+      "result": "succeeded",
+      "run_id": 38720774555
+    },
+    {
+      "case": "transferloss",
+      "direction": "server",
+      "group": "neqo-recovery",
+      "reference": "neqo",
+      "result": "succeeded",
+      "run_id": 38720774555
+    },
+    {
+      "case": "handshakecorruption",
+      "direction": "client",
+      "group": "quiche-loss-early",
+      "reference": "quiche",
+      "result": "succeeded",
+      "run_id": 38720774555
+    },
+    {
+      "case": "handshakeloss",
+      "direction": "client",
+      "group": "quiche-loss-early",
+      "reference": "quiche",
+      "result": "succeeded",
+      "run_id": 38720774555
+    },
+    {
+      "case": "multiplexing",
+      "direction": "client",
+      "group": "quiche-loss-early",
+      "reference": "quiche",
+      "result": "succeeded",
+      "run_id": 38720774555
+    },
+    {
+      "case": "zerortt",
+      "direction": "client",
+      "group": "quiche-loss-early",
+      "reference": "quiche",
+      "result": "succeeded",
+      "run_id": 38720774555
+    },
+    {
+      "case": "handshakecorruption",
+      "direction": "server",
+      "group": "quiche-loss-early",
+      "reference": "quiche",
+      "result": "succeeded",
+      "run_id": 38720774555
+    },
+    {
+      "case": "handshakeloss",
+      "direction": "server",
+      "group": "quiche-loss-early",
+      "reference": "quiche",
+      "result": "succeeded",
+      "run_id": 38720774555
+    },
+    {
+      "case": "multiplexing",
+      "direction": "server",
+      "group": "quiche-loss-early",
+      "reference": "quiche",
+      "result": "succeeded",
+      "run_id": 38720774555
+    },
+    {
+      "case": "zerortt",
+      "direction": "server",
+      "group": "quiche-loss-early",
+      "reference": "quiche",
+      "result": "succeeded",
+      "run_id": 38720774555
+    },
+    {
+      "case": "amplificationlimit",
+      "direction": "client",
+      "group": "quiche-amplification",
+      "reference": "quiche",
+      "result": "succeeded",
+      "run_id": 38720774555
+    },
+    {
+      "case": "amplificationlimit",
+      "direction": "server",
+      "group": "quiche-amplification",
+      "reference": "quiche",
+      "result": "succeeded",
+      "run_id": 38720774555
+    },
+    {
+      "case": "retry",
+      "direction": "client",
+      "group": "neqo-retry",
+      "reference": "neqo",
+      "result": "succeeded",
+      "run_id": 38720774555
+    },
+    {
+      "case": "retry",
+      "direction": "server",
+      "group": "neqo-retry",
+      "reference": "neqo",
+      "result": "succeeded",
+      "run_id": 38720774555
+    },
+    {
+      "case": "rebind-addr",
+      "direction": "client",
+      "group": "neqo-v2-rebinding",
+      "reference": "neqo",
+      "result": "succeeded",
+      "run_id": 38720774555
+    },
+    {
+      "case": "rebind-port",
+      "direction": "client",
+      "group": "neqo-v2-rebinding",
+      "reference": "neqo",
+      "result": "succeeded",
+      "run_id": 38720774555
+    },
+    {
+      "case": "v2",
+      "direction": "client",
+      "group": "neqo-v2-rebinding",
+      "reference": "neqo",
+      "result": "succeeded",
+      "run_id": 38720774555
+    },
+    {
+      "case": "rebind-addr",
+      "direction": "server",
+      "group": "neqo-v2-rebinding",
+      "reference": "neqo",
+      "result": "succeeded",
+      "run_id": 38720774555
+    },
+    {
+      "case": "rebind-port",
+      "direction": "server",
+      "group": "neqo-v2-rebinding",
+      "reference": "neqo",
+      "result": "succeeded",
+      "run_id": 38720774555
+    },
+    {
+      "case": "v2",
+      "direction": "server",
+      "group": "neqo-v2-rebinding",
+      "reference": "neqo",
+      "result": "succeeded",
+      "run_id": 38720774555
+    },
+    {
+      "case": "connectionmigration",
+      "direction": "client",
+      "group": "neqo-migration",
+      "reference": "neqo",
+      "result": "succeeded",
+      "run_id": 38720774555
+    },
+    {
+      "case": "connectionmigration",
+      "direction": "server",
+      "group": "neqo-migration",
+      "reference": "neqo",
+      "result": "succeeded",
+      "run_id": 38720774555
+    },
+    {
+      "case": "http3",
+      "direction": "client",
+      "group": "neqo-http3",
+      "reference": "neqo",
+      "result": "succeeded",
+      "run_id": 38720774555
+    },
+    {
+      "case": "http3",
+      "direction": "server",
+      "group": "neqo-http3",
+      "reference": "neqo",
+      "result": "succeeded",
+      "run_id": 38720774555
+    },
+    {
+      "case": "ecn",
+      "direction": "client",
+      "group": "neqo-ecn",
+      "reference": "neqo",
+      "result": "succeeded",
+      "run_id": 38723148382
+    },
+    {
+      "case": "ecn",
+      "direction": "server",
+      "group": "neqo-ecn",
+      "reference": "neqo",
+      "result": "succeeded",
+      "run_id": 38723148382
+    }
+  ],
+  "workflow_runs": [
+    {
+      "id": 38720774555,
+      "conclusion": "failure",
+      "reason": "ECN cells unexecuted after runner-tools smoke failure"
+    },
+    {
+      "id": 38723148382,
+      "conclusion": "success",
+      "scope": "only ECN client and server; qualification job skipped"
+    }
+  ],
+  "original_failure_retained": true
+}

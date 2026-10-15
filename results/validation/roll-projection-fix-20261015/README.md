@@ -41,11 +41,14 @@ QUIC's dependency tree records that direct Hibana and transitive TLS use this
 fixed source. Default tests and doctests passed (593 total); hq also passed (598 total).
 The core GitHub push and PR workflows both passed all Kani and final-form
 checks. External QUIC interop artifacts attest 42 passes and no candidate
-failures; two ECN cells were not executed because the runner-tools empty-pcap
-smoke failed before the candidate build. Only those ECN cells are rerunning
-against the same core/QUIC commits in run 38723148382. The first complete
-workflow concluded failure; it is not a full 44-cell qualification pass.
-See status.json and interop-attempt1-audit.json.
+failures in the first run; two ECN cells were not executed because the
+runner-tools empty-pcap smoke failed before the candidate build. The ECN-only
+retry in run 38723148382 passed both remaining cells on the same core/QUIC
+commits, exact source-pair hashes and common pins. All 44 case/direction cells
+therefore passed across the two runs. The initial workflow concluded failure,
+and the diagnostic retry skipped full qualification. This is not one green
+44-cell qualification workflow. See status.json, interop-attempt1-audit.json
+and interop-combined-audit.json.
 
 Raw logs and the exact core patch are stored as deterministic gzip files.
 `status.json` records hashes of both the compressed files and their raw contents.

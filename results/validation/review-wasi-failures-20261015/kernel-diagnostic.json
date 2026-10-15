@@ -1,0 +1,25 @@
+{
+  "base_core_commit": "f86451b3fa65508e351fd48db32af5129a0539b6",
+  "diagnostic_only": true,
+  "production_repair_modified": false,
+  "configuration": "RUSTFLAGS=--cfg hibana_recv_diagnostics --check-cfg=cfg(hibana_recv_diagnostics)",
+  "instrumentation_patch_sha256": "afca3d62e71f07874aefea3aafebe6126da8bd09f201be57e71cc12efad943a2",
+  "failure_site_in_clean_source": "src/endpoint/kernel/recv/contract.rs:72 live_recv_lanes",
+  "failure_before": "transport polling or full-frame unique match",
+  "observed_role": 0,
+  "requested_label": 24,
+  "final_result_candidate_rows": [
+    8,
+    18,
+    28
+  ],
+  "final_candidates_enabled": [
+    false,
+    false,
+    false
+  ],
+  "observed_review_scope_ordinal": 12,
+  "observed_review_scope_arm": 1,
+  "cause_proven": false,
+  "note": "Record active route selection; it is not yet proven whether this is a compiler rejection gap, a valid global with a kernel defect, or a localside mistake."
+}

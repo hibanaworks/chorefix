@@ -11,6 +11,7 @@
   "TESTER-prompt.txt": "62ff21361787c5b80d77f9058bf70a7d4a15fafd44f64b3dfed7e201c2c7293f",
   "audit.json": "22665238d9fe26ace901c01e70c61cf1f29517262cc349f487be8a160f67cacd",
   "compiler.txt": "e61cba8ded8c60e985f759f74a221c4773649021477d00b44c7af411eb8c218c",
+  "consumer-ci.json": "3fca109a958e71be48debe5270e0fda828b3f9f16b585f01f9496691d192de57",
   "core-dependency-tree.txt": "b0735b23621addc5e0ee4ccb4fb332941f4e9eea8e9ccfa206b28bbb9e2365ef",
   "io/events.jsonl.gz": "451fc09a5297117d9ec6e5633c131f931c2a3f7d01f06d5db05c0c472feee42a",
   "licenses/choreofix/LICENSE-APACHE": "c4a2cd14eb3abe621891b235bbe2cfd65f1f71afcfcd5c9b691bb016387dfe88",

@@ -1,5 +1,5 @@
 {
-  "status": "core_ci_passed_external_interop_partial",
+  "status": "core_ci_and_all_44_external_peer_cells_passed",
   "core_commit": "f86451b3fa65508e351fd48db32af5129a0539b6",
   "base": "f1c4dd4bab211b005687cfec15bb53a1f77500ed",
   "branch": "fix/roll-reentry-projection",
@@ -42,7 +42,7 @@
   "scored_runs": 0,
   "development_subagents_used": false,
   "files_sha256": {
-    "README.md": "4594e68fde9fb6d06b75773b4d7364a598a21c33b1429b8fb743d07cb9a50540",
+    "README.md": "7922191cf1a10d8b6e756eae7c4c87d40931aef5731fca648b617bc7c9da1b5c",
     "core-fix.patch.gz": "35937727195d646d3952d0eeaaf881eb1b9d0e055a79a2c1be63cb5c8c4378d4",
     "github-pr-status.json": "bd792d414345e9733215c6ef68c9505b1a57a2632f3b3054247aec9f636e307b",
     "roll-projection-final-clippy-001.log.gz": "e0dc3de2a4b33dcfecf31207be631d7b9454685dfc0738e2ef0d08cc0a6c7c08",
@@ -57,7 +57,9 @@
     "roll-scope-local-contract-001.log.gz": "223328489a6a69e5d1a39be5a977a5a4959c6ffc82abd38e7853daba6aa91a6b",
     "interop-attempt1-audit.json": "3a28145ed11efaa7e332203660a9aa4754d373ba1926149bac0515a761a7db31",
     "interop-attempt1-artifacts.tar.gz": "f43565e8258e633b92eb6a9706cbe6e0aa4d11996abe57661f3d0ceefaef3091",
-    "github-pr-status-completed.json": "f770f8991e64aa42e5bb74e8f4ceb2b326756068ec4437232b2065965c36b6d1"
+    "github-pr-status-completed.json": "f770f8991e64aa42e5bb74e8f4ceb2b326756068ec4437232b2065965c36b6d1",
+    "interop-combined-audit.json": "7bd75aee7e53fb83f214dba86222c1930eeaed6b805bc64038c0edbad8e5cdab",
+    "interop-ecn-retry-artifacts.tar.gz": "5da75684b1c8e9e63e377b93bfcb61b7a16d36dd388b6a7bdcfe86b5fb3e67f6"
   },
   "github_workflow_runs": [
     38718027357,
@@ -79,9 +81,10 @@
     "roll-scope-local-contract-001.log": "8e1544672f22272d5fd99259f2a4358466d261a58513fc25706899ad4b9eba85"
   },
   "external_interop": {
-    "passed": 42,
+    "passed": 44,
     "failed": 0,
-    "unexecuted": 2,
-    "retry_run": 38723148382
+    "unexecuted": 0,
+    "source": "exact same source pair and pins across runs 38720774555 and 38723148382",
+    "single_workflow_qualification": false
   }
 }

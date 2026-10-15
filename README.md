@@ -89,6 +89,18 @@ actual request/reply carrier trace as well as source, model, and token records.
 This is one unscored 16E integration trial, not a success-rate comparison.
 See [the work plan](plan.md) for the remaining experiment gates.
 
+The [6E global protocol](src/tasks/review/choreofs/global.rs) connects the two
+developers, reviewer services, WASI roles, and one shared repository owner.
+The [localsides](src/tasks/review/choreofs/localside) keep each Endpoint operation
+visible. Review results choose approval or revision through explicit resolvers.
+The protocol permits independent development and review, and repeats rejected
+work without application progress flags. Real-WASI tests passed with zero, one,
+and two revisions. [The retained evidence](results/validation/static-controller-continuation-20261015)
+includes original-simulator replay, shared-resource checks, and core regressions.
+This remains deterministic boundary validation with no model calls or scored
+benchmark runs. Cargo keeps the 0.9.9 dependency and pins unreleased core repairs
+from [Hibana PR 8](https://github.com/hibanaworks/hibana/pull/8).
+
 ## Follow the protocol
 
 Start with [the 9E global protocol](src/tasks/philosophers/global.rs).

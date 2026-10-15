@@ -409,3 +409,71 @@ WASIの値とmessageの変換はlocalsideで明示し、進行フラグや第二
 - 6Eの失敗した2候補のsource、実carrier events、stderr、試験ログと、
   成功する縮小例をresults/validation/review-wasi-failures-20261015/へ保存した。
   これらの候補を本体の修正済み・完全移植済みという証拠にしない。
+
+- ECNだけの再試験38723148382も成功した。成果物を再検査し、2方向の実verdict、
+  source pairの全体hash、Hibana/TLS revision、共通pinsが初回と一致した。
+  修正後の外部interopは同じsourceで全44件成功・候補失敗0・未実行0。
+  初回workflow失敗と再試験のqualification skipも隠さず記録し、
+  単一workflowでの全matrix合格とは区別する。資料はinterop-combined-audit.json。
+- 25a2290のChoreoFix GitHub CIは成功した。16Eの変更と新しい非採点試行資料を含む。
+- 6Eの診断は別clone output/upstream/hibana-recv-diagnostics で進めている。
+  公開予定の本体PR8/f86451bとQUIC検証branchはcleanのまま。エラー出力を加えた
+  診断用コピーで、最初の候補のResult失敗はkernel/recv/contract.rsの
+  live_recv_lanesで有効な候補が一つもないところだと確認した。framed receiveの
+  unique-matchより前に失敗している。現在はそのrole0/label24のroute scope選択を
+  記録する診断buildを実行中。診断出力の追加を本体の修正とは扱わない。
+
+- 6Eの診断buildと再試験も完了した。role0がResult(label24)を要求する時点で
+  候補event8/18/28が全てdisabledで、review scope12の選択1が観測される。
+  完全frameのunique-matchやpayload処理に入る前のlocal contract検査で失敗する。
+  この観測だけで本体不具合・global非投影可能・localsideミスのどれかとは断定しない。
+  診断patch・compiler flag・source base・raw stderr/イベントを保存した。
+
+## 2026-10-15: 6Eの受信エラーと並行resolver停止を分離
+
+- f86451bの3役native再現で、非選択枝のpar依存が外側roll再開を妨げる本体不具合を特定。
+  依存の条件は先行領域に適用されるもので、完了済みの別枝のeventを消す条件ではない。
+  1e55aabで修正、40b5448で回帰試験のメッセージ名を訂正して同じPRへpushした。
+  本体Rust 879成功・0失敗・12明示ignore。追加Lean 9主張とZ3 3組SAT/UNSAT成功。
+  最小再現のMiriはLinux対象で成功。Mac対象の初回MiriはTokioのkqueue未対応で停止。
+  no_std、thumbv6m、Clippy成功。40b5448のGitHub CIは確認中。
+- 新しい本体を選択したQUIC検証ブランチは99fcbf7。interop run 38727610451は進行中。
+  ECN jobは失敗しており、原因と成果物は未監査。他の成功を全44成功へ読み替えない。
+  先のf86451bでの44件成功と新しい本体の検証は別に保存する。
+- 6Eの最初のreadiness候補を隔離consumerで再試験するとdepth0/1成功、depth2停止。
+  ただしdepth2単独では成功し、再試験ではdepth1も初回の処理で停止した。
+  差し戻し2回そのものが原因とは言えず、並行処理順に依存する本体の別不具合がある。
+- WASI/ChoreoFSを外した3役のglobalでも、2要求を先に受信すると、片方のresolver付き
+  ローカル処理を残してofferがPendingになる最小再現を得た。診断コピーだけで調査中。
+  readinessを広げるだけの候補は古いreview判断を再び選ぶため採用しない。
+  実行可能な投影済みstepと、過去の反復のroute選択を区別して根治する。
+- 失敗と候補の境界はresults/validation/parallel-resolver-20261015/に保存。
+  アプリ側のフラグ、手順ラッパー、完了の二重管理は追加しない。比較の採点実行は0のまま。
+
+## 2026-10-15: 本体の並行resolver修正と静的送信分岐の回帰
+
+- 並行resolver停止は本体の不具合だった。5440370で、投影済みの有効なlocal/send入口を
+  持つresolverを、新しい受信を待たずに選べるよう修正した。実行可能性は枝の選択権限ではない。
+  resolver/frameが引き続き選択を所有し、進行中の枝は変更できない。
+- 5440370のQUICローカル試験で2件の実回帰が出た。完了した反復の選択を見分ける変更が、
+  静的sendで確定したcontrollerの選択まで無効として扱い、続くofferをPhaseInvariantにした。
+  2役のseq(route(send,send), route(reply,route(reply,reply))).roll()でも再現した。
+  受信入口の除外だけを疑った初期仮説は再試験で否定した。
+- c2001ec06944d7f3b299e16b5b3efb5b0ba0366aで、送信で確定したcontroller選択と、
+  完了したobserver/resolver反復を分けた。静的送信選択は応答を探す間も保持する。
+  過去のobserver選択は実行可能な並行resolverを止めない。新APIやアプリの進行フラグは不要。
+  回帰試験とMiri gate、GlobalSemanticsの3主張、Z3の3組SAT/UNSATを追加してPR8へpush済み。
+- 現在の本体Rustは883成功・0失敗・12明示ignore。Clippy/fmt/no_std/thumbv6m、
+  対象2再現のMiriと関連4 Kani harnessが成功した。追加Leanは10主張、Z3は7SAT/6UNSAT成功。
+  full Leanの再監査、GitHub CI、本体を実選択したQUIC全体/外部interopは確認中。
+- 6Eのreadiness候補は同じ最終本体でdepth0/1/2を5巡、計15試験成功。差し戻し2回だけで
+  起きる問題ではなく、並行実行順に依存する不具合だった。これはモデルなしの境界試験であり、
+  採点済み2592実行・全課題受理の代わりにしない。全要件受理0・採点済み0を維持する。
+- 5440370の外部QUIC run38731137608は失敗。candidate endpointの実行エラーが含まれる。
+  古いsourceの成功やインフラ失敗と混ぜない。修正後commitを全consumerに固定して再検証する。
+
+- c2001ecのfull Lean gateも成功した。709 static theorem、506 generated theorem、
+  458 generated obligationとcompiled claim typesを再監査済み。Git pinを実際に選択した
+  6Eの追加3条件も成功し、元simulatorでの独立replayと共有資源区間/通信同一性監査が成功。
+  結果を1件除いたログコピーは拒否された。証拠はstatic-controller-continuation-20261015。
+  ChoreoFix全体Python33件も成功した。これを採点比較や全要件受理には数えない。

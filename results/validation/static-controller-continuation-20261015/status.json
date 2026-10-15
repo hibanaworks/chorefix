@@ -1,0 +1,34 @@
+{
+  "status": "core_repair_validated_locally_quic_integration_pending",
+  "core": "c2001ec06944d7f3b299e16b5b3efb5b0ba0366a",
+  "core_pr": "https://github.com/hibanaworks/hibana/pull/8",
+  "rust": {
+    "passed": 883,
+    "failed": 0,
+    "ignored": 12
+  },
+  "miri": "two new native regression boundaries passed",
+  "kani": "four relevant production harnesses passed with unwinding assertions",
+  "lean": "full gate and claim surface passed; supplemental parallel/static-choice 10 claims",
+  "z3": "parallel/static-choice 7 sat and 6 unsat in exact expected order",
+  "six_e": {
+    "stress_cases": 15,
+    "exact_git_cases": 3,
+    "original_simulator_replay": "passed",
+    "mutant_missing_domain_end": "rejected"
+  },
+  "quic": "two original failing ingress unit tests passed; full default/hq and fresh external peers pending",
+  "public_api_changed": false,
+  "scored_benchmark": false,
+  "model_calls": 0,
+  "accepted_full_task_ports": 0,
+  "scored_comparison_runs": 0,
+  "consumer_checks": {
+    "rust_passed": 26,
+    "rust_failed": 0,
+    "python_passed": 33,
+    "clippy": "passed",
+    "fmt": "passed",
+    "inventories": "unchanged"
+  }
+}

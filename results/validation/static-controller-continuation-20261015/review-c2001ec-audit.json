@@ -1,0 +1,56 @@
+{
+  "status": "passed",
+  "kind": "deterministic_boundary_tests",
+  "scored_benchmark": false,
+  "model_calls": 0,
+  "cases": [
+    {
+      "task": "6E",
+      "depth": 0,
+      "kind": "deterministic_boundary_test",
+      "model_calls": 0,
+      "scored_benchmark": false,
+      "runtime_binary_sha256": "8e0d26ed9774d48d94d267936eb4073cb7f00963c42a3f5fb9504c32c009cc97",
+      "guest_wasm_sha256": "407e1fe263231022eb542a7d2a35e4d4705a58590f92b77bf21fe5f7c77258bc",
+      "simulator_source_sha256": "8c7406f0209c5a92b9cd703292c825a3ea5aff80c5718ce165bc8b39506be9c9",
+      "status": "passed",
+      "domain_operations": 6,
+      "accepted_frames": 493,
+      "observations": 1044,
+      "original_simulator_replay": "passed",
+      "resource_intervals": "no overlap"
+    },
+    {
+      "task": "6E",
+      "depth": 1,
+      "kind": "deterministic_boundary_test",
+      "model_calls": 0,
+      "scored_benchmark": false,
+      "runtime_binary_sha256": "8e0d26ed9774d48d94d267936eb4073cb7f00963c42a3f5fb9504c32c009cc97",
+      "guest_wasm_sha256": "407e1fe263231022eb542a7d2a35e4d4705a58590f92b77bf21fe5f7c77258bc",
+      "simulator_source_sha256": "8c7406f0209c5a92b9cd703292c825a3ea5aff80c5718ce165bc8b39506be9c9",
+      "status": "passed",
+      "domain_operations": 8,
+      "accepted_frames": 616,
+      "observations": 1304,
+      "original_simulator_replay": "passed",
+      "resource_intervals": "no overlap"
+    },
+    {
+      "task": "6E",
+      "depth": 2,
+      "kind": "deterministic_boundary_test",
+      "model_calls": 0,
+      "scored_benchmark": false,
+      "runtime_binary_sha256": "8e0d26ed9774d48d94d267936eb4073cb7f00963c42a3f5fb9504c32c009cc97",
+      "guest_wasm_sha256": "407e1fe263231022eb542a7d2a35e4d4705a58590f92b77bf21fe5f7c77258bc",
+      "simulator_source_sha256": "8c7406f0209c5a92b9cd703292c825a3ea5aff80c5718ce165bc8b39506be9c9",
+      "status": "passed",
+      "domain_operations": 10,
+      "accepted_frames": 739,
+      "observations": 1564,
+      "original_simulator_replay": "passed",
+      "resource_intervals": "no overlap"
+    }
+  ]
+}
