@@ -977,3 +977,13 @@ reviewは元課題どおり終端で、余分なretryを加えない。続いて
   transferloss/client、38795754678=rebind-addr,rebind-port,v2/server。
   workflowのconcurrencyにより後続は待機中。これらのsubset結果を初回の同一run44合格と
   混同せず記録する。これ以上の再実行は結果/原因を見てから判断する。
+
+- quiche-loss-earlyのartifact download/新keyによる復号も成功した。handshakeloss/clientは
+  50接続のterminal記録があり、49件がcompleted=1。index28だけconfirmed=true,
+  completed=0,submitted=1,idle=1,closed=false,elapsed_ms=34940で、最後は
+  `hq: connection idle-expired after resource retirement`。PhaseInvariant/panicの記録はない。
+  HANDSHAKE_DONE未確認の既知問題とは観測が異なる。原因はまだ断定しない。
+  original client/server/outputは
+  output/interop-parallel-offer-38792896985/quiche-loss-early/decrypted/へ置いた。
+  serverの元log名はserver/log.txt（server/server.logではない）。TLS keylogは未展開。
+  公開記録は元sanitized JSONのincomplete terminalだけを抽出したものとする。
