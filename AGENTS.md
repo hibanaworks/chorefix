@@ -89,6 +89,10 @@ Start independent work before awaiting its results and join only where the
 global requires both. Keep overlapping participant calls and admitted effects
 visible in the persisted evidence. Treat resource conflicts and data dependencies
 separately from historical procedural order when documenting fidelity.
+Async test fixtures establish scheduling behavior, not measured model overlap.
+Keep their controlled delays and barriers labeled in the evidence. Scored runs
+must record overlapping actual model calls and independent admitted effects
+without inserting test barriers to manufacture overlap.
 One physical owner Endpoint alone does not prove exclusive grants: independent
 `par` branches can permit several loans. Test the global by driving other legal
 Endpoint interleavings as well as the intended localside. Do not qualify a port

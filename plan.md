@@ -992,3 +992,65 @@ reviewは元課題どおり終端で、余分なretryを加えない。続いて
   なった。38795745657は実行中、38795754678はpending。NEQO/clientの未実行3cellは
   再試験済みとは数えない。38795754678が開始してpending枠が空いてから、その3cellだけを
   再投入する。新たな投入で既存pendingを置換しない。source9951c60/core0a296dfは維持。
+
+## 2026-10-16: 実際の並行実行と研究レポート課題
+
+- 過去の実験の逐次手順をHibana側へ写さない。資源制約と必須のデータ依存だけを守り、
+  globalの独立なparはlocalsideでもTokioで並行に動かす。テストの遅延・barrierと、実モデルの
+  自然な重なりを区別する規則もAGENTS.mdへ追加した。baselineは変更していない。
+- `src/tasks/research_report/{global.rs,localside/,imp.rs}`へ3Eのnative初版を追加。
+  元の研究者2人・EDITOR・DOCUMENT・DATABASEを保持し、単一global/sessionで実行する。
+  研究者の要求futureを同時にpollし、Aの参考文献更新とBの本文執筆をparで重ねる。
+  同じ物理資源の貸出はglobalの引き渡しで直列化する。共有資源の競合と、独立した仕事を
+  混同しない。各localsideにはsend/recv/offerを直接記述し、段階flagやowner表を置かない。
+- native6試験が成功。再考回数0/0、2/1、1/2、独立操作を待ち合わせる試験、早期combineの
+  無効果、両物理資源の早期二重貸出の拒否を確認。barrierなしの25ms async fixtureでも
+  要求future同士と独立した許可後の操作が重なる。これは実Lunaの並行測定ではない。
+  生timestampと全frameはresults/validation/research-report-native-20261016/へ保存。
+  3Eは実WASI/ChoreoFS・元simulator・実モデル接続がまだなく、完全移植の受理には数えない。
+  3M/Hと1Hのglobal排他の課題も未完了のまま残す。
+
+### 本体: 親の選択を子の再考でやり直さない
+
+- 3Eのnative再考で本体のpost-send invariant panicを検出。2役の最小再現が現remote main
+  f1c4dd4と修正済み候補0a296dfの両方で失敗した。子のroll再入時に、完了した親のarmまで
+  新しいvisitと扱うresolver previewと、親を保持するcommit preflightが食い違っていた。
+- 本体64d4f4966403c967f2b80393acec2c36556bfc5cをPR8の既存branchへpushした。
+  新しいvisitの範囲を求める既存計算をpreviewとpreflightで共用する。public API、進行field、
+  transport、wire、allocatorを増やしていない。親が既に選択済みなら、そのresolver入力が
+  変わっても子の再入では再評価しない。親自身への再入では改めて評価する。
+- exact修正sourceでworkspace886成功/12ignored、strict Clippy、no_std/thumb、Lean全体、
+  既存の関連Z3、追加Lean6定理/Z3 5UNSAT+1SAT、strict Miri、新たに選択したKani3harness、
+  size/layout gateが成功。測定programのflash94694、SRAM5418、最大stack2751 bytes。
+  元失敗・修正後・生成Leanとpatchはnested-resolver-reentry-20261016へ保存した。
+  本体remote CI38801555151/38801546294は実行中。rootとprobeはGit pin64d4f496へ更新済み。
+  独立したprobe buildでGit pin版のnative6試験とstrict Clippyも成功した。
+
+### 別の未解決事項: 後続の受信を先にpreviewするoffer
+
+- `probes/research-report-20261016/tests/nested.rs`は4役の小さな再現。
+  0a296dfで、先行する別laneの受信が残っているのにofferが後続のlogical label6を返す。
+  その後続stepのrecvはPhaseInvariantで拒否され、効果の先行消費は許されなかった。
+  不正なpreviewは未解決で、今回のresolver修正の成果に含めない。Git pin64d4f496でも
+  同じlabel6先行を確認した。後続の消費を拒否する方は成功し、probe全体は1成功/1失敗。
+  pending-offer-git-pin.logとexit101を保存した。成功6件だけでこの問題を解決扱いしない。
+- 3Eのサービス切替にはglobal上の受領確認を明示した。これでnative6試験は進行するが、
+  この手順追加を本体offerの修正や一般的な排他保証の証拠として扱ってはいけない。
+  本体に残るこの問題は再現を保持して本体で直す。未受理の1Hの二重grantも未解決のまま。
+
+### QUICと検証資料
+
+- 旧core0a296dfのfull CI2本は成功。QUIC9951c60の初回37成功に対して、同sourceの
+  handshakeloss/client、rebind-addr/rebind-port/v2/server、resumption/transfercorruption/
+  transferloss/clientの計7cellの再試験が全て成功した。初回失敗と未実行も残している。
+  1回の44cell合格へ書き換えず、quic-targeted-retry-results.jsonへ別attemptとして記録した。
+- 新core64d4f496はQUIC4a723230683f477fff00b2ff7800f892ab3c0fd3から選択する。
+  両側のpin4試験と、清潔なarchiveからの481QUIC/164TLS source auditが成功。
+  新しい44cell CI38801818511を投入した。旧coreの成功を新coreの合格には流用しない。
+  local QUICは/tmp/choreofix-quic-nested-resolver-tests.logで検査中。
+- rootに3E moduleとnative6試験を登録し、Git pinでの統合buildを実行中。
+  /tmp/choreofix-research-report-integrated.log、session70933。
+  正式なqualified WASI記録は以前のbuild用のまま保持しており、新binaryへ流用しない。
+- ディスク空き低下に対し、cargo clean -p choreofixで自分の不要なbuild成果物を15.2GiB削除。
+  保存済みqualified runtime/verifier全参照のhashが削除前後で一致することを確認した。
+  source、実験raw、freeze済みbinary、鍵は削除していない。採点0/2592、完全受理0を維持する。
