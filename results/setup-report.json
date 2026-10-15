@@ -78,5 +78,111 @@
       "raw_events_sha256": "ccf4638717ce144a4d4ef7893f9bf9b513ba7d031392ee50229934844a8f0180"
     }
   ],
-  "comparison_conditions": "awaiting selection"
+  "comparison_conditions": [
+    "topology_monitored",
+    "mediator_enforced",
+    "prompt_only",
+    "chat_only",
+    "latest_tracefix",
+    "hibana"
+  ],
+  "selected_runs": 2592,
+  "mechanism_protocols": [
+    "9E",
+    "9M",
+    "9H"
+  ],
+  "integration_preflights": [
+    {
+      "task": "9E",
+      "kind": "integration_preflight",
+      "scored_benchmark": false,
+      "audit_passed": true,
+      "participants": 3,
+      "domain_calls": 6,
+      "maximum_concurrent_eaters": 1,
+      "total_tokens": 87451,
+      "result_sha256": "9c55ca737955526e709378b7ec0accac993bbf7ab83b73a86a83ba7058939e20",
+      "source_manifest": {
+        "Cargo.lock": "a45a2c1ab9c81540b04a347527ac2c40a46830d129ddd806dcdc0f5308dac3b0",
+        "Cargo.toml": "66e0149eac1e1626ad1f49a4ba729a7e11323cf280be0b92e8ff8e1a88383ba3",
+        "experiment.json": "151976039cb2aa212994cd02492f8b990cfda218a623155c0c5234f985a92089",
+        "src/bin/philosophers.rs": "53fc97a7b09e5ecd3fcd1fa9bc82da3520ad02d007202ead64fd29981ce41e60",
+        "src/imp/bridge.rs": "7de75bfef8800b1cedd24644d5578df41a014f549df7d4b810e94f5864850a6c",
+        "src/imp/domain.rs": "e82a74e2386ce4ac13ca4212b1d7b85de9f45b61619c924a981c28602425f513",
+        "src/imp/luna.py": "8685de27517d00cd81f14ad178a6adcab662e03f052c3318f93e3115f9f4f1c9",
+        "src/imp/mod.rs": "0d23a6158f711271b275ce143cef296d89f736cf9be128827c0deceaf803b291",
+        "src/imp/transport.rs": "3d12b53a85659ad28fab9732ca51372f7f8b0e5587a911ed93ad08c1e40ed167",
+        "src/lib.rs": "942138e86b9255a99a114865ec63948dc5873d3a4c18ca4a5becd0a25645e091",
+        "src/tasks/mod.rs": "10c5986d5d809f3f0ee64712e6d4ccd3383a5501405dccfcf6a6bb3ada88e05d",
+        "src/tasks/philosophers/global.rs": "5ecba13d41a5aaa0ea802599a01ba3cb9d9b0b6c5fa56a230c9aab344d62c9a8",
+        "src/tasks/philosophers/localside/fork.rs": "ebe561837acd10014198d8b4564b8b2360d6860357e7a72bb15ae109ebd4d6e1",
+        "src/tasks/philosophers/localside/mod.rs": "26fc52f69fab15e7bb1773cbace1f2f98a16a444dc1bb6a43eace4ed915d7d38",
+        "src/tasks/philosophers/localside/philosopher.rs": "c7fdd619600c8c4859a2bf53710005a2e510a0bed2f5e84b4f06dc79b5e1b7ad",
+        "src/tasks/philosophers/mod.rs": "956251fef24591c35652b7a695684b49335b4cde993c0e8323b6e5a500e49d67",
+        "tools/run_philosophers.py": "a3b58e320feef23b510e8ff96ab8e5e02d384000cb722b1ba841f4916abdf941"
+      }
+    },
+    {
+      "task": "9M",
+      "kind": "integration_preflight",
+      "scored_benchmark": false,
+      "audit_passed": true,
+      "participants": 5,
+      "domain_calls": 10,
+      "maximum_concurrent_eaters": 1,
+      "total_tokens": 159829,
+      "result_sha256": "6fa7b914f38ec86846260be6587f65d5ff8aaa053bd71c5cdd6489204c7b7450",
+      "source_manifest": {
+        "Cargo.lock": "a45a2c1ab9c81540b04a347527ac2c40a46830d129ddd806dcdc0f5308dac3b0",
+        "Cargo.toml": "66e0149eac1e1626ad1f49a4ba729a7e11323cf280be0b92e8ff8e1a88383ba3",
+        "experiment.json": "151976039cb2aa212994cd02492f8b990cfda218a623155c0c5234f985a92089",
+        "src/bin/philosophers.rs": "53fc97a7b09e5ecd3fcd1fa9bc82da3520ad02d007202ead64fd29981ce41e60",
+        "src/imp/bridge.rs": "7de75bfef8800b1cedd24644d5578df41a014f549df7d4b810e94f5864850a6c",
+        "src/imp/domain.rs": "e82a74e2386ce4ac13ca4212b1d7b85de9f45b61619c924a981c28602425f513",
+        "src/imp/luna.py": "8685de27517d00cd81f14ad178a6adcab662e03f052c3318f93e3115f9f4f1c9",
+        "src/imp/mod.rs": "0d23a6158f711271b275ce143cef296d89f736cf9be128827c0deceaf803b291",
+        "src/imp/transport.rs": "3d12b53a85659ad28fab9732ca51372f7f8b0e5587a911ed93ad08c1e40ed167",
+        "src/lib.rs": "942138e86b9255a99a114865ec63948dc5873d3a4c18ca4a5becd0a25645e091",
+        "src/tasks/mod.rs": "10c5986d5d809f3f0ee64712e6d4ccd3383a5501405dccfcf6a6bb3ada88e05d",
+        "src/tasks/philosophers/global.rs": "5ecba13d41a5aaa0ea802599a01ba3cb9d9b0b6c5fa56a230c9aab344d62c9a8",
+        "src/tasks/philosophers/localside/fork.rs": "ebe561837acd10014198d8b4564b8b2360d6860357e7a72bb15ae109ebd4d6e1",
+        "src/tasks/philosophers/localside/mod.rs": "26fc52f69fab15e7bb1773cbace1f2f98a16a444dc1bb6a43eace4ed915d7d38",
+        "src/tasks/philosophers/localside/philosopher.rs": "c7fdd619600c8c4859a2bf53710005a2e510a0bed2f5e84b4f06dc79b5e1b7ad",
+        "src/tasks/philosophers/mod.rs": "956251fef24591c35652b7a695684b49335b4cde993c0e8323b6e5a500e49d67",
+        "tools/run_philosophers.py": "a3b58e320feef23b510e8ff96ab8e5e02d384000cb722b1ba841f4916abdf941"
+      }
+    },
+    {
+      "task": "9H",
+      "kind": "integration_preflight",
+      "scored_benchmark": false,
+      "audit_passed": true,
+      "participants": 7,
+      "domain_calls": 14,
+      "maximum_concurrent_eaters": 3,
+      "total_tokens": 203806,
+      "result_sha256": "381cc1615d5cd89444429417fbacc95a88e153e62475e1e135c8c9f6996694d0",
+      "source_manifest": {
+        "Cargo.lock": "a45a2c1ab9c81540b04a347527ac2c40a46830d129ddd806dcdc0f5308dac3b0",
+        "Cargo.toml": "66e0149eac1e1626ad1f49a4ba729a7e11323cf280be0b92e8ff8e1a88383ba3",
+        "experiment.json": "151976039cb2aa212994cd02492f8b990cfda218a623155c0c5234f985a92089",
+        "src/bin/philosophers.rs": "53fc97a7b09e5ecd3fcd1fa9bc82da3520ad02d007202ead64fd29981ce41e60",
+        "src/imp/bridge.rs": "7de75bfef8800b1cedd24644d5578df41a014f549df7d4b810e94f5864850a6c",
+        "src/imp/domain.rs": "e82a74e2386ce4ac13ca4212b1d7b85de9f45b61619c924a981c28602425f513",
+        "src/imp/luna.py": "8685de27517d00cd81f14ad178a6adcab662e03f052c3318f93e3115f9f4f1c9",
+        "src/imp/mod.rs": "0d23a6158f711271b275ce143cef296d89f736cf9be128827c0deceaf803b291",
+        "src/imp/transport.rs": "3d12b53a85659ad28fab9732ca51372f7f8b0e5587a911ed93ad08c1e40ed167",
+        "src/lib.rs": "942138e86b9255a99a114865ec63948dc5873d3a4c18ca4a5becd0a25645e091",
+        "src/tasks/mod.rs": "10c5986d5d809f3f0ee64712e6d4ccd3383a5501405dccfcf6a6bb3ada88e05d",
+        "src/tasks/philosophers/global.rs": "5ecba13d41a5aaa0ea802599a01ba3cb9d9b0b6c5fa56a230c9aab344d62c9a8",
+        "src/tasks/philosophers/localside/fork.rs": "ebe561837acd10014198d8b4564b8b2360d6860357e7a72bb15ae109ebd4d6e1",
+        "src/tasks/philosophers/localside/mod.rs": "26fc52f69fab15e7bb1773cbace1f2f98a16a444dc1bb6a43eace4ed915d7d38",
+        "src/tasks/philosophers/localside/philosopher.rs": "c7fdd619600c8c4859a2bf53710005a2e510a0bed2f5e84b4f06dc79b5e1b7ad",
+        "src/tasks/philosophers/mod.rs": "956251fef24591c35652b7a695684b49335b4cde993c0e8323b6e5a500e49d67",
+        "tools/run_philosophers.py": "a3b58e320feef23b510e8ff96ab8e5e02d384000cb722b1ba841f4916abdf941"
+      }
+    }
+  ],
+  "accepted_benchmark_ports": 0
 }

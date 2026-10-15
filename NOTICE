@@ -1,0 +1,6 @@
+The host in-memory transport is adapted from Hibana 0.9.9's ping_pong example.
+Hibana is Copyright Hayato Ohhashi and licensed under MIT OR Apache-2.0.
+Both licenses are included in this repository.
+
+TraceFix source is fetched into the ignored vendor directory at the revisions
+listed in experiment.json. Its original MIT license remains in each source tree.

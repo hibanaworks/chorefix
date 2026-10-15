@@ -16,17 +16,34 @@ runtime state machine, while preserving task behavior and independent work?
 - Access-checked model harness: desktop bundled CLI `0.162.0-alpha.17.2`.
 - Failure conditions: deterministic S0, S1, S2 from the upstream simulator.
 - Repetitions: three per task and condition.
-- Same domain tool schemas, simulator, checklist, and failure schedule in both arms.
+- Same domain tool schemas, simulator, checklist, and failure schedule in all arms.
 
-Baseline conditions are awaiting selection. A two-arm comparison has 864 runs.
-The paper's four baseline conditions plus Hibana have 2,160 runs for one model.
+The selected conditions are Topology-monitored, Mediator-enforced, Prompt-only,
+Chat-only, latest TraceFix, and Hibana. Each condition has 432 runs. The full
+matrix has 2,592 runs: 48 tasks × 3 fault conditions × 3 repetitions × 6 conditions.
+The four paper runtimes are pinned to their first public release,
+`87b01a2c0ae53c5045c9ce3d43cd0235b1831275`. The latest TraceFix runtime is pinned
+to `36b4bd108fcd74f7efb17613aebbe3fdf55499a9`, independently checked against
+remote main before starting the implementation. Its order checks and corrective
+guidance remain enabled. The five baselines share the same domain inputs and
+participant model. They retain their own coordination implementations.
 Model transport, prompts, timeout, and tool-call limits must be fixed before the
 first scored run. Access smoke checks are not benchmark results.
+
+The common episode limit is 600 seconds and 200 tool calls per participant.
+These limits and the single Luna model differ from the paper's runs. This is
+a comparison of the six implementations under one recorded configuration,
+not a numerical reproduction of the paper's reported results.
 
 The public repository contains task inputs for all 48 cases but translated
 protocol fixtures for only 11 cases. These fixtures are not a substitute for a
 complete experiment corpus. Protocol generation and fidelity checks must be
 completed for all 48 cases before the scored matrix starts.
+
+Deadlock scenarios in the checklist describe hazards to prevent. A generated
+protocol is not accepted by turning off TLC deadlock checks, removing a safety
+invariant, truncating a retry loop, or serializing otherwise independent work.
+An inconsistent checklist statement is retained and reported explicitly.
 
 ## Fidelity gate
 

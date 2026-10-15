@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "model": "gpt-6-luna",
+  "reasoning_effort": "xhigh",
+  "hibana_version": "0.9.9",
+  "benchmark_revision": "36b4bd108fcd74f7efb17613aebbe3fdf55499a9",
+  "paper_baseline_revision": "87b01a2c0ae53c5045c9ce3d43cd0235b1831275",
+  "conditions": ["topology_monitored", "mediator_enforced", "prompt_only", "chat_only", "latest_tracefix", "hibana"],
+  "scenario_depths": [0, 1, 2],
+  "repetitions": 3,
+  "expected_runs": 2592,
+  "python_hash_seed": 0,
+  "domain_tool_delay_multiplier": 1.0,
+  "run_timeout_seconds": 600,
+  "coordination_wait_seconds": 30,
+  "participant_tool_call_limit": 200,
+  "concurrent_runs": 2
+}

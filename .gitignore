@@ -2,6 +2,7 @@
 /.venv/
 /runs/
 /vendor/tracefix/
+/vendor/tracefix-paper/
 /output/
 __pycache__/
 *.pyc

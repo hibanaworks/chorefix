@@ -25,7 +25,10 @@ def inventory(source: Path) -> dict:
             metadata = json.loads((description / "metadata.json").read_text())
             tools = json.loads((description / "tools.json").read_text())
             checklist = json.loads((environment / "checklist.json").read_text())
-            paths = sorted(p for base in (description, environment) for p in base.rglob("*") if p.is_file())
+            paths = sorted(
+                p for base in (description, environment) for p in base.rglob("*")
+                if p.is_file() and "__pycache__" not in p.parts
+            )
             tasks.append({
                 "id": task_id,
                 "agents": metadata["agents"],

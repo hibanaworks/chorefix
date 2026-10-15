@@ -8,9 +8,18 @@ condition. Endpoints own protocol progress. Do not add a second state machine,
 program counter, approved/done flags, lock-owner table, or pending-step tracker
 to authorize coordination. Do not serialize independent work to make a task pass.
 
-Keep task protocols in `src/global/`, participant functions in `src/local/`, and
-transport, model access, and domain integration in `src/imp/`. Use the actual
+Keep each task's protocol in `src/tasks/<task>/global.rs` and its participant
+functions in `src/tasks/<task>/localside/`. Keep transport, model access, and
+domain integration in `imp/`. The global protocol and each role's localside
+must be traceable like hibana-quic. Use the actual
 published Hibana API. Do not modify Hibana core to add agent-specific APIs.
+
+Use `g::par` for independent work and `g::route` for alternatives. Connect
+explicit decision sites to the actual domain result through a resolver. Use
+`.roll()` for repeated work and revision cycles. Keep the repetition boundary
+and its exit visible in the global protocol and localside functions. Do not
+replace them with a stage enum, approval flags, or an application program counter.
+Do not add choices or repeated work that the task does not require.
 
 The unchanged upstream simulator is an external environment and scorer. Its
 resource and artifact state must not authorize Hibana endpoint transitions.
