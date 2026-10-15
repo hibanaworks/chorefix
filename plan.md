@@ -12,20 +12,36 @@
 - native 3Eの記録では、独立したrequest同士が約33.8ms、Aの参考文献更新とBの本文執筆が
   約30.3ms重なった。25msの制御したasync fixtureであり、実モデルの性能測定ではない。
   source、全frame、intervalは`results/validation/research-report-native-20261016/`。
-- 現在の最優先は、並行flowを直列化せずに本体のoffer再入回帰を直すこと。
-  修正候補は古いsuffixのguardを除去し、正しい通常受信のframeを元のportへ戻す。
-  進行やarmは変えず、そのlaneのoffer cacheだけを外す。公開API・状態fieldは増やさない。
-  本体c03c7af337de6d00c150039450ddb0825b39e3a8をPR8のbranchへpush済み。
-  focused 10件、workspace 887件（12ignored）、strict Clippy、no_std/thumb、
-  strict Miri 4件、Kani 7harness、新補題Lean 8/Z3 8UNSAT+1SATが成功。
-  Lean全体・関連Z3・サイズ検査も成功。新Git pinの実WASIを再buildし、以前失敗した
-  6Eの4条件だけを再試験して4/4成功（14.20秒）。独立flowの直列化は入れていない。
-  新Git pinの3E native6件とstrict Clippyも成功し、25ms fixtureの実際の重なりを保存した。
+- 本体ef65f0956104441a7bcf2dc4eabbc62930e4c30dを選択した。
+  passive offerが未消費のprefixより先の受信をpreviewする不具合を修正した。
+  previewは候補の投影済みpathで依存を検査し、visitの新旧はcommit済み履歴で検査する。
+  正確に一致する将来のframeは同じportへ戻し、同じpollでの再取得だけを局所maskで防ぐ。
+  arm・進行・永続状態は追加しない。遅れて到着したframeにも同じ検査を使う。
+  3Eの回避用DocumentReviewReady ACKを2つ削除した。BeginDocumentReview通知は保つ。
+  別helper、permission flag、二重進行管理、独立flowの直列化は加えていない。
+- ef65のworkspace 888件（12ignored）、focused 11件、strict Clippy、no_std/thumb、
+  strict Miri 5件、Kani 10harness、全Lean監査（static709/generated506）・関連Z3が成功。
+  新境界はLean13命題/Z3 12UNSAT+過去不具合の1SAT。測定対象のflash94,832B、
+  SRAM5,306B、最大stack2,639B。Endpoint/futureのlayoutは不変。
+  本体CIはMiri3件をまとめた180秒枠で打切りになった。同じ3件は手元で320.86秒で成功。
+  e500c7e3はその試験群だけ既存480秒枠に揃えるCI変更で、runtime/test挙動は不変。
+- ef65のGit pinで実binaryを再buildし、以前失敗した実WASI 6Eの4条件だけを再試験して
+  4/4成功（14.69秒）。3EはRoot統合6件、独立probeの6+2件、Root strict Clippyが成功。
+  Root統合25ms async fixtureでは要求同士が約36.6ms、独立effectが約28.0ms重なった。
+  これは実モデルの測定ではない。全frameとinterval、source差分、実WASI4条件のログは
+  `results/validation/offer-prefix-dependency-20261016/`。
 - 旧core64d4f496を選んだQUIC4a72323のCI38801818511は44/44成功をsummaryで確認済み。
-  新候補のQUIC検証には流用しない。QUIC2af1e69/corec03のlocal default593/hq598件と
-  pin4件、clean source auditは成功。新44cell CI38807924806はplan成功・各群実行中。
-  後続受信の誤previewは最新main f1c4dd4とc03の両方で再現し、独立した失敗資料へ保存。
-  1Hのglobal排他不足も未解決。
+  新候補のQUIC検証には流用しない。QUIC2af1e69/corec03の44cell CI38807924806は
+  43成功・neqo/rebind-addr/clientだけ失敗、未実行0。復号ログはclient idle-expired、
+  serverはpath probing失敗後NoAvailablePath。原因の所属は未確定。
+  同じsourceの失敗1cellだけを38812020642で再試験中。
+  ef65を選ぶQUIC c440479のlocal default593/hq598、driver strict Clippy、pin4、
+  clean source audit、paired exportは成功。driverのpre-connection UDP試験3件は
+  macOSで新旧coreとも失敗し、28/31成功。matrix/diagnosticのfilesystem試験もmacOSでは
+  通らないため、Linux実runtime CI38813324006で確認する。
+  新sourceの全44cellは38813319581へ投入済み。復号鍵と公開certificateは照合済み。
+- 次は1Hのglobal自身が競合loanを拒否する形と、3Eの直接WASI/ChoreoFS接続を進める。
+  1Hはnativeが通るだけでは受理しない。全48課題の独立task fidelity監査も未完了。
 - 完全受理0、採点済み比較0/2592。論文推敲を先行させない。
 
 ## 目的と変更しない条件

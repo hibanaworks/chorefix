@@ -30,7 +30,6 @@ pub(crate) async fn document(
     endpoint.recv::<b::DocReturn>().await?;
     endpoint.send::<b::DocReturned>(&()).await?;
     endpoint.recv::<a::BeginDocumentReview>().await?;
-    endpoint.send::<a::DocumentReviewReady>(&()).await?;
     loop {
         let branch = endpoint.offer().await?;
         match branch.label() {
@@ -44,7 +43,6 @@ pub(crate) async fn document(
             }
             l if l == b::BeginDocumentReview::LOGICAL_LABEL => {
                 branch.recv::<b::BeginDocumentReview>().await?;
-                endpoint.send::<b::DocumentReviewReady>(&()).await?;
                 break;
             }
 

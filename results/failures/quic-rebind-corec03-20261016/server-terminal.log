@@ -1,0 +1,12 @@
+1.805 DEBUG TX blocked, profile=SendProfile { limit: 255, probe: EnumSet(), paced: false }
+1.805 DEBUG [Server 0c325e06780550ab] delay duration 55.914153ms
+1.805 DEBUG Setting timeout of 55.914153ms
+1.805 DEBUG [Server 0c325e06780550ab] output_dgram_on_path send_profile SendProfile { limit: 255, probe: EnumSet(), paced: false }
+1.805 DEBUG Building Short dcid Some(CID [8]: 7b675e64d5ec9913)
+1.805 DEBUG TX blocked, profile=SendProfile { limit: 255, probe: EnumSet(), paced: false }
+1.805 DEBUG [Server 0c325e06780550ab] delay duration 55.896646ms
+1.805 DEBUG Setting timeout of 55.896646ms
+1.863 INFO [pri-path:7b675e64d5ec9913 [::]:443->[::ffff:193.167.0.100]:50065] Probing failed
+1.863 DEBUG [pri-path:7b675e64d5ec9913 [::]:443->[::ffff:193.167.0.100]:50065] Retiring path
+1.863 INFO [Server 0c325e06780550ab] last available path failed
+1.863 DEBUG [Server 0c325e06780550ab] State change from Confirmed -> Closed(Transport(NoAvailablePath))

@@ -1,0 +1,2 @@
+bca7ec0b8fe03b57c3a4f6cadd6c3046d9d9e4ac1030c18cb1f48c6082c96474  target/debug/review-wasi
+407e1fe263231022eb542a7d2a35e4d4705a58590f92b77bf21fe5f7c77258bc  vendor/hibana-wash/target/wasm32-wasip1/release/hibana-wash.wasm

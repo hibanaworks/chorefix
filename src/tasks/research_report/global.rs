@@ -65,7 +65,6 @@ pub mod author_a {
     pub type Accepted = g::Msg<61, ()>;
     pub type DocAvailable = g::Msg<63, ()>;
     pub type RevisionReady = g::Msg<64, ()>;
-    pub type DocumentReviewReady = g::Msg<65, ()>;
 }
 pub struct AuthorA;
 impl Messages for AuthorA {
@@ -115,7 +114,6 @@ pub mod author_b {
     pub type DocAvailable = g::Msg<104, ()>;
     pub type RevisionReady = g::Msg<105, ()>;
     pub type WaitForARevision = g::Msg<106, ()>;
-    pub type DocumentReviewReady = g::Msg<107, ()>;
 }
 pub struct AuthorB;
 impl Messages for AuthorB {
@@ -244,17 +242,11 @@ pub fn project_3e() -> Programs3E {
     );
     let start_a = g::par(
         g::send::<EDITOR, A, author_a::BeginReview>(),
-        g::seq(
-            g::send::<EDITOR, DOCUMENT, author_a::BeginDocumentReview>(),
-            g::send::<DOCUMENT, EDITOR, author_a::DocumentReviewReady>(),
-        ),
+        g::send::<EDITOR, DOCUMENT, author_a::BeginDocumentReview>(),
     );
     let start_b = g::par(
         g::send::<EDITOR, B, author_b::BeginReview>(),
-        g::seq(
-            g::send::<EDITOR, DOCUMENT, author_b::BeginDocumentReview>(),
-            g::send::<DOCUMENT, EDITOR, author_b::DocumentReviewReady>(),
-        ),
+        g::send::<EDITOR, DOCUMENT, author_b::BeginDocumentReview>(),
     );
     let combine = g::seq(
         g::send::<EDITOR, DOCUMENT, BeginCombine>(),

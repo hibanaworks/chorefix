@@ -15,7 +15,6 @@ pub(crate) async fn run<D: Domain>(
     endpoint.recv::<author_b::Ready>().await?;
     endpoint.send::<author_a::BeginReview>(&()).await?;
     endpoint.send::<author_a::BeginDocumentReview>(&()).await?;
-    endpoint.recv::<author_a::DocumentReviewReady>().await?;
     loop {
         let call = domain.request("EDITOR").await.map_err(RunError::Domain)?;
         match call.operation() {
@@ -32,7 +31,6 @@ pub(crate) async fn run<D: Domain>(
                         endpoint.send::<author_a::Accepted>(&()).await?;
                         endpoint.send::<author_b::BeginReview>(&()).await?;
                         endpoint.send::<author_b::BeginDocumentReview>(&()).await?;
-                        endpoint.recv::<author_b::DocumentReviewReady>().await?;
                         break;
                     }
                     DecisionArm::Right => {

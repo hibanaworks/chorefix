@@ -1,0 +1,4 @@
+19f9af664a6d54baef128cf82a3d3e38e2385d9e7344e5d12c983f9c583a318f  results/failures/offer-prefix-incomplete-candidate-20261016/README.md
+b2fb931d2cfceec2f0541aa8b28bee071ab90e31f53967b88cd58e0f15821cd4  results/failures/offer-prefix-incomplete-candidate-20261016/core-incomplete.patch.gz
+b55db10d2fe571d64ac296220e195907dd170cd6ad59dde8510ac9680ee43f7c  results/failures/offer-prefix-incomplete-candidate-20261016/native-corec03.log.gz
+32275091c28ae22728b15ff3b7f75412d25c5fa874a8b205ebdccac2f7fc841c  results/failures/offer-prefix-incomplete-candidate-20261016/native-incomplete.log.gz
