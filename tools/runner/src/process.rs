@@ -39,7 +39,7 @@ pub async fn simulator(
         .env("PYTHONPATH", std::env::current_dir()?)
         .env("PYTHONHASHSEED", "0")
         .args([
-            "tools/original_writing_simulator.py",
+            "tools/original_simulator.py",
             task,
             "model",
             &depth.to_string(),

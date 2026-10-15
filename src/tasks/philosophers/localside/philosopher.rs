@@ -19,10 +19,10 @@ pub(crate) async fn run<const ROLE: u8, L: ForkMessages, R: ForkMessages, D: Dom
             }
             Work::Eat => {
                 endpoint.recv::<L::Available>().await?;
-                endpoint.send::<L::Acquire>(&()).await?;
-                endpoint.recv::<L::Granted>().await?;
                 endpoint.recv::<R::Available>().await?;
+                endpoint.send::<L::Acquire>(&()).await?;
                 endpoint.send::<R::Acquire>(&()).await?;
+                endpoint.recv::<L::Granted>().await?;
                 endpoint.recv::<R::Granted>().await?;
                 endpoint.send::<Eat>(&()).await?;
                 domain
@@ -30,8 +30,8 @@ pub(crate) async fn run<const ROLE: u8, L: ForkMessages, R: ForkMessages, D: Dom
                     .await
                     .map_err(RunError::Domain)?;
                 endpoint.send::<R::Return>(&()).await?;
-                endpoint.recv::<R::Returned>().await?;
                 endpoint.send::<L::Return>(&()).await?;
+                endpoint.recv::<R::Returned>().await?;
                 endpoint.recv::<L::Returned>().await?;
                 endpoint.send::<Finished>(&()).await?;
                 return Ok(());

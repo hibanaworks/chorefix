@@ -51,8 +51,14 @@ jobs:
           cargo +1.95.0 run --locked --bin writing-boundary -- 2H writing-boundary-2H
           cargo +1.95.0 run --locked --bin writing-boundary -- --check-mutants writing-boundary-2H/events.jsonl writing-boundary-2H-mutants
           cargo +1.95.0 run --locked --bin writing-boundary -- 2E:terminal-review-failure writing-boundary-terminal-review-failure
+          cargo +1.95.0 run --locked --bin philosophers-boundary -- 9E philosophers-boundary-9E
+          cargo +1.95.0 run --locked --bin philosophers-boundary -- --check-mutants philosophers-boundary-9E/events.jsonl philosophers-boundary-9E-mutants
+          cargo +1.95.0 run --locked --bin philosophers-boundary -- 9M philosophers-boundary-9M
+          cargo +1.95.0 run --locked --bin philosophers-boundary -- --check-mutants philosophers-boundary-9M/events.jsonl philosophers-boundary-9M-mutants
+          cargo +1.95.0 run --locked --bin philosophers-boundary -- 9H philosophers-boundary-9H
+          cargo +1.95.0 run --locked --bin philosophers-boundary -- --check-mutants philosophers-boundary-9H/events.jsonl philosophers-boundary-9H-mutants
           CHOREOFIX_WRITING_RUNTIME="$PWD/target/debug/writing-wasi" cargo +1.95.0 test --locked --manifest-path tools/runner/Cargo.toml original_simulator_overlaps -- --ignored --nocapture
-          .venv/bin/python -m py_compile tools/run_direct_wasi_preflight.py tools/audit_direct_wasi.py
+          .venv/bin/python -m py_compile tools/original_simulator.py tools/run_direct_wasi_preflight.py tools/audit_direct_wasi.py
           PYTHONPATH=. .venv/bin/pytest -q tests
           .venv/bin/python tools/inventory.py --check
           .venv/bin/python tools/runtime_inventory.py --check
@@ -69,5 +75,6 @@ jobs:
           name: writing-boundary
           path: |
             writing-boundary-*/
+            philosophers-boundary-*/
             output/writing-rust-runner-probe*/
           if-no-files-found: ignore

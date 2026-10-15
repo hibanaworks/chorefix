@@ -173,13 +173,18 @@ pub(crate) async fn run<const ROLE: u8, F: SectionMessages, S: SectionMessages, 
             154 => {
                 let request = branch.recv::<WriteCommit>().await?;
                 validation.record(file.arguments(request.0, "sections").and_then(|arguments| {
-                    let actual: std::collections::BTreeSet<_> = arguments["sections"]
+                    let actual: Vec<_> = arguments["sections"]
                         .as_str()
                         .unwrap()
                         .split(',')
                         .map(str::trim)
                         .collect();
-                    if actual == assignment.sections.into_iter().collect() {
+                    if actual.len() == 2
+                        && actual
+                            .into_iter()
+                            .collect::<std::collections::BTreeSet<_>>()
+                            == assignment.sections.into_iter().collect()
+                    {
                         Ok(arguments)
                     } else {
                         Err(ShellError::message(

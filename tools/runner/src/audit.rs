@@ -229,13 +229,6 @@ pub fn run(root: &Path, verifier: &Path) -> Result<Value> {
             return Err("binary differs".into());
         }
     }
-    if versions["binaries"]["runtime"]
-        != "bbeed751bbf811e6aadf97f5cc787fe8a00b9208889a02af5dca75ca210b35d5"
-        || versions["binaries"]["wash.wasm"]
-            != "407e1fe263231022eb542a7d2a35e4d4705a58590f92b77bf21fe5f7c77258bc"
-    {
-        return Err("unqualified runtime or guest".into());
-    }
     let manifest = load(&root.join("source-manifest.json"))?;
     if versions["source_manifest_sha256"] != digest(&root.join("source-manifest.json"))? {
         return Err("source manifest hash differs".into());
@@ -250,8 +243,75 @@ pub fn run(root: &Path, verifier: &Path) -> Result<Value> {
         }
     }
     snapshot::verify_upstream(&root.join("source"))?;
+    let qualification =
+        snapshot::qualification(&root.join("source"), result["task"].as_str().ok_or("task")?)?;
+    let case = &qualification["cases"][result["task"].as_str().ok_or("task")?];
+    if versions["format_version"] != 2
+        || versions["binaries"]["runtime"] != case["runtime_sha256"]
+        || versions["binaries"]["wash.wasm"] != qualification["wash_sha256"]
+        || versions["runtime_source_revision"] != qualification["source_revision"]
+        || versions["qualification_sha256"]
+            != digest(&root.join("source").join(snapshot::QUALIFICATION))?
+    {
+        return Err("unqualified execution artifacts".into());
+    }
+    let revision = versions["consumer"].as_str().ok_or("consumer revision")?;
+    if revision.len() != 40 || !revision.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return Err("invalid consumer commit".into());
+    }
+    let pinned = Command::new("git")
+        .args(["show", &format!("{revision}:{}", snapshot::QUALIFICATION)])
+        .output()?;
+    if !pinned.status.success() || serde_json::from_slice::<Value>(&pinned.stdout)? != qualification
+    {
+        return Err("qualification differs from the execution commit".into());
+    }
     let rows = records(&root.join("events.jsonl"))?;
     let fixture = &rows.first().ok_or("no runtime evidence")?["message"];
+    let task = result["task"].as_str().ok_or("task")?;
+    let metadata = load(
+        &root
+            .join("source/vendor/tracefix/benchmark/descriptions")
+            .join(task)
+            .join("metadata.json"),
+    )?;
+    let actual_agents: Vec<_> = fixture["fixtures"]
+        .as_array()
+        .ok_or("fixture actors")?
+        .iter()
+        .map(|a| a["agent"].clone())
+        .collect();
+    if json!(actual_agents) != metadata["agents"]
+        || fixture["task"] != result["task"]
+        || fixture["depth"] != result["depth"]
+    {
+        return Err("task identity, depth or participant set differs from original inputs".into());
+    }
+    for actor in fixture["fixtures"].as_array().ok_or("fixture actors")? {
+        let field = if task.starts_with('9') {
+            "forks"
+        } else {
+            "sections"
+        };
+        let mut actual: Vec<_> = actor[field]
+            .as_array()
+            .ok_or("resource pair")?
+            .iter()
+            .map(|v| v.as_str().ok_or("resource name"))
+            .collect::<std::result::Result<_, _>>()?;
+        let mut expected: Vec<_> = metadata["agent_resources"]
+            [actor["agent"].as_str().ok_or("actor")?]
+        .as_array()
+        .ok_or("original resource pair")?
+        .iter()
+        .map(|v| v.as_str().ok_or("resource name"))
+        .collect::<std::result::Result<_, _>>()?;
+        actual.sort();
+        expected.sort();
+        if actual.len() != 2 || actual != expected {
+            return Err("physical resource assignment changed".into());
+        }
+    }
     if fixture["model_run"] != true
         || fixture["test_delays"] != json!({})
         || fixture["delay_multiplier"] != 1.0
@@ -358,6 +418,8 @@ pub fn check_mutants(root: &Path, output: &Path, verifier: &Path) -> Result<Valu
         "missing_tool_reply",
         "false_simulator_score",
         "changed_upstream_source",
+        "unqualified_runtime",
+        "wrong_participant_set",
     ] {
         let case = output.join(kind);
         copy(root, &case)?;
@@ -434,6 +496,28 @@ pub fn check_mutants(root: &Path, output: &Path, verifier: &Path) -> Result<Valu
                     json!(digest(&case.join("source-manifest.json"))?);
                 crate::evidence::save(&case.join("versions.json"), &versions)?;
                 result["versions"] = versions;
+            }
+            "unqualified_runtime" => {
+                let path = case.join("runtime");
+                let mut bytes = fs::read(&path)?;
+                bytes[0] ^= 1;
+                fs::write(&path, bytes)?;
+                let mut versions = load(&case.join("versions.json"))?;
+                versions["binaries"]["runtime"] = json!(digest(&path)?);
+                crate::evidence::save(&case.join("versions.json"), &versions)?;
+                result["versions"] = versions;
+            }
+            "wrong_participant_set" => {
+                let mut runtime = records(&case.join("events.jsonl"))?;
+                runtime[0]["message"]["fixtures"]
+                    .as_array_mut()
+                    .ok_or("actors")?
+                    .pop();
+                fs::write(
+                    case.join("events.jsonl"),
+                    runtime.iter().map(|r| format!("{r}\n")).collect::<String>(),
+                )?;
+                result["events_sha256"] = json!(digest(&case.join("events.jsonl"))?);
             }
             _ => unreachable!(),
         }

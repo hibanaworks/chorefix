@@ -62,6 +62,21 @@ fn stimuli(fixture: &Value) -> Result<VecDeque<(String, String)>> {
         ));
         let mut valid_arguments = call["arguments"].clone();
         if tool == "write_to_document" {
+            let mut duplicate = call["arguments"].clone();
+            duplicate["sections"] = json!(format!(
+                "{},{}",
+                call["arguments"]["sections"]
+                    .as_str()
+                    .ok_or("section pair")?,
+                fixture["sections"][0].as_str().ok_or("first section")?
+            ));
+            commands.push_back((
+                format!(
+                    "printf '%s' {} > /service/{tool}; cat /service/result",
+                    quote(&serde_json::to_string(&duplicate)?)
+                ),
+                "invalid_arguments".into(),
+            ));
             valid_arguments["sections"] = json!(
                 call["arguments"]["sections"]
                     .as_str()
@@ -102,7 +117,7 @@ fn run(task: &str, output: &Path) -> Result<()> {
     let started = Instant::now();
     let (sender, receiver) = mpsc::channel();
     let mut simulator_command = Command::new(".venv/bin/python");
-    simulator_command.args(["tools/original_writing_simulator.py", task]);
+    simulator_command.args(["tools/original_simulator.py", task]);
     if scenario == "terminal-review-failure" {
         simulator_command.arg(scenario);
     }

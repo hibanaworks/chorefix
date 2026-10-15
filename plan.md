@@ -687,3 +687,43 @@ reviewは元課題どおり終端で、余分なretryを加えない。続いて
   区別する。9ed7738の45分CIはまだ実行中。新しい監査修正のCI結果は未確定。
   次は残るfamilyの実WASI接続、48課題のfidelity/手順差の分類、原baseline corpusと
   採点比較へ進む。全要件受理0、採点0/2592、論文推敲停止の指示を維持する。
+
+## 2026-10-16: 哲学者9E/M/Hの実WASI接続
+
+- 前turnは進捗あり。writingの実Luna15人/3試行と監査をpush済み。今回は残る課題を継続。
+- 新たにphilosophers/choreofsへ3/5/7人、物理fork、WASI caller、private I/Oを
+  同じglobal/session19に置いた。Think/Eat/完了後の3つの寿命を直接localsideへ記述。
+  WASIの要求から実物化ownerのrecv、両grant、effect、返却、実応答までEndpointで接続。
+  両取得/両返却を発行後に待つ。独立する食事はpar、入力の再考はroute/resolver/roll。
+  別graph、relay、permission table、phase enum/flag、task flowを隠すwrapperはない。
+- 元の9E/M/H、tool/simulator/checklistを確認。人数と隣接fork、同時保持、食事前の取得と
+  食後の返却を保つ。globalのrole-local handoffは全員barrierではない。3人は全pairが
+  重なるので最大1、5人は2、7人は3人が同時に食事できる。native localsideも両要求の
+  発行後にgrantを待つ形へ修正し、返却globalもparへした。
+- 実行用buildは8分9秒で成功。cargo checkだけをprojection完了とは扱っていない。
+  Root binの刺激/監査はRust。必須の元Python simulator adapterをoriginal_simulator.pyへ
+  整理し、2/9 familyを選べるようにした。比較側や元資料はbyte単位で保つ。
+- 実guestの9E/M/H固定試験が成功。元simulator6/10/14操作、全員終了、実食事並行1/2/3、
+  資源競合0。間違った名前、不正JSON、早期/重複効果、分割書込み、private計算を確認。
+  両Acquire/Returnが最初の相手reply送信前に出たことも独立監査した。
+  7改変×3=21件を拒否。取得を直列化したコピーでもframe identityは全て保持して拒否。
+  model_calls=0であり、実Luna試行や比較へはまだ数えない。
+- writingの追加検査で、同じsection名を3個目に足すと集合化で重複が消え、元simulatorまで
+  届くアプリ側不足を再現した。before-001に誤った効果と修正前sourceを保存。
+  引数の個数も正確に2個と検査し、実guest 2E/M/Hと終端review失敗が修正後に成功。
+  2Hの7改変も拒否。本体は変更なし。既存Luna15人は全て正しい2個の入力で、原ログを保つ。
+- CI9ed7738は全Rust/全writing境界/21改変/終端失敗まで成功後、追加Rust process試験で
+  output親directoryがなくてENOENTとなった。新しいc5101a7で親の作成を修正しpush。
+  obsolete a1f6fe5の同じ不足を持つrunはcancel。workflowの検査は減らしていない。
+- 現在、全RustとClippy、Python43件/原inventoryを再検査中。次は新runtimeをbuild証拠と
+  共に固定してRust model runnerを2/9へ広げ、実Lunaの9E/M/Hと残るfamilyへ進む。
+  旧runnerが固定した4096a2aのbinaryを、新しいportや修正後の証拠へ読み替えない。
+  全要件受理0、採点0/2592を維持する。
+
+- 最終の全Rust27件、Clippy、Python43件、元taskとbaseline runtimeのinventoryが成功。
+  修正後のwriting終端失敗もdomain_complete=falseのまま正常終了し、誤成功にしていない。
+  新しいRust runnerは2/9を受け付け、task/人数/資源割当を元metadataへ照合する。
+  新形式の実行は試験記録とsource archiveを持つqualified buildを選び、保存した資格記録が
+  実行commitのGit blobと一致することも監査する。taskの権限や進行には使わない。
+  過去の4096a2aを固定した実行は旧監査source20dbbebで再検査できる形のまま保持。
+  次に新build記録をcommitしてモデル試行へ進める。モデル変更やfallbackはない。

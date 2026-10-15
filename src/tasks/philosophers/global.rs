@@ -134,11 +134,11 @@ fn eating<const AGENT: u8, const LEFT: u8, const RIGHT: u8, L: ForkMessages, R: 
         g::seq(
             g::send::<AGENT, AGENT, Eat>(),
             g::seq(
-                return_fork::<AGENT, RIGHT, R>(),
-                g::seq(
+                g::par(
+                    return_fork::<AGENT, RIGHT, R>(),
                     return_fork::<AGENT, LEFT, L>(),
-                    g::send::<AGENT, AGENT, Finished>(),
                 ),
+                g::send::<AGENT, AGENT, Finished>(),
             ),
         ),
     )

@@ -179,6 +179,10 @@ resource and artifact state must not authorize Hibana endpoint transitions.
 Upstream state tracking belongs only to the explicitly named baseline condition.
 Static compilation data and append-only observations must not become a second
 runtime progress authority.
+Build qualification records may select and pin the measured executable before
+a trial. Verify them against the execution's Git commit and preserve the source,
+checks and exact artifact hashes. Never consult these records from a guest,
+task localside or resolver to grant an operation or advance the protocol.
 
 Rejected operations do not commit progress or cause domain side effects. A
 process crash is a failed run, not a successful protocol completion. Protocol

@@ -32,9 +32,24 @@ fn prompt(source: &Path, task: &str, actor: &Value) -> Result<String> {
                 .is_some_and(|a| a.contains(&json!(agent)))
         })
         .collect();
-    let data = json!({"participant":agent,"resources":actor["sections"],
+    let dining = task.starts_with('9');
+    let data = if dining {
+        json!({"participant":agent,"resources":actor["forks"],"philosopher":agent})
+    } else {
+        json!({"participant":agent,"resources":actor["sections"],
         "topic":actor["calls"][0]["arguments"]["topic"],
-        "section_name":actor["calls"][1]["arguments"]["section_name"]});
+        "section_name":actor["calls"][1]["arguments"]["section_name"]})
+    };
+    let objects = if dining {
+        "/service/think and /service/eat"
+    } else {
+        "/service/read_literature, /service/draft_content, /service/write_to_document and /service/review_own_work"
+    };
+    let coordination = if dining {
+        "Hibana carries both independent fork requests in parallel and waits for both grants before eating. You do not call acquire/release tools. Your philosopher argument must name your own participant. Both effects run once, then finish."
+    } else {
+        "Hibana carries both independent resource acquisitions in parallel and waits for both grants before the write. You do not call acquire/release tools. This deliberately replaces the original sequential acquisition procedure. The target must match your assigned topic, section or pair of resource names. The review result is terminal, so do not add retries to a failed review."
+    };
     Ok(format!(
         r#"You are {agent}. Carry out your work in the original task below.
 {description}
@@ -51,22 +66,16 @@ Private /work files have names you choose, with eight slots of 8192 bytes.
 A script has at most 4096 UTF-8 bytes. Each guest starts with 64 KiB and may
 request memory growth through the protocol up to 1 MiB of supplied backing.
 
-Your writable domain objects are /service/read_literature,
-/service/draft_content, /service/write_to_document and /service/review_own_work.
+Your writable domain objects are {objects}.
 Write the matching operation's JSON argument object and close it to request
 the operation. Shell redirection closes its output after writing.
 Read /service/result for the actual response. These objects are not commands.
-The target must match your assigned topic, section or pair of resource names.
-
-Hibana carries both independent resource acquisitions in parallel and waits
-for both grants before the write. You do not call acquire/release tools.
-This deliberately replaces the original sequential acquisition procedure.
+{coordination}
 Independent participants and domain operations run concurrently. A request
 waiting for its dependency does not block the other guests.
 
 Ordinary shell errors and invalid argument data can be corrected. Use actual
-responses to reconsider your work. The review result is terminal in this task,
-so do not add retries to a failed review. When your assigned work is finished,
+responses to reconsider your work. When your assigned work is finished,
 close your guest with exit 0 before your final response. After an exit_status
 reply, do not call shell again. Leaving before doing the work fails the run.
 "#,
@@ -76,12 +85,12 @@ reply, do not call shell again. Leaving before doing the work fails the run.
 }
 
 async fn run(task: &str, depth: u8, output: &Path) -> Result<Value> {
-    if !["2E", "2M", "2H"].contains(&task) || depth > 2 {
-        return Err("expected writing task and depth 0..2".into());
+    if !["2E", "2M", "2H", "9E", "9M", "9H"].contains(&task) || depth > 2 {
+        return Err("expected writing or dining task and depth 0..2".into());
     }
     fs::create_dir_all(output.parent().ok_or("output parent")?)?;
     fs::create_dir(output)?;
-    let versions = snapshot::freeze(output)?;
+    let versions = snapshot::freeze(task, output)?;
     let config: Value = serde_json::from_slice(&fs::read("experiment.json")?)?;
     let seconds = config["run_timeout_seconds"]
         .as_u64()
@@ -196,7 +205,7 @@ async fn main() -> Result<()> {
             };
             println!("{}", serde_json::to_string(&result)?);
         }
-        _ => return Err("usage: choreofix-experiments 2E|2M|2H DEPTH OUTPUT".into()),
+        _ => return Err("usage: choreofix-experiments 2E|2M|2H|9E|9M|9H DEPTH OUTPUT | --audit RUN VERIFIER | --check-mutants RUN NEW_OUTPUT VERIFIER".into()),
     }
     Ok(())
 }
