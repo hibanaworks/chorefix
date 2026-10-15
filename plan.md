@@ -816,3 +816,43 @@ reviewは元課題どおり終端で、余分なretryを加えない。続いて
 - 最新sourceのGitHub CI38774076044は実行中。直前5646c0bのCIは成功済み。
   全要件受理0、採点比較0/2592は維持。次は1Hの実結果による再考と資源handoffの単一global接続、
   残るfamily、元baselineのprompt/tool/runtime挙動を保つ比較runnerへ進む。論文推敲はしない。
+
+## 2026-10-16: 8Eの共有read境界とnative並行取得の根治
+
+- 8Eの実WASI caller、service owner、DATABASE/TEST_ENV、結果ファイルのownerとreaderを
+  同じglobal/session28へ接続。DB migration→backend→testは必要な依存として残す。
+  結果通知と先行open要求はparの独立入力とし、両方のrecv後にだけOpened/readを返す。
+  private計算は並行のまま。共有readをpathname/rightsや別の進行flagだけで許可しない。
+- 最初の案は、通知とそれより早く到着できる別senderのopenを同じlaneにseqで置き、
+  causal handoff不足として投影で拒否された。独立入力をparへ直すアプリ側の修正であり、
+  coreの変更はない。失敗sourceとbuild logもoutputに保持する。
+- 実guest固定刺激はdepth0/1/2とも完了。各3domain操作/3guest、通知前のopen2件、
+  各結果を2回read、違反0。depth1/2は元testが失敗しsimulator_complete=falseを保つ。
+  各8改変、計24改変をRust監査が拒否。比較実験や実モデルの成功数にはまだ数えない。
+- 前sourceのCI38774076044は、nativeのsmall codebase試験timeoutで失敗。ローカルでも
+  terminal testのtimeoutを2回再現し、再実行で成功することも確認した。資源ごとの
+  brokerが別sessionで独立に相手を選ぶため、両要求を同時発行すると循環待ちが可能。
+  旧nativeの成功27件はこの全scheduleの保証にならず、測定済みWASI試行へも転用しない。
+- native1E/Mも物理module ownerを一つのglobalへ入れ、別broker sessionとbroker_onceを
+  除去。両要求/両返却を先に送り、1MのA/C、B/Dはparを維持する。二つの独立commitが
+  同時にeffectへ入らないと完了しない回帰試験を追加。現在、新sourceを再ビルド中。
+  旧native1Hは別broker sessionを持つ未受理のfoundationであり、実WASI接続と合わせて
+  まだ根治が必要。1E/Mの修正を1Hの保証とはしない。
+- Rust model runnerを8Eへ広げ、元metadataのtool_resource_mapを照合する。
+  depth1/2の期待するdomain failureとprotocol監査成功を分ける。モデル開始は新buildの
+  固定と独立監査後。旧qualified binary/source/rawは書換えない。
+- runner4試験/Clippy、Python43試験、原48課題/825項目、baseline111/59ファイルの
+  byte一致は成功。全Rust、実WASI再資格、Luna試行、新CIはまだこれから。
+- 元baselineのAgentLoop/AgentRunnerを変えずに動かすAPI設定先を質問済み。
+  現在のprocessにOPENAI_API_KEYはなく、回答待ちの間もHibana実装は進める。
+  prompt追記やverify前の独自gateを持つ旧design_baselines.pyを原条件へ読み替えない。
+  全要件受理0、採点0/2592、論文推敲停止を維持する。
+
+- 修正前binaryを別保存し、同じterminal試験のtimeoutを再度捕捉した。3人のDesignと
+  Implementだけが記録され、Commit/Testは0。binary hash、native旧source、CIと
+  ローカルの失敗logをbefore-native-fixへ保存する。偶然の再実行成功を修正とは数えない。
+
+- 新sourceの全Rust28試験とstrict Clippyが成功。終端経路の3回帰試験を32回、計96回
+  実行し、循環待ちなし。独立commitの同時開始も各回で確認した。Rust runnerの
+  実WASI process試験も成功し、独立simulator操作中にstdoutを読み続けることを確認。
+  現在、9正常構成と8Eの2終端失敗を同じ新実行ファイルで再資格検証中。

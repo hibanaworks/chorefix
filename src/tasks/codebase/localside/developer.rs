@@ -101,6 +101,8 @@ pub(crate) async fn terminal<const ROLE: u8, D: Domain>(
                 response(operation, result)?;
             }
             Operation::Commit => {
+                endpoint.recv::<AvailableFirst>().await?;
+                endpoint.recv::<AvailableSecond>().await?;
                 endpoint.send::<AcquireFirst>(&()).await?;
                 endpoint.send::<AcquireSecond>(&()).await?;
                 endpoint.recv::<GrantedFirst>().await?;

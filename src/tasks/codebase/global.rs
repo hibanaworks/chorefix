@@ -103,7 +103,23 @@ fn developer<
     g::seq(g::send::<DEV, DEV, Design>(), attempts)
 }
 
+pub type AvailableFirst = g::Msg<152, ()>;
+pub type AvailableSecond = g::Msg<153, ()>;
+pub const AUTH_MODULE: u8 = 30;
+pub const DATABASE_MODULE: u8 = 31;
+pub const API_MODULE: u8 = 32;
+pub const PAYMENT_MODULE: u8 = 33;
+pub const NOTIFY_MODULE: u8 = 34;
+
 fn terminal_developer<const DEV: u8, const FIRST: u8, const SECOND: u8>() -> impl Projectable {
+    let preparation = g::seq(
+        g::send::<DEV, DEV, Design>(),
+        g::send::<DEV, DEV, Implement>(),
+    );
+    let availability = g::par(
+        g::send::<FIRST, DEV, AvailableFirst>(),
+        g::send::<SECOND, DEV, AvailableSecond>(),
+    );
     let acquire = g::par(
         g::seq(
             g::send::<DEV, FIRST, AcquireFirst>(),
@@ -125,17 +141,14 @@ fn terminal_developer<const DEV: u8, const FIRST: u8, const SECOND: u8>() -> imp
         ),
     );
     g::seq(
-        g::send::<DEV, DEV, Design>(),
+        g::par(preparation, availability),
         g::seq(
-            g::send::<DEV, DEV, Implement>(),
+            acquire,
             g::seq(
-                acquire,
+                g::send::<DEV, DEV, Commit>(),
                 g::seq(
-                    g::send::<DEV, DEV, Commit>(),
-                    g::seq(
-                        release,
-                        g::seq(g::send::<DEV, DEV, Test>(), g::send::<DEV, DEV, Finished>()),
-                    ),
+                    release,
+                    g::seq(g::send::<DEV, DEV, Test>(), g::send::<DEV, DEV, Finished>()),
                 ),
             ),
         ),
@@ -216,74 +229,55 @@ pub fn project_1h() -> Programs1H {
 
 pub struct Programs1E {
     pub a: RoleProgram<A>,
-    pub a_first: RoleProgram<A_FIRST>,
-    pub a_second: RoleProgram<A_SECOND>,
     pub b: RoleProgram<B>,
-    pub b_first: RoleProgram<B_FIRST>,
-    pub b_second: RoleProgram<B_SECOND>,
     pub c: RoleProgram<C>,
-    pub c_first: RoleProgram<C_FIRST>,
-    pub c_second: RoleProgram<C_SECOND>,
+    pub auth: RoleProgram<AUTH_MODULE>,
+    pub database: RoleProgram<DATABASE_MODULE>,
+    pub api: RoleProgram<API_MODULE>,
 }
-
 pub fn project_1e() -> Programs1E {
-    let a = terminal_developer::<A, A_FIRST, A_SECOND>();
-    let b = terminal_developer::<B, B_FIRST, B_SECOND>();
-    let c = terminal_developer::<C, C_FIRST, C_SECOND>();
-    let protocol = g::par(a, g::par(b, c));
+    let a = terminal_developer::<A, AUTH_MODULE, DATABASE_MODULE>();
+    let b = terminal_developer::<B, DATABASE_MODULE, API_MODULE>();
+    let c = terminal_developer::<C, AUTH_MODULE, API_MODULE>();
+    let protocol = g::seq(a, g::seq(b, c));
     Programs1E {
         a: project(&protocol),
-        a_first: project(&protocol),
-        a_second: project(&protocol),
         b: project(&protocol),
-        b_first: project(&protocol),
-        b_second: project(&protocol),
         c: project(&protocol),
-        c_first: project(&protocol),
-        c_second: project(&protocol),
+        auth: project(&protocol),
+        database: project(&protocol),
+        api: project(&protocol),
     }
 }
-
 pub struct Programs1M {
     pub a: RoleProgram<A>,
-    pub a_first: RoleProgram<A_FIRST>,
-    pub a_second: RoleProgram<A_SECOND>,
     pub b: RoleProgram<B>,
-    pub b_first: RoleProgram<B_FIRST>,
-    pub b_second: RoleProgram<B_SECOND>,
     pub c: RoleProgram<C>,
-    pub c_first: RoleProgram<C_FIRST>,
-    pub c_second: RoleProgram<C_SECOND>,
     pub d: RoleProgram<D>,
-    pub d_first: RoleProgram<D_FIRST>,
-    pub d_second: RoleProgram<D_SECOND>,
     pub e: RoleProgram<E>,
-    pub e_first: RoleProgram<E_FIRST>,
-    pub e_second: RoleProgram<E_SECOND>,
+    pub auth: RoleProgram<AUTH_MODULE>,
+    pub database: RoleProgram<DATABASE_MODULE>,
+    pub api: RoleProgram<API_MODULE>,
+    pub payment: RoleProgram<PAYMENT_MODULE>,
+    pub notify: RoleProgram<NOTIFY_MODULE>,
 }
-
 pub fn project_1m() -> Programs1M {
-    let a = terminal_developer::<A, A_FIRST, A_SECOND>();
-    let b = terminal_developer::<B, B_FIRST, B_SECOND>();
-    let c = terminal_developer::<C, C_FIRST, C_SECOND>();
-    let d = terminal_developer::<D, D_FIRST, D_SECOND>();
-    let e = terminal_developer::<E, E_FIRST, E_SECOND>();
-    let protocol = g::par(g::par(a, b), g::par(c, g::par(d, e)));
+    let a = terminal_developer::<A, AUTH_MODULE, DATABASE_MODULE>();
+    let b = terminal_developer::<B, DATABASE_MODULE, API_MODULE>();
+    let c = terminal_developer::<C, API_MODULE, PAYMENT_MODULE>();
+    let d = terminal_developer::<D, PAYMENT_MODULE, NOTIFY_MODULE>();
+    let e = terminal_developer::<E, AUTH_MODULE, NOTIFY_MODULE>();
+    let protocol = g::seq(g::par(a, c), g::seq(g::par(b, d), e));
     Programs1M {
         a: project(&protocol),
-        a_first: project(&protocol),
-        a_second: project(&protocol),
         b: project(&protocol),
-        b_first: project(&protocol),
-        b_second: project(&protocol),
         c: project(&protocol),
-        c_first: project(&protocol),
-        c_second: project(&protocol),
         d: project(&protocol),
-        d_first: project(&protocol),
-        d_second: project(&protocol),
         e: project(&protocol),
-        e_first: project(&protocol),
-        e_second: project(&protocol),
+        auth: project(&protocol),
+        database: project(&protocol),
+        api: project(&protocol),
+        payment: project(&protocol),
+        notify: project(&protocol),
     }
 }

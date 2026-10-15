@@ -262,10 +262,48 @@ async fn terminal_test_failure_does_not_start_another_attempt() {
         .result = json!({"success": false});
     tokio::time::timeout(std::time::Duration::from_secs(5), codebase::run_1e(&domain))
         .await
-        .expect("terminal test stalled")
+        .unwrap_or_else(|error| {
+            panic!(
+                "terminal test stalled: {error}; events: {:?}",
+                domain.events.borrow()
+            )
+        })
         .unwrap();
     assert_eq!(domain.events.borrow().len(), 12);
     assert!(domain.calls.borrow().values().all(VecDeque::is_empty));
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn independent_terminal_commits_reach_the_effect_concurrently() {
+    struct Concurrent {
+        input: Input,
+        both_committing: tokio::sync::Barrier,
+    }
+    impl Domain for Concurrent {
+        type Call = Call;
+        async fn request(&self, agent: &'static str) -> Result<Call, String> {
+            self.input.request(agent).await
+        }
+        async fn execute(&self, agent: &'static str, call: Call) -> Result<Value, String> {
+            if call.operation == Operation::Commit
+                && ["DEVELOPER_A", "DEVELOPER_C"].contains(&agent)
+            {
+                // Neither effect can finish until the other independent effect starts.
+                self.both_committing.wait().await;
+            }
+            self.input.execute(agent, call).await
+        }
+    }
+    let domain = Concurrent {
+        input: Input::for_roles(5, 0),
+        both_committing: tokio::sync::Barrier::new(2),
+    };
+    tokio::time::timeout(std::time::Duration::from_secs(5), codebase::run_1m(&domain))
+        .await
+        .expect("independent commits did not run concurrently")
+        .unwrap();
+    assert_eq!(domain.input.events.borrow().len(), 20);
+    assert!(domain.input.calls.borrow().values().all(VecDeque::is_empty));
 }
 
 #[tokio::test(flavor = "current_thread")]

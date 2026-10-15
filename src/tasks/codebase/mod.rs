@@ -289,230 +289,77 @@ pub async fn run_1h<D: Domain>(domain: &D) -> Result<(), RunError<String>> {
     Ok(())
 }
 
-/// Three concurrent workflows. Every inter-role operation uses an Endpoint.
+/// Independent preparation and tests, with physical module handoffs in one global.
 pub async fn run_1e<D: Domain>(domain: &D) -> Result<(), RunError<String>> {
     use global::*;
     let programs = project_1e();
     let mut slab = vec![0; 192 * 1024];
     let mut storage = SessionKitStorage::<InMemoryTransport>::uninit();
     let kit = storage.init();
-    let rendezvous = kit
+    let rv = kit
         .rendezvous(&mut slab, InMemoryTransport::new())
         .map_err(RunError::Attach)?;
     let session = SessionId::new(1);
-    let mut a = rendezvous
-        .enter(session, &programs.a)
+    let mut a = rv.enter(session, &programs.a).map_err(RunError::Attach)?;
+    let mut b = rv.enter(session, &programs.b).map_err(RunError::Attach)?;
+    let mut c = rv.enter(session, &programs.c).map_err(RunError::Attach)?;
+    let mut auth = rv
+        .enter(session, &programs.auth)
         .map_err(RunError::Attach)?;
-    let mut a_first = rendezvous
-        .enter(session, &programs.a_first)
+    let mut database = rv
+        .enter(session, &programs.database)
         .map_err(RunError::Attach)?;
-    let mut a_second = rendezvous
-        .enter(session, &programs.a_second)
-        .map_err(RunError::Attach)?;
-    let mut b = rendezvous
-        .enter(session, &programs.b)
-        .map_err(RunError::Attach)?;
-    let mut b_first = rendezvous
-        .enter(session, &programs.b_first)
-        .map_err(RunError::Attach)?;
-    let mut b_second = rendezvous
-        .enter(session, &programs.b_second)
-        .map_err(RunError::Attach)?;
-    let mut c = rendezvous
-        .enter(session, &programs.c)
-        .map_err(RunError::Attach)?;
-    let mut c_first = rendezvous
-        .enter(session, &programs.c_first)
-        .map_err(RunError::Attach)?;
-    let mut c_second = rendezvous
-        .enter(session, &programs.c_second)
-        .map_err(RunError::Attach)?;
-    let resource_programs = resource::project_resource();
-    let mut auth_broker = rendezvous
-        .enter(SessionId::new(2), &resource_programs.broker)
-        .map_err(RunError::Attach)?;
-    let mut auth_resource = rendezvous
-        .enter(SessionId::new(2), &resource_programs.resource)
-        .map_err(RunError::Attach)?;
-    let mut database_broker = rendezvous
-        .enter(SessionId::new(3), &resource_programs.broker)
-        .map_err(RunError::Attach)?;
-    let mut database_resource = rendezvous
-        .enter(SessionId::new(3), &resource_programs.resource)
-        .map_err(RunError::Attach)?;
-    let mut api_broker = rendezvous
-        .enter(SessionId::new(4), &resource_programs.broker)
-        .map_err(RunError::Attach)?;
-    let mut api_resource = rendezvous
-        .enter(SessionId::new(4), &resource_programs.resource)
-        .map_err(RunError::Attach)?;
-    let developers = async {
-        tokio::try_join!(
-            localside::developer::terminal("DEVELOPER_A", &mut a, domain),
-            localside::developer::terminal("DEVELOPER_B", &mut b, domain),
-            localside::developer::terminal("DEVELOPER_C", &mut c, domain),
-        )?;
-        Ok::<(), RunError<String>>(())
-    };
-    let modules = async {
-        tokio::try_join!(
-            resource_roles::broker_once::<A_FIRST, C_FIRST, First, First>(
-                &mut a_first,
-                &mut c_first,
-                &mut auth_broker
-            ),
-            resource_roles::resource(&mut auth_resource),
-            resource_roles::broker_once::<A_SECOND, B_FIRST, Second, First>(
-                &mut a_second,
-                &mut b_first,
-                &mut database_broker
-            ),
-            resource_roles::resource(&mut database_resource),
-            resource_roles::broker_once::<B_SECOND, C_SECOND, Second, Second>(
-                &mut b_second,
-                &mut c_second,
-                &mut api_broker
-            ),
-            resource_roles::resource(&mut api_resource),
-        )?;
-        Ok::<(), RunError<String>>(())
-    };
-    tokio::try_join!(developers, modules)?;
+    let mut api = rv.enter(session, &programs.api).map_err(RunError::Attach)?;
+    tokio::try_join!(
+        localside::developer::terminal("DEVELOPER_A", &mut a, domain),
+        localside::developer::terminal("DEVELOPER_B", &mut b, domain),
+        localside::developer::terminal("DEVELOPER_C", &mut c, domain),
+        localside::module::auth_1e(&mut auth),
+        localside::module::database_1e(&mut database),
+        localside::module::api_1e(&mut api),
+    )?;
     Ok(())
 }
-
-/// Five concurrent workflows. Every inter-role operation uses an Endpoint.
+/// Independent preparation and tests, with physical module handoffs in one global.
 pub async fn run_1m<D: Domain>(domain: &D) -> Result<(), RunError<String>> {
     use global::*;
     let programs = project_1m();
     let mut slab = vec![0; 192 * 1024];
     let mut storage = SessionKitStorage::<InMemoryTransport>::uninit();
     let kit = storage.init();
-    let rendezvous = kit
+    let rv = kit
         .rendezvous(&mut slab, InMemoryTransport::new())
         .map_err(RunError::Attach)?;
     let session = SessionId::new(1);
-    let mut a = rendezvous
-        .enter(session, &programs.a)
+    let mut a = rv.enter(session, &programs.a).map_err(RunError::Attach)?;
+    let mut b = rv.enter(session, &programs.b).map_err(RunError::Attach)?;
+    let mut c = rv.enter(session, &programs.c).map_err(RunError::Attach)?;
+    let mut d = rv.enter(session, &programs.d).map_err(RunError::Attach)?;
+    let mut e = rv.enter(session, &programs.e).map_err(RunError::Attach)?;
+    let mut auth = rv
+        .enter(session, &programs.auth)
         .map_err(RunError::Attach)?;
-    let mut a_first = rendezvous
-        .enter(session, &programs.a_first)
+    let mut database = rv
+        .enter(session, &programs.database)
         .map_err(RunError::Attach)?;
-    let mut a_second = rendezvous
-        .enter(session, &programs.a_second)
+    let mut api = rv.enter(session, &programs.api).map_err(RunError::Attach)?;
+    let mut payment = rv
+        .enter(session, &programs.payment)
         .map_err(RunError::Attach)?;
-    let mut b = rendezvous
-        .enter(session, &programs.b)
+    let mut notify = rv
+        .enter(session, &programs.notify)
         .map_err(RunError::Attach)?;
-    let mut b_first = rendezvous
-        .enter(session, &programs.b_first)
-        .map_err(RunError::Attach)?;
-    let mut b_second = rendezvous
-        .enter(session, &programs.b_second)
-        .map_err(RunError::Attach)?;
-    let mut c = rendezvous
-        .enter(session, &programs.c)
-        .map_err(RunError::Attach)?;
-    let mut c_first = rendezvous
-        .enter(session, &programs.c_first)
-        .map_err(RunError::Attach)?;
-    let mut c_second = rendezvous
-        .enter(session, &programs.c_second)
-        .map_err(RunError::Attach)?;
-    let mut d = rendezvous
-        .enter(session, &programs.d)
-        .map_err(RunError::Attach)?;
-    let mut d_first = rendezvous
-        .enter(session, &programs.d_first)
-        .map_err(RunError::Attach)?;
-    let mut d_second = rendezvous
-        .enter(session, &programs.d_second)
-        .map_err(RunError::Attach)?;
-    let mut e = rendezvous
-        .enter(session, &programs.e)
-        .map_err(RunError::Attach)?;
-    let mut e_first = rendezvous
-        .enter(session, &programs.e_first)
-        .map_err(RunError::Attach)?;
-    let mut e_second = rendezvous
-        .enter(session, &programs.e_second)
-        .map_err(RunError::Attach)?;
-    let resource_programs = resource::project_resource();
-    let mut auth_broker = rendezvous
-        .enter(SessionId::new(2), &resource_programs.broker)
-        .map_err(RunError::Attach)?;
-    let mut auth_resource = rendezvous
-        .enter(SessionId::new(2), &resource_programs.resource)
-        .map_err(RunError::Attach)?;
-    let mut database_broker = rendezvous
-        .enter(SessionId::new(3), &resource_programs.broker)
-        .map_err(RunError::Attach)?;
-    let mut database_resource = rendezvous
-        .enter(SessionId::new(3), &resource_programs.resource)
-        .map_err(RunError::Attach)?;
-    let mut api_broker = rendezvous
-        .enter(SessionId::new(4), &resource_programs.broker)
-        .map_err(RunError::Attach)?;
-    let mut api_resource = rendezvous
-        .enter(SessionId::new(4), &resource_programs.resource)
-        .map_err(RunError::Attach)?;
-    let mut payment_broker = rendezvous
-        .enter(SessionId::new(5), &resource_programs.broker)
-        .map_err(RunError::Attach)?;
-    let mut payment_resource = rendezvous
-        .enter(SessionId::new(5), &resource_programs.resource)
-        .map_err(RunError::Attach)?;
-    let mut notify_broker = rendezvous
-        .enter(SessionId::new(6), &resource_programs.broker)
-        .map_err(RunError::Attach)?;
-    let mut notify_resource = rendezvous
-        .enter(SessionId::new(6), &resource_programs.resource)
-        .map_err(RunError::Attach)?;
-    let developers = async {
-        tokio::try_join!(
-            localside::developer::terminal("DEVELOPER_A", &mut a, domain),
-            localside::developer::terminal("DEVELOPER_B", &mut b, domain),
-            localside::developer::terminal("DEVELOPER_C", &mut c, domain),
-            localside::developer::terminal("DEVELOPER_D", &mut d, domain),
-            localside::developer::terminal("DEVELOPER_E", &mut e, domain),
-        )?;
-        Ok::<(), RunError<String>>(())
-    };
-    let modules = async {
-        tokio::try_join!(
-            resource_roles::broker_once::<A_FIRST, E_FIRST, First, First>(
-                &mut a_first,
-                &mut e_first,
-                &mut auth_broker
-            ),
-            resource_roles::resource(&mut auth_resource),
-            resource_roles::broker_once::<A_SECOND, B_FIRST, Second, First>(
-                &mut a_second,
-                &mut b_first,
-                &mut database_broker
-            ),
-            resource_roles::resource(&mut database_resource),
-            resource_roles::broker_once::<B_SECOND, C_FIRST, Second, First>(
-                &mut b_second,
-                &mut c_first,
-                &mut api_broker
-            ),
-            resource_roles::resource(&mut api_resource),
-            resource_roles::broker_once::<C_SECOND, D_FIRST, Second, First>(
-                &mut c_second,
-                &mut d_first,
-                &mut payment_broker
-            ),
-            resource_roles::resource(&mut payment_resource),
-            resource_roles::broker_once::<D_SECOND, E_SECOND, Second, Second>(
-                &mut d_second,
-                &mut e_second,
-                &mut notify_broker
-            ),
-            resource_roles::resource(&mut notify_resource),
-        )?;
-        Ok::<(), RunError<String>>(())
-    };
-    tokio::try_join!(developers, modules)?;
+    tokio::try_join!(
+        localside::developer::terminal("DEVELOPER_A", &mut a, domain),
+        localside::developer::terminal("DEVELOPER_B", &mut b, domain),
+        localside::developer::terminal("DEVELOPER_C", &mut c, domain),
+        localside::developer::terminal("DEVELOPER_D", &mut d, domain),
+        localside::developer::terminal("DEVELOPER_E", &mut e, domain),
+        localside::module::auth_1m(&mut auth),
+        localside::module::database_1m(&mut database),
+        localside::module::api_1m(&mut api),
+        localside::module::payment_1m(&mut payment),
+        localside::module::notify_1m(&mut notify),
+    )?;
     Ok(())
 }

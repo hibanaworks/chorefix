@@ -229,6 +229,16 @@ terminal failure, while checklist O2 asks for retries. This source conflict is
 recorded in [the fidelity review](results/task-fidelity/8E.json); acceptance
 remains open.
 
+The [direct WASI global](src/tasks/api/choreofs/global.rs) connects those same
+three participants to service owners, database and test-environment owners, and
+two result objects in one session. Each developer reads `/service/outcome`
+through its own projected endpoint. The global accepts an early open request
+in parallel with the test notification and requires both before the reply.
+The [result localsides](src/tasks/api/choreofs/localside/outcome.rs) receive the
+actual notification and request before ChoreoFS returns any result content.
+Private shell work proceeds independently. The terminal failure remains a
+domain failure even when all three guests finish their protocols.
+
 Task localsides match the tool request that actually arrived. Each handler
 shows its Endpoint sends and receives directly, before the corresponding domain
 effect. No helper performs these communication steps, and there is no stored

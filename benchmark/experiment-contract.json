@@ -51,6 +51,14 @@
     "liveness_limit": "Completion still requires each model to do its work and the executor/transport to progress; the qualification runs do not prove termination for an uncooperative model",
     "qualification": "Deterministic actual-WASI 3/5/7 person trials pass, with observed disjoint eating 1/2/3; accepted full-task and scored comparisons remain pending"
   },
+  "api_procedure": {
+    "tasks": ["8E"],
+    "preserved": ["Original three participants and their assigned operations", "Database lease during migration and test-environment lease during integration test", "Migration completion before backend effect and backend completion before test effect", "Actual pass or fail result delivered to both developers"],
+    "hibana_execution": "WASI requests, service owners, physical resources and result-file endpoints share one global. A result-file open and the result notification are independent inputs in par. The owner replies only after receiving both; subsequent reads use that projected result endpoint",
+    "read_boundary": "Each developer must read /service/outcome before guest completion. Private files remain independent. A successful pathname lookup alone does not authorize reading a test result",
+    "source_conflict": "Checklist O2 asks for revisions, while the unchanged task description and simulator specify terminal test failure. Preserve terminal failure and record the conflict; do not report protocol completion as domain success",
+    "qualification": "Requires actual-WASI evidence for all three failure depths, live Luna trials and a resolved full-task acceptance review before scored comparisons"
+  },
   "report_separately": [
     "Domain task completion and actual unsafe effects",
     "Rejected attempts returned to the model before an effect",

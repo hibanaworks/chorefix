@@ -295,6 +295,8 @@ pub fn run(root: &Path, verifier: &Path) -> Result<Value> {
             "forks"
         } else if task.starts_with('1') {
             "modules"
+        } else if task == "8E" {
+            "resources"
         } else {
             "sections"
         };
@@ -304,16 +306,20 @@ pub fn run(root: &Path, verifier: &Path) -> Result<Value> {
             .iter()
             .map(|v| v.as_str().ok_or("resource name"))
             .collect::<std::result::Result<_, _>>()?;
-        let mut expected: Vec<_> = metadata["agent_resources"]
-            [actor["agent"].as_str().ok_or("actor")?]
-        .as_array()
-        .ok_or("original resource pair")?
-        .iter()
-        .map(|v| v.as_str().ok_or("resource name"))
-        .collect::<std::result::Result<_, _>>()?;
+        let expected = if task == "8E" {
+            &metadata["tool_resource_map"][actor["calls"][0]["tool"].as_str().ok_or("tool")?]
+        } else {
+            &metadata["agent_resources"][actor["agent"].as_str().ok_or("actor")?]
+        };
+        let mut expected: Vec<_> = expected
+            .as_array()
+            .ok_or("original resource pair")?
+            .iter()
+            .map(|v| v.as_str().ok_or("resource name"))
+            .collect::<std::result::Result<_, _>>()?;
         actual.sort();
         expected.sort();
-        if actual.len() != 2 || actual != expected {
+        if (task != "8E" && actual.len() != 2) || actual != expected {
             return Err("physical resource assignment changed".into());
         }
     }
@@ -386,7 +392,7 @@ pub fn run(root: &Path, verifier: &Path) -> Result<Value> {
     if protocol["status"] != "passed"
         || protocol["task"] != fixture["task"]
         || protocol["participants"] != participants.len()
-        || protocol["simulator_complete"] != true
+        || protocol["simulator_complete"] != (task != "8E" || fixture["depth"] == 0)
         || protocol["violations"] != 0
     {
         return Err("protocol verification did not pass the measured task".into());

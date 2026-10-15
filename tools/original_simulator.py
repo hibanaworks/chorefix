@@ -22,11 +22,11 @@ def emit(value):
 async def main():
     task = sys.argv[1]
     module = importlib.import_module(f"benchmark.environments.{task}.sim")
-    simulator_class = {"1E": "SharedCodebaseSim", "1M": "SharedCodebaseSim", "9E": "ThreePhilosophersSim", "9M": "FivePhilosophersSim", "9H": "SevenPhilosophersSim"}.get(task, "ResearchPaperSim")
+    simulator_class = {"1E": "SharedCodebaseSim", "1M": "SharedCodebaseSim", "8E": "BackendDatabaseSyncSim", "9E": "ThreePhilosophersSim", "9M": "FivePhilosophersSim", "9H": "SevenPhilosophersSim"}.get(task, "ResearchPaperSim")
     sim = getattr(module, simulator_class)()
     model_run = len(sys.argv) == 4 and sys.argv[2] == "model"
     config = json.loads(Path("experiment.json").read_text())
-    depth = int(sys.argv[3]) if model_run else 2
+    depth = int(sys.argv[3]) if len(sys.argv) == 4 and sys.argv[2] in ("model", "boundary") else 2
     if depth not in (0, 1, 2):
         raise ValueError("invalid scenario depth")
     sim._seed = config["python_hash_seed"]
@@ -42,6 +42,19 @@ async def main():
     metadata = json.loads((Path("vendor/tracefix/benchmark/descriptions") / task / "metadata.json").read_text())
     fixtures = []
     for agent in metadata["agents"]:
+        if task == "8E":
+            if agent == "DB_ADMIN":
+                tool, key = "migrate_schema", "migration_name"
+                value = next(step.migration_name for step in module._MIGRATE_SCHEMA_STEPS if step.agent_id == agent)
+            elif agent == "BACKEND_DEV":
+                tool, key = "implement_backend", "component"
+                value = next(step.component for step in module._IMPLEMENT_BACKEND_STEPS if step.agent_id == agent)
+            else:
+                tool, key = "run_integration_tests", "suite"
+                value = next(step.suite for step in module._INTEGRATION_TEST_STEPS if step.agent_id == agent)
+            fixtures.append({"agent": agent, "resources": metadata["tool_resource_map"][tool],
+                             "calls": [{"tool": tool, "arguments": {key: value}}]})
+            continue
         if task.startswith("9"):
             fixtures.append({"agent": agent, "forks": module._FORKS[agent], "calls": [
                                  {"tool": tool, "arguments": {"philosopher": agent}} for tool in ("think", "eat")]})
@@ -71,7 +84,7 @@ async def main():
     if task.endswith("H"):
         first_writers.add(f"{actor_prefix}_E")
     emit({"type": "fixtures", "task": task, "fixtures": fixtures, "model_run": model_run,
-          "test_delays": {} if model_run else {"first_effect_barrier": sorted(first_writers), "constrained_tool": constrained_tool, "a_review_waits_for_b_write": task.startswith("2"), "a_test_waits_for_b_commit": task.startswith("1")},
+          "test_delays": {} if model_run else {"outcome_open_before_test_reply": True} if task == "8E" else {"first_effect_barrier": sorted(first_writers), "constrained_tool": constrained_tool, "a_review_waits_for_b_write": task.startswith("2"), "a_test_waits_for_b_commit": task.startswith("1")},
           "delay_multiplier": sim._delay_multiplier, "depth": depth, "seed": sim._seed,
           "terminal_review_failure": terminal_review_failure, "terminal_test_failure": terminal_test_failure})
     arrived = set()

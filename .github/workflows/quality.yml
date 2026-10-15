@@ -44,6 +44,10 @@ jobs:
       - name: Check the actual WASI and task effect boundary
         run: |
           bash tools/build_shell.sh
+          for depth in 0 1 2; do
+            cargo +1.95.0 run --locked --bin api-boundary -- "$depth" "api-boundary-depth$depth"
+            cargo +1.95.0 run --locked --bin api-boundary -- --check-mutants "api-boundary-depth$depth/events.jsonl" "api-boundary-depth$depth-mutants"
+          done
           cargo +1.95.0 run --locked --bin codebase-boundary -- 1E codebase-boundary-1E
           cargo +1.95.0 run --locked --bin codebase-boundary -- --check-mutants codebase-boundary-1E/events.jsonl codebase-boundary-1E-mutants
           cargo +1.95.0 run --locked --bin codebase-boundary -- 1M codebase-boundary-1M
@@ -74,14 +78,15 @@ jobs:
         run: |
           python vendor/hibana-wash/tools/profile.py vendor/hibana-wash/target/wasm32-wasip1/release/hibana-wash.wasm > wash-profile.json
           python -c 'import json; p=json.load(open("wash-profile.json")); assert not p["non_wasi_imports"]; assert p["memories"] == [{"flags": 0, "minimum": 1}]'
-      - name: Retain writing boundary evidence
+      - name: Retain direct WASI boundary evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: writing-boundary
+          name: direct-wasi-boundary
           path: |
             writing-boundary-*/
             codebase-boundary-*/
             philosophers-boundary-*/
+            api-boundary-*/
             output/writing-rust-runner-probe*/
           if-no-files-found: ignore
