@@ -658,3 +658,8 @@ reviewは元課題どおり終端で、余分なretryを加えない。続いて
   cancelされた。annotationが明示する実行時間超過であり、本体の失敗とは扱わない。
   検査を削らず45分へ変更し、Rust runnerのfmt/test/Clippyと明示integrationを追加。
   Python43件と旧2H/終端失敗ログの再監査も成功。採点済み0/2592、全要件受理0を維持。
+
+- 実モデルrunnerの初回001は、モデル開始前のsource inventoryで停止した。
+  元manifestは48task配下を対象とするが、新監査がenvironments直下のpackage fileも
+  比較したため。元inventoryと同じ範囲へ修正し、全48task/simulatorのbyte一致を
+  Rust回帰試験に追加する。停止ログを残し、別run IDで再開する。Hibana本体の問題ではない。

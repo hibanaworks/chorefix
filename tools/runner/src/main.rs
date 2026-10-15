@@ -180,7 +180,19 @@ async fn main() -> Result<()> {
             serde_json::to_string_pretty(&audit::run(Path::new(output))?)?
         ),
         [task, depth, output] => {
-            let result = run(task, depth.parse()?, Path::new(output)).await?;
+            let result = match run(task, depth.parse()?, Path::new(output)).await {
+                Ok(result) => result,
+                Err(error) => {
+                    let directory = Path::new(output);
+                    if directory.exists() {
+                        save(
+                            &directory.join("harness-error.json"),
+                            &json!({"kind":"harness_error","error":error.to_string(),"scored_benchmark":false}),
+                        )?;
+                    }
+                    return Err(error);
+                }
+            };
             println!("{}", serde_json::to_string(&result)?);
         }
         _ => return Err("usage: choreofix-experiments 2E|2M|2H DEPTH OUTPUT".into()),

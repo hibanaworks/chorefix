@@ -48,12 +48,34 @@ pub fn verify_upstream(source: &Path) -> Result<()> {
         }
     }
     let mut actual = Vec::new();
-    for directory in ["descriptions", "environments", "tools"] {
-        files(
-            &source.join("vendor/tracefix/benchmark").join(directory),
-            &mut actual,
-        )?;
+    let mut ids = BTreeSet::new();
+    for task in tasks {
+        let id = task["id"].as_str().ok_or("upstream task id")?;
+        ids.insert(id.to_owned());
+        for directory in ["descriptions", "environments"] {
+            files(
+                &source
+                    .join("vendor/tracefix/benchmark")
+                    .join(directory)
+                    .join(id),
+                &mut actual,
+            )?;
+        }
     }
+    let actual_ids: BTreeSet<_> =
+        fs::read_dir(source.join("vendor/tracefix/benchmark/descriptions"))?
+            .filter_map(|e| match e {
+                Ok(e) if e.path().is_dir() => {
+                    Some(Ok(e.file_name().to_string_lossy().into_owned()))
+                }
+                Ok(_) => None,
+                Err(e) => Some(Err(e)),
+            })
+            .collect::<std::io::Result<_>>()?;
+    if ids != actual_ids {
+        return Err("upstream task directories changed".into());
+    }
+    files(&source.join("vendor/tracefix/benchmark/tools"), &mut actual)?;
     // The upstream manifest inventories every description/environment input and
     // every Python simulator file; package documentation is outside that scope.
     let actual: BTreeSet<_> = actual
@@ -156,4 +178,18 @@ pub fn freeze(output: &Path) -> Result<Value> {
     )?;
     save(&output.join("versions.json"), &versions)?;
     Ok(versions)
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn original_manifest_scope_matches_all_48_task_directories_and_simulators() {
+        super::verify_upstream(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../..")
+                .canonicalize()
+                .unwrap(),
+        )
+        .unwrap();
+    }
 }
