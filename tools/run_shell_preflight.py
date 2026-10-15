@@ -53,7 +53,7 @@ async def run(task, run_id, scenario):
         snapshot.parent.mkdir(parents=True, exist_ok=True)
         snapshot.write_bytes(content)
     (output / "source-manifest.json").write_text(json.dumps(source_hashes, indent=2)+"\n")
-    binary = ROOT / "target/debug" / {"1":"codebase", "2":"writing", "8":"api", "9":"philosophers", "16":"cicd"}[task[:-1]]
+    binary = ROOT / "target/debug" / {"1":"codebase", "2":"writing", "6":"review", "8":"api", "9":"philosophers", "16":"cicd"}[task[:-1]]
     binary_content = binary.read_bytes()
     runtime_binary_sha256 = hashlib.sha256(binary_content).hexdigest()
     runtime_snapshot = output / "runtime"
@@ -105,11 +105,26 @@ async def run(task, run_id, scenario):
             inputs.update({"component":"application", "suite":"integration", "target":"production"})
         if task == "8E":
             inputs.update({"migration_name":"add_new_tables", "component":"new_api_endpoints", "suite":"backend_schema_integration"})
+        if task == "6E":
+            inputs["features"] = {step.agent_id:step.feature for step in module._IMPLEMENT_STEPS}
+            inputs["branches"] = {step.agent_id:step.branch for step in module._MERGE_STEPS}
+            inputs["review_targets"] = [step.target for step in module._CODE_REVIEW_STEPS]
+        coordination_notes = ""
+        if task == "6E":
+            coordination_notes = """For 6E, an implement_feature reply waits for the review
+and includes the actual feedback in coordination.code_review. A developer must
+reconsider and implement again if it requests changes, or merge if approved.
+REVIEWER may choose either pending feature. A code_review waits for that
+feature's actual submission. Review each until approved, then finish. Do not
+review an already approved feature again. Ready and feedback messages are
+carried by Hibana, so use only your supplied domain tool schemas.
+"""
         prompt = f"""You are {agent}. Complete your work in the task below with actual tool effects.
 {task_description}
 
 Your assigned input data: {json.dumps(inputs)}
 Available domain tool schemas: {json.dumps(schemas)}
+{coordination_notes}
 
 You have one tool, shell. It sends text to a real bounded WASI shell. All file
 operations use ChoreoFS, with no host filesystem or native shell access.
@@ -135,13 +150,15 @@ Do not add retries to a task whose failed result is terminal.
                 }], dispatch=dispatch, output=output / agent,
                 timeout=config["run_timeout_seconds"], tool_limit=config["participant_tool_call_limit"],
             )
-            await shell.finish()
+            if result["status"] == "completed":
+                await shell.finish()
+            if not bridge.result.done():
+                event = "model_finished" if result["status"] == "completed" else "close_role"
+                await bridge.send({"type":event, "id":0, "agent":agent})
             return result
         finally:
             await shell.stop()
             wasi_processes[agent] = {"exit_code":shell.process.returncode}
-            if not bridge.result.done():
-                await bridge.send({"type":"close_role", "id":0, "agent":agent})
 
     participants = [asyncio.create_task(participant(agent)) for agent in metadata["agents"]]
     outcomes = None
@@ -194,7 +211,7 @@ Do not add retries to a task whose failed result is terminal.
 
 async def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--tasks", nargs="+", choices=["1E", "1M", "1H", "2E", "2M", "2H", "8E", "9E", "9M", "9H", "16E"], required=True)
+    parser.add_argument("--tasks", nargs="+", choices=["1E", "1M", "1H", "2E", "2M", "2H", "6E", "8E", "9E", "9M", "9H", "16E"], required=True)
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--scenario", type=int, choices=[0,1,2], default=0)
     args = parser.parse_args()

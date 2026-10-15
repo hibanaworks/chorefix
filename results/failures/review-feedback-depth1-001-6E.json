@@ -1,0 +1,99 @@
+{
+  "run_id": "review-feedback-depth1-001",
+  "task": "6E",
+  "scenario_depth": 1,
+  "kind": "shell_integration_preflight",
+  "scored_benchmark": false,
+  "protocol_completed": false,
+  "domain_complete": false,
+  "classification": "invalid_task_request",
+  "primary_verdict": {
+    "error": "Domain(\"unknown review tool or original feature target\")",
+    "status": "failed",
+    "type": "run_result"
+  },
+  "invalid_request": {
+    "type": "call",
+    "id": 3,
+    "agent": "REVIEWER",
+    "tool": "code_review",
+    "arguments": {
+      "pr_id": "dev_a_feature"
+    }
+  },
+  "invalid_request_caused_domain_effect": false,
+  "secondary_error": "WASI shell did not exit successfully",
+  "secondary_error_fixed_in_harness": true,
+  "participants": [
+    {
+      "participant": "DEVELOPER_A",
+      "status": "harness_error",
+      "error": "protocol run ended before this tool executed",
+      "requested_model": "gpt-6-luna",
+      "returned_model": "gpt-6-luna",
+      "requested_effort": "xhigh",
+      "returned_effort": "xhigh",
+      "tool_calls": 3,
+      "elapsed_seconds": 14.98342483304441,
+      "usage": {
+        "totalTokens": 30695,
+        "inputTokens": 30489,
+        "cachedInputTokens": 28160,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 206,
+        "reasoningOutputTokens": 152
+      },
+      "raw_events_sha256": "6201f84466d2d35a4808b62cba7dbc3a0ecd2a488e6e5456223d3c524bf801f3"
+    },
+    {
+      "participant": "DEVELOPER_B",
+      "status": "harness_error",
+      "error": "protocol run ended before this tool executed",
+      "requested_model": "gpt-6-luna",
+      "returned_model": "gpt-6-luna",
+      "requested_effort": "xhigh",
+      "returned_effort": "xhigh",
+      "tool_calls": 2,
+      "elapsed_seconds": 14.981464416021481,
+      "usage": {
+        "totalTokens": 15269,
+        "inputTokens": 15115,
+        "cachedInputTokens": 7936,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 154,
+        "reasoningOutputTokens": 128
+      },
+      "raw_events_sha256": "9e3485fdfe58d54f13495fc82816b14292856a7f69dc765b6b99995c0831afb6"
+    },
+    {
+      "participant": "REVIEWER",
+      "status": "harness_error",
+      "error": "protocol run ended before this tool executed",
+      "requested_model": "gpt-6-luna",
+      "returned_model": "gpt-6-luna",
+      "requested_effort": "xhigh",
+      "returned_effort": "xhigh",
+      "tool_calls": 3,
+      "elapsed_seconds": 14.98125495808199,
+      "usage": {
+        "totalTokens": 30730,
+        "inputTokens": 30423,
+        "cachedInputTokens": 15872,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 307,
+        "reasoningOutputTokens": 253
+      },
+      "raw_events_sha256": "da4f5ba93e6e3fd88ce32d7b8aa46d8a094c00f7898114c2965a33979c42e9db"
+    }
+  ],
+  "recorded_inclusive_tokens": 76694,
+  "usage_complete": false,
+  "usage_limitation": "The model turns were interrupted. These are last observed usage totals, not a confirmed final cost.",
+  "simulator_violations": 0,
+  "domain_calls": 2,
+  "elapsed_seconds": 15.557194250170141,
+  "evidence_directory": "output/shell-preflight/review-feedback-depth1-001/6E",
+  "original_result_sha256": "5e090d24f354713ff990c66765ec1e7ce39ce91fba0a997bb1d1aa7da6eddbe1",
+  "bridge_events_sha256": "1ff576652bcf391dabe4d07ecaf3b35626ce7ad55528660e75ff97afd11e9536",
+  "source_manifest_sha256": "6e58f4c0e1f1a6e2621ee22151dc811502d8dfd63339d78bc4a8b8de714c2ea1"
+}

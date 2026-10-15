@@ -38,3 +38,11 @@ jobs:
           .venv/bin/python tools/runtime_inventory.py --check
           .venv/bin/python tools/matrix.py
           git diff --exit-code -- benchmark/matrix.jsonl benchmark/latest-matrix.jsonl
+      - name: Build and inspect the candidate WASI Bash guest
+        run: |
+          python tools/prepare_bash_guest.py
+          cargo +1.95.0 fmt --manifest-path guests/bash/Cargo.toml --check
+          cargo +1.95.0 build --locked --manifest-path guests/bash/Cargo.toml --target wasm32-wasip1 --release
+          cargo +1.95.0 clippy --locked --manifest-path guests/bash/Cargo.toml --target wasm32-wasip1 --release -- -D warnings
+          python tools/profile_wasi_guest.py guests/bash/target/wasm32-wasip1/release/choreofix-bash-guest.wasm > bash-guest-profile.json
+          python -c 'import json; p=json.load(open("bash-guest-profile.json")); assert not p["non_wasi_imports"], p["non_wasi_imports"]'

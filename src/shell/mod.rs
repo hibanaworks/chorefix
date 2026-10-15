@@ -1,12 +1,16 @@
 //! Bounded shell integration. Task-specific coordination remains in tasks/*.
 pub mod global;
-mod imp {
+pub(crate) mod imp {
+    pub mod bus;
     pub mod environment;
     pub mod error;
+    pub mod private_fs;
 }
-mod localside {
+pub(crate) mod localside {
+    pub mod direct_guest;
     pub mod environment;
     pub mod guest;
+    pub mod private_io;
 }
 pub use imp::error::{ShellError, ShellResult};
 

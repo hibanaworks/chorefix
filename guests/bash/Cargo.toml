@@ -1,0 +1,18 @@
+[package]
+name = "choreofix-bash-guest"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95"
+publish = false
+
+[workspace]
+
+[dependencies]
+rust-bash = { path = "../../vendor/rust-bash", default-features = false, features = ["native-fs"] }
+
+[profile.release]
+panic = "abort"
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = "debuginfo"

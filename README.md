@@ -49,6 +49,19 @@ preflight against the original simulator. Every participant called `think` and
 `eat`, and the simulator recorded no resource conflicts. Raw events were checked
 separately. These are setup results, not the five-condition benchmark results.
 
+The new [16E ChoreoFS protocol](src/tasks/cicd/choreofs/global.rs) puts service
+open/write/close requests and task dependencies in the same composed global.
+Three mechanism tests and four real-WASI integration tests cover rejected
+arguments, corrected work, early dependants, duplicate effects and premature
+exit against the unchanged simulator. These tests use the older bounded guest
+and do not establish general shell freedom.
+
+The [Bash guest](guests/bash/README.md) now builds with Rust 1.95 and imports
+only WASI Preview 1. It does not yet start in the bounded runtime: its real
+module exceeds the current descriptor and execution capacities. The
+[qualification record](results/validation/bash-guest-qualification.json) keeps
+this failure and the remaining gates explicit. See [the work plan](plan.md).
+
 ## Follow the protocol
 
 Start with [the 9E global protocol](src/tasks/philosophers/global.rs).

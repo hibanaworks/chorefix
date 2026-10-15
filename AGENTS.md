@@ -1,5 +1,22 @@
 # Experiment rules
 
+## Mandatory design constraints
+
+**No helper/wrapper hiding of localside flow. No separate state machine. No
+task progress flags. No duplicate coordination or completion management.**
+
+Write coordination with Hibana `seq`, `send`, `route`, resolvers, `par`, and
+`roll`. The projected Endpoint is the only owner of task progress and permission.
+Keep the actual Endpoint operations directly visible in each localside.
+Do not move ordering, authorization, retry, branch, or completion decisions into
+a helper, wrapper, driver, callback, filesystem, or transport layer.
+Do not recreate them as a stage enum, program counter, allowed-operation table,
+approved/done boolean, owner record, or disguised equivalent.
+
+Low-level codecs, buffers, and object materialization belong in `imp/`; they do
+not acquire choreography authority by being placed there. Review this rule in
+the live source and verification evidence before reporting completion.
+
 The experiment retains all 48 TraceFix tasks, their participants, resource
 constraints, dependency checks, branches, and failure conditions.
 
@@ -14,12 +31,67 @@ domain integration in `imp/`. The global protocol and each role's localside
 must be traceable like hibana-quic. Use the actual
 published Hibana API. Do not modify Hibana core to add agent-specific APIs.
 
+If a suspected Hibana bug appears, retain a minimal reproduction and report the
+affected version and exact observed behavior. Check the remote current source
+before calling it a current bug. A core bug fix must pass Lean, Z3, Miri, and
+Rust tests, and its impact on the current hibana-quic must be checked with the
+fixed core actually selected. Keep unrelated/dirty working copies intact. Do
+not claim these gates from stale logs or an unpatched consumer build.
+
 Use `g::par` for independent work and `g::route` for alternatives. Connect
 explicit decision sites to the actual domain result through a resolver. Use
 `.roll()` for repeated work and revision cycles. Keep the repetition boundary
 and its exit visible in the global protocol and localside functions. Do not
 replace them with a stage enum, approval flags, or an application program counter.
 Do not add choices or repeated work that the task does not require.
+
+## Shell, WASI, and ChoreoFS boundary
+
+The model chooses its own shell commands, scripts, calculations, and private
+work. Do not prescribe a command recipe or use a small command allow-list as
+the coordination mechanism. Shell freedom is a requirement, not a claim that
+the current bounded guest has already met.
+
+Use the real `hibana-wasip1-runtime` and ChoreoFS. Do not substitute a native
+host shell, host filesystem, another Wasm engine, or a second virtual filesystem.
+ChoreoFS is the object interface to projected communication. It is not a second
+authorization engine. A pathname, fd fact, rights mask, directory listing, or
+successful open does not authorize a task effect.
+
+Put shared-service WASI requests and task dependencies in the global protocol.
+Keep the corresponding `Endpoint::send`, `recv`, `offer`, and branch operations
+visible in the localsides. The receiver must consume the projected request and
+any required materialization permission before applying the shared effect.
+Use ChoreoFS operation results to materialize the admitted object operation.
+Static object binding identifies the operation; parsing payloads does not infer
+a route or repair an out-of-order protocol.
+
+A generic `/tools/call` JSON service followed by a separate task validator is
+not the target architecture. Passing that integration does not qualify a direct
+ChoreoFS boundary. Do not hide this gap by renaming a helper or a file.
+
+Ordinary shell failures, malformed argument data, and rejected requests return
+an error to the model so that it can reconsider and continue. Represent any
+required shared request/rejection/reconsideration cycle with explicit routes,
+resolvers, and repetition. This does not add retries to an original task whose
+domain result is terminal. Never resume a faulted Endpoint, rebuild it to erase
+progress, or maintain a second expected-step/allowed-operation table.
+
+File contents, offsets, buffers, transport queues, and RPC correlation are data.
+They must not become permission or task progress. Use affine resources and
+receiver lifetimes where appropriate; do not disguise an approved/done flag as
+an enum, `Option`, callback, channel status, or another filesystem.
+
+Qualify the actual path from model shell command to WASI import, projected
+request, ChoreoFS materialization, and unchanged simulator effect. Test invalid
+arguments followed by valid work, early and duplicate effects, chunked I/O,
+error recovery, independent work, and the original resource constraints.
+Compilation, synthetic import tests, and previous generic-RPC episodes are not
+substitutes for that end-to-end evidence.
+
+Read `plan.md` before continuing this work. Keep its verified state, next action,
+and remaining gates current. Do not replace incomplete evidence with a success
+claim or count unaccepted ports as accepted full-task implementations.
 
 The unchanged upstream simulator is an external environment and scorer. Its
 resource and artifact state must not authorize Hibana endpoint transitions.
@@ -40,3 +112,6 @@ have been independently checked. Keep harness errors, protocol rejection, domain
 failure, timeout, deadlock, and incomplete work distinct.
 
 Use Hayato Ohhashi <o8@vmm.dev> for commits. Do not add AI coauthor trailers.
+
+Do not use development subagents. The separately recorded Luna xhigh benchmark
+participants are the authorized experimental subjects, not development workers.

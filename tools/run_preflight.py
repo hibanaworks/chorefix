@@ -126,7 +126,7 @@ async def run(task, run_id, scenario):
         snapshot.parent.mkdir(parents=True, exist_ok=True)
         snapshot.write_bytes(content)
     (output / "source-manifest.json").write_text(json.dumps(source_hashes, indent=2)+"\n")
-    binary = ROOT / "target/debug" / {"1":"codebase", "2":"writing", "8":"api", "9":"philosophers", "16":"cicd"}[task[:-1]]
+    binary = ROOT / "target/debug" / {"1":"codebase", "2":"writing", "6":"review", "8":"api", "9":"philosophers", "16":"cicd"}[task[:-1]]
     binary_content = binary.read_bytes()
     runtime_binary_sha256 = hashlib.sha256(binary_content).hexdigest()
     runtime_snapshot = output / "runtime"
@@ -176,6 +176,19 @@ in that order. Review is terminal even if it finds issues. Do not repeat work.
 Hibana endpoints coordinate both section loans. Perform actual calls with the
 supplied tools. Finish after the review response.
 """
+        elif task == "6E":
+            prompt = f"""You are {agent} in the original TraceFix task 6E.
+DEVELOPER_A implements user_authentication and merges dev_a_feature.
+DEVELOPER_B implements notification_feature and merges dev_b_feature.
+An implement_feature reply includes the actual reviewer feedback in
+coordination.code_review after the repository has been returned. Reconsider
+and implement again when it requests changes. Merge only after approval.
+REVIEWER calls code_review with pr_id user_authentication or
+notification_feature. Review both features until each is approved. A review
+waits for an actual submission. Do not issue more reviews after approval.
+Hibana carries the ready and feedback messages and repository loans.
+Use actual tools, perform only your role's work, and finish when it is done.
+"""
         elif task == "8E":
             prompt = f"""You are {agent} in the original TraceFix task 8E.
 DB_ADMIN calls migrate_schema(migration_name="add_new_tables").
@@ -207,7 +220,8 @@ infrastructure loans. A call may wait for a prerequisite. Use the actual tool.
             timeout=config["run_timeout_seconds"], tool_limit=config["participant_tool_call_limit"],
         )
         if not bridge.result.done():
-            await bridge.send({"type":"close_role", "id":0, "agent":agent})
+            event = "model_finished" if result["status"] == "completed" else "close_role"
+            await bridge.send({"type":event, "id":0, "agent":agent})
         return result
 
     participants = [asyncio.create_task(participant(agent)) for agent in metadata["agents"]]
@@ -257,7 +271,7 @@ infrastructure loans. A call may wait for a prerequisite. Use the actual tool.
 
 async def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--tasks", nargs="+", choices=["1E", "1M", "1H", "2E", "2M", "2H", "8E", "9E", "9M", "9H", "16E"], required=True)
+    parser.add_argument("--tasks", nargs="+", choices=["1E", "1M", "1H", "2E", "2M", "2H", "6E", "8E", "9E", "9M", "9H", "16E"], required=True)
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--scenario", type=int, choices=[0,1,2], default=0)
     args = parser.parse_args()

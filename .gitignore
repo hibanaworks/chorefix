@@ -11,3 +11,5 @@ __pycache__/
 *.key
 
 /guests/shell/target/
+/guests/bash/target/
+/vendor/rust-bash/
