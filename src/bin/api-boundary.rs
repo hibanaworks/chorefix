@@ -558,8 +558,10 @@ fn audit(path: &Path) -> Result<Value> {
     {
         return Err("incomplete API boundary evidence".into());
     }
+    let test_finished = done("run_integration_tests")?;
+    let early_opens = open_sent.values().filter(|i| **i < test_finished).count();
     Ok(
-        json!({"task":"8E","depth":depth,"kind":if fixture["model_run"]==true{"model_direct_wasi_protocol"}else{"deterministic_direct_wasi_boundary"},"model_calls":if fixture["model_run"]==true{Value::Null}else{json!(0)},"scored_benchmark":false,"status":"passed","participants":3,"domain_calls":3,"simulator_complete":score["complete"],"expected_terminal_test_failure":!passes,"carrier_frames":frames.len(),"result_receipts":2,"read_dependency_enforced":true,"early_result_opens":open_sent.len(),"complete_result_reads":complete_reads,"violations":0,"guest_exits":3,"original_test_delays":fixture["test_delays"]}),
+        json!({"task":"8E","depth":depth,"kind":if fixture["model_run"]==true{"model_direct_wasi_protocol"}else{"deterministic_direct_wasi_boundary"},"model_calls":if fixture["model_run"]==true{Value::Null}else{json!(0)},"scored_benchmark":false,"status":"passed","participants":3,"domain_calls":3,"simulator_complete":score["complete"],"expected_terminal_test_failure":!passes,"carrier_frames":frames.len(),"result_receipts":2,"read_dependency_enforced":true,"result_opens":open_sent.len(),"early_result_opens":early_opens,"complete_result_reads":complete_reads,"violations":0,"guest_exits":3,"original_test_delays":fixture["test_delays"]}),
     )
 }
 fn check_mutants(path: &Path, output: &Path) -> Result<Value> {

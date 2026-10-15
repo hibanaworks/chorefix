@@ -494,10 +494,14 @@ pub fn check_mutants(root: &Path, output: &Path, verifier: &Path) -> Result<Valu
             }
             "false_simulator_score" => {
                 let mut runtime = records(&case.join("events.jsonl"))?;
-                runtime
+                let score = runtime
                     .iter_mut()
                     .find(|r| r["direction"] == "simulator" && r["message"]["type"] == "score")
-                    .ok_or("score")?["message"]["complete"] = json!(false);
+                    .ok_or("score")?;
+                let complete = score["message"]["complete"]
+                    .as_bool()
+                    .ok_or("score outcome")?;
+                score["message"]["complete"] = json!(!complete);
                 fs::write(
                     case.join("events.jsonl"),
                     runtime.iter().map(|r| format!("{r}\n")).collect::<String>(),

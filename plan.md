@@ -863,3 +863,17 @@ reviewは元課題どおり終端で、余分なretryを加えない。続いて
   更新後Python43件と元資料/比較側のinventoryも成功。資格記録とfidelityへ追加し、
   古い実行ファイルを上書きしない新frozen directoryを使う。次に清潔なconsumerを
   commitして8Eの実Luna試行へ進む。採点0/2592、全要件受理0のまま。
+
+- 清潔なconsumer50ce492から8Eのdepth0/1/2を各1回、実Luna xhighの3人で実行。
+  3試行ともmodel turnが3人で重なり、全protocolが終了。domainは成功1/失敗2を保つ。
+  shell合計35回、domain合計9操作、inclusive tokens676,983。人工barrierなし。
+- 初回のmodel改変検査は、false_simulator_score生成器が既にfalseの結果へfalseを再代入し、
+  本当は未変更なのに「改変が通った」とassertした。結果を反転するよう修正し、
+  実験自体は再実行せず同じrawを再監査。各8、計24改変を拒否した。
+- 元qualified protocol checkerのearly_result_opensという出力名は実際には全open数だった。
+  時系列比較で早期openだけを数えるよう修正。保存済み実行の旧checker/binary/rawを保持し、
+  修正後checkerによる独立のtiming auditを追加する。3条件とも結果open2件中、test結果前は
+  1件だった。固定刺激の2件と混同しない。モデル/プロトコルの実行は変えていない。
+- 修正した外部監査toolのrunner4試験とstrict Clippy、API checkerのbuild/Clippyが成功。
+  次に実行時sourceと新監査sourceを分けて記録し、元raw、usage、prompt、全frameと
+  qualified buildを固定してデータを保存する。採点0/2592、全要件受理0は維持する。
