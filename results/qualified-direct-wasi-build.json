@@ -1,94 +1,122 @@
 {
-  "format_version": 1,
-  "kind": "build_qualification_for_external_experiment_runner",
-  "source_revision": "1876bfba80b37428d237e4fb7164a0544a12dbea",
-  "source_archive": {
-    "path": "results/validation/philosophers-direct-wasi-20261016/source.tar.gz",
-    "sha256": "512e1c803a68651dde36c5503be329e6b60d240552fd25c64f3826da3823ce2d"
-  },
-  "wash_sha256": "407e1fe263231022eb542a7d2a35e4d4705a58590f92b77bf21fe5f7c77258bc",
-  "checks": [
-    {
-      "path": "results/validation/philosophers-direct-wasi-20261016/rust-tests-002.log.gz",
-      "sha256": "cf63a2a6dd3bb299a52f6f40a085257c9a3eece56759758367e25b56853c3f11"
-    },
-    {
-      "path": "results/validation/philosophers-direct-wasi-20261016/clippy-002.log.gz",
-      "sha256": "189331996667274962c1c8bb09fceb2246d21e0090558b78c11ede36bf678e17"
-    },
-    {
-      "path": "results/validation/philosophers-direct-wasi-20261016/python-tests.log.gz",
-      "sha256": "a4f7c7f521c34e2bfd962d6d07d04225cddca72eb6915fb068d6c71a53432a88"
-    },
-    {
-      "path": "results/validation/philosophers-direct-wasi-20261016/inventory.json",
-      "sha256": "95a89538bff920b96c98003685f707d2fc6ba7f6fc4cd5d97aa99f0960814085"
-    },
-    {
-      "path": "results/validation/philosophers-direct-wasi-20261016/baseline-inventory.json",
-      "sha256": "0b41c7c0aa880819e3d75c534a7d4b20ee24a6bc76d833d13c13a897fb6468e1"
-    }
-  ],
   "cases": {
+    "1E": {
+      "audit": {
+        "path": "results/validation/codebase-direct-wasi-20261016/1E/audit.json",
+        "sha256": "b3fc2f8bb140428ff8b1eb9d64f6f51fabcbdbc56fe69a5f6b277f071a57c454"
+      },
+      "protocol_verifier_path": "output/qualified-direct-wasi-20261016-codebase/codebase-boundary",
+      "protocol_verifier_sha256": "db438c330d9d6469a03d9012cf8f2cba25119b8bf6c4990063789afff5987b32",
+      "runtime_path": "output/qualified-direct-wasi-20261016-codebase/codebase-wasi",
+      "runtime_sha256": "18201b369f79d89921ea37041f00b2ab37075596d6bcd4c9f1d491af2d3d0f26"
+    },
+    "1M": {
+      "audit": {
+        "path": "results/validation/codebase-direct-wasi-20261016/1M/audit.json",
+        "sha256": "c1ef5a4a85afda8c9298cf9f84a7a1cd0ab4ddaef71ca96bdc3fef132cb78fea"
+      },
+      "protocol_verifier_path": "output/qualified-direct-wasi-20261016-codebase/codebase-boundary",
+      "protocol_verifier_sha256": "db438c330d9d6469a03d9012cf8f2cba25119b8bf6c4990063789afff5987b32",
+      "runtime_path": "output/qualified-direct-wasi-20261016-codebase/codebase-wasi",
+      "runtime_sha256": "18201b369f79d89921ea37041f00b2ab37075596d6bcd4c9f1d491af2d3d0f26"
+    },
     "2E": {
       "audit": {
-        "path": "results/validation/writing-duplicate-binding-20261016/2E/audit.json",
-        "sha256": "606c2f4c1825b60a474bbe9cd9d0c6e1a5f1125413a328c4e14998aacc74c9e2"
+        "path": "results/validation/codebase-direct-wasi-20261016/2E/audit.json",
+        "sha256": "0d17cb7e98512bb3620eb63495d3fcbad0e40cdf4621dc97fbcdb3d853e20572"
       },
-      "runtime_path": "output/qualified-direct-wasi-20261016-v2/writing-wasi",
-      "runtime_sha256": "9e8794c292a5b98e26136a81a8eff2f4f1d2ea90453f3ecfda6ef2dfe76c1745",
-      "protocol_verifier_path": "output/qualified-direct-wasi-20261016-v2/writing-boundary",
-      "protocol_verifier_sha256": "f17496eb01f58d1e49428b9f8fdd267a96c1635061c28afb7aa3aa0a97eee6cf"
-    },
-    "2M": {
-      "audit": {
-        "path": "results/validation/writing-duplicate-binding-20261016/2M/audit.json",
-        "sha256": "c08b9b37b3f1c1dffb808b8f95f05f6774b81c07e6c10563e0c88a748973e172"
-      },
-      "runtime_path": "output/qualified-direct-wasi-20261016-v2/writing-wasi",
-      "runtime_sha256": "9e8794c292a5b98e26136a81a8eff2f4f1d2ea90453f3ecfda6ef2dfe76c1745",
-      "protocol_verifier_path": "output/qualified-direct-wasi-20261016-v2/writing-boundary",
-      "protocol_verifier_sha256": "f17496eb01f58d1e49428b9f8fdd267a96c1635061c28afb7aa3aa0a97eee6cf"
+      "protocol_verifier_path": "output/qualified-direct-wasi-20261016-codebase/writing-boundary",
+      "protocol_verifier_sha256": "5e197f1b09f36661f37bb6f2d54a826196072d63640518821733fa8df8d05be2",
+      "runtime_path": "output/qualified-direct-wasi-20261016-codebase/writing-wasi",
+      "runtime_sha256": "8e515eb29caaede53349b20ba8f9f3634c3baec40a854dd493b24c3ee9989d4b"
     },
     "2H": {
       "audit": {
-        "path": "results/validation/writing-duplicate-binding-20261016/2H/audit.json",
-        "sha256": "dad9c4f25fcc35c3999fd0873ec84877a0bd897a4288a8e4d99304fee844b812"
+        "path": "results/validation/codebase-direct-wasi-20261016/2H/audit.json",
+        "sha256": "65771e0af846ed5a54c52fcacae697d62b3edc371ae82086d9e2e23a90cdfa4c"
       },
-      "runtime_path": "output/qualified-direct-wasi-20261016-v2/writing-wasi",
-      "runtime_sha256": "9e8794c292a5b98e26136a81a8eff2f4f1d2ea90453f3ecfda6ef2dfe76c1745",
-      "protocol_verifier_path": "output/qualified-direct-wasi-20261016-v2/writing-boundary",
-      "protocol_verifier_sha256": "f17496eb01f58d1e49428b9f8fdd267a96c1635061c28afb7aa3aa0a97eee6cf"
+      "protocol_verifier_path": "output/qualified-direct-wasi-20261016-codebase/writing-boundary",
+      "protocol_verifier_sha256": "5e197f1b09f36661f37bb6f2d54a826196072d63640518821733fa8df8d05be2",
+      "runtime_path": "output/qualified-direct-wasi-20261016-codebase/writing-wasi",
+      "runtime_sha256": "8e515eb29caaede53349b20ba8f9f3634c3baec40a854dd493b24c3ee9989d4b"
+    },
+    "2M": {
+      "audit": {
+        "path": "results/validation/codebase-direct-wasi-20261016/2M/audit.json",
+        "sha256": "1237f12e7a53ad643736f7d19746e29e2535efa065ef796546595327cd6e8ec8"
+      },
+      "protocol_verifier_path": "output/qualified-direct-wasi-20261016-codebase/writing-boundary",
+      "protocol_verifier_sha256": "5e197f1b09f36661f37bb6f2d54a826196072d63640518821733fa8df8d05be2",
+      "runtime_path": "output/qualified-direct-wasi-20261016-codebase/writing-wasi",
+      "runtime_sha256": "8e515eb29caaede53349b20ba8f9f3634c3baec40a854dd493b24c3ee9989d4b"
     },
     "9E": {
       "audit": {
-        "path": "results/validation/philosophers-direct-wasi-20261016/9E/audit.json",
-        "sha256": "611fed776e469c6fc4e3536493a506152f173dbde48b2864f9ce61f95a9b114a"
+        "path": "results/validation/codebase-direct-wasi-20261016/9E/audit.json",
+        "sha256": "b77bd92d5e34b4a67d42eeccf1bfc1b32abf65d4b81022c3e8e688a8cea3e313"
       },
-      "runtime_path": "output/qualified-direct-wasi-20261016-v2/philosophers-wasi",
-      "runtime_sha256": "2edb74534547405a90d35bfb6f3c26016b17867187208d09aeae331e6a775255",
-      "protocol_verifier_path": "output/qualified-direct-wasi-20261016-v2/philosophers-boundary",
-      "protocol_verifier_sha256": "0165a73c0dccd2095ebefa3eaa55b020b4bec55257965b704834112797e146a5"
-    },
-    "9M": {
-      "audit": {
-        "path": "results/validation/philosophers-direct-wasi-20261016/9M/audit.json",
-        "sha256": "1d6ce68f4d6ad65ada45c74371206432bf1b6b38fd0547a055709ceddeed0c3b"
-      },
-      "runtime_path": "output/qualified-direct-wasi-20261016-v2/philosophers-wasi",
-      "runtime_sha256": "2edb74534547405a90d35bfb6f3c26016b17867187208d09aeae331e6a775255",
-      "protocol_verifier_path": "output/qualified-direct-wasi-20261016-v2/philosophers-boundary",
-      "protocol_verifier_sha256": "0165a73c0dccd2095ebefa3eaa55b020b4bec55257965b704834112797e146a5"
+      "protocol_verifier_path": "output/qualified-direct-wasi-20261016-codebase/philosophers-boundary",
+      "protocol_verifier_sha256": "cfdb9ecb0cb3c7ee03c46e4ada6303c3182e3dc5e457114f333e2efe55b5401a",
+      "runtime_path": "output/qualified-direct-wasi-20261016-codebase/philosophers-wasi",
+      "runtime_sha256": "6311d5575e56beba91629cf01f18c8138f9da49a29b3ce20a7b9470f2fb0802a"
     },
     "9H": {
       "audit": {
-        "path": "results/validation/philosophers-direct-wasi-20261016/9H/audit.json",
-        "sha256": "946ba13fb8485f6c44b429e3009a87af255c89d8f00f07610c05dd0728e30233"
+        "path": "results/validation/codebase-direct-wasi-20261016/9H/audit.json",
+        "sha256": "fb98ce9ac2370984669191a4352dce3c194fc004cb543b3a059fa11475b79928"
       },
-      "runtime_path": "output/qualified-direct-wasi-20261016-v2/philosophers-wasi",
-      "runtime_sha256": "2edb74534547405a90d35bfb6f3c26016b17867187208d09aeae331e6a775255",
-      "protocol_verifier_path": "output/qualified-direct-wasi-20261016-v2/philosophers-boundary",
-      "protocol_verifier_sha256": "0165a73c0dccd2095ebefa3eaa55b020b4bec55257965b704834112797e146a5"
+      "protocol_verifier_path": "output/qualified-direct-wasi-20261016-codebase/philosophers-boundary",
+      "protocol_verifier_sha256": "cfdb9ecb0cb3c7ee03c46e4ada6303c3182e3dc5e457114f333e2efe55b5401a",
+      "runtime_path": "output/qualified-direct-wasi-20261016-codebase/philosophers-wasi",
+      "runtime_sha256": "6311d5575e56beba91629cf01f18c8138f9da49a29b3ce20a7b9470f2fb0802a"
+    },
+    "9M": {
+      "audit": {
+        "path": "results/validation/codebase-direct-wasi-20261016/9M/audit.json",
+        "sha256": "7c934335ec4d0585cf8d6d86eee52e625ff901dead9ac795b42133b96d39ad81"
+      },
+      "protocol_verifier_path": "output/qualified-direct-wasi-20261016-codebase/philosophers-boundary",
+      "protocol_verifier_sha256": "cfdb9ecb0cb3c7ee03c46e4ada6303c3182e3dc5e457114f333e2efe55b5401a",
+      "runtime_path": "output/qualified-direct-wasi-20261016-codebase/philosophers-wasi",
+      "runtime_sha256": "6311d5575e56beba91629cf01f18c8138f9da49a29b3ce20a7b9470f2fb0802a"
     }
-  }
+  },
+  "checks": [
+    {
+      "path": "results/validation/codebase-direct-wasi-20261016/rust-tests.log.gz",
+      "sha256": "81f968de8b9897e17b685d54f430826a8ab43d08f0febe034c4dd96297a37fc8"
+    },
+    {
+      "path": "results/validation/codebase-direct-wasi-20261016/clippy.log.gz",
+      "sha256": "c1b9b2b5403941bd6c20e5416d5ca7d6ddd0478dfd16b9e94dce5910f5dfc5c6"
+    },
+    {
+      "path": "results/validation/codebase-direct-wasi-20261016/python-tests.log.gz",
+      "sha256": "2d77f0b2445d92ce0da6cbb32d22e61b86f97f1f8dfbd50e3d0e5613ac38e173"
+    },
+    {
+      "path": "results/validation/codebase-direct-wasi-20261016/inventory.json",
+      "sha256": "95a89538bff920b96c98003685f707d2fc6ba7f6fc4cd5d97aa99f0960814085"
+    },
+    {
+      "path": "results/validation/codebase-direct-wasi-20261016/baseline-inventory.json",
+      "sha256": "0b41c7c0aa880819e3d75c534a7d4b20ee24a6bc76d833d13c13a897fb6468e1"
+    },
+    {
+      "path": "results/validation/codebase-direct-wasi-20261016/runner-tests.log.gz",
+      "sha256": "8133ecd8489b267ebd0da610adb13212715d0d3849857bd657074f32691bce20"
+    },
+    {
+      "path": "results/validation/codebase-direct-wasi-20261016/runner-clippy.log.gz",
+      "sha256": "48a2dffa59dc0e77531f3356ec81bcfffada992f41014e8f2e0c4c12edecd812"
+    }
+  ],
+  "format_version": 1,
+  "kind": "build_qualification_for_external_experiment_runner",
+  "source_archive": {
+    "path": "results/validation/codebase-direct-wasi-20261016/source.tar.gz",
+    "sha256": "16d27ea469b548177ca251255234f56ba166689f93c97d74fb52a5cf8542d57b"
+  },
+  "source_revision": "80a46eb86aaa7600acb59bb5d897c9c603ca0c83",
+  "wash_sha256": "407e1fe263231022eb542a7d2a35e4d4705a58590f92b77bf21fe5f7c77258bc"
 }

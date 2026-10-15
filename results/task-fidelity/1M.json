@@ -1,0 +1,121 @@
+{
+  "accepted_for_scored_comparison": false,
+  "audit": {
+    "carrier_frames": 4035,
+    "domain_calls": 20,
+    "expected_terminal_test_failure": false,
+    "guest_exits": 5,
+    "kind": "deterministic_direct_wasi_boundary",
+    "max_disjoint_commits": 2,
+    "model_calls": 0,
+    "original_test_delays": {
+      "a_review_waits_for_b_write": false,
+      "a_test_waits_for_b_commit": true,
+      "constrained_tool": "commit_changes",
+      "first_effect_barrier": [
+        "DEVELOPER_A",
+        "DEVELOPER_C"
+      ]
+    },
+    "parallel_acquisition_observed": true,
+    "parallel_return_observed": true,
+    "participants": 5,
+    "scored_benchmark": false,
+    "simulator_complete": true,
+    "status": "passed",
+    "task": "1M",
+    "violations": 0
+  },
+  "interface_differences": [
+    "The owner fixes agent_id; feature strings must match the assigned feature",
+    "Module strings contain exactly the assigned pair; order and comma whitespace are unrestricted",
+    "Both independent acquisition and return requests are issued before either reply wait",
+    "The original 1E/1M terminal test semantics are retained; 1H is not included"
+  ],
+  "limits": [
+    "Deterministic qualification uses artificial first-commit barriers and a delayed test; model trials use no artificial barriers",
+    "No scored comparison or success-rate estimate"
+  ],
+  "model_calls": 0,
+  "original_rules": [
+    {
+      "classification": "problem_constraint",
+      "evidence": "The physical module Endpoint has two explicit affine visits; the audit rejects overlapping resource intervals",
+      "id": "R1",
+      "original_description": "AUTH_MODULE module requires exclusive access (mutex lock)"
+    },
+    {
+      "classification": "problem_constraint",
+      "evidence": "The physical module Endpoint has two explicit affine visits; the audit rejects overlapping resource intervals",
+      "id": "R2",
+      "original_description": "DATABASE_MODULE module requires exclusive access (mutex lock)"
+    },
+    {
+      "classification": "problem_constraint",
+      "evidence": "The physical module Endpoint has two explicit affine visits; the audit rejects overlapping resource intervals",
+      "id": "R3",
+      "original_description": "API_MODULE module requires exclusive access (mutex lock)"
+    },
+    {
+      "classification": "problem_constraint",
+      "evidence": "The physical module Endpoint has two explicit affine visits; the audit rejects overlapping resource intervals",
+      "id": "R4",
+      "original_description": "PAYMENT_MODULE module requires exclusive access (mutex lock)"
+    },
+    {
+      "classification": "problem_constraint",
+      "evidence": "The physical module Endpoint has two explicit affine visits; the audit rejects overlapping resource intervals",
+      "id": "R5",
+      "original_description": "NOTIFY_MODULE module requires exclusive access (mutex lock)"
+    },
+    {
+      "classification": "procedural_departure",
+      "evidence": "Independent module requests precede either grant, replacing sequential acquisition; both grants still precede commit",
+      "id": "RA1",
+      "original_description": "DEVELOPER_A acquires AUTH_MODULE and DATABASE_MODULE one at a time (sequential acquisition)"
+    },
+    {
+      "classification": "procedural_departure",
+      "evidence": "Independent module requests precede either grant, replacing sequential acquisition; both grants still precede commit",
+      "id": "RA2",
+      "original_description": "DEVELOPER_B acquires DATABASE_MODULE and API_MODULE one at a time (sequential acquisition)"
+    },
+    {
+      "classification": "procedural_departure",
+      "evidence": "Independent module requests precede either grant, replacing sequential acquisition; both grants still precede commit",
+      "id": "RA3",
+      "original_description": "DEVELOPER_C acquires API_MODULE and PAYMENT_MODULE one at a time (sequential acquisition)"
+    },
+    {
+      "classification": "procedural_departure",
+      "evidence": "Independent module requests precede either grant, replacing sequential acquisition; both grants still precede commit",
+      "id": "RA4",
+      "original_description": "DEVELOPER_D acquires PAYMENT_MODULE and NOTIFY_MODULE one at a time (sequential acquisition)"
+    },
+    {
+      "classification": "procedural_departure",
+      "evidence": "Independent module requests precede either grant, replacing sequential acquisition; both grants still precede commit",
+      "id": "RA5",
+      "original_description": "DEVELOPER_E acquires NOTIFY_MODULE and AUTH_MODULE one at a time (sequential acquisition)"
+    },
+    {
+      "classification": "problem_constraint",
+      "evidence": "Actual design and implementation complete before acquisition; returns finish before local tests",
+      "id": "O1",
+      "original_description": "Each developer designs locally before attempting to acquire module locks for commit"
+    },
+    {
+      "classification": "hazard_to_prevent",
+      "evidence": "The single global orders shared module handoffs; disjoint commits remain in par",
+      "id": "DL1",
+      "original_description": "Ring-shaped circular wait across 5 developers: each holds one module lock and waits for the next in the ring (DEVELOPER_A→AUTH_MODULE, DEVELOPER_B→DATABASE_MODULE, DEVELOPER_C→API_MODULE, DEVELOPER_D→PAYMENT_MODULE, DEVELOPER_E→NOTIFY_MODULE)"
+    }
+  ],
+  "remaining": [
+    "Qualify live Luna execution and complete the task acceptance and comparison interface review"
+  ],
+  "scored_benchmark": false,
+  "source_revision": "80a46eb86aaa7600acb59bb5d897c9c603ca0c83",
+  "stage": "direct_wasi_boundary_qualified",
+  "task": "1M"
+}

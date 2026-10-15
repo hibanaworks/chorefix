@@ -1,0 +1,26 @@
+{
+  "carrier_frames": 4035,
+  "domain_calls": 20,
+  "expected_terminal_test_failure": true,
+  "guest_exits": 5,
+  "kind": "deterministic_direct_wasi_boundary",
+  "max_disjoint_commits": 2,
+  "model_calls": 0,
+  "original_test_delays": {
+    "a_review_waits_for_b_write": false,
+    "a_test_waits_for_b_commit": true,
+    "constrained_tool": "commit_changes",
+    "first_effect_barrier": [
+      "DEVELOPER_A",
+      "DEVELOPER_C"
+    ]
+  },
+  "parallel_acquisition_observed": true,
+  "parallel_return_observed": true,
+  "participants": 5,
+  "scored_benchmark": false,
+  "simulator_complete": false,
+  "status": "passed",
+  "task": "1M",
+  "violations": 0
+}
