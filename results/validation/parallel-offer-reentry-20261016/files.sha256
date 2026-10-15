@@ -1,4 +1,4 @@
-7ffad74c2517b930bd68ee9fbd158786002f2632b96f6828bfce4fdc11b2fe6c  results/validation/parallel-offer-reentry-20261016/README.md
+3733460d850cd85713168345a580176a736fc45c1b9abc0703c799b35c52fa82  results/validation/parallel-offer-reentry-20261016/README.md
 227388551da045a549f9142ff6df567bb96086457465f8428f4d926b20813e2e  results/validation/parallel-offer-reentry-20261016/core-clippy-last.log.gz
 b2b2bff46b8b8cbf98d2cf817169974ada2e8e53e7705203587f0e9c5585462e  results/validation/parallel-offer-reentry-20261016/core-commit.txt
 b2317e603e1963b25a8968c489ed8e2f468164dd4a153d3e38fcd950aae1212e  results/validation/parallel-offer-reentry-20261016/core-continuation-proof-final.log.gz
@@ -30,7 +30,10 @@ ec47156d59de46ce77388dae5c83a8aa7d8d221cc95c2c08d0e4f1b7c0c98bca  results/valida
 7ae4685c4ae92436999c52171911f2529f74ad12acf49f1215367697b1794e78  results/validation/parallel-offer-reentry-20261016/native-ownership-probe.rs
 f329e2d803b51a40ca7241f61db4048a986196814a0da0b63eb4295d2c398c3c  results/validation/parallel-offer-reentry-20261016/original-failure.log.gz
 494293896b49818f43d18e9ea0432617c6ea50f9293975eaec07f618f576a5f8  results/validation/parallel-offer-reentry-20261016/quic-docs.log.gz
+64f4e0d5248d0876dcb72ead02af3d3cfbe26c3f00257bebdc6e7a0da00c5977  results/validation/parallel-offer-reentry-20261016/quic-first-matrix.json
 c912f605d20c396bd371fd8df06237977cecb1f1d42f703b80c04bb0a0a8d9cc  results/validation/parallel-offer-reentry-20261016/quic-hq-docs.log.gz
 00e1fc28aa362b70ada616fc8c694b363ad5ca255242834b9c191e26b593d1f5  results/validation/parallel-offer-reentry-20261016/quic-hq-tests.log.gz
+f4a7f6a4415c483a0d6a80defca817d5e03fbdf079b7db39d48025b8efb5b250  results/validation/parallel-offer-reentry-20261016/quic-rebinding-analyzer-errors.json
+f4a7f6a4415c483a0d6a80defca817d5e03fbdf079b7db39d48025b8efb5b250  results/validation/parallel-offer-reentry-20261016/quic-recovery-analyzer-errors.json
 a3115313ec9caf009ac284fc8772c21cc912f971f62924a40a6d1c28d606b895  results/validation/parallel-offer-reentry-20261016/quic-tests.log.gz
 98b99c36981655ae086d878b2d489451f614fd8e5ae7185a4520ae72cb96be5a  results/validation/parallel-offer-reentry-20261016/remote-main-failure.log.gz

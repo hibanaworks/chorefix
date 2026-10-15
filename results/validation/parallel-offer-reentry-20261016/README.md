@@ -67,3 +67,11 @@ This prototype is rejected for full-task/scored use until its global expresses
 exclusive grants while preserving independent concurrency. It has not been
 ported to the actual WASI model path. No scored run or full-task acceptance is
 added by this evidence.
+
+The first patched-core QUIC CI matrix completed with 37 successful cells,
+one failed `quiche/client/handshakeloss`, and six unexecuted cells. Both aborted
+NEQO phases record `TSharkCrashException`, analyzer exit 255. The successful
+diagnostic-key decrypt is not itself a verdict about candidate correctness.
+The same source is being retested only for the failed/unexecuted cells in runs
+38795745657, 38795750568, and 38795754678. These subset runs are distinct from
+a single-run 44-cell qualification.

@@ -961,3 +961,19 @@ reviewは元課題どおり終端で、余分なretryを加えない。続いて
 - 開発途中の1H sourceとcounterexampleはexperiment/parallel-resource-ownershipへ保存する。
   mainの完了実装として扱わず、次のglobal修正の出発点にする。独立3並行を捨てる解決や
   localsideだけで排他を守る解決は受理しない。probeは現Git pinでも両競合commitを許す。
+
+- experiment/parallel-resource-ownershipのadd7ad1をpush済み。mainはc70615fのまま。
+  native案の未受理とglobalのcounterexampleを明記して保存した。新モデル試行は開始しない。
+- QUIC初回matrix38792896985は37成功・1失敗・6未実行。失敗はquiche/clientの
+  handshakeloss。未実行はneqo/clientのresumption,transfercorruption,transferlossと、
+  neqo/serverのrebind-addr,rebind-port,v2。両停止phaseのconsole末尾に
+  pyshark.capture.capture.TSharkCrashException（analyzer exit255）が記録されている。
+  simulatorのSIGTERMに伴うNS_FATALは終了処理の記録なので原因と断定しない。
+- neqo-recoveryの失敗CMSは新しいprivate keyで復号できた。原tar/PCAP/keylogはoutput内に
+  留め、公開記録にはsanitized matrixと解析器の例外分類だけを保存。quiche-loss-earlyの
+  artifactはsession26125でdownload継続中。受信後、handshakeloss/clientのログを復号する。
+- source9951c60/core0a296dfを変更せず、成功37cellを除いた7cellだけをCI再試験へ出した。
+  38795745657=handshakeloss/client、38795750568=resumption,transfercorruption,
+  transferloss/client、38795754678=rebind-addr,rebind-port,v2/server。
+  workflowのconcurrencyにより後続は待機中。これらのsubset結果を初回の同一run44合格と
+  混同せず記録する。これ以上の再実行は結果/原因を見てから判断する。
