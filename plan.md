@@ -987,3 +987,8 @@ reviewは元課題どおり終端で、余分なretryを加えない。続いて
   output/interop-parallel-offer-38792896985/quiche-loss-early/decrypted/へ置いた。
   serverの元log名はserver/log.txt（server/server.logではない）。TLS keylogは未展開。
   公開記録は元sanitized JSONのincomplete terminalだけを抽出したものとする。
+
+- 追加確認: workflow共通concurrencyで後続を複数投入したため、38795750568はcancelledに
+  なった。38795745657は実行中、38795754678はpending。NEQO/clientの未実行3cellは
+  再試験済みとは数えない。38795754678が開始してpending枠が空いてから、その3cellだけを
+  再投入する。新たな投入で既存pendingを置換しない。source9951c60/core0a296dfは維持。
