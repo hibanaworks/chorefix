@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Unscored 16E Luna run through wash, projected service requests, and ChoreoFS."""
+"""Unscored Luna runs through wash, projected service requests, and ChoreoFS."""
 
 import argparse
 import asyncio
@@ -17,24 +17,33 @@ sys.path.insert(0, str(ROOT))
 
 from benchmark.tools import load_tools
 from src.imp.direct_wasi import DirectWasi
-from src.imp.luna import run_participant
+from src.imp.luna import VERIFIED_CLI, run_participant
 from inventory import inventory
 
 
-async def run(run_id, scenario):
+async def run(run_id, scenario, task):
     config = json.loads((ROOT / "experiment.json").read_text())
-    inputs = ROOT / "vendor/tracefix/benchmark/descriptions/16E"
+    inputs = ROOT / "vendor/tracefix/benchmark/descriptions" / task
     metadata = json.loads((inputs / "metadata.json").read_text())
-    module = importlib.import_module("benchmark.environments.16E.sim")
+    module = importlib.import_module(f"benchmark.environments.{task}.sim")
     upstream = json.loads((ROOT / "benchmark/upstream-manifest.json").read_text())
     if inventory(ROOT / "vendor/tracefix") != upstream:
         raise RuntimeError("upstream inputs differ from the pinned source manifest")
-    sim = module.SimpleCICDSim()
+    if task == "16E":
+        sim = module.SimpleCICDSim()
+        runtime_name = "cicd-wasi"
+        step_names = ("_BUILD_STEPS", "_TEST_STEPS", "_DEPLOY_STEPS")
+        scenario_note = "Original 16E disables injected domain failures at every depth."
+    else:
+        sim = module.SharedUtilityFileSim()
+        runtime_name = "review-wasi"
+        step_names = ("_IMPLEMENT_STEPS", "_CODE_REVIEW_STEPS", "_MERGE_STEPS")
+        scenario_note = "The original reviewer fails its first depth calls, then approves. Review order is chosen by the participant."
     sim._seed = config["python_hash_seed"]
     sim._delay_multiplier = config["domain_tool_delay_multiplier"]
     sim.set_scenario_depth(scenario)
-    registry = load_tools("16E", sim=sim)
-    output = ROOT / "output/direct-wasi-preflight" / run_id / "16E"
+    registry = load_tools(task, sim=sim)
+    output = ROOT / "output/direct-wasi-preflight" / run_id / task
     output.mkdir(parents=True, exist_ok=False)
 
     # Freeze source and inputs before starting any participant. These are
@@ -45,6 +54,7 @@ async def run(run_id, scenario):
     source_files += [ROOT / name for name in (
         "Cargo.toml", "Cargo.lock", "experiment.json", "requirements.lock", "AGENTS.md", "plan.md",
         "tools/run_direct_wasi_preflight.py", "tools/audit_direct_wasi.py",
+        "tools/audit_review_preflight.py", "tools/audit_model_evidence.py",
         "tools/build_shell.sh", "vendor/hibana-wash/Cargo.toml",
         "vendor/hibana-wash/Cargo.lock", "vendor/hibana-wash/scripts/build.sh",
         "benchmark/upstream-manifest.json", "tools/inventory.py",
@@ -66,9 +76,16 @@ async def run(run_id, scenario):
     # TraceFix is an extracted archive, not a nested Git checkout. A git query
     # there would walk up to the consumer repository and return its revision.
     versions["tracefix"] = upstream["upstream_revision"]
+    versions["compiler"] = subprocess.check_output(["rustc", "+1.95.0", "-Vv"], text=True).strip()
+    versions["model_client"] = subprocess.check_output([VERIFIED_CLI, "--version"], text=True).strip()
+    with Path(VERIFIED_CLI).open("rb") as binary:
+        versions["model_client_sha256"] = hashlib.file_digest(binary, "sha256").hexdigest()
+    (output / "dependency-tree.txt").write_text(subprocess.check_output(
+        ["cargo", "+1.95.0", "tree", "--locked", "-i", "hibana"], cwd=ROOT, text=True,
+    ))
     frozen = {}
     for name, source in (
-        ("runtime", ROOT / "target/debug/cicd-wasi"),
+        ("runtime", ROOT / "target/debug" / runtime_name),
         ("wash.wasm", ROOT / "vendor/hibana-wash/target/wasm32-wasip1/release/hibana-wash.wasm"),
     ):
         content = source.read_bytes()
@@ -89,10 +106,12 @@ async def run(run_id, scenario):
         task_data = {
             "participant": agent,
             "resources": metadata["agent_resources"][agent],
-            "build_steps": [dataclasses.asdict(step) for step in module._BUILD_STEPS],
-            "test_steps": [dataclasses.asdict(step) for step in module._TEST_STEPS],
-            "deploy_steps": [dataclasses.asdict(step) for step in module._DEPLOY_STEPS],
+            **{name.removeprefix("_").lower(): [dataclasses.asdict(step)
+               for step in getattr(module, name)] for name in step_names},
         }
+        objects = [f"/service/{schema['name']}" for schema in schemas]
+        if task == "6E" and agent == "REVIEWER":
+            objects = [f"/service/code_review/{step.target}" for step in module._CODE_REVIEW_STEPS]
         prompt = f"""You are {agent}. Carry out your work in the original task below.
 {(inputs / 'description.md').read_text()}
 
@@ -109,9 +128,10 @@ There are eight private file slots of 8192 bytes each. A script can contain up
 to 4096 UTF-8 bytes. Each guest starts at 64 KiB and can request memory growth
 through its projected protocol, up to 1 MiB of supplied backing.
 
-Each domain operation above has a writable object /service/NAME, where NAME
-is its schema name. Write its JSON argument object and close it to request the
-operation. Read /service/result for the actual response. Shell redirection
+Your writable domain objects: {json.dumps(objects)}
+Write the matching operation's JSON argument object and close it to request the
+operation. Its target must match this task's input and the selected object.
+Read /service/result for the actual response. Shell redirection
 closes its output after writing. These objects are not native executables.
 Resource loans, notifications and dependencies are carried by the projected
 protocol. An operation can wait for a dependency without blocking other guests.
@@ -169,8 +189,8 @@ Do not call shell after that reply. Leaving before doing the work fails the run.
                 if not future.cancelled() and future.exception() is None]
     result = {
         "kind": "direct_wasi_integration_preflight", "scored_benchmark": False,
-        "task": "16E", "scenario_depth": scenario,
-        "scenario_note": "Original 16E disables injected domain failures at every depth.",
+        "task": task, "scenario_depth": scenario,
+        "scenario_note": scenario_note,
         "protocol": protocol, "error": error,
         "simulator_complete": sim.is_complete(), "simulator_progress": sim.progress,
         "simulator_violations": [dataclasses.asdict(value) for value in sim.violations],
@@ -192,8 +212,9 @@ async def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--scenario", type=int, choices=[0, 1, 2], default=0)
+    parser.add_argument("--task", choices=["6E", "16E"], default="16E")
     args = parser.parse_args()
-    await run(args.run_id, args.scenario)
+    await run(args.run_id, args.scenario, args.task)
 
 
 if __name__ == "__main__":

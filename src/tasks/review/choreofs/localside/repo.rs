@@ -39,7 +39,19 @@ pub async fn run<D: Domain>(
             }
             114 => {
                 let request = branch.recv::<CommitImplementA>().await?;
-                implement_a.record(a_implementation.arguments(request.0, "feature_name"));
+                implement_a.record(
+                    a_implementation
+                        .arguments(request.0, "feature_name")
+                        .and_then(|value| {
+                            if value["feature_name"] == FEATURE_A {
+                                Ok(value)
+                            } else {
+                                Err(ShellError::message(
+                                    "operation target differs from this service",
+                                ))
+                            }
+                        }),
+                );
             }
             115 => {
                 branch.recv::<MaterializeImplementA>().await?;
@@ -81,7 +93,15 @@ pub async fn run<D: Domain>(
             }
             134 => {
                 let request = branch.recv::<CommitMergeA>().await?;
-                merge_a.record(a_merge.arguments(request.0, "branch"));
+                merge_a.record(a_merge.arguments(request.0, "branch").and_then(|value| {
+                    if value["branch"] == MERGE_BRANCH_A {
+                        Ok(value)
+                    } else {
+                        Err(ShellError::message(
+                            "operation target differs from this service",
+                        ))
+                    }
+                }));
             }
             135 => {
                 branch.recv::<MaterializeMergeA>().await?;
@@ -121,7 +141,19 @@ pub async fn run<D: Domain>(
             }
             154 => {
                 let request = branch.recv::<CommitImplementB>().await?;
-                implement_b.record(b_implementation.arguments(request.0, "feature_name"));
+                implement_b.record(
+                    b_implementation
+                        .arguments(request.0, "feature_name")
+                        .and_then(|value| {
+                            if value["feature_name"] == FEATURE_B {
+                                Ok(value)
+                            } else {
+                                Err(ShellError::message(
+                                    "operation target differs from this service",
+                                ))
+                            }
+                        }),
+                );
             }
             155 => {
                 branch.recv::<MaterializeImplementB>().await?;
@@ -163,7 +195,15 @@ pub async fn run<D: Domain>(
             }
             174 => {
                 let request = branch.recv::<CommitMergeB>().await?;
-                merge_b.record(b_merge.arguments(request.0, "branch"));
+                merge_b.record(b_merge.arguments(request.0, "branch").and_then(|value| {
+                    if value["branch"] == MERGE_BRANCH_B {
+                        Ok(value)
+                    } else {
+                        Err(ShellError::message(
+                            "operation target differs from this service",
+                        ))
+                    }
+                }));
             }
             175 => {
                 branch.recv::<MaterializeMergeB>().await?;

@@ -76,8 +76,9 @@ async def audit_case(directory, binary):
                 "original simulator replay differs")
         if request["tool"] == "code_review":
             reviews[request["arguments"]["pr_id"]].append(recorded["success"])
-    require(reviews["user_authentication"] == [False] * case["depth"] + [True], "wrong revision history")
-    require(reviews["notification_feature"] == [True], "independent feature changed")
+    first = case.get("review_first", "user_authentication")
+    for feature, history in reviews.items():
+        require(history == [False] * (case["depth"] if feature == first else 0) + [True], "wrong revision history")
     require(sim.is_complete() and not sim.violations and all(sim.progress["merges"].values()), "original task incomplete or violated")
     return {**case, "status": "passed", "domain_operations": len(starts), "accepted_frames": len(frames), "observations": len(events), "original_simulator_replay": "passed", "resource_intervals": "no overlap"}
 
@@ -88,9 +89,11 @@ async def main():
     parser.add_argument("--binary", type=Path, required=True)
     args = parser.parse_args()
     cases = sorted(path for path in args.directory.iterdir() if path.is_dir() and not path.is_symlink() and (path / "case.json").is_file())
-    require(len(cases) == 3, "expected all three boundary conditions")
+    require(len(cases) in (3, 6), "expected all boundary conditions")
     results = [await audit_case(path, args.binary) for path in cases]
-    require(sorted(case["depth"] for case in results) == [0, 1, 2], "missing boundary condition")
+    orders = {case.get("review_first", "user_authentication") for case in results}
+    for order in orders:
+        require(sorted(case["depth"] for case in results if case.get("review_first", "user_authentication") == order) == [0, 1, 2], "missing boundary condition")
     print(json.dumps({"status": "passed", "kind": "deterministic_boundary_tests", "scored_benchmark": False, "model_calls": 0, "cases": results}, indent=2))
 
 

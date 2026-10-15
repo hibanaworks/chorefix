@@ -1,0 +1,23 @@
+{
+  "kind": "deterministic_boundary_and_model_auditor_validation",
+  "scored_benchmark": false,
+  "new_model_calls": 0,
+  "core": "c2001ec06944d7f3b299e16b5b3efb5b0ba0366a",
+  "binding_regression": "wrong target reached original simulator before repair; rejected through existing resolver route after repair",
+  "boundary_cases": 6,
+  "review_orders": [
+    "A first",
+    "B first"
+  ],
+  "scenario_depths": [
+    0,
+    1,
+    2
+  ],
+  "rust_passed": 26,
+  "python_passed": 43,
+  "core_changes": false,
+  "comparison_code_changed": false,
+  "environment_failure": "first full Rust/Python attempt failed with ENOSPC; rebuildable caches removed, successful fresh run retained",
+  "next": "real Luna xhigh 6E trials and independent audit; remaining 48-task ports and 2592 comparison runs unfinished"
+}

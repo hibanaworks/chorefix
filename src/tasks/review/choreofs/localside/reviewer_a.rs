@@ -41,7 +41,15 @@ pub async fn run<D: Domain>(
                 }
                 7 => {
                     let request = branch.recv::<Commit>().await?;
-                    arguments.record(file.arguments(request.0, "pr_id"));
+                    arguments.record(file.arguments(request.0, "pr_id").and_then(|value| {
+                        if value["pr_id"] == FEATURE_A {
+                            Ok(value)
+                        } else {
+                            Err(ShellError::message(
+                                "review target differs from this service",
+                            ))
+                        }
+                    }));
                     let decision = endpoint
                         .offer()
                         .await

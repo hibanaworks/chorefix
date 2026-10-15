@@ -99,6 +99,13 @@ Use ChoreoFS operation results to materialize the admitted object operation.
 Static object binding identifies the operation; parsing payloads does not infer
 a route or repair an out-of-order protocol.
 
+The target in an operation's arguments must agree with the projected service
+and domain object. Validate that correspondence before materialization and feed
+the actual validation result to an explicit resolver/rejection route. A success
+for another object must not grant this branch's permission. This is payload
+validation, not another task-progress authority. Preserve and report differences
+between this interface and the unchanged baseline's argument matching.
+
 The WASI-driving role itself must send each shared-operation request through
 its projected Endpoint. The global must connect that request to the service
 owner's receive, the admitted operation, and the reply to the WASI role:

@@ -21,7 +21,8 @@ def response(reply):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("depth", [0, 1, 2])
-async def test_real_shell_revision_and_independent_review(tmp_path, depth):
+@pytest.mark.parametrize("review_first", ["user_authentication", "notification_feature"])
+async def test_real_shell_revision_and_independent_review(tmp_path, depth, review_first):
     module = importlib.import_module("benchmark.environments.6E.sim")
     sim = module.SharedUtilityFileSim()
     sim._seed = 0
@@ -49,7 +50,8 @@ async def test_real_shell_revision_and_independent_review(tmp_path, depth):
     guest = ROOT / "vendor/hibana-wash/target/wasm32-wasip1/release/hibana-wash.wasm"
     # Evidence only. These observations never authorize an endpoint operation.
     (tmp_path / "case.json").write_text(json.dumps({
-        "task": "6E", "depth": depth, "kind": "deterministic_boundary_test",
+        "task": "6E", "depth": depth, "review_first": review_first,
+        "kind": "deterministic_boundary_test",
         "model_calls": 0, "scored_benchmark": False,
         "runtime_binary_sha256": hashlib.sha256(binary.read_bytes()).hexdigest(),
         "guest_wasm_sha256": hashlib.sha256(guest.read_bytes()).hexdigest(),
@@ -67,6 +69,11 @@ async def test_real_shell_revision_and_independent_review(tmp_path, depth):
         assert "wash:" in early["stdout"]
         await runtime.command(agent, "echo '{}' > /service/implement_feature")
         assert response(await runtime.command(agent, "cat /service/result"))["status"] == "invalid_arguments"
+        other_feature = "notification_feature" if agent == "DEVELOPER_A" else "user_authentication"
+        wrong = await runtime.command(agent,
+            f"echo '{{\"feature_name\":\"{other_feature}\"}}' > /service/implement_feature; cat /service/result")
+        assert response(wrong)["status"] == "invalid_arguments"
+        assert not any(event.tool == "implement_feature" and event.agent == agent for event in sim.events)
         received = []
         while True:
             result = response(await runtime.command(agent,
@@ -79,13 +86,24 @@ async def test_real_shell_revision_and_independent_review(tmp_path, depth):
             assert "wash:" in denied["stdout"]
             assert not any(event.tool == "merge_code" and event.agent == agent for event in sim.events)
         feedback[agent] = received
+        other_branch = "dev_b_feature" if agent == "DEVELOPER_A" else "dev_a_feature"
+        wrong = await runtime.command(agent,
+            f"echo '{{\"branch\":\"{other_branch}\"}}' > /service/merge_code; cat /service/result")
+        assert response(wrong)["status"] == "invalid_arguments"
+        assert not any(event.tool == "merge_code" and event.agent == agent for event in sim.events)
         result = response(await runtime.command(agent,
             f"echo '{{\"branch\":\"{branch}\"}}' > /service/merge_code; cat /service/result"))
         assert result["success"] is True
         await runtime.command(agent, "exit 0")
 
     async def reviewer():
-        for feature in ("user_authentication", "notification_feature"):
+        for feature in (review_first, "notification_feature" if review_first == "user_authentication" else "user_authentication"):
+            other_feature = "notification_feature" if feature == "user_authentication" else "user_authentication"
+            count = len(sim.events)
+            wrong = await runtime.command("REVIEWER",
+                f"echo '{{\"pr_id\":\"{other_feature}\"}}' > /service/code_review/{feature}; cat /service/result")
+            assert response(wrong)["status"] == "invalid_arguments"
+            assert not any(event.tool == "code_review" and event.args["target"] == other_feature for event in sim.events[count:])
             while True:
                 result = response(await runtime.command("REVIEWER",
                     f"echo '{{\"pr_id\":\"{feature}\"}}' > /service/code_review/{feature}; cat /service/result"))
@@ -103,8 +121,8 @@ async def test_real_shell_revision_and_independent_review(tmp_path, depth):
         await runtime.reader
         assert await runtime.process.wait() == 0
         assert sim.is_complete() and not sim.violations
-        assert [value["success"] for value in feedback["DEVELOPER_A"]] == [False] * depth + [True]
-        assert [value["success"] for value in feedback["DEVELOPER_B"]] == [True]
+        assert [value["success"] for value in feedback["DEVELOPER_A"]] == [False] * (depth if review_first == "user_authentication" else 0) + [True]
+        assert [value["success"] for value in feedback["DEVELOPER_B"]] == [False] * (depth if review_first == "notification_feature" else 0) + [True]
         assert len(sim.events) == 6 + 2 * depth
         events = [json.loads(line) for line in (tmp_path / "runtime/events.jsonl").read_text().splitlines()]
         active = set()

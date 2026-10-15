@@ -484,3 +484,27 @@ WASIの値とmessageの変換はlocalsideで明示し、進行フラグや第二
   新しい外部interopはrun38735739939。結果は未確定で、本体CIと合わせて成果物を確認する。
   ChoreoFixは9877301で6E境界と証拠をmainへpush済み。Rust26/Python33/Clippy/fmt/
   原課題inventoryが成功。本体mainのmerge/registry公開と採点比較は未実施。
+
+## 2026-10-15: 6Eの対象bindingと実モデル経路
+
+- 実モデル試行前の検査で、6EのA向けサービスへBの引数を渡しても実行できる不足を発見。
+  これは本体の順序検査の問題ではなく、サービスとdomain対象の対応を検証していなかった。
+  wrong-target-before-001で、誤ったreviewが元simulatorまで届くことを保存した。
+- globalに2つのfeature/merge branchのdomain identityを明記し、service ownerがclose時に
+  そのidentityとの一致を検査する。実際の検証結果を既存resolverに渡し、既存routeの
+  invalid_argumentsへ返す。別の権限表や手順フラグは追加しない。正しい値で再提出可能。
+  比較側や元simulatorのfuzzy matchingは変更しない。このbindingによる入力制約は
+  Hibana側インターフェースの条件として実験に記録し、API差がないとは主張しない。
+- A先行/B先行の両方で差し戻し0/1/2を試す6条件が成功。モデルにレビュー順を指定せず、
+  拒否された対象が実効果にならないことも確認した。全要件受理と採点済み比較は引き続き0。
+- run_direct_wasi_preflight.pyに--task 6Eを追加。原課題description、元schemas、元の
+  static step dataを渡し、自由なshellと操作対象のobjectだけを説明する。
+  command recipe、Pythonの許可管理、シミュレーター状態からの手順判断は追加しない。
+- 共通モデル監査は要求/実応答のLuna xhigh、raw thread/turn記録、shellの送受信、
+  inclusive token数を検査する。欠落/置換/失敗turn/重複RPC/不正集計/別promptを拒否する。
+  保存済みの実Luna16E試行は新監査でも同じ集計となった。新6E監査は元simulatorの
+  replay、共有資源区間、実close→effectの経路、実レビュー結果がdeveloperへ戻った
+  時系列と内容、正しい対象の両mergeを検査する。
+- 全体検証の初回はローカル容量不足で失敗。診断用と作業用の再生成可能なincremental
+  cacheを整理し、ソース/実験ログ/実行binaryは残した。約6GiBの空きを確保した。
+  再試験はCARGO_INCREMENTAL=0、CARGO_BUILD_JOBS=2。環境失敗をコード成功へ読み替えない。

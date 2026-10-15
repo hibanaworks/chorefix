@@ -17,6 +17,11 @@ pub const REPO: u8 = 7;
 pub const A_IO: u8 = 8;
 pub const B_IO: u8 = 9;
 pub const REVIEW_IO: u8 = 10;
+// Domain identities for the two projected feature branches.
+pub const FEATURE_A: &str = "user_authentication";
+pub const FEATURE_B: &str = "notification_feature";
+pub const MERGE_BRANCH_A: &str = "dev_a_feature";
+pub const MERGE_BRANCH_B: &str = "dev_b_feature";
 pub const SERVICE_FD: u8 = 4;
 pub const SERVICE_PREFIX: &[u8] = b"service/";
 pub const RESULT_PATH: &[u8] = b"service/result";
