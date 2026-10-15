@@ -7,6 +7,7 @@ import hashlib
 import importlib
 import json
 import math
+import re
 import sys
 from pathlib import Path
 
@@ -28,6 +29,15 @@ async def audit(directory):
     metadata = json.loads((directory / "source/vendor/tracefix/benchmark/descriptions/6E/metadata.json").read_text())
     config = json.loads((directory / "source/experiment.json").read_text())
     manifest = result["source_manifest"]
+    role_source = (directory / "source/src/tasks/review/choreofs/global.rs").read_text()
+    roles = {name:int(value) for name, value in re.findall(r"^pub const (\w+): u8 = (\d+);", role_source, re.MULTILINE)}
+    if "REVIEW_A_WASI" in roles:
+        reviewer_callers = (roles["REVIEW_A_WASI"], roles["REVIEW_B_WASI"])
+    else:
+        # Historical captures used one guest role for both services. Audit
+        # their actual frozen graph, not the current graph's role assignment.
+        assert "REVIEW_B_WASI" not in roles
+        reviewer_callers = (roles["REVIEW_WASI"], roles["REVIEW_WASI"])
     upstream = json.loads((directory / "source/benchmark/upstream-manifest.json").read_text())
     # The replay below imports the original local library. Its entire saved
     # simulator inventory must still match before it can supply evidence.
@@ -107,7 +117,7 @@ async def audit(directory):
         if request["agent"] == "REVIEWER":
             target = request["arguments"]["pr_id"]
             owner, fd = (5, 4) if target == "user_authentication" else (6, 16)
-            caller = 2
+            caller = reviewer_callers[0 if target == "user_authentication" else 1]
         else:
             owner, fd = 7, 4
             caller = 3 if request["agent"] == "DEVELOPER_A" else 4
@@ -131,7 +141,9 @@ async def audit(directory):
         assert {key: value for key, value in recorded.items() if key != "timestamp"} == {key: value for key, value in replayed.items() if key != "timestamp"}
     reviews = [request for _, request in starts if request["tool"] == "code_review"]
     assert [responses[request["id"]]["success"] for request in reviews] == [False] * result["scenario_depth"] + [True, True]
+    notifications = []
     for agent, feature, branch, local, vm in [("DEVELOPER_A", "user_authentication", "dev_a_feature", 3, 0), ("DEVELOPER_B", "notification_feature", "dev_b_feature", 4, 1)]:
+        reviewer = local + 2
         implementations = [(i, call) for i, call in starts if call["agent"] == agent and call["tool"] == "implement_feature"]
         inspected = [(i, call) for i, call in starts if call["tool"] == "code_review" and call["arguments"]["pr_id"] == feature]
         merge, = [(i, call) for i, call in starts if call["agent"] == agent and call["tool"] == "merge_code"]
@@ -148,6 +160,20 @@ async def audit(directory):
             assert implementation["arguments"] == {"feature_name":feature}
             assert ends[implementation["id"]] < review_start < ends[review["id"]] < feedback_index
             assert value["coordination"] == {"code_review":responses[review["id"]]}
+            ready_index, ready = [(i, frame) for i, frame in observations
+                                  if ends[implementation["id"]] < i < review_start
+                                  and frame["action"] == "receive"
+                                  and (frame["source"], frame["target"], frame["payload"]) == (local, reviewer, [])][-1]
+            delivered_index, delivered = [(i, frame) for i, frame in observations
+                                          if ends[review["id"]] < i < feedback_index
+                                          and frame["action"] == "receive"
+                                          and (frame["source"], frame["target"]) == (reviewer, local)
+                                          and bytes(frame["payload"]).startswith(b'{')
+                                          and json.loads(bytes(frame["payload"])) == responses[review["id"]]][-1]
+            notifications.append({"feature":feature, "visit":visit,
+                                  "code_ready_frame":ready["frame_id"],
+                                  "review_feedback_frame":delivered["frame_id"]})
+            assert ready_index < delivered_index
             assert {key: item for key, item in value.items() if key != "coordination"} == responses[implementation["id"]]
             assert responses[review["id"]]["success"] is (visit == len(inspected)-1)
             if visit:
@@ -156,7 +182,8 @@ async def audit(directory):
     return {"audit_passed":True, "task":"6E", "kind":result["kind"], "scored_benchmark":False,
             "scenario_depth":result["scenario_depth"], **model,
             "domain_calls":len(starts), "protocol_frames":len(frames),
-            "protocol_paths":paths, "original_simulator_replay":"passed",
+            "protocol_paths":paths, "notifications":notifications,
+            "original_simulator_replay":"passed",
             "elapsed_seconds":result["elapsed_seconds"], "versions":result["versions"],
             "binary_sha256":result["binary_sha256"],
             "result_sha256":hashlib.sha256((directory / "result.json").read_bytes()).hexdigest()}

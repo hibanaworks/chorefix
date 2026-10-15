@@ -1,0 +1,279 @@
+{
+  "audit_passed": true,
+  "run_id": 38735739939,
+  "quic_revision": "44d291abc833c3d7d07482e33b186a45c3884a9f",
+  "core_revision": "c2001ec06944d7f3b299e16b5b3efb5b0ba0366a",
+  "candidate_passed": 44,
+  "failed": 0,
+  "unexecuted": 0,
+  "raw_phase_and_verdict_agree": true,
+  "expected_matrix_matches": true,
+  "source_pair_and_pins_match": true,
+  "cells": [
+    {
+      "case": "chacha20",
+      "direction": "client",
+      "reference": "neqo",
+      "result": "succeeded"
+    },
+    {
+      "case": "handshake",
+      "direction": "client",
+      "reference": "neqo",
+      "result": "succeeded"
+    },
+    {
+      "case": "ipv6",
+      "direction": "client",
+      "reference": "neqo",
+      "result": "succeeded"
+    },
+    {
+      "case": "longrtt",
+      "direction": "client",
+      "reference": "neqo",
+      "result": "succeeded"
+    },
+    {
+      "case": "transfer",
+      "direction": "client",
+      "reference": "neqo",
+      "result": "succeeded"
+    },
+    {
+      "case": "chacha20",
+      "direction": "server",
+      "reference": "neqo",
+      "result": "succeeded"
+    },
+    {
+      "case": "handshake",
+      "direction": "server",
+      "reference": "neqo",
+      "result": "succeeded"
+    },
+    {
+      "case": "ipv6",
+      "direction": "server",
+      "reference": "neqo",
+      "result": "succeeded"
+    },
+    {
+      "case": "longrtt",
+      "direction": "server",
+      "reference": "neqo",
+      "result": "succeeded"
+    },
+    {
+      "case": "transfer",
+      "direction": "server",
+      "reference": "neqo",
+      "result": "succeeded"
+    },
+    {
+      "case": "ecn",
+      "direction": "client",
+      "reference": "neqo",
+      "result": "succeeded"
+    },
+    {
+      "case": "ecn",
+      "direction": "server",
+      "reference": "neqo",
+      "result": "succeeded"
+    },
+    {
+      "case": "http3",
+      "direction": "client",
+      "reference": "neqo",
+      "result": "succeeded"
+    },
+    {
+      "case": "http3",
+      "direction": "server",
+      "reference": "neqo",
+      "result": "succeeded"
+    },
+    {
+      "case": "connectionmigration",
+      "direction": "client",
+      "reference": "neqo",
+      "result": "succeeded"
+    },
+    {
+      "case": "connectionmigration",
+      "direction": "server",
+      "reference": "neqo",
+      "result": "succeeded"
+    },
+    {
+      "case": "blackhole",
+      "direction": "client",
+      "reference": "neqo",
+      "result": "succeeded"
+    },
+    {
+      "case": "keyupdate",
+      "direction": "client",
+      "reference": "neqo",
+      "result": "succeeded"
+    },
+    {
+      "case": "resumption",
+      "direction": "client",
+      "reference": "neqo",
+      "result": "succeeded"
+    },
+    {
+      "case": "transfercorruption",
+      "direction": "client",
+      "reference": "neqo",
+      "result": "succeeded"
+    },
+    {
+      "case": "transferloss",
+      "direction": "client",
+      "reference": "neqo",
+      "result": "succeeded"
+    },
+    {
+      "case": "blackhole",
+      "direction": "server",
+      "reference": "neqo",
+      "result": "succeeded"
+    },
+    {
+      "case": "keyupdate",
+      "direction": "server",
+      "reference": "neqo",
+      "result": "succeeded"
+    },
+    {
+      "case": "resumption",
+      "direction": "server",
+      "reference": "neqo",
+      "result": "succeeded"
+    },
+    {
+      "case": "transfercorruption",
+      "direction": "server",
+      "reference": "neqo",
+      "result": "succeeded"
+    },
+    {
+      "case": "transferloss",
+      "direction": "server",
+      "reference": "neqo",
+      "result": "succeeded"
+    },
+    {
+      "case": "retry",
+      "direction": "client",
+      "reference": "neqo",
+      "result": "succeeded"
+    },
+    {
+      "case": "retry",
+      "direction": "server",
+      "reference": "neqo",
+      "result": "succeeded"
+    },
+    {
+      "case": "rebind-addr",
+      "direction": "client",
+      "reference": "neqo",
+      "result": "succeeded"
+    },
+    {
+      "case": "rebind-port",
+      "direction": "client",
+      "reference": "neqo",
+      "result": "succeeded"
+    },
+    {
+      "case": "v2",
+      "direction": "client",
+      "reference": "neqo",
+      "result": "succeeded"
+    },
+    {
+      "case": "rebind-addr",
+      "direction": "server",
+      "reference": "neqo",
+      "result": "succeeded"
+    },
+    {
+      "case": "rebind-port",
+      "direction": "server",
+      "reference": "neqo",
+      "result": "succeeded"
+    },
+    {
+      "case": "v2",
+      "direction": "server",
+      "reference": "neqo",
+      "result": "succeeded"
+    },
+    {
+      "case": "amplificationlimit",
+      "direction": "client",
+      "reference": "quiche",
+      "result": "succeeded"
+    },
+    {
+      "case": "amplificationlimit",
+      "direction": "server",
+      "reference": "quiche",
+      "result": "succeeded"
+    },
+    {
+      "case": "handshakecorruption",
+      "direction": "client",
+      "reference": "quiche",
+      "result": "succeeded"
+    },
+    {
+      "case": "handshakeloss",
+      "direction": "client",
+      "reference": "quiche",
+      "result": "succeeded"
+    },
+    {
+      "case": "multiplexing",
+      "direction": "client",
+      "reference": "quiche",
+      "result": "succeeded"
+    },
+    {
+      "case": "zerortt",
+      "direction": "client",
+      "reference": "quiche",
+      "result": "succeeded"
+    },
+    {
+      "case": "handshakecorruption",
+      "direction": "server",
+      "reference": "quiche",
+      "result": "succeeded"
+    },
+    {
+      "case": "handshakeloss",
+      "direction": "server",
+      "reference": "quiche",
+      "result": "succeeded"
+    },
+    {
+      "case": "multiplexing",
+      "direction": "server",
+      "reference": "quiche",
+      "result": "succeeded"
+    },
+    {
+      "case": "zerortt",
+      "direction": "server",
+      "reference": "quiche",
+      "result": "succeeded"
+    }
+  ],
+  "scope": "One complete 44-cell run; reference self-tests omitted; disclosed runner and capture-shutdown patches retained."
+}

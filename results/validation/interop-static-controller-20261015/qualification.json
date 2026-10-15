@@ -1,0 +1,432 @@
+{
+  "status": "PASSED",
+  "source_commit": "44d291abc833c3d7d07482e33b186a45c3884a9f",
+  "run_id": "38735739939",
+  "run_attempt": "1",
+  "same_commit_all_44_executed": true,
+  "expected_candidate_results": 44,
+  "candidate_results": 44,
+  "candidate_passed": 44,
+  "candidate_unexecuted": 0,
+  "reference_self_tests": "omitted",
+  "control_results": 0,
+  "control_passed": 0,
+  "runner_source_unchanged": false,
+  "runner_patch": {
+    "base_revision": "740c05a10b61d65e8abd3ad38d60898004d335d9",
+    "patch_sha256": "0d4e8441495a2b243a3e8dec697bcbd84831ea5e1c18725dfdb62006ab4b68dd",
+    "files": {
+      "interop.py": "62ebef9d52a2f7e313ad1e5b193facdc2b77c5fe2671e4552ab3964ddbf7d9a9",
+      "trace.py": "116d0608bb94e6cead90d0d930070a103bce488fbea9df555db4fe07da0f1de6"
+    }
+  },
+  "simulator_image": "martenseemann/quic-network-simulator@sha256:c23d82a55caffe681b1bdae65d4d30d23e1283141a414a7f02ee56cf15f9c6b9",
+  "simulator_shutdown": {
+    "change": "forward termination and wait for capture children; scenarios unchanged",
+    "original_sha256": "4c13b79e0b882c8655fa493db6d8045d9f72465fb6b5c50921fc781b3bcda847",
+    "patched_sha256": "55e8400ec978de73e2694c4cab6aa86d9b340b58b3b7944b42c0351672aaea9f"
+  },
+  "source_pair_trees": {
+    "hibana-quic": "db48e7487936c0644e175f62a51b6d570759de0d2f55c93a5f144a04279934b3",
+    "hibana-tls": "25f147c791a078341c5e608467a57d37ffb82c59737bcdaab7ab30d480ce8fc5"
+  },
+  "groups": [
+    {
+      "name": "neqo-basic",
+      "reference": "neqo",
+      "cases": [
+        "chacha20",
+        "handshake",
+        "ipv6",
+        "longrtt",
+        "transfer"
+      ],
+      "status": "PASSED"
+    },
+    {
+      "name": "neqo-recovery",
+      "reference": "neqo",
+      "cases": [
+        "blackhole",
+        "keyupdate",
+        "resumption",
+        "transfercorruption",
+        "transferloss"
+      ],
+      "status": "PASSED"
+    },
+    {
+      "name": "quiche-loss-early",
+      "reference": "quiche",
+      "cases": [
+        "handshakecorruption",
+        "handshakeloss",
+        "multiplexing",
+        "zerortt"
+      ],
+      "status": "PASSED"
+    },
+    {
+      "name": "quiche-amplification",
+      "reference": "quiche",
+      "cases": [
+        "amplificationlimit"
+      ],
+      "status": "PASSED"
+    },
+    {
+      "name": "neqo-retry",
+      "reference": "neqo",
+      "cases": [
+        "retry"
+      ],
+      "status": "PASSED"
+    },
+    {
+      "name": "neqo-ecn",
+      "reference": "neqo",
+      "cases": [
+        "ecn"
+      ],
+      "status": "PASSED"
+    },
+    {
+      "name": "neqo-v2-rebinding",
+      "reference": "neqo",
+      "cases": [
+        "rebind-addr",
+        "rebind-port",
+        "v2"
+      ],
+      "status": "PASSED"
+    },
+    {
+      "name": "neqo-migration",
+      "reference": "neqo",
+      "cases": [
+        "connectionmigration"
+      ],
+      "status": "PASSED"
+    },
+    {
+      "name": "neqo-http3",
+      "reference": "neqo",
+      "cases": [
+        "http3"
+      ],
+      "status": "PASSED"
+    }
+  ],
+  "candidate_cells": [
+    {
+      "case": "chacha20",
+      "direction": "client",
+      "reference": "neqo",
+      "result": "succeeded",
+      "group": "neqo-basic"
+    },
+    {
+      "case": "handshake",
+      "direction": "client",
+      "reference": "neqo",
+      "result": "succeeded",
+      "group": "neqo-basic"
+    },
+    {
+      "case": "ipv6",
+      "direction": "client",
+      "reference": "neqo",
+      "result": "succeeded",
+      "group": "neqo-basic"
+    },
+    {
+      "case": "longrtt",
+      "direction": "client",
+      "reference": "neqo",
+      "result": "succeeded",
+      "group": "neqo-basic"
+    },
+    {
+      "case": "transfer",
+      "direction": "client",
+      "reference": "neqo",
+      "result": "succeeded",
+      "group": "neqo-basic"
+    },
+    {
+      "case": "chacha20",
+      "direction": "server",
+      "reference": "neqo",
+      "result": "succeeded",
+      "group": "neqo-basic"
+    },
+    {
+      "case": "handshake",
+      "direction": "server",
+      "reference": "neqo",
+      "result": "succeeded",
+      "group": "neqo-basic"
+    },
+    {
+      "case": "ipv6",
+      "direction": "server",
+      "reference": "neqo",
+      "result": "succeeded",
+      "group": "neqo-basic"
+    },
+    {
+      "case": "longrtt",
+      "direction": "server",
+      "reference": "neqo",
+      "result": "succeeded",
+      "group": "neqo-basic"
+    },
+    {
+      "case": "transfer",
+      "direction": "server",
+      "reference": "neqo",
+      "result": "succeeded",
+      "group": "neqo-basic"
+    },
+    {
+      "case": "blackhole",
+      "direction": "client",
+      "reference": "neqo",
+      "result": "succeeded",
+      "group": "neqo-recovery"
+    },
+    {
+      "case": "keyupdate",
+      "direction": "client",
+      "reference": "neqo",
+      "result": "succeeded",
+      "group": "neqo-recovery"
+    },
+    {
+      "case": "resumption",
+      "direction": "client",
+      "reference": "neqo",
+      "result": "succeeded",
+      "group": "neqo-recovery"
+    },
+    {
+      "case": "transfercorruption",
+      "direction": "client",
+      "reference": "neqo",
+      "result": "succeeded",
+      "group": "neqo-recovery"
+    },
+    {
+      "case": "transferloss",
+      "direction": "client",
+      "reference": "neqo",
+      "result": "succeeded",
+      "group": "neqo-recovery"
+    },
+    {
+      "case": "blackhole",
+      "direction": "server",
+      "reference": "neqo",
+      "result": "succeeded",
+      "group": "neqo-recovery"
+    },
+    {
+      "case": "keyupdate",
+      "direction": "server",
+      "reference": "neqo",
+      "result": "succeeded",
+      "group": "neqo-recovery"
+    },
+    {
+      "case": "resumption",
+      "direction": "server",
+      "reference": "neqo",
+      "result": "succeeded",
+      "group": "neqo-recovery"
+    },
+    {
+      "case": "transfercorruption",
+      "direction": "server",
+      "reference": "neqo",
+      "result": "succeeded",
+      "group": "neqo-recovery"
+    },
+    {
+      "case": "transferloss",
+      "direction": "server",
+      "reference": "neqo",
+      "result": "succeeded",
+      "group": "neqo-recovery"
+    },
+    {
+      "case": "handshakecorruption",
+      "direction": "client",
+      "reference": "quiche",
+      "result": "succeeded",
+      "group": "quiche-loss-early"
+    },
+    {
+      "case": "handshakeloss",
+      "direction": "client",
+      "reference": "quiche",
+      "result": "succeeded",
+      "group": "quiche-loss-early"
+    },
+    {
+      "case": "multiplexing",
+      "direction": "client",
+      "reference": "quiche",
+      "result": "succeeded",
+      "group": "quiche-loss-early"
+    },
+    {
+      "case": "zerortt",
+      "direction": "client",
+      "reference": "quiche",
+      "result": "succeeded",
+      "group": "quiche-loss-early"
+    },
+    {
+      "case": "handshakecorruption",
+      "direction": "server",
+      "reference": "quiche",
+      "result": "succeeded",
+      "group": "quiche-loss-early"
+    },
+    {
+      "case": "handshakeloss",
+      "direction": "server",
+      "reference": "quiche",
+      "result": "succeeded",
+      "group": "quiche-loss-early"
+    },
+    {
+      "case": "multiplexing",
+      "direction": "server",
+      "reference": "quiche",
+      "result": "succeeded",
+      "group": "quiche-loss-early"
+    },
+    {
+      "case": "zerortt",
+      "direction": "server",
+      "reference": "quiche",
+      "result": "succeeded",
+      "group": "quiche-loss-early"
+    },
+    {
+      "case": "amplificationlimit",
+      "direction": "client",
+      "reference": "quiche",
+      "result": "succeeded",
+      "group": "quiche-amplification"
+    },
+    {
+      "case": "amplificationlimit",
+      "direction": "server",
+      "reference": "quiche",
+      "result": "succeeded",
+      "group": "quiche-amplification"
+    },
+    {
+      "case": "retry",
+      "direction": "client",
+      "reference": "neqo",
+      "result": "succeeded",
+      "group": "neqo-retry"
+    },
+    {
+      "case": "retry",
+      "direction": "server",
+      "reference": "neqo",
+      "result": "succeeded",
+      "group": "neqo-retry"
+    },
+    {
+      "case": "ecn",
+      "direction": "client",
+      "reference": "neqo",
+      "result": "succeeded",
+      "group": "neqo-ecn"
+    },
+    {
+      "case": "ecn",
+      "direction": "server",
+      "reference": "neqo",
+      "result": "succeeded",
+      "group": "neqo-ecn"
+    },
+    {
+      "case": "rebind-addr",
+      "direction": "client",
+      "reference": "neqo",
+      "result": "succeeded",
+      "group": "neqo-v2-rebinding"
+    },
+    {
+      "case": "rebind-port",
+      "direction": "client",
+      "reference": "neqo",
+      "result": "succeeded",
+      "group": "neqo-v2-rebinding"
+    },
+    {
+      "case": "v2",
+      "direction": "client",
+      "reference": "neqo",
+      "result": "succeeded",
+      "group": "neqo-v2-rebinding"
+    },
+    {
+      "case": "rebind-addr",
+      "direction": "server",
+      "reference": "neqo",
+      "result": "succeeded",
+      "group": "neqo-v2-rebinding"
+    },
+    {
+      "case": "rebind-port",
+      "direction": "server",
+      "reference": "neqo",
+      "result": "succeeded",
+      "group": "neqo-v2-rebinding"
+    },
+    {
+      "case": "v2",
+      "direction": "server",
+      "reference": "neqo",
+      "result": "succeeded",
+      "group": "neqo-v2-rebinding"
+    },
+    {
+      "case": "connectionmigration",
+      "direction": "client",
+      "reference": "neqo",
+      "result": "succeeded",
+      "group": "neqo-migration"
+    },
+    {
+      "case": "connectionmigration",
+      "direction": "server",
+      "reference": "neqo",
+      "result": "succeeded",
+      "group": "neqo-migration"
+    },
+    {
+      "case": "http3",
+      "direction": "client",
+      "reference": "neqo",
+      "result": "succeeded",
+      "group": "neqo-http3"
+    },
+    {
+      "case": "http3",
+      "direction": "server",
+      "reference": "neqo",
+      "result": "succeeded",
+      "group": "neqo-http3"
+    }
+  ],
+  "control_cells": [],
+  "full_44_case_direction_matrix": true
+}

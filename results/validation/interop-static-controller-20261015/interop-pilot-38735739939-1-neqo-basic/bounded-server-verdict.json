@@ -1,0 +1,39 @@
+{
+  "phase": "bounded-server",
+  "client": "neqo",
+  "server": "hibana-quic",
+  "status": "PASSED",
+  "exit_code": 0,
+  "cleanup_exit_code": 0,
+  "passed": true,
+  "results": [
+    {
+      "name": "chacha20",
+      "result": "succeeded",
+      "abbr": "C20"
+    },
+    {
+      "name": "handshake",
+      "result": "succeeded",
+      "abbr": "H"
+    },
+    {
+      "name": "ipv6",
+      "result": "succeeded",
+      "abbr": "6"
+    },
+    {
+      "name": "longrtt",
+      "result": "succeeded",
+      "abbr": "LR"
+    },
+    {
+      "name": "transfer",
+      "result": "succeeded",
+      "abbr": "DC"
+    }
+  ],
+  "non_null_case_results": 5,
+  "unexecuted_case_results": 0,
+  "original_json_sha256": "e6e658389b4182832e3b2464412522726f438805ec85eb0a94f4265ad43552eb"
+}

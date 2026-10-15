@@ -1,0 +1,19 @@
+{
+  "phase": "bounded-client",
+  "client": "hibana-quic",
+  "server": "neqo",
+  "status": "PASSED",
+  "exit_code": 0,
+  "cleanup_exit_code": 0,
+  "passed": true,
+  "results": [
+    {
+      "name": "retry",
+      "result": "succeeded",
+      "abbr": "S"
+    }
+  ],
+  "non_null_case_results": 1,
+  "unexecuted_case_results": 0,
+  "original_json_sha256": "7e760b0530d1f2472e410a09cf902d164fcb5942f5866d22a0f0301bcbb59ba2"
+}

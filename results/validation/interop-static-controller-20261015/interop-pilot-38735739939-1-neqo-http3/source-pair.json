@@ -1,0 +1,11 @@
+{
+  "trees": {
+    "hibana-quic": "db48e7487936c0644e175f62a51b6d570759de0d2f55c93a5f144a04279934b3",
+    "hibana-tls": "25f147c791a078341c5e608467a57d37ffb82c59737bcdaab7ab30d480ce8fc5"
+  },
+  "file_count": 645,
+  "tls_repository": "https://github.com/hibanaworks/hibana-tls",
+  "tls_revision": "6e5ece518c30a1478f75f17d23aec72b10208fd8",
+  "hibana_version": "0.9.9",
+  "hibana_revision": "c2001ec06944d7f3b299e16b5b3efb5b0ba0366a"
+}

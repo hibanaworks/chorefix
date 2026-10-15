@@ -1,0 +1,299 @@
+{
+  "kind": "direct_wasi_integration_preflight_ledger",
+  "task": "6E",
+  "scored_benchmark": false,
+  "scope": "Three unscored integration trials after the core repair; no comparative success-rate or performance estimate.",
+  "hibana_version": "0.9.9",
+  "hibana_git_revision": "c2001ec06944d7f3b299e16b5b3efb5b0ba0366a",
+  "runtime_revision": "4ebdad1443cf49488eae924afe528f67f5a5953b",
+  "wash_revision": "12e137aba2cea74f353c198a8d7c92afc977627c",
+  "tracefix_revision": "36b4bd108fcd74f7efb17613aebbe3fdf55499a9",
+  "accepted_full_task_ports": 0,
+  "scored_runs": 0,
+  "runs": [
+    {
+      "run_id": "review-direct-20261015-d0-001",
+      "scenario_depth": 0,
+      "scored_benchmark": false,
+      "protocol": {
+        "status": "complete",
+        "type": "run_result"
+      },
+      "simulator_complete": true,
+      "error": null,
+      "participants": [
+        {
+          "participant": "DEVELOPER_A",
+          "status": "completed",
+          "error": null,
+          "requested_model": "gpt-6-luna",
+          "returned_model": "gpt-6-luna",
+          "requested_effort": "xhigh",
+          "returned_effort": "xhigh",
+          "tool_calls": 6,
+          "elapsed_seconds": 59.01342766685411,
+          "usage": {
+            "totalTokens": 110349,
+            "inputTokens": 109526,
+            "cachedInputTokens": 91392,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 823,
+            "reasoningOutputTokens": 594
+          },
+          "raw_events_sha256": "35a2d180b76fc5fb214c5605ead76cd80508a86e85b6fc6535fe9160676148b4"
+        },
+        {
+          "participant": "DEVELOPER_B",
+          "status": "completed",
+          "error": null,
+          "requested_model": "gpt-6-luna",
+          "returned_model": "gpt-6-luna",
+          "requested_effort": "xhigh",
+          "returned_effort": "xhigh",
+          "tool_calls": 6,
+          "elapsed_seconds": 36.37973529100418,
+          "usage": {
+            "totalTokens": 109989,
+            "inputTokens": 109408,
+            "cachedInputTokens": 64768,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 581,
+            "reasoningOutputTokens": 349
+          },
+          "raw_events_sha256": "da9b3d8a397503e4af22508c12f374a4593391de5ee53ae4f0d8f430e8f4592e"
+        },
+        {
+          "participant": "REVIEWER",
+          "status": "completed",
+          "error": null,
+          "requested_model": "gpt-6-luna",
+          "returned_model": "gpt-6-luna",
+          "requested_effort": "xhigh",
+          "returned_effort": "xhigh",
+          "tool_calls": 8,
+          "elapsed_seconds": 36.45604508277029,
+          "usage": {
+            "totalTokens": 141577,
+            "inputTokens": 140871,
+            "cachedInputTokens": 119808,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 706,
+            "reasoningOutputTokens": 431
+          },
+          "raw_events_sha256": "9b45914f9885e03f6adac2e6697a566df1c9e4dfe353e00ac0c74417d8e8d80f"
+        }
+      ],
+      "elapsed_seconds": 59.48075595893897,
+      "inclusive_total_tokens": 361915,
+      "shell_calls": 20,
+      "domain_calls": 6,
+      "protocol_frames": 798,
+      "audit": "results/validation/review-direct-wasi-20261015/depth0/audit.json",
+      "evidence_directory": "results/validation/review-direct-wasi-20261015/depth0",
+      "frozen_binary_directory": "output/direct-wasi-preflight/review-direct-20261015-d0-001/6E",
+      "versions": {
+        "consumer": "4a9937f26e24dc9c33e0ff5b783754308dbd6dcd",
+        "wash": "12e137aba2cea74f353c198a8d7c92afc977627c",
+        "tracefix": "36b4bd108fcd74f7efb17613aebbe3fdf55499a9",
+        "compiler": "rustc 1.95.0 (59807616e 2026-04-14)\nbinary: rustc\ncommit-hash: 59807616e1fa2540724bfbac14d7976d7e4a3860\ncommit-date: 2026-04-14\nhost: aarch64-apple-darwin\nrelease: 1.95.0\nLLVM version: 22.1.2",
+        "model_client": "codex-cli 0.162.0-alpha.17.2",
+        "model_client_sha256": "50ab38ba21d0d9f8346f32f41848382f15b556190f3c7a07e885a4fb73e379c8"
+      },
+      "binary_sha256": {
+        "runtime": "51305fff6d929067a3b723f405397d1565fe7a9ee0d0b93d5517d821e3ce2bc4",
+        "wash.wasm": "407e1fe263231022eb542a7d2a35e4d4705a58590f92b77bf21fe5f7c77258bc"
+      },
+      "result_sha256": "48624850ef8c6fdf3298fb493608ff53f376a6904c122df89696009f69ab76ee"
+    },
+    {
+      "run_id": "review-direct-20261015-d1-001",
+      "scenario_depth": 1,
+      "scored_benchmark": false,
+      "protocol": {
+        "status": "complete",
+        "type": "run_result"
+      },
+      "simulator_complete": true,
+      "error": null,
+      "participants": [
+        {
+          "participant": "DEVELOPER_A",
+          "status": "completed",
+          "error": null,
+          "requested_model": "gpt-6-luna",
+          "returned_model": "gpt-6-luna",
+          "requested_effort": "xhigh",
+          "returned_effort": "xhigh",
+          "tool_calls": 6,
+          "elapsed_seconds": 36.229641624959186,
+          "usage": {
+            "totalTokens": 110729,
+            "inputTokens": 110007,
+            "cachedInputTokens": 90368,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 722,
+            "reasoningOutputTokens": 470
+          },
+          "raw_events_sha256": "767dfe7662731c206ec9db8fa3d9798a08a05a1fdeec0ba5ceb7318cfb3735e3"
+        },
+        {
+          "participant": "DEVELOPER_B",
+          "status": "completed",
+          "error": null,
+          "requested_model": "gpt-6-luna",
+          "returned_model": "gpt-6-luna",
+          "requested_effort": "xhigh",
+          "returned_effort": "xhigh",
+          "tool_calls": 7,
+          "elapsed_seconds": 44.67300233314745,
+          "usage": {
+            "totalTokens": 125124,
+            "inputTokens": 124612,
+            "cachedInputTokens": 93184,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 512,
+            "reasoningOutputTokens": 258
+          },
+          "raw_events_sha256": "a9827a3649bd78c3c333e199e502acd017df31d47973f9d287683157c384f5a7"
+        },
+        {
+          "participant": "REVIEWER",
+          "status": "completed",
+          "error": null,
+          "requested_model": "gpt-6-luna",
+          "returned_model": "gpt-6-luna",
+          "requested_effort": "xhigh",
+          "returned_effort": "xhigh",
+          "tool_calls": 10,
+          "elapsed_seconds": 44.68153112498112,
+          "usage": {
+            "totalTokens": 176585,
+            "inputTokens": 175401,
+            "cachedInputTokens": 155904,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 1184,
+            "reasoningOutputTokens": 815
+          },
+          "raw_events_sha256": "324e6a9b1882c2ea7bdbf9b09a61524f03d6833e60b4a7e1ce568052bf3e8546"
+        }
+      ],
+      "elapsed_seconds": 45.38672583294101,
+      "inclusive_total_tokens": 412438,
+      "shell_calls": 23,
+      "domain_calls": 8,
+      "protocol_frames": 1020,
+      "audit": "results/validation/review-direct-wasi-20261015/depth1/audit.json",
+      "evidence_directory": "results/validation/review-direct-wasi-20261015/depth1",
+      "frozen_binary_directory": "output/direct-wasi-preflight/review-direct-20261015-d1-001/6E",
+      "versions": {
+        "consumer": "4a9937f26e24dc9c33e0ff5b783754308dbd6dcd",
+        "wash": "12e137aba2cea74f353c198a8d7c92afc977627c",
+        "tracefix": "36b4bd108fcd74f7efb17613aebbe3fdf55499a9",
+        "compiler": "rustc 1.95.0 (59807616e 2026-04-14)\nbinary: rustc\ncommit-hash: 59807616e1fa2540724bfbac14d7976d7e4a3860\ncommit-date: 2026-04-14\nhost: aarch64-apple-darwin\nrelease: 1.95.0\nLLVM version: 22.1.2",
+        "model_client": "codex-cli 0.162.0-alpha.17.2",
+        "model_client_sha256": "50ab38ba21d0d9f8346f32f41848382f15b556190f3c7a07e885a4fb73e379c8"
+      },
+      "binary_sha256": {
+        "runtime": "51305fff6d929067a3b723f405397d1565fe7a9ee0d0b93d5517d821e3ce2bc4",
+        "wash.wasm": "407e1fe263231022eb542a7d2a35e4d4705a58590f92b77bf21fe5f7c77258bc"
+      },
+      "result_sha256": "8fc4068ecebee348efaaa68410c80487bd04e548be30e6ad0eb8591a2534f1ce"
+    },
+    {
+      "run_id": "review-direct-20261015-d2-001",
+      "scenario_depth": 2,
+      "scored_benchmark": false,
+      "protocol": {
+        "status": "complete",
+        "type": "run_result"
+      },
+      "simulator_complete": true,
+      "error": null,
+      "participants": [
+        {
+          "participant": "DEVELOPER_A",
+          "status": "completed",
+          "error": null,
+          "requested_model": "gpt-6-luna",
+          "returned_model": "gpt-6-luna",
+          "requested_effort": "xhigh",
+          "returned_effort": "xhigh",
+          "tool_calls": 6,
+          "elapsed_seconds": 42.47071645897813,
+          "usage": {
+            "totalTokens": 109555,
+            "inputTokens": 109064,
+            "cachedInputTokens": 91392,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 491,
+            "reasoningOutputTokens": 240
+          },
+          "raw_events_sha256": "5b45e94398b113410d43a49632a456eab1389a26c0bf3712bffcfdcd63793530"
+        },
+        {
+          "participant": "DEVELOPER_B",
+          "status": "completed",
+          "error": null,
+          "requested_model": "gpt-6-luna",
+          "returned_model": "gpt-6-luna",
+          "requested_effort": "xhigh",
+          "returned_effort": "xhigh",
+          "tool_calls": 6,
+          "elapsed_seconds": 45.7198090411257,
+          "usage": {
+            "totalTokens": 109811,
+            "inputTokens": 109259,
+            "cachedInputTokens": 89600,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 552,
+            "reasoningOutputTokens": 304
+          },
+          "raw_events_sha256": "dbe274cd3ab4518583266daaada55221a2a037a582086141fe016fd29eba0fe9"
+        },
+        {
+          "participant": "REVIEWER",
+          "status": "completed",
+          "error": null,
+          "requested_model": "gpt-6-luna",
+          "returned_model": "gpt-6-luna",
+          "requested_effort": "xhigh",
+          "returned_effort": "xhigh",
+          "tool_calls": 10,
+          "elapsed_seconds": 46.49205466685817,
+          "usage": {
+            "totalTokens": 177970,
+            "inputTokens": 176158,
+            "cachedInputTokens": 153856,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 1812,
+            "reasoningOutputTokens": 1408
+          },
+          "raw_events_sha256": "620bb51d4300845e6e77905af0d36a7ccd0a8f2e467d5e84dbecadf556ce7c02"
+        }
+      ],
+      "elapsed_seconds": 46.91265291697346,
+      "inclusive_total_tokens": 397336,
+      "shell_calls": 22,
+      "domain_calls": 10,
+      "protocol_frames": 1156,
+      "audit": "results/validation/review-direct-wasi-20261015/depth2/audit.json",
+      "evidence_directory": "results/validation/review-direct-wasi-20261015/depth2",
+      "frozen_binary_directory": "output/direct-wasi-preflight/review-direct-20261015-d2-001/6E",
+      "versions": {
+        "consumer": "4a9937f26e24dc9c33e0ff5b783754308dbd6dcd",
+        "wash": "12e137aba2cea74f353c198a8d7c92afc977627c",
+        "tracefix": "36b4bd108fcd74f7efb17613aebbe3fdf55499a9",
+        "compiler": "rustc 1.95.0 (59807616e 2026-04-14)\nbinary: rustc\ncommit-hash: 59807616e1fa2540724bfbac14d7976d7e4a3860\ncommit-date: 2026-04-14\nhost: aarch64-apple-darwin\nrelease: 1.95.0\nLLVM version: 22.1.2",
+        "model_client": "codex-cli 0.162.0-alpha.17.2",
+        "model_client_sha256": "50ab38ba21d0d9f8346f32f41848382f15b556190f3c7a07e885a4fb73e379c8"
+      },
+      "binary_sha256": {
+        "runtime": "51305fff6d929067a3b723f405397d1565fe7a9ee0d0b93d5517d821e3ce2bc4",
+        "wash.wasm": "407e1fe263231022eb542a7d2a35e4d4705a58590f92b77bf21fe5f7c77258bc"
+      },
+      "result_sha256": "0b11620b00a0f437c950d2a3f6d13d20a53b24bfc92de86e1094bdea460df101"
+    }
+  ],
+  "local_raw_archive": "output/direct-wasi-preflight/review-direct-20261015-evidence.tar.gz",
+  "local_raw_archive_sha256": "0ed75d2a34adf6105a59b1462ba48bb51ae4034d70f6578f18e69773e0f38938"
+}

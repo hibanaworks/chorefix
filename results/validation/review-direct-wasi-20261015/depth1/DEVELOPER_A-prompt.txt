@@ -1,0 +1,61 @@
+You are DEVELOPER_A. Carry out your work in the original task below.
+# Task 6E: Shared Utility File Conflict
+
+Two developers are implementing separate features in the same codebase. Both features require modifications to the shared code repository. A reviewer must approve each feature's changes before they can be merged into the main branch.
+
+## Agents
+
+### DEVELOPER_A
+Implements a user authentication feature, needs to add helper functions to the shared utility file in **REPO**.
+
+### DEVELOPER_B
+Implements a notification feature, needs to modify existing functions in the shared utility file in **REPO**.
+
+### REVIEWER
+Reviews completed feature code and approves or requests changes before merge.
+
+## Shared Resources
+- **REPO**: code repository with shared files
+
+## Workflow
+
+Each developer implements their assigned feature, modifying the shared utility file in **REPO**. When ready, the developer notifies **REVIEWER** via the **code ready channel** that the feature is ready for review. **REVIEWER** reviews the submitted code and sends approval or a revision request back via the **review feedback channel**. If approved, the developer merges the feature into the main branch. If revision is requested, the developer revises and resubmits for review.
+
+**REVIEWER** processes each feature in turn, repeating the review cycle until all features are approved and merged.
+
+## Communication Channels
+- **Code ready channel** (**DEVELOPER_A** / **DEVELOPER_B** -> **REVIEWER**, notification that code is ready for review)
+- **Review feedback channel** (**REVIEWER** -> **DEVELOPER_A** / **DEVELOPER_B**, approval or revision request)
+
+## Properties (verified by TLC)
+- Safety: **REPO** is used by at most one agent at a time.
+- Liveness: All agents eventually terminate (both features implemented, reviewed, and merged). All channel messages consumed. No deadlock.
+
+
+Original task input data: {"participant": "DEVELOPER_A", "resources": ["REPO"], "implement_steps": [{"agent_id": "DEVELOPER_A", "feature": "user_authentication"}, {"agent_id": "DEVELOPER_B", "feature": "notification_feature"}], "code_review_steps": [{"agent_id": "REVIEWER", "target": "user_authentication"}, {"agent_id": "REVIEWER", "target": "notification_feature"}], "merge_steps": [{"agent_id": "DEVELOPER_A", "branch": "dev_a_feature"}, {"agent_id": "DEVELOPER_B", "branch": "dev_b_feature"}]}
+Your domain operation schemas: [{"name": "implement_feature", "description": "Implement a feature.", "parameters": {"type": "object", "properties": {"feature_name": {"type": "string", "description": "Feature to implement"}}, "required": ["feature_name"]}}, {"name": "merge_code", "description": "Merge a branch.", "parameters": {"type": "object", "properties": {"branch": {"type": "string", "description": "Branch to merge"}}, "required": ["branch"]}}]
+
+You have one tool, shell. It runs your own scripts in a Rust std WASI shell.
+All file I/O uses projected Hibana Endpoints and ChoreoFS. There is no host
+filesystem, native process execution, or second guest filesystem.
+Use help to see the shell syntax and commands. You can use quotes, variables,
+conditions, loops, pipelines, redirection, calculations, and saved scripts.
+Private files under /work have names you choose. They do not grant permission.
+There are eight private file slots of 8192 bytes each. A script can contain up
+to 4096 UTF-8 bytes. Each guest starts at 64 KiB and can request memory growth
+through its projected protocol, up to 1 MiB of supplied backing.
+
+Your writable domain objects: ["/service/implement_feature", "/service/merge_code"]
+Write the matching operation's JSON argument object and close it to request the
+operation. Its target must match this task's input and the selected object.
+Read /service/result for the actual response. Shell redirection
+closes its output after writing. These objects are not native executables.
+Resource loans, notifications and dependencies are carried by the projected
+protocol. An operation can wait for a dependency without blocking other guests.
+Choose your own scripts. No work command sequence is supplied.
+
+Ordinary shell errors and invalid argument data can be corrected. Use actual
+responses to reconsider your work. Do not add retries to a terminal domain
+failure. When your assigned work is finished, close your guest with exit 0
+before your final response. An exit_status reply means your guest has closed.
+Do not call shell after that reply. Leaving before doing the work fails the run.

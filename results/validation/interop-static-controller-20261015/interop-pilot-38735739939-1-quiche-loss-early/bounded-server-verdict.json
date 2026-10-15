@@ -1,0 +1,34 @@
+{
+  "phase": "bounded-server",
+  "client": "quiche",
+  "server": "hibana-quic",
+  "status": "PASSED",
+  "exit_code": 0,
+  "cleanup_exit_code": 0,
+  "passed": true,
+  "results": [
+    {
+      "name": "handshakecorruption",
+      "result": "succeeded",
+      "abbr": "C1"
+    },
+    {
+      "name": "handshakeloss",
+      "result": "succeeded",
+      "abbr": "L1"
+    },
+    {
+      "name": "multiplexing",
+      "result": "succeeded",
+      "abbr": "M"
+    },
+    {
+      "name": "zerortt",
+      "result": "succeeded",
+      "abbr": "Z"
+    }
+  ],
+  "non_null_case_results": 4,
+  "unexecuted_case_results": 0,
+  "original_json_sha256": "1cc0d70e851186754d815b7974aeac45b009c5dd5b9ceb0067ec729d7d7f1b10"
+}

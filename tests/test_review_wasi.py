@@ -76,8 +76,11 @@ async def test_real_shell_revision_and_independent_review(tmp_path, depth, revie
         assert not any(event.tool == "implement_feature" and event.agent == agent for event in sim.events)
         received = []
         while True:
+            # Leading JSON whitespace forces several real WASI write chunks.
+            # It changes no domain argument or task decision.
+            padding = " " * 512
             result = response(await runtime.command(agent,
-                f"printf '%s' '{{\"feature_name\":\"{feature}\"}}' > /service/implement_feature; cat /service/result"))
+                f"printf '%s' '{padding}{{\"feature_name\":\"{feature}\"}}' > /service/implement_feature; cat /service/result"))
             assert result["success"] is True
             received.append(result["coordination"]["code_review"])
             if received[-1]["success"]:
@@ -94,6 +97,11 @@ async def test_real_shell_revision_and_independent_review(tmp_path, depth, revie
         result = response(await runtime.command(agent,
             f"echo '{{\"branch\":\"{branch}\"}}' > /service/merge_code; cat /service/result"))
         assert result["success"] is True
+        count = len([event for event in sim.events if event.agent == agent])
+        for path, arguments in (("implement_feature", {"feature_name":feature}), ("merge_code", {"branch":branch})):
+            duplicate = await runtime.command(agent, f"echo '{json.dumps(arguments)}' > /service/{path}")
+            assert "os error 8" in duplicate["stdout"]
+            assert len([event for event in sim.events if event.agent == agent]) == count
         await runtime.command(agent, "exit 0")
 
     async def reviewer():
@@ -109,6 +117,11 @@ async def test_real_shell_revision_and_independent_review(tmp_path, depth, revie
                     f"echo '{{\"pr_id\":\"{feature}\"}}' > /service/code_review/{feature}; cat /service/result"))
                 if result["success"]:
                     break
+            count = len([event for event in sim.events if event.tool == "code_review"])
+            duplicate = await runtime.command("REVIEWER",
+                f"echo '{{\"pr_id\":\"{feature}\"}}' > /service/code_review/{feature}")
+            assert "os error 8" in duplicate["stdout"]
+            assert len([event for event in sim.events if event.tool == "code_review"]) == count
         await runtime.command("REVIEWER", "exit 0")
 
     try:

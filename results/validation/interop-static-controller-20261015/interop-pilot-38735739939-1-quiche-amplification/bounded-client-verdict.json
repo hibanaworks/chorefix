@@ -1,0 +1,19 @@
+{
+  "phase": "bounded-client",
+  "client": "hibana-quic",
+  "server": "quiche",
+  "status": "PASSED",
+  "exit_code": 0,
+  "cleanup_exit_code": 0,
+  "passed": true,
+  "results": [
+    {
+      "name": "amplificationlimit",
+      "result": "succeeded",
+      "abbr": "A"
+    }
+  ],
+  "non_null_case_results": 1,
+  "unexecuted_case_results": 0,
+  "original_json_sha256": "148bcafb5e6f444fdf6a4ec3e14195c1ccb877f2b0326cca98e3d746878272dd"
+}

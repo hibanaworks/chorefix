@@ -11,12 +11,20 @@ runtime state machine, while preserving task behavior and independent work?
 - Task set: every task from 1E through 16H, with no removed roles or tools.
 - Participant model: `gpt-6-luna`.
 - Participant reasoning effort: `xhigh`.
-- Hibana: published version `0.9.9`, matching main at
-  `f1c4dd4bab211b005687cfec15bb53a1f77500ed`.
+- Hibana package version: `0.9.9`. Current integration trials patch that version
+  to Git revision `c2001ec06944d7f3b299e16b5b3efb5b0ba0366a` from Hibana PR 8.
+  This repair has not been merged into main or published to the registry.
+  Final scored runs require one fixed, recorded revision in every Hibana consumer.
 - Access-checked model harness: desktop bundled CLI `0.162.0-alpha.17.2`.
 - Failure conditions: deterministic S0, S1, S2 from the upstream simulator.
 - Repetitions: three per task and condition.
 - Same domain tool schemas, simulator, checklist, and failure schedule in all arms.
+
+The direct WASI shell trials are separate integration evidence. Their object
+interface requires canonical targets, and the 6E implementation response waits
+for review feedback before returning. These are disclosed interface differences,
+not changes to the upstream simulator or baseline. Do not pool these trials with
+the scored comparison or attribute their token costs to a matched comparison.
 
 The selected conditions are the original paper's Topology-monitored,
 Mediator-enforced, Prompt-only, Chat-only, and Hibana. Each condition has 432

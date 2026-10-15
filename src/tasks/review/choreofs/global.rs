@@ -17,6 +17,10 @@ pub const REPO: u8 = 7;
 pub const A_IO: u8 = 8;
 pub const B_IO: u8 = 9;
 pub const REVIEW_IO: u8 = 10;
+// One guest owns independent projected service roles. An offer on one
+// service must not observe the other service's still-live rejection loop.
+pub const REVIEW_A_WASI: u8 = 11;
+pub const REVIEW_B_WASI: u8 = 12;
 // Domain identities for the two projected feature branches.
 pub const FEATURE_A: &str = "user_authentication";
 pub const FEATURE_B: &str = "notification_feature";
@@ -337,6 +341,8 @@ pub struct Programs {
     pub a_wasi: RoleProgram<A_WASI>,
     pub b_wasi: RoleProgram<B_WASI>,
     pub review_wasi: RoleProgram<REVIEW_WASI>,
+    pub review_a_wasi: RoleProgram<REVIEW_A_WASI>,
+    pub review_b_wasi: RoleProgram<REVIEW_B_WASI>,
     pub a: RoleProgram<A>,
     pub b: RoleProgram<B>,
     pub review_a: RoleProgram<REVIEW_A>,
@@ -382,25 +388,25 @@ fn review_b_requests() -> impl Projectable {
     g::seq(
         g::send::<REVIEW_B, REVIEW_B, ReviewRequest>(),
         g::seq(
-            g::send::<REVIEW_B, REVIEW_WASI, ReviewRequestReadyB>(),
+            g::send::<REVIEW_B, REVIEW_B_WASI, ReviewRequestReadyB>(),
             g::route(
                 g::seq(
-                    g::send::<REVIEW_WASI, REVIEW_B, OpenB>(),
-                    g::send::<REVIEW_B, REVIEW_WASI, OpenedB>(),
+                    g::send::<REVIEW_B_WASI, REVIEW_B, OpenB>(),
+                    g::send::<REVIEW_B, REVIEW_B_WASI, OpenedB>(),
                 ),
                 g::route(
                     g::seq(
-                        g::send::<REVIEW_WASI, REVIEW_B, WriteB>(),
-                        g::send::<REVIEW_B, REVIEW_WASI, WrittenB>(),
+                        g::send::<REVIEW_B_WASI, REVIEW_B, WriteB>(),
+                        g::send::<REVIEW_B, REVIEW_B_WASI, WrittenB>(),
                     ),
                     g::seq(
-                        g::send::<REVIEW_WASI, REVIEW_B, CommitB>(),
+                        g::send::<REVIEW_B_WASI, REVIEW_B, CommitB>(),
                         g::route(
                             g::seq(
                                 g::send::<REVIEW_B, REVIEW_B, ValidateB>(),
-                                g::send::<REVIEW_B, REVIEW_WASI, AdmittedB>(),
+                                g::send::<REVIEW_B, REVIEW_B_WASI, AdmittedB>(),
                             ),
-                            g::send::<REVIEW_B, REVIEW_WASI, RejectedB<'static>>(),
+                            g::send::<REVIEW_B, REVIEW_B_WASI, RejectedB<'static>>(),
                         )
                         .resolve::<CHECK_REVIEW_B>(),
                     ),
@@ -439,23 +445,23 @@ fn closed_review_a() -> impl Projectable {
     g::seq(
         g::send::<REVIEW_A, REVIEW_A, RejectRequest>(),
         g::seq(
-            g::send::<REVIEW_A, REVIEW_WASI, ReviewRequestReady>(),
+            g::send::<REVIEW_A, REVIEW_A_WASI, ReviewRequestReady>(),
             g::route(
                 g::seq(
-                    g::send::<REVIEW_WASI, REVIEW_A, Open>(),
-                    g::send::<REVIEW_A, REVIEW_WASI, Opened>(),
+                    g::send::<REVIEW_A_WASI, REVIEW_A, Open>(),
+                    g::send::<REVIEW_A, REVIEW_A_WASI, Opened>(),
                 ),
                 g::route(
                     g::seq(
-                        g::send::<REVIEW_WASI, REVIEW_A, Write>(),
-                        g::send::<REVIEW_A, REVIEW_WASI, Written>(),
+                        g::send::<REVIEW_A_WASI, REVIEW_A, Write>(),
+                        g::send::<REVIEW_A, REVIEW_A_WASI, Written>(),
                     ),
                     g::route(
                         g::seq(
-                            g::send::<REVIEW_WASI, REVIEW_A, Commit>(),
-                            g::send::<REVIEW_A, REVIEW_WASI, Unavailable>(),
+                            g::send::<REVIEW_A_WASI, REVIEW_A, Commit>(),
+                            g::send::<REVIEW_A, REVIEW_A_WASI, Unavailable>(),
                         ),
-                        g::send::<REVIEW_WASI, REVIEW_A, Exit>(),
+                        g::send::<REVIEW_A_WASI, REVIEW_A, Exit>(),
                     ),
                 ),
             ),
@@ -467,23 +473,23 @@ fn closed_review_b() -> impl Projectable {
     g::seq(
         g::send::<REVIEW_B, REVIEW_B, RejectRequest>(),
         g::seq(
-            g::send::<REVIEW_B, REVIEW_WASI, ReviewRequestReadyB>(),
+            g::send::<REVIEW_B, REVIEW_B_WASI, ReviewRequestReadyB>(),
             g::route(
                 g::seq(
-                    g::send::<REVIEW_WASI, REVIEW_B, OpenB>(),
-                    g::send::<REVIEW_B, REVIEW_WASI, OpenedB>(),
+                    g::send::<REVIEW_B_WASI, REVIEW_B, OpenB>(),
+                    g::send::<REVIEW_B, REVIEW_B_WASI, OpenedB>(),
                 ),
                 g::route(
                     g::seq(
-                        g::send::<REVIEW_WASI, REVIEW_B, WriteB>(),
-                        g::send::<REVIEW_B, REVIEW_WASI, WrittenB>(),
+                        g::send::<REVIEW_B_WASI, REVIEW_B, WriteB>(),
+                        g::send::<REVIEW_B, REVIEW_B_WASI, WrittenB>(),
                     ),
                     g::route(
                         g::seq(
-                            g::send::<REVIEW_WASI, REVIEW_B, CommitB>(),
-                            g::send::<REVIEW_B, REVIEW_WASI, UnavailableB>(),
+                            g::send::<REVIEW_B_WASI, REVIEW_B, CommitB>(),
+                            g::send::<REVIEW_B, REVIEW_B_WASI, UnavailableB>(),
                         ),
-                        g::send::<REVIEW_WASI, REVIEW_B, ExitB>(),
+                        g::send::<REVIEW_B_WASI, REVIEW_B, ExitB>(),
                     ),
                 ),
             ),
@@ -499,9 +505,9 @@ pub fn programs() -> Programs {
             g::seq(
                 g::send::<REVIEW_A, REVIEW_A, BeginReviewVisit>(),
                 g::seq(
-                    g::send::<REVIEW_A, REVIEW_WASI, ReviewRequestReady>(),
+                    g::send::<REVIEW_A, REVIEW_A_WASI, ReviewRequestReady>(),
                     g::seq(
-                        g::send::<REVIEW_WASI, REVIEW_A, Open>(),
+                        g::send::<REVIEW_A_WASI, REVIEW_A, Open>(),
                         g::send::<REVIEW_A, A, ReviewRequested>(),
                     ),
                 ),
@@ -510,9 +516,9 @@ pub fn programs() -> Programs {
         g::seq(
             g::send::<A, REVIEW_A, Ready>(),
             g::seq(
-                g::send::<REVIEW_A, REVIEW_WASI, Opened>(),
+                g::send::<REVIEW_A, REVIEW_A_WASI, Opened>(),
                 g::seq(
-                    requests::<REVIEW_WASI, REVIEW_A, CHECK_REVIEW_A>(),
+                    requests::<REVIEW_A_WASI, REVIEW_A, CHECK_REVIEW_A>(),
                     g::send::<REVIEW_A, REVIEW_A, Review>(),
                 ),
             ),
@@ -525,9 +531,9 @@ pub fn programs() -> Programs {
             g::seq(
                 g::send::<REVIEW_A, A, Approved<'static>>(),
                 g::seq(
-                    g::send::<REVIEW_A, REVIEW_WASI, Result<'static>>(),
+                    g::send::<REVIEW_A, REVIEW_A_WASI, Result<'static>>(),
                     g::seq(
-                        g::send::<REVIEW_A, REVIEW_WASI, ServiceDone>(),
+                        g::send::<REVIEW_A, REVIEW_A_WASI, ServiceDone>(),
                         g::seq(
                             g::send::<A, A_WASI, Result<'static>>(),
                             g::seq(
@@ -551,7 +557,7 @@ pub fn programs() -> Programs {
                                     ),
                                     g::seq(
                                         g::send::<A, REVIEW_A, Merged>(),
-                                        g::send::<REVIEW_A, REVIEW_WASI, ReviewExitAck>(),
+                                        g::send::<REVIEW_A, REVIEW_A_WASI, ReviewExitAck>(),
                                     ),
                                 ),
                             ),
@@ -568,9 +574,9 @@ pub fn programs() -> Programs {
             g::seq(
                 g::send::<REVIEW_A, A, Revise<'static>>(),
                 g::seq(
-                    g::send::<REVIEW_A, REVIEW_WASI, Result<'static>>(),
+                    g::send::<REVIEW_A, REVIEW_A_WASI, Result<'static>>(),
                     g::seq(
-                        g::send::<REVIEW_A, REVIEW_WASI, ServiceDone>(),
+                        g::send::<REVIEW_A, REVIEW_A_WASI, ServiceDone>(),
                         g::seq(
                             g::send::<A, A_WASI, Result<'static>>(),
                             g::send::<A, A_WASI, ServiceDone>(),
@@ -591,9 +597,9 @@ pub fn programs() -> Programs {
             g::seq(
                 g::send::<REVIEW_B, REVIEW_B, BeginReviewVisit>(),
                 g::seq(
-                    g::send::<REVIEW_B, REVIEW_WASI, ReviewRequestReadyB>(),
+                    g::send::<REVIEW_B, REVIEW_B_WASI, ReviewRequestReadyB>(),
                     g::seq(
-                        g::send::<REVIEW_WASI, REVIEW_B, OpenB>(),
+                        g::send::<REVIEW_B_WASI, REVIEW_B, OpenB>(),
                         g::send::<REVIEW_B, B, ReviewRequestedB>(),
                     ),
                 ),
@@ -602,7 +608,7 @@ pub fn programs() -> Programs {
         g::seq(
             g::send::<B, REVIEW_B, Ready>(),
             g::seq(
-                g::send::<REVIEW_B, REVIEW_WASI, OpenedB>(),
+                g::send::<REVIEW_B, REVIEW_B_WASI, OpenedB>(),
                 g::seq(review_b_requests(), g::send::<REVIEW_B, REVIEW_B, Review>()),
             ),
         ),
@@ -614,9 +620,9 @@ pub fn programs() -> Programs {
             g::seq(
                 g::send::<REVIEW_B, B, Approved<'static>>(),
                 g::seq(
-                    g::send::<REVIEW_B, REVIEW_WASI, ResultB<'static>>(),
+                    g::send::<REVIEW_B, REVIEW_B_WASI, ResultB<'static>>(),
                     g::seq(
-                        g::send::<REVIEW_B, REVIEW_WASI, ServiceDoneB>(),
+                        g::send::<REVIEW_B, REVIEW_B_WASI, ServiceDoneB>(),
                         g::seq(
                             g::send::<B, B_WASI, Result<'static>>(),
                             g::seq(
@@ -640,7 +646,7 @@ pub fn programs() -> Programs {
                                     ),
                                     g::seq(
                                         g::send::<B, REVIEW_B, Merged>(),
-                                        g::send::<REVIEW_B, REVIEW_WASI, ReviewExitAckB>(),
+                                        g::send::<REVIEW_B, REVIEW_B_WASI, ReviewExitAckB>(),
                                     ),
                                 ),
                             ),
@@ -657,9 +663,9 @@ pub fn programs() -> Programs {
             g::seq(
                 g::send::<REVIEW_B, B, Revise<'static>>(),
                 g::seq(
-                    g::send::<REVIEW_B, REVIEW_WASI, ResultB<'static>>(),
+                    g::send::<REVIEW_B, REVIEW_B_WASI, ResultB<'static>>(),
                     g::seq(
-                        g::send::<REVIEW_B, REVIEW_WASI, ServiceDoneB>(),
+                        g::send::<REVIEW_B, REVIEW_B_WASI, ServiceDoneB>(),
                         g::seq(
                             g::send::<B, B_WASI, Result<'static>>(),
                             g::send::<B, B_WASI, ServiceDone>(),
@@ -696,6 +702,8 @@ pub fn programs() -> Programs {
         a_wasi: project(&protocol),
         b_wasi: project(&protocol),
         review_wasi: project(&protocol),
+        review_a_wasi: project(&protocol),
+        review_b_wasi: project(&protocol),
         a: project(&protocol),
         b: project(&protocol),
         review_a: project(&protocol),

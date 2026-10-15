@@ -97,9 +97,31 @@ The protocol permits independent development and review, and repeats rejected
 work without application progress flags. Real-WASI tests passed with zero, one,
 and two revisions. [The retained evidence](results/validation/static-controller-continuation-20261015)
 includes original-simulator replay, shared-resource checks, and core regressions.
-This remains deterministic boundary validation with no model calls or scored
-benchmark runs. Cargo keeps the 0.9.9 dependency and pins unreleased core repairs
-from [Hibana PR 8](https://github.com/hibanaworks/hibana/pull/8).
+Three later [Luna xhigh trials](results/review-direct-wasi-preflight.json) used
+this direct connection at failure depths 0, 1, and 2. All nine participants
+completed. Independent audits replay the original simulator, check resource
+intervals and both notification channels, and match returned feedback to the
+actual review. The trials used 1,171,689 inclusive tokens in total. They remain
+unscored integration evidence, with no baseline contrast or success-rate claim.
+At depth 2 each feature was revised once, as chosen by the participants. This
+differs from the deterministic cases that revise one feature twice.
+Cargo keeps the 0.9.9 dependency and pins unreleased core repairs from
+[Hibana PR 8](https://github.com/hibanaworks/hibana/pull/8).
+
+The same repaired core passed all 44 distinct QUIC case/direction cells in
+[one external interoperability run](results/validation/interop-static-controller-20261015).
+The saved audit checks the individual phase results, expected matrix, and exact
+core/TLS pins. Reference self-tests were omitted. The runner and capture-shutdown
+patches are disclosed in the evidence. The core's separate full GitHub gate
+also completed successfully at c2001ec.
+
+Later duplicate-request tests exposed an application error in the review guest:
+an `offer()` on the shared caller endpoint could observe the other service's
+still-live branch. The current global gives each review service its own caller
+role. One guest directly drives both endpoints and its private-I/O endpoint in
+that same global. All six boundary cases now include post-completion duplicate
+requests and chunked JSON writes. No response-routing table or progress flags
+are added. The earlier model trials retain their original source checkpoint.
 
 ## Follow the protocol
 

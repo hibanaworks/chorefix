@@ -78,6 +78,8 @@ async fn run_guests(
     let mut a_wasi = rv.enter(session, &p.a_wasi)?;
     let mut b_wasi = rv.enter(session, &p.b_wasi)?;
     let mut review_wasi = rv.enter(session, &p.review_wasi)?;
+    let mut review_a_wasi = rv.enter(session, &p.review_a_wasi)?;
+    let mut review_b_wasi = rv.enter(session, &p.review_b_wasi)?;
     let mut a = rv.enter(session, &p.a)?;
     let mut b = rv.enter(session, &p.b)?;
     let mut review_a = rv.enter(session, &p.review_a)?;
@@ -144,7 +146,13 @@ async fn run_guests(
         },
         async {
             let (vm, io) = tokio::try_join!(
-                localside::reviewer_wasi::run(review_guest, &mut review_wasi, review_bytes),
+                localside::reviewer_wasi::run(
+                    review_guest,
+                    &mut review_wasi,
+                    &mut review_a_wasi,
+                    &mut review_b_wasi,
+                    review_bytes,
+                ),
                 private_io::run(&mut review_io, &mut review_fs)
             )?;
             if vm != io {

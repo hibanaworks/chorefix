@@ -121,6 +121,11 @@ Keep these Endpoint sends and receives visible in the actual WASI localside.
 Do not introduce a relay role, a progress flag, an operation-permission table,
 or a second state machine to repair missing global connections. Payload, fd and
 path conversion belongs at the ABI boundary; coordination belongs in the global.
+One Wasm guest may directly own several projected roles from that same global.
+Use independent service endpoints when their lifetimes progress independently.
+An unqualified `offer()` observes any enabled branch of its endpoint, not the
+response for a particular fd or previous request. Do not assume that a request
+implicitly scopes the next offer, or drain unrelated previews into progress flags.
 Component tests, simulator completion and green CI cannot establish this
 architecture without checking the actual request/reply path.
 

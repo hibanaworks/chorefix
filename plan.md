@@ -508,3 +508,41 @@ WASIの値とmessageの変換はlocalsideで明示し、進行フラグや第二
 - 全体検証の初回はローカル容量不足で失敗。診断用と作業用の再生成可能なincremental
   cacheを整理し、ソース/実験ログ/実行binaryは残した。約6GiBの空きを確保した。
   再試験はCARGO_INCREMENTAL=0、CARGO_BUILD_JOBS=2。環境失敗をコード成功へ読み替えない。
+
+## 2026-10-15: 実モデル3条件の保存と独立サービスのEndpoint
+
+- 直前のturnは進捗あり。不要な生成物10か所を削除して約17GBを解放し、ソース、
+  全実験ログ、固定runtime/Wasmを保持した。現在の作業用targetも保持している。
+- 4a9937f/c2001ecの実6E Luna xhighはdepth0/1/2で各1回完了。全9参加者、
+  合計1,171,689 inclusive tokens。depth2はA/Bを交互にレビューし、各featureを1回
+  差し戻した。先行A/B固定の決定的試験とは別の経路。採点比較や成功率推定にはしない。
+  results/review-direct-wasi-preflight.jsonとreview-direct-wasi-20261015にsource、
+  prompt、raw model/carrier、結果、独立監査を保存した。binaryを含む全archiveはoutputに残る。
+- 監査は元simulatorのreplay、REPO区間、実close、code-ready、実review feedbackと
+  再提出、両merge、全frame消費、実model/effort/turnとinclusive usageを検査する。
+  7種類の改変コピーは外側hashを再計算しても拒否された。原資料は変更しない。
+- 追加した完了後重複要求の試験は旧構成で6条件すべて失敗した。完了済みAの待受通知を、
+  Bのclose応答を待つ同じEndpointのofferが観測した。offerをfd/request単位の待機と
+  仮定したアプリ側の不足であり、この観測を本体の不具合とは扱わない。
+- 最小の修正として、同じtask globalにREVIEW_A_WASI/REVIEW_B_WASIを定義した。
+  元のreviewer guest自身が2つのservice Endpointとprivate I/O Endpointを直接駆動する。
+  モデル/guestは元の3人のまま。別graph、転送channel、relay、進行flag、応答許可表、
+  localsideを隠すwrapperは追加していない。未消費previewを別の状態として保存もしない。
+- 修正後は重複review/implement/mergeと分割JSON書き込みを含む6境界条件、独立replay、
+  Rust26/Python43/Clippy/fmt/inventoryが成功。修正前の6失敗とsourceも保存する。
+  新しい構成の実Luna確認はこれから1回行い、旧3試行とsourceを混同しない。
+- 本体c2001ecのCI38734656111はfinal-form/Kaniとも成功。QUIC44d291aの
+  外部38735739939も全44cellが同一runで成功。個別phase/verdict、expected matrix、
+  全groupのcore/TLS pinとsource treeを別途照合済み。reference self-test省略と
+  runner/capture終了patchを保存する。本体main merge/registry公開は未実施。
+- 論文は旧generic-RPCや別graphの部品試験を現行接続の証拠にしないよう改訂した。
+  interface差、信頼する具体化role、未達の比較/保守測定を明記。LaTeX compileは成功。
+  全48課題の全要件受理0、採点済み0、合計予定2,592を維持する。
+
+### 次に進める範囲
+
+まずサービス分離後のLuna6Eを監査・保存する。その後はwriting 2E/M/Hを優先し、
+既存の別session resource brokerを同じglobalの実WASI要求/資源/効果/応答へ置き換える。
+2Eだけの直列化を2M/Hへ一般化せず、5/7人の独立したwriteが並行できる条件を保つ。
+reviewは元課題どおり終端で、余分なretryを加えない。続いて残る全familyを完了し、
+比較側を変更せず48課題のfidelity、baseline corpus、採点実行と保守測定へ進む。

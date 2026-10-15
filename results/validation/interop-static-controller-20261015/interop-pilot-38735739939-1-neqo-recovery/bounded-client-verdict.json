@@ -1,0 +1,39 @@
+{
+  "phase": "bounded-client",
+  "client": "hibana-quic",
+  "server": "neqo",
+  "status": "PASSED",
+  "exit_code": 0,
+  "cleanup_exit_code": 0,
+  "passed": true,
+  "results": [
+    {
+      "name": "blackhole",
+      "result": "succeeded",
+      "abbr": "B"
+    },
+    {
+      "name": "keyupdate",
+      "result": "succeeded",
+      "abbr": "U"
+    },
+    {
+      "name": "resumption",
+      "result": "succeeded",
+      "abbr": "R"
+    },
+    {
+      "name": "transfercorruption",
+      "result": "succeeded",
+      "abbr": "C2"
+    },
+    {
+      "name": "transferloss",
+      "result": "succeeded",
+      "abbr": "L2"
+    }
+  ],
+  "non_null_case_results": 5,
+  "unexecuted_case_results": 0,
+  "original_json_sha256": "774eef6fa7a55dd423f5b4f367f58723365ba01f8bb36d9ff7fb69c1f88065b0"
+}

@@ -1,0 +1,79 @@
+{
+  "audit_passed": true,
+  "task": "6E",
+  "kind": "direct_wasi_integration_preflight",
+  "scored_benchmark": false,
+  "scenario_depth": 0,
+  "participants": 3,
+  "shell_calls": 20,
+  "total_tokens": 361915,
+  "domain_calls": 6,
+  "protocol_frames": 798,
+  "protocol_paths": [
+    {
+      "rpc": 1,
+      "caller": 4,
+      "owner": 7,
+      "close_frame": 297
+    },
+    {
+      "rpc": 2,
+      "caller": 3,
+      "owner": 7,
+      "close_frame": 355
+    },
+    {
+      "rpc": 3,
+      "caller": 2,
+      "owner": 5,
+      "close_frame": 378
+    },
+    {
+      "rpc": 4,
+      "caller": 2,
+      "owner": 6,
+      "close_frame": 459
+    },
+    {
+      "rpc": 5,
+      "caller": 3,
+      "owner": 7,
+      "close_frame": 480
+    },
+    {
+      "rpc": 6,
+      "caller": 4,
+      "owner": 7,
+      "close_frame": 765
+    }
+  ],
+  "notifications": [
+    {
+      "feature": "user_authentication",
+      "visit": 0,
+      "code_ready_frame": 369,
+      "review_feedback_frame": 382
+    },
+    {
+      "feature": "notification_feature",
+      "visit": 0,
+      "code_ready_frame": 450,
+      "review_feedback_frame": 490
+    }
+  ],
+  "original_simulator_replay": "passed",
+  "elapsed_seconds": 59.48075595893897,
+  "versions": {
+    "consumer": "4a9937f26e24dc9c33e0ff5b783754308dbd6dcd",
+    "wash": "12e137aba2cea74f353c198a8d7c92afc977627c",
+    "tracefix": "36b4bd108fcd74f7efb17613aebbe3fdf55499a9",
+    "compiler": "rustc 1.95.0 (59807616e 2026-04-14)\nbinary: rustc\ncommit-hash: 59807616e1fa2540724bfbac14d7976d7e4a3860\ncommit-date: 2026-04-14\nhost: aarch64-apple-darwin\nrelease: 1.95.0\nLLVM version: 22.1.2",
+    "model_client": "codex-cli 0.162.0-alpha.17.2",
+    "model_client_sha256": "50ab38ba21d0d9f8346f32f41848382f15b556190f3c7a07e885a4fb73e379c8"
+  },
+  "binary_sha256": {
+    "runtime": "51305fff6d929067a3b723f405397d1565fe7a9ee0d0b93d5517d821e3ce2bc4",
+    "wash.wasm": "407e1fe263231022eb542a7d2a35e4d4705a58590f92b77bf21fe5f7c77258bc"
+  },
+  "result_sha256": "48624850ef8c6fdf3298fb493608ff53f376a6904c122df89696009f69ab76ee"
+}

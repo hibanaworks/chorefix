@@ -1,3 +1,5 @@
+//! One guest drives separate projected service roles from the same global.
+//! Static path/fd binding selects the caller endpoint. Endpoint owns progress.
 use super::super::global::*;
 use crate::shell::{ShellResult, global::Exit as IoExit};
 use hibana_wasip1_runtime::{
@@ -5,9 +7,11 @@ use hibana_wasip1_runtime::{
     protocol,
 };
 
-pub async fn run<const ROLE: u8>(
+pub async fn run(
     guest: &mut HibanaWasiGuest<'_>,
-    endpoint: &mut hibana::Endpoint<'_, ROLE>,
+    endpoint: &mut hibana::Endpoint<'_, REVIEW_WASI>,
+    review_a: &mut hibana::Endpoint<'_, REVIEW_A_WASI>,
+    review_b: &mut hibana::Endpoint<'_, REVIEW_B_WASI>,
     reply_bytes: std::rc::Rc<std::cell::RefCell<Vec<u8>>>,
 ) -> ShellResult<i32> {
     let mut fuel_id = 0u16;
@@ -21,13 +25,13 @@ pub async fn run<const ROLE: u8>(
                 }
                 WasiImportRequest::FdWriteObject(request) => {
                     let completion = if request.0.fd() == REVIEW_B_FD {
-                        endpoint.recv::<ReviewRequestReadyB>().await?;
-                        endpoint.send::<WriteB>(&request).await?;
-                        endpoint.recv::<WrittenB>().await?
+                        review_b.recv::<ReviewRequestReadyB>().await?;
+                        review_b.send::<WriteB>(&request).await?;
+                        review_b.recv::<WrittenB>().await?
                     } else {
-                        endpoint.recv::<ReviewRequestReady>().await?;
-                        endpoint.send::<Write>(&request).await?;
-                        endpoint.recv::<Written>().await?
+                        review_a.recv::<ReviewRequestReady>().await?;
+                        review_a.send::<Write>(&request).await?;
+                        review_a.recv::<Written>().await?
                     };
                     pending.complete(WasiImportCompletion::FdWriteObject(completion))?;
                 }
@@ -48,15 +52,15 @@ pub async fn run<const ROLE: u8>(
                         .strip_prefix(b"/")
                         .unwrap_or(request.0.path());
                     let completion = if path == b"service/code_review/notification_feature" {
-                        endpoint.recv::<ReviewRequestReadyB>().await?;
-                        endpoint.send::<OpenB>(&request).await?;
-                        endpoint.recv::<OpenedB>().await.map_err(|e| {
+                        review_b.recv::<ReviewRequestReadyB>().await?;
+                        review_b.send::<OpenB>(&request).await?;
+                        review_b.recv::<OpenedB>().await.map_err(|e| {
                             crate::shell::ShellError::message(format!("review WASI OpenedB: {e:?}"))
                         })?
                     } else if path.starts_with(SERVICE_PREFIX) && path != RESULT_PATH {
-                        endpoint.recv::<ReviewRequestReady>().await?;
-                        endpoint.send::<Open>(&request).await?;
-                        endpoint.recv::<Opened>().await.map_err(|e| {
+                        review_a.recv::<ReviewRequestReady>().await?;
+                        review_a.send::<Open>(&request).await?;
+                        review_a.recv::<Opened>().await.map_err(|e| {
                             crate::shell::ShellError::message(format!("review WASI Opened: {e:?}"))
                         })?
                     } else {
@@ -128,14 +132,14 @@ pub async fn run<const ROLE: u8>(
                 }
                 WasiImportRequest::FdClose(request) => {
                     let completion = if request.0.fd() == REVIEW_B_FD {
-                        endpoint.recv::<ReviewRequestReadyB>().await?;
-                        endpoint.send::<CommitB>(&request).await?;
-                        let branch = endpoint.offer().await?;
+                        review_b.recv::<ReviewRequestReadyB>().await?;
+                        review_b.send::<CommitB>(&request).await?;
+                        let branch = review_b.offer().await?;
                         match branch.label() {
                             48 => {
                                 branch.recv::<AdmittedB>().await?;
-                                let bytes = endpoint.recv::<ResultB<'_>>().await?.to_vec();
-                                endpoint.recv::<ServiceDoneB>().await?;
+                                let bytes = review_b.recv::<ResultB<'_>>().await?.to_vec();
+                                review_b.recv::<ServiceDoneB>().await?;
                                 reply_bytes.replace(bytes);
                                 protocol::FdClosedRet(protocol::FdClosed::new(request.0.fd()))
                             }
@@ -154,14 +158,14 @@ pub async fn run<const ROLE: u8>(
                             }
                         }
                     } else if request.0.fd() == SERVICE_FD {
-                        endpoint.recv::<ReviewRequestReady>().await?;
-                        endpoint.send::<Commit>(&request).await?;
-                        let branch = endpoint.offer().await?;
+                        review_a.recv::<ReviewRequestReady>().await?;
+                        review_a.send::<Commit>(&request).await?;
+                        let branch = review_a.offer().await?;
                         match branch.label() {
                             8 => {
                                 branch.recv::<Admitted>().await?;
-                                let bytes = endpoint.recv::<Result<'_>>().await?.to_vec();
-                                endpoint.recv::<ServiceDone>().await?;
+                                let bytes = review_a.recv::<Result<'_>>().await?.to_vec();
+                                review_a.recv::<ServiceDone>().await?;
                                 reply_bytes.replace(bytes);
                                 protocol::FdClosedRet(protocol::FdClosed::new(request.0.fd()))
                             }
@@ -225,12 +229,12 @@ pub async fn run<const ROLE: u8>(
             }
             WasiBoundaryStep::Exit(exit) => {
                 let status = exit.status() as i32;
-                endpoint.recv::<ReviewRequestReady>().await?;
-                endpoint.send::<Exit>(&status).await?;
-                endpoint.recv::<ReviewRequestReadyB>().await?;
-                endpoint.send::<ExitB>(&()).await?;
-                endpoint.recv::<ReviewExitAck>().await?;
-                endpoint.recv::<ReviewExitAckB>().await?;
+                review_a.recv::<ReviewRequestReady>().await?;
+                review_a.send::<Exit>(&status).await?;
+                review_b.recv::<ReviewRequestReadyB>().await?;
+                review_b.send::<ExitB>(&()).await?;
+                review_a.recv::<ReviewExitAck>().await?;
+                review_b.recv::<ReviewExitAckB>().await?;
                 endpoint.send::<IoExit>(&status).await?;
                 return Ok(status);
             }

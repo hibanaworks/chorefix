@@ -20,16 +20,16 @@ roles drive their endpoints before carrying out domain effects. A bounded WASI
 shell lets agents use work files and scripts. Every file operation goes through
 ChoreoFS. The shell cannot grant a task step by choosing a pathname or writing
 an approval file.
-We have implemented eleven task structures from five TraceFix families.
-Six recent unscored shell integration episodes used twenty-eight GPT-6 Luna
-participants with xhigh reasoning across two implementation checkpoints.
-All completed their projected protocols with no recorded resource violations.
-One ended after a failed test, as its task requires; it is a domain failure.
-The seven-developer episode included two failed tests
-followed by success for every developer. These checks establish an executable
-boundary and recovery path. They do not establish a success-rate, speed, token,
-or maintenance advantage. The planned comparison retains all 48 TraceFix tasks
-and its four original runtime conditions. That comparison remains incomplete.
+The current direct boundary has been tested on two TraceFix tasks.
+One three-participant CI/CD trial and three three-participant review trials
+used GPT-6 Luna with xhigh reasoning. The review trials covered zero, one,
+and two requested revisions. All four completed their protocols and original
+simulator work without recorded resource violations. Independent audits check
+saved requests, effects, replies, model identity, and inclusive token counts.
+These are unscored integration observations, not a matched baseline comparison.
+The planned comparison retains all 48 tasks and four original runtime
+conditions. No task has passed the complete benchmark acceptance gate and no
+scored episode has started.
 \end{abstract}
 
 \section{Problem and scope}
@@ -97,76 +97,72 @@ corresponding step. A failed operation cannot silently select another branch.
 Task recovery follows an explicit route. A transport or session fault ends the
 run and is not treated as a successful domain retry.
 
-The following excerpt from the 1H global defines independent resource returns
-and the declared retry choice. The attempt arm begins with an explicit message,
-so the observer can distinguish another attempt from completion.
+The review task, 6E, has two developers, a reviewer, and a shared repository.
+The implementation assigns WASI roles, feature owners, reviewer services, and
+one repository owner within the same global. The reviewer is one model and
+one guest. That guest directly owns a caller endpoint for each service and a
+private-I/O endpoint. Its two service owners do not add model participants.
+Each feature can proceed while the other waits for its reviewer. A revision
+uses the actual review result at an explicit resolver point:
 \begin{lstlisting}
-let release = g::par(
-    g::seq(g::send::<DEV, SECOND, ReturnSecond>(),
-           g::send::<SECOND, DEV, ReturnedSecond>()),
-    g::seq(g::send::<DEV, FIRST, ReturnFirst>(),
-           g::send::<FIRST, DEV, ReturnedFirst>()),
-);
-let attempts = g::route(finish, attempt)
-    .resolve::<RESOLVER>().roll();
-g::seq(g::send::<DEV, DEV, Design>(), attempts)
+let feature_a = g::seq(
+    implement_a,
+    g::route(accepted_a, revise_a).resolve::<DECIDE_A>(),
+).roll();
 \end{lstlisting}
-The localside dispatches the operation actually requested by the model.
-Each handler writes its communication directly. No helper hides the endpoint
-operations. For example, the commit handler borrows both resources, asks its
-endpoint to admit the commit, executes the real tool, and returns both loans.
-The projected endpoint rejects an out-of-order request before the domain call.
+The complete global defines implementation requests, code-ready messages,
+review requests and replies, repository operations, and completion. It composes
+both features with \texttt{g::par}. The accepted arm admits merge and the
+revision arm returns feedback before another implementation. Each corresponding
+localside writes its \texttt{send}, \texttt{recv}, and \texttt{offer} operations
+directly. For example, the developer consumes actual feedback:
 \begin{lstlisting}
-Operation::Commit => {
-    endpoint.send::<AcquireFirst>(&()).await?;
-    endpoint.recv::<GrantedFirst>().await?;
-    endpoint.send::<AcquireSecond>(&()).await?;
-    endpoint.recv::<GrantedSecond>().await?;
-    endpoint.send::<Commit>(&()).await?;
-    let result = domain.execute(agent, call).await
-        .map_err(RunError::Domain)?;
-    response(operation, result)?;
-    endpoint.send::<ReturnSecond>(&()).await?;
-    endpoint.send::<ReturnFirst>(&()).await?;
-    endpoint.recv::<ReturnedSecond>().await?;
-    endpoint.recv::<ReturnedFirst>().await?;
+let feedback = endpoint.offer().await?;
+match feedback.label() {
+    30 => {
+        let value = feedback.recv::<Approved<'_>>().await?;
+        // Return this review result, then serve the merge.
+    }
+    31 => {
+        let value = feedback.recv::<Revise<'_>>().await?;
+        // Return this review result, then serve another implementation.
+    }
+    _ => return Err(...),
 }
 \end{lstlisting}
-These are excerpts. The repository contains the complete global, projection,
-role attachment, and localside functions. Message enums describe actual input
-data. They do not store the next permitted operation.
+This is an excerpt, not a complete function. The source contains the actual
+serialization and endpoint replies. Labels identify projected alternatives.
+No approved flag or stored next-operation enum selects the continuation.
+The resolver input holds the original review result, not task progress.
 
-\subsection{Resource handoffs}
-The codebase family has three, five, or seven developers. Each developer needs
-two modules. Module loans, grants, returns, and acknowledgements use endpoints.
-A module service permits at most one outstanding loan. No mutable table stores
-its current owner.
+\subsection{Resources and notifications}
+The sole repository owner receives projected requests before applying the
+original implementation or merge operation. It owns the service object bytes
+and awaits each domain operation before serving another. No separate lock
+owner table grants access. This relies on the trusted single materializing
+owner. Endpoint conformance does not by itself prove arbitrary Rust side
+effects mutually exclusive.
 
-In 1H, a developer designs once and repeats implementation, commit, and test
-when the actual test result fails. A resolver admits another attempt or the
-completion arm. Both module returns can progress independently. The modules
-can be lent again before the former borrower finishes its local test. A
-withheld commit request also holds no module: another developer can commit
-while the first model is still choosing its next request. In 1E
-and 1M, the original test is terminal. Their globals have no retry choice.
+Implementation and code-ready receipt precede review. The actual result reaches
+the developer through the review-feedback channel. Approval must precede merge.
+The global also carries the result to the guest. The trace auditor checks these
+channels, effect intervals, and both completed merges separately from the
+runtime's completion message.
 
-The writing family uses the same resource service for shared sections. Its
-three, five, or seven researchers read literature, draft locally, borrow two
-sections, write, return both sections, then review locally. Review is terminal
-in all three original tasks. No retry is invented for that family.
+The 16E CI/CD task connects its three WASI roles directly to the developer,
+tester, deployer, and two resource roles in one global. Resource acquire, grant,
+return, and acknowledgement are messages. Build completion precedes testing,
+test completion precedes deployment, and deployment completion notifies both
+other participants. Its original simulator has no injected domain failure.
+A retry loop is therefore not added to this task.
 
-The workflow and reusable resource services in these two families use separate
-projected sessions.
-Their localside bridges are explicit. They do not form one proved global
-session for the whole process. A common acquisition order prevents the
-cross-session resource cycle in this implementation. Projection alone does
-not establish that property for arbitrary compositions of sessions.
-
-The 16E build/test/deploy task instead fits in one projected global containing
-all three participants and both infrastructure roles. Each resource is returned
-before the next participant starts its dependent work. The deployer sends two
-independent completion notifications. The original task has no failure loop;
-we retain its combined build/test and deploy/smoke-test operations.
+Earlier codebase and writing prototypes connect task and resource sessions in
+Rust brokers. Even when both sides use endpoints, that connection is outside
+a single task global. Those prototypes and their tests are retained as component
+evidence. They do not meet the target architecture and are not accepted task
+ports. Porting must preserve disjoint work, original resource counts, and
+terminal outcomes while replacing these connections. A serialized substitute
+is not sufficient for tasks that allow disjoint operations.
 
 \subsection{WASI and ChoreoFS}
 The model sees one shell tool. Commands enter a real Wasm guest under
@@ -177,20 +173,31 @@ Work files, scripts, terminal objects, and tool request/reply objects all use
 this path. There is no guest-side substitute filesystem or host filesystem
 fallback.
 
-The shell supports \texttt{help}, \texttt{ls}, \texttt{cat}, \texttt{echo},
-\texttt{apply}, \texttt{script}, and \texttt{call}. Eight work objects hold
-notes or scripts. The command
-\begin{lstlisting}
-call {"tool":"NAME","arguments":{...}}
-\end{lstlisting}
-writes a request to \texttt{/tools/call} and reads the actual reply from
-\texttt{/tools/reply}. Its task effect must also pass the task-specific
-endpoint. Generic WASI admission does not grant a task operation.
+The current guest is the independent Rust \texttt{std} program
+\texttt{hibana-wash}. It has no external Rust dependencies. It supports quoted
+arguments, variables, conditions, loops, pipelines, redirection, calculations,
+and saved scripts. Eight private files have 8,192-byte capacities. A script has
+a 4,096-byte UTF-8 limit. Each guest starts with 64 KiB committed memory and can
+request growth through the projected protocol up to 1 MiB of supplied backing.
+These are explicit experimental limits, not an unrestricted POSIX environment.
 
-The guest command implementation is trusted. It does not run arbitrary POSIX
-binaries, compile arbitrary programs, or offer a general-purpose operating
-system. The freedom measured here is choice among command sequences in this
-bounded profile. This is a narrower claim than unrestricted shell access.
+The model receives object paths and the original domain schemas. It chooses
+its commands. Writing JSON arguments to a domain object and closing it requests
+that operation. The actual path is:
+\begin{quote}
+WASI endpoint $\rightarrow$ projected request $\rightarrow$ owner endpoint
+$\rightarrow$ ChoreoFS operation $\rightarrow$ projected reply.
+\end{quote}
+The task global includes those edges. There is no unprojected request queue
+connecting an ABI graph to a separate task graph. Private work uses a parallel
+projected I/O fragment and cannot supply a missing task permission.
+
+Object binding and argument validation require the target to match the chosen
+service. A rejected argument follows an explicit resolver branch and can be
+corrected without restarting the endpoint. ChoreoFS handles object operations,
+not task authority. An open fd or an approval file cannot grant a merge.
+The older limited-command guest and generic \texttt{/tools/call} bridge remain
+only as historical component evidence.
 
 \subsection{Trusted code and claim boundary}
 The boundary assumes the supplied tool interface is the only path to the
@@ -227,7 +234,7 @@ matched controls for our runs.
 Every port must retain the original roles, resources, dependencies, failure
 paths, and required independence. All 825 checklist items remain in the
 manifest. A passing compilation or generated TLC model is not by itself a
-fidelity verdict. At present eleven tasks are implemented and none has passed the
+fidelity verdict. Task prototypes exist, but none has passed the
 full independent benchmark acceptance gate. No scored episode has started.
 
 \subsection{Outcomes and accounting}
@@ -256,93 +263,110 @@ The task endpoint still rejects the operation before the simulator receives
 an execute request.
 
 \section{Evidence to date}
-\subsection{Runtime qualification}
-Both application and WASI runtime use the published Hibana \texttt{=0.9.9}.
-The updated local WASI runtime was saved at revision
-\texttt{7905fa07bfd66db69ea7fb74883b7ca1e2b572bd}. It has no mutable sibling
-Hibana patch. Its quality workflow passed on GitHub \cite{wasicheck}.
+\subsection{Source and core qualification}
+The current consumer uses Hibana package version \texttt{0.9.9} with an exact Git
+patch to \texttt{c2001ec06944d7f3b299e16b5b3efb5b0ba0366a}. This is an unreleased
+repair, not a new registry version. Both direct and WASI-runtime dependency
+paths select that core. The WASI runtime is pinned to
+\texttt{4ebdad1443cf49488eae924afe528f67f5a5953b} and wash to
+\texttt{12e137aba2cea74f353c198a8d7c92afc977627c}.
 
-The local gate passed 77 ordinary Rust tests, the two decision-export tests,
-Clippy, ownership documentation tests, Lean, Z3, Miri, both shell demos,
-embedded compilation, resource linking, documentation, and package verification.
-Lean checked 20 poll model theorems and 520 actual VM decisions, plus ten path
-admission theorems and 160 actual ChoreoFS decisions. Z3 checked four UNSAT
-properties and three SAT witnesses. These counts describe that gate's scope.
+Developing the 6E boundary exposed projection ambiguity at an elastic repetition
+boundary and runtime problems involving parallel resolver visits and retained
+send-selected choices. Minimal native regressions reproduce the affected cases.
+The repair retains valid independent parallel repetitions. Local Rust tests
+passed 883 cases with 12 explicit exclusions. The saved verification includes
+Lean, Z3, focused Miri and Kani checks, embedded compilation, and Clippy.
+These checks cover their recorded models and cases. They do not prove every
+application trace safe. The core's separate full CI run 38734656111 also passed
+both final-form and Kani at that exact commit.
 
-The linked Pico 2 resource fixture uses 80,688 bytes of flash and 117,464 bytes
-of RAM including its stack reservation. It is a runtime fixture, not the full
-agent shell application and not evidence of physical board execution.
-The agent implementation also passes 25 Rust tests and fourteen Python process and
-boundary tests.
+A QUIC consumer selecting the same exact core passed 593 default and 598 HTTP/3
+local tests. External run 38735739939 passed all 44 registered case/direction
+cells at QUIC revision 44d291a in one run. Saved phase reports, verdicts,
+expected cells, source-pair trees, and core/TLS pins were checked independently.
+Reference self-tests were omitted. The retained evidence discloses runner and
+capture-shutdown patches. This is integration evidence for the repair, not a
+whole-system proof or a performance comparison.
 
-\subsection{Actual shell integration}
-Table~\ref{tab:preflight} contains four unscored episodes, from the
-direct-localside implementation. Earlier checkpoint probes remain in the
-repository evidence and are separate from this table. All twenty-two participants
-used the requested model and reasoning setting. Saved raw model calls, shell
-RPCs, task requests, simulator events, source copies, and binary hashes were
-checked independently. Each guest and task runtime exited successfully.
+\subsection{Direct WASI model trials}
+Table~\ref{tab:preflight} contains four unscored trials using the direct projected
+boundary. Earlier limited-command and cross-graph bridge trials remain in their
+separate ledgers. They are not evidence that the present architecture was
+already complete. All participants in this table used the requested and returned
+Luna model and xhigh effort. The original simulator and task inputs were kept.
 \begin{table}[h]
 \centering
-\caption{Unscored shell integration. No baseline contrast is available.}
+\caption{Unscored direct WASI trials. No baseline contrast is available.}
 \label{tab:preflight}
-\begin{tabular}{lrrrrr}
+\begin{tabular}{lrrrrrr}
 \toprule
-Task & Roles & Domain calls & Max. resource users & Seconds & Tokens \\
+Task & Depth & Roles & Shell calls & Domain calls & Seconds & Tokens \\
 \midrule
-9M & 5 & 10 & 2 & 23.67 & 294,684 \\
-1H & 7 & 70 & 3 & 55.68 & 1,411,942 \\
-2H & 7 & 28 & 3 & 30.16 & 640,499 \\
-16E & 3 & 3 & 1 & 41.21 & 271,576 \\
+16E & 0 & 3 & 11 & 3 & 27.127 & 220,215 \\
+6E & 0 & 3 & 20 & 6 & 59.481 & 361,915 \\
+6E & 1 & 3 & 23 & 8 & 45.387 & 412,438 \\
+6E & 2 & 3 & 22 & 10 & 46.913 & 397,336 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-The 9M episode completed with ten domain calls. In 1H, every developer observed
-two failed tests followed by success. The episode made seven design calls and
-21 calls each to implement, commit, and test. All four simulators completed with
-zero recorded resource violations.
+The 16E observation uses the pre-repair published core and is retained at its
+own source checkpoint. All four required cross-role notifications and three
+domain effects were audited. The three 6E observations use consumer 4a9937f and
+core c2001ec. Each completed both merges with no recorded simulator violation.
+The source snapshot was frozen before model calls and is identical across the
+three review trials. Binaries, compiler details, prompts, raw model events, raw
+carrier events, and inclusive usage were retained. Source hashes alone are not
+used as evidence that a particular model turn finished.
 
-The 2H writing episode used all seven researchers and seven shared sections.
-Each researcher read, drafted, wrote, and reviewed, for 28 domain calls. Up to
-three disjoint writes overlapped. The original task makes review terminal and
-disables failure injection. Depth 2 therefore did not inject review failures.
-The episode used 34 shell calls: six help commands and 28 domain calls.
+For 6E the original simulator fails the first depth review calls across all
+features. At depth 2 the model chose review order A, B, A, B. Each feature was
+revised once. Deterministic boundary cases instead exercise A first and B first
+with zero, one, or two revisions concentrated on the first feature. These cover
+different observed schedules without requiring the model to follow a recipe.
+The three model trials used 1,171,689 inclusive tokens in total. This is a cost
+observation, not evidence of a token saving.
 
-The 16E episode completed the three original combined operations with three
-participants. It retained the required linear order and had at most one active
-infrastructure user. Its original simulator also disables failure injection. One model additionally
-requested four undeclared notification or discovery tools. All four were
-rejected by static schema validation before task RPC or simulator execution.
-They remain in raw records, model tool counts, and inclusive tokens. They are
-schema rejections, not endpoint-protocol rejections. The declared coordination
-notifications were sent by the endpoint localsides.
+The read-only auditor replays the original simulator and checks every actual
+close before its domain effect, nonoverlapping shared-resource intervals,
+code-ready delivery, review-feedback contents, revised implementation after
+rejection, merge after approval, and complete frame consumption. It also checks
+raw model identity and turn completion, shell command correspondence, source
+and binary hashes, and inclusive token arithmetic. Altered copies remove or
+forge required requests and notifications, alter feedback, or overlap resource
+intervals. They must fail even after the event-file hash is recomputed.
 
-The 1H agents made 81 shell calls. Besides the 70 domain calls, they chose seven
-help commands, three listings, and one file read. No participant chose a script
-in this batch. Earlier probes include private work-file writes.
-Actual script execution is established by deterministic boundary tests rather
-than attributed to the model runs.
+Later boundary tests found a caller-side limitation in that model checkpoint.
+After a duplicate request to a completed review service, its next branch could
+be observed by an offer intended for the other service. An offer is not scoped
+by the previous request. All six added cases failed in the old application.
+The revised global gives each service a separate caller role, directly driven
+by the same original guest. All six repaired cases and simulator replays passed,
+including chunked writes and duplicate requests followed by work on the other
+feature. No application progress state or core change was needed. The earlier
+model observations retain their original source and do not qualify this revised
+source by themselves.
 
-These episodes show a working path from model command to WASI, ChoreoFS,
-projected task execution, and the unchanged simulator. They do not estimate a
-population success rate. The larger token count of the developer episode is
-reported as measured, not presented as a saving.
+\subsection{What these trials do not establish}
+These are integration observations from development, not random samples or
+paired baseline trials. They cannot estimate a comparative completion rate,
+latency advantage, or maintenance saving. Earlier failed and interrupted
+attempts remain in the repository records. A successful replacement is not
+used to erase a failed attempt.
 
-Two later 8E checks exercised terminal pass and fail branches with three
-participants each and three domain calls per episode. At depth 0 the task
-succeeded in 21.67 seconds with 152,527 inclusive tokens. At depth 2 the test
-failed; notifications and resource returns completed in 29.21 seconds with
-170,586 tokens. Both raw records passed the independent audit. Protocol
-completion does not turn the failed test into domain success. The task
-description and simulator specify terminal failure, while checklist O2 asks
-for a revision loop. This source disagreement remains an acceptance issue.
+The shell changes the domain-call interface. In 6E a developer's implementation
+reply waits for review and includes its actual result. Canonical object targets
+are checked before execution. The unchanged baseline retains its own argument
+matching and original tool replies. These differences must be controlled in a
+causal shell comparison or reported as a separate interface experiment.
 
-For required retries, the model receives the actual failure and submits new
-requests; the host does not replay captured calls. We now ask it to state a
-brief revised approach. This instruction is not an endpoint guarantee. The
-simulated tools take no source patch, so these tasks cannot establish whether
-a new approach produces a better repair.
+The original tools simulate work and do not consume an agent's source patch.
+They can measure coordination, not whether one reasoning strategy produces a
+better software repair. Private shell computation is flexible within the
+stated profile. It does not make this a general operating-system sandbox or a
+proof of unrestricted agent freedom. No complete 48-task fidelity acceptance,
+scored comparison, or maintenance measurement is reported here.
 
 \section{Maintenance study and remaining work}
 A maintenance study should change required evidence, retry rules, or a
@@ -353,8 +377,8 @@ Generated files and generic engine code must be counted separately from manual
 edits. TraceFix may also derive execution data from one source. A claim of lower
 maintenance cost must be measured rather than inferred from filenames.
 
-The main blockers to a completed empirical paper are the remaining 37 task
-ports, independent fidelity acceptance of all 48, a runnable and accepted
+The main blockers to a completed empirical paper are completion of all task
+ports and independent fidelity acceptance of all 48, a runnable and accepted
 baseline corpus, the 2,160 main and 432 supplemental scored episodes, analysis
 with uncertainty, and the
 maintenance measurements. The shell profile also limits the kinds of work an
@@ -376,7 +400,5 @@ a submission-ready empirical conclusion.
 \bibitem{ampst} Nicolas Lagaillardie, Rumyana Neykova, and Nobuko Yoshida.
 \emph{Stay Safe under Panic: Affine Rust Programming with Multiparty Session Types}.
 ECOOP 2022. \url{https://arxiv.org/abs/2204.13464}.
-\bibitem{wasicheck} Hibana WASI runtime, quality run for revision 7905fa0.
-\url{https://github.com/hibanaworks/hibana-wasip1-runtime/actions/runs/38668826094}.
 \end{thebibliography}
 \end{document}
