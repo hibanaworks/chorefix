@@ -37,4 +37,4 @@ jobs:
           .venv/bin/python tools/inventory.py --check
           .venv/bin/python tools/runtime_inventory.py --check
           .venv/bin/python tools/matrix.py
-          git diff --exit-code -- benchmark/matrix.jsonl
+          git diff --exit-code -- benchmark/matrix.jsonl benchmark/latest-matrix.jsonl

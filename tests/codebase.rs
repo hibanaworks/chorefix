@@ -1,4 +1,4 @@
-use hibana_tracefix::{
+use choreofix::{
     RunError,
     tasks::codebase::{self, Domain, Operation, Request},
 };

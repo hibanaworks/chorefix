@@ -124,7 +124,7 @@ async def run_participant(*, participant: str, prompt: str, tools: list[dict],
         try:
             async with asyncio.timeout(timeout):
                 await request(1, "initialize", {
-                    "clientInfo": {"name": "hibana_tracefix", "title": "Hibana TraceFix", "version": "0.1.0"},
+                    "clientInfo": {"name": "choreofix", "title": "ChoreoFix", "version": "0.1.0"},
                     "capabilities": {"experimentalApi": True},
                 })
                 await send({"method": "initialized"})

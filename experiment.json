@@ -5,6 +5,7 @@
   "hibana_version": "0.9.9",
   "benchmark_revision": "36b4bd108fcd74f7efb17613aebbe3fdf55499a9",
   "paper_baseline_revision": "87b01a2c0ae53c5045c9ce3d43cd0235b1831275",
+  "latest_baseline_revision": "36b4bd108fcd74f7efb17613aebbe3fdf55499a9",
   "conditions": [
     "topology_monitored",
     "mediator_enforced",
@@ -19,6 +20,8 @@
   ],
   "repetitions": 3,
   "expected_runs": 2160,
+  "supplementary_conditions": ["latest_tracefix_monitored"],
+  "expected_supplementary_runs": 432,
   "python_hash_seed": 0,
   "domain_tool_delay_multiplier": 1.0,
   "run_timeout_seconds": 600,

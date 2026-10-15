@@ -126,7 +126,7 @@ async def run(task, run_id, scenario):
         snapshot.parent.mkdir(parents=True, exist_ok=True)
         snapshot.write_bytes(content)
     (output / "source-manifest.json").write_text(json.dumps(source_hashes, indent=2)+"\n")
-    binary = ROOT / "target/debug" / {"1":"codebase", "2":"writing", "9":"philosophers", "16":"cicd"}[task[:-1]]
+    binary = ROOT / "target/debug" / {"1":"codebase", "2":"writing", "8":"api", "9":"philosophers", "16":"cicd"}[task[:-1]]
     binary_content = binary.read_bytes()
     runtime_binary_sha256 = hashlib.sha256(binary_content).hexdigest()
     runtime_snapshot = output / "runtime"
@@ -153,7 +153,7 @@ async def run(task, run_id, scenario):
             features = {step.agent_id:step.feature for step in module._DESIGN_STEPS}
             feature = features[agent]
             modules = ", ".join(metadata["agent_resources"][agent])
-            conclusion = ("If tests fail, repeat implement_code, commit_changes, run_local_tests until your actual test result succeeds."
+            conclusion = ("If tests fail, use the actual failure to reconsider your fix. Briefly state your revised approach, then submit new implement_code, commit_changes, and run_local_tests calls until the tests pass. Do not replay the previous calls blindly."
                           if task == "1H" else "The test result is terminal. Report any failed test and finish. Do not repeat work.")
             prompt = f"""You are {agent} in the full original TraceFix task {task}.
 Call design_feature(feature_name="{feature}") once.
@@ -175,6 +175,15 @@ write_to_document(sections="{sections}"), review_own_work(section_name="{section
 in that order. Review is terminal even if it finds issues. Do not repeat work.
 Hibana endpoints coordinate both section loans. Perform actual calls with the
 supplied tools. Finish after the review response.
+"""
+        elif task == "8E":
+            prompt = f"""You are {agent} in the original TraceFix task 8E.
+DB_ADMIN calls migrate_schema(migration_name="add_new_tables").
+BACKEND_DEV calls implement_backend(component="new_api_endpoints").
+TESTER calls run_integration_tests(suite="backend_schema_integration").
+Perform only your role's domain call. Hibana coordinates prerequisites,
+resource loans, and test-result notifications. The test result is terminal,
+including failure. Report the actual result and finish. Do not retry.
 """
         elif task == "16E":
             prompt = f"""You are {agent} in the original TraceFix task 16E.
@@ -248,7 +257,7 @@ infrastructure loans. A call may wait for a prerequisite. Use the actual tool.
 
 async def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--tasks", nargs="+", choices=["1E", "1M", "1H", "2E", "2M", "2H", "9E", "9M", "9H", "16E"], required=True)
+    parser.add_argument("--tasks", nargs="+", choices=["1E", "1M", "1H", "2E", "2M", "2H", "8E", "9E", "9M", "9H", "16E"], required=True)
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--scenario", type=int, choices=[0,1,2], default=0)
     args = parser.parse_args()

@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 
-use hibana_tracefix::{Domain, Work, tasks::philosophers};
+use choreofix::{Domain, Work, tasks::philosophers};
 
 struct Inputs(RefCell<std::collections::BTreeMap<String, std::collections::VecDeque<Work>>>);
 
@@ -84,7 +84,7 @@ async fn domain_error_cannot_be_reported_as_protocol_completion() {
     }
     assert!(matches!(
         philosophers::run_9e(&Unavailable).await,
-        Err(hibana_tracefix::RunError::Domain("domain unavailable"))
+        Err(choreofix::RunError::Domain("domain unavailable"))
     ));
 }
 

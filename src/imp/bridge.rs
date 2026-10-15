@@ -18,6 +18,7 @@ pub struct PhilosopherCall(Call);
 pub struct CodeCall(Call);
 pub struct WritingCall(Call);
 pub struct CicdCall(Call);
+pub struct ApiCall(Call);
 
 impl WorkRequest for PhilosopherCall {
     fn work(&self) -> Work {
@@ -63,6 +64,18 @@ impl crate::tasks::cicd::Request for CicdCall {
             "run_integration_tests" => Operation::Test,
             "deploy_application" => Operation::Deploy,
             _ => unreachable!("validated CI/CD tool name"),
+        }
+    }
+}
+
+impl crate::tasks::api::Request for ApiCall {
+    fn operation(&self) -> crate::tasks::api::Operation {
+        use crate::tasks::api::Operation;
+        match self.0.tool.as_str() {
+            "migrate_schema" => Operation::Migrate,
+            "implement_backend" => Operation::Implement,
+            "run_integration_tests" => Operation::Test,
+            _ => unreachable!("validated API task tool"),
         }
     }
 }
@@ -268,6 +281,23 @@ impl crate::tasks::cicd::Domain for Bridge {
         Ok(CicdCall(call))
     }
     async fn execute(&self, agent: &'static str, call: CicdCall) -> Result<Value, String> {
+        self.execute_call(agent, call.0).await
+    }
+}
+
+impl crate::tasks::api::Domain for Bridge {
+    type Call = ApiCall;
+    async fn request(&self, agent: &'static str) -> Result<ApiCall, String> {
+        let call = self.request_call(agent).await?;
+        if !matches!(
+            call.tool.as_str(),
+            "migrate_schema" | "implement_backend" | "run_integration_tests"
+        ) {
+            return Err("unknown API task tool".into());
+        }
+        Ok(ApiCall(call))
+    }
+    async fn execute(&self, agent: &'static str, call: ApiCall) -> Result<Value, String> {
         self.execute_call(agent, call.0).await
     }
 }

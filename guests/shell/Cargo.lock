@@ -3,5 +3,5 @@
 version = 4
 
 [[package]]
-name = "tracefix-shell-guest"
+name = "choreofix-shell-guest"
 version = "0.1.0"

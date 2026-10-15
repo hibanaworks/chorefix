@@ -53,7 +53,7 @@ async def run(task, run_id, scenario):
         snapshot.parent.mkdir(parents=True, exist_ok=True)
         snapshot.write_bytes(content)
     (output / "source-manifest.json").write_text(json.dumps(source_hashes, indent=2)+"\n")
-    binary = ROOT / "target/debug" / {"1":"codebase", "2":"writing", "9":"philosophers", "16":"cicd"}[task[:-1]]
+    binary = ROOT / "target/debug" / {"1":"codebase", "2":"writing", "8":"api", "9":"philosophers", "16":"cicd"}[task[:-1]]
     binary_content = binary.read_bytes()
     runtime_binary_sha256 = hashlib.sha256(binary_content).hexdigest()
     runtime_snapshot = output / "runtime"
@@ -63,7 +63,7 @@ async def run(task, run_id, scenario):
     guest_snapshot = output / "shell.wasm"
     wasi_snapshot.write_bytes((ROOT / "target/debug/wasi-shell").read_bytes())
     wasi_snapshot.chmod(0o700)
-    guest_snapshot.write_bytes((ROOT / "guests/shell/target/wasm32-wasip1/release/tracefix-shell-guest.wasm").read_bytes())
+    guest_snapshot.write_bytes((ROOT / "guests/shell/target/wasm32-wasip1/release/choreofix-shell-guest.wasm").read_bytes())
     wasi_processes = {}
     process = await asyncio.create_subprocess_exec(
         str(runtime_snapshot), task,
@@ -93,7 +93,9 @@ async def run(task, run_id, scenario):
             return await shell.command(arguments["command"], effect)
 
         task_description = (metadata_path.parent / "description.md").read_text()
-        inputs = {"participant":agent, "resources":metadata["agent_resources"][agent]}
+        inputs = {"participant":agent}
+        if agent in metadata["agent_resources"]:
+            inputs["resources"] = metadata["agent_resources"][agent]
         if task[:-1] == "1":
             inputs["feature_name"] = {step.agent_id:step.feature for step in module._DESIGN_STEPS}[agent]
         if task[:-1] == "2":
@@ -101,6 +103,8 @@ async def run(task, run_id, scenario):
             inputs["section_name"] = {step.agent_id:step.section for step in module._DRAFT_STEPS}[agent]
         if task == "16E":
             inputs.update({"component":"application", "suite":"integration", "target":"production"})
+        if task == "8E":
+            inputs.update({"migration_name":"add_new_tables", "component":"new_api_endpoints", "suite":"backend_schema_integration"})
         prompt = f"""You are {agent}. Complete your work in the task below with actual tool effects.
 {task_description}
 
@@ -118,6 +122,10 @@ Domain effects still go through the original simulator. Hibana endpoints
 coordinate resource loans and constrain task dependencies. A call may wait for
 shared resources. Use actual results, handle task-required retries, and finish
 only after your assigned work is complete. A private file cannot grant rights.
+When the task requires revision after a failed test or review, use the actual
+failure to reconsider your approach. Briefly state what you will change before
+requesting the next implementation. Do not blindly replay a command sequence.
+Do not add retries to a task whose failed result is terminal.
 """
         try:
             result = await run_participant(
@@ -186,7 +194,7 @@ only after your assigned work is complete. A private file cannot grant rights.
 
 async def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--tasks", nargs="+", choices=["1E", "1M", "1H", "2E", "2M", "2H", "9E", "9M", "9H", "16E"], required=True)
+    parser.add_argument("--tasks", nargs="+", choices=["1E", "1M", "1H", "2E", "2M", "2H", "8E", "9E", "9M", "9H", "16E"], required=True)
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--scenario", type=int, choices=[0,1,2], default=0)
     args = parser.parse_args()

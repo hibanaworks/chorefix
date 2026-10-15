@@ -13,7 +13,7 @@ def main():
     missing = [(name, revision) for name, (revision, _) in SOURCES.items()
                if not (ROOT / "vendor" / name).exists()]
     if missing:
-        with tempfile.TemporaryDirectory(prefix="hibana-tracefix-source-") as temporary:
+        with tempfile.TemporaryDirectory(prefix="choreofix-source-") as temporary:
             clone = Path(temporary) / "repo"
             subprocess.run(["git", "clone", "--no-checkout", "https://github.com/Sensing-And-Reasoning/TraceFix.git", str(clone)], check=True)
             for name, revision in missing:

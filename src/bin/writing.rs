@@ -1,4 +1,4 @@
-use hibana_tracefix::{bridge, tasks::writing};
+use choreofix::{bridge, tasks::writing};
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {

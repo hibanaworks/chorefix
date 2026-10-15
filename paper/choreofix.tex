@@ -20,10 +20,12 @@ roles drive their endpoints before carrying out domain effects. A bounded WASI
 shell lets agents use work files and scripts. Every file operation goes through
 ChoreoFS. The shell cannot grant a task step by choosing a pathname or writing
 an approval file.
-We have implemented ten complete task structures from four TraceFix families.
-Four unscored shell integration episodes used twenty-two GPT-6 Luna participants
-with xhigh reasoning. All completed in the original simulators with no recorded
-resource violations. The seven-developer episode included two failed tests
+We have implemented eleven task structures from five TraceFix families.
+Six recent unscored shell integration episodes used twenty-eight GPT-6 Luna
+participants with xhigh reasoning across two implementation checkpoints.
+All completed their projected protocols with no recorded resource violations.
+One ended after a failed test, as its task requires; it is a domain failure.
+The seven-developer episode included two failed tests
 followed by success for every developer. These checks establish an executable
 boundary and recovery path. They do not establish a success-rate, speed, token,
 or maintenance advantage. The planned comparison retains all 48 TraceFix tasks
@@ -214,14 +216,18 @@ The four TraceFix runtimes remain at public revision
 \href{https://github.com/Sensing-And-Reasoning/TraceFix/tree/87b01a2c0ae53c5045c9ce3d43cd0235b1831275}{\texttt{87b01a2}}. Their coordination logic is
 unchanged. Benchmark descriptions and tool metadata at recorded revision
 \href{https://github.com/Sensing-And-Reasoning/TraceFix/tree/36b4bd108fcd74f7efb17613aebbe3fdf55499a9}{\texttt{36b4bd1}} are byte-identical to that
-release. The latest TraceFix runtime is outside this comparison. Our model and
-budgets differ from the original paper, so its reported percentages are not
+release. A separate condition uses the unchanged latest monitoring runtime at
+\texttt{36b4bd1}, adding 432 paired episodes across the same tasks, failure
+depths, and repetitions. The total plan has 2,592 episodes. Its existing state,
+monitor, distributed-coordination, and corrective-guidance tests passed in 94
+cases. This is source qualification, not a measured agent comparison.
+Our model and budgets differ from the original paper, so its percentages are not
 matched controls for our runs.
 
 Every port must retain the original roles, resources, dependencies, failure
 paths, and required independence. All 825 checklist items remain in the
 manifest. A passing compilation or generated TLC model is not by itself a
-fidelity verdict. At present ten tasks are implemented and none has passed the
+fidelity verdict. At present eleven tasks are implemented and none has passed the
 full independent benchmark acceptance gate. No scored episode has started.
 
 \subsection{Outcomes and accounting}
@@ -266,11 +272,11 @@ properties and three SAT witnesses. These counts describe that gate's scope.
 The linked Pico 2 resource fixture uses 80,688 bytes of flash and 117,464 bytes
 of RAM including its stack reservation. It is a runtime fixture, not the full
 agent shell application and not evidence of physical board execution.
-The agent implementation also passes 23 Rust tests and eleven Python process and
+The agent implementation also passes 25 Rust tests and fourteen Python process and
 boundary tests.
 
 \subsection{Actual shell integration}
-Table~\ref{tab:preflight} contains the latest four unscored episodes, from the
+Table~\ref{tab:preflight} contains four unscored episodes, from the
 direct-localside implementation. Earlier checkpoint probes remain in the
 repository evidence and are separate from this table. All twenty-two participants
 used the requested model and reasoning setting. Saved raw model calls, shell
@@ -323,6 +329,21 @@ projected task execution, and the unchanged simulator. They do not estimate a
 population success rate. The larger token count of the developer episode is
 reported as measured, not presented as a saving.
 
+Two later 8E checks exercised terminal pass and fail branches with three
+participants each and three domain calls per episode. At depth 0 the task
+succeeded in 21.67 seconds with 152,527 inclusive tokens. At depth 2 the test
+failed; notifications and resource returns completed in 29.21 seconds with
+170,586 tokens. Both raw records passed the independent audit. Protocol
+completion does not turn the failed test into domain success. The task
+description and simulator specify terminal failure, while checklist O2 asks
+for a revision loop. This source disagreement remains an acceptance issue.
+
+For required retries, the model receives the actual failure and submits new
+requests; the host does not replay captured calls. We now ask it to state a
+brief revised approach. This instruction is not an endpoint guarantee. The
+simulated tools take no source patch, so these tasks cannot establish whether
+a new approach produces a better repair.
+
 \section{Maintenance study and remaining work}
 A maintenance study should change required evidence, retry rules, or a
 participant relation while keeping a fixed task variant in both implementations.
@@ -332,9 +353,10 @@ Generated files and generic engine code must be counted separately from manual
 edits. TraceFix may also derive execution data from one source. A claim of lower
 maintenance cost must be measured rather than inferred from filenames.
 
-The main blockers to a completed empirical paper are the remaining 38 task
+The main blockers to a completed empirical paper are the remaining 37 task
 ports, independent fidelity acceptance of all 48, a runnable and accepted
-baseline corpus, the 2,160 scored episodes, analysis with uncertainty, and the
+baseline corpus, the 2,160 main and 432 supplemental scored episodes, analysis
+with uncertainty, and the
 maintenance measurements. The shell profile also limits the kinds of work an
 agent can carry out. The original simulator checks coordination outcomes and
 does not establish the quality of arbitrary generated source code.

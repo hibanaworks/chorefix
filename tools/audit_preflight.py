@@ -44,7 +44,12 @@ def audit(directory):
             assert hashlib.sha256((directory / name).read_bytes()).hexdigest() == result[key]
     assert result["error"] is None
     assert result["protocol"]["status"] == "protocol_completed"
-    assert result["simulator_complete"] is True
+    # 8E explicitly ends after a failed test. Protocol completion and the
+    # simulator's successful domain outcome are separate facts.
+    if result["task"] == "8E":
+        assert result["simulator_complete"] is (result["scenario_depth"] == 0)
+    else:
+        assert result["simulator_complete"] is True
     assert not result["simulator_violations"]
     assert result["runtime"] == "tokio_current_thread"
     assert result["runtime_exit_code"] == 0
@@ -68,13 +73,16 @@ def audit(directory):
     expected_calls = {
         "1": ["design_feature"] + ["implement_code", "commit_changes", "run_local_tests"]*(retries+1),
         "2": ["read_literature", "draft_content", "write_to_document", "review_own_work"],
+        "8": ["migrate_schema", "implement_backend", "run_integration_tests"],
         "9": ["think", "eat"],
         "16": ["compile_and_test", "run_integration_tests", "deploy_application"],
     }[family]
     expected_by_agent = {agent:expected_calls for agent in expected}
     if family == "16":
         expected_by_agent = {"DEVELOPER":["compile_and_test"], "TESTER":["run_integration_tests"], "DEPLOYER":["deploy_application"]}
-    shared_tools = {"1":{"commit_changes"}, "2":{"write_to_document"}, "9":{"eat"}, "16":set(expected_calls)}[family]
+    if family == "8":
+        expected_by_agent = {"DB_ADMIN":["migrate_schema"], "BACKEND_DEV":["implement_backend"], "TESTER":["run_integration_tests"]}
+    shared_tools = {"1":{"commit_changes"}, "2":{"write_to_document"}, "8":{"migrate_schema", "run_integration_tests"}, "9":{"eat"}, "16":set(expected_calls)}[family]
     for agent in result["participants"]:
         expected_calls = expected_by_agent[agent["participant"]]
         assert agent["status"] == "completed"
@@ -130,6 +138,8 @@ def audit(directory):
         assert [event["tool"] for event in events] == expected_calls
         if codebase:
             assert [event["success"] for event in events if event["tool"] == "run_local_tests"] == [False]*retries+[True]
+        if family == "8" and agent == "TESTER":
+            assert [event["success"] for event in events] == [depth == 0]
     active = set()
     maximum = 0
     for entry in entries:
@@ -144,6 +154,7 @@ def audit(directory):
             active.remove(agent)
     assert not active
     return {"task": result["task"], "kind":result["kind"], "scored_benchmark":False,
+            "domain_complete":result["simulator_complete"],
             "audit_passed":True, "runtime":result["runtime"], "runtime_exit_code":result["runtime_exit_code"], "participants":len(expected), "domain_calls":len(executed),
             "scenario_depth":depth, "maximum_concurrent_resource_users":maximum, "total_tokens":total_tokens,
             "rejected_request_count":len(rejected), "rejected_requests":rejected,

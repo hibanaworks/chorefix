@@ -6,7 +6,7 @@ import pytest
 from src.imp.shell import Shell
 
 ROOT = Path(__file__).resolve().parents[1]
-GUEST = ROOT / "guests/shell/target/wasm32-wasip1/release/tracefix-shell-guest.wasm"
+GUEST = ROOT / "guests/shell/target/wasm32-wasip1/release/choreofix-shell-guest.wasm"
 
 
 @pytest.mark.asyncio

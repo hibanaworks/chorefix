@@ -16,8 +16,11 @@ The original four TraceFix runtime conditions are pinned to the first public
 release `87b01a2c0ae53c5045c9ce3d43cd0235b1831275`. Their coordination logic is
 unchanged. The recorded benchmark inputs are at
 `36b4bd108fcd74f7efb17613aebbe3fdf55499a9`; their descriptions and tool metadata
-are byte-identical to the paper release. The latest TraceFix runtime is outside
-this comparison.
+are byte-identical to the paper release. A separate 432-episode condition uses
+the unchanged latest monitoring runtime at that revision. It uses the same
+48 tasks, three failure depths and three repetitions, paired with the Hibana
+episodes from the main matrix. The total plan has 2,592 episodes. Neither
+comparison has scored results yet.
 
 ## Research draft
 
@@ -36,6 +39,9 @@ successful tool calls. These checks are recorded in
 The selected comparison includes the paper's four runtime conditions and
 Hibana. The full matrix contains 2,160 runs using one
 participant model. No scored benchmark runs have started.
+The latest TraceFix monitoring runtime adds 432 paired episodes. Its upstream
+code is unchanged. [The source assessment](results/latest-tracefix.json) records
+the revision, existing tests, and work still needed before scored runs.
 
 The Rust ports for 9E, 9M, and 9H use all three, five, and seven philosophers and
 their forks. Fifteen real Luna xhigh participants completed an integration
@@ -67,6 +73,12 @@ Only 1H repeats failed work. Its resolver reads the actual tool response. `g::ro
 or completion, and `.roll()` permits another attempt. `g::par` keeps developers
 and the two returns independent. Acquiring modules in one common order prevents
 a cycle while retaining concurrent commits on disjoint modules.
+
+The host does not replay a failed tool call. It returns the actual failure and
+waits for new model requests. The model is asked to reconsider its fix and state
+a brief revised approach. Hibana constrains the resulting communication order,
+not the model's thought process. The original tools simulate work and accept no
+source patch, so this benchmark cannot measure the quality of a reconsidered fix.
 
 Follow [the developer](src/tasks/codebase/localside/developer.rs) to see those
 operations in order. [The module localside](src/resource/localside.rs)
@@ -104,6 +116,17 @@ simulator disables failure injection and supplies combined build/test and
 deploy/smoke-test tools. This port preserves that behavior. 16M and 16H remain
 unimplemented.
 
+[The API and database protocol](src/tasks/api/global.rs) covers 8E. Migration
+precedes backend work, which precedes one integration test. A resolver reads the
+actual test result and chooses distinct pass or fail notifications to both
+other participants. The two notifications use `g::par`. The
+[localsides](src/tasks/api/localside/) show each loan, effect and notification
+directly. Both outcomes end the protocol. A failed test is a domain failure,
+not a successful benchmark result. The description and simulator specify this
+terminal failure, while checklist O2 asks for retries. This source conflict is
+recorded in [the fidelity review](results/task-fidelity/8E.json); acceptance
+remains open.
+
 Task localsides match the tool request that actually arrived. Each handler
 shows its Endpoint sends and receives directly, before the corresponding domain
 effect. No helper performs these communication steps, and there is no stored
@@ -122,7 +145,7 @@ Hibana endpoints stay on that runtime. Tokio schedules I/O and futures; the
 projected programs authorize communication. The host supplies descriptor memory
 on the heap explicitly. This does not add an allocation fallback to Hibana.
 
-Ten tasks have Rust implementations. The full 48-task port and independent
+Eleven tasks have Rust implementations. The full 48-task port and independent
 checklist review remain unfinished. No implementation is yet accepted for the
 scored five-condition comparison.
 
@@ -292,8 +315,15 @@ in this batch. Real script execution and private work writes are covered by the
 boundary tests and earlier retained probes. These unscored integration results
 do not estimate a success, speed, cost or maintenance advantage.
 
+Two later 8E shell checks used three Luna xhigh participants each. Depth 0
+completed the domain task in 21.67 seconds with 152,527 inclusive tokens. Depth 2
+ended after a failed test in 29.21 seconds with 170,586 tokens. Both completed
+the projected protocol, made exactly three domain calls, and recorded no
+resource violations. The failed episode remains a domain failure. Both raw
+records and their source snapshots passed the independent event audit.
+
 The [WASI quality workflow](https://github.com/hibanaworks/hibana-wasip1-runtime/actions/workflows/quality.yml)
-and [experiment quality workflow](https://github.com/hibanaworks/hibana-tracefix/actions/workflows/quality.yml)
+and [experiment quality workflow](https://github.com/hibanaworks/chorefix/actions/workflows/quality.yml)
 check their respective runtime boundaries. The experiment CI issues no model
 calls.
 

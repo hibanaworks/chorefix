@@ -1,16 +1,18 @@
 {
-  "archive": "output/choreofix-evidence-direct-localside-001.tar.gz",
-  "sha256": "06f0196480b9ee3215c24d2c032ac03a2457398ef34b72b8070ac8a115cf4cfc",
-  "bytes": 37780996,
+  "archive": "output/choreofix-evidence-api-terminal-001.tar.gz",
+  "sha256": "2151534e0a08d3846b1eb7534081a75f5487d47a989731014b5034770cd96048",
+  "bytes": 45559703,
   "scored_benchmark": false,
   "contains": [
-    "eight unscored shell episodes across implementation checkpoints",
+    "ten unscored shell episodes across implementation checkpoints, including a terminal domain failure",
     "immutable task and WASI executables",
     "actual Wasm guests",
     "source snapshots and hashes",
     "raw model, shell and task RPC events including schema rejections",
     "simulator events and independent audits",
     "runtime qualification logs and exported proof evidence",
+    "latest TraceFix source qualification, without upstream changes",
+    "main and supplemental episode matrices",
     "current research draft source and rendered PDF"
   ],
   "released": false

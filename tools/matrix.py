@@ -40,7 +40,23 @@ def main():
     runs = matrix(config)
     output = ROOT / "benchmark" / "matrix.jsonl"
     output.write_text("".join(json.dumps(r, sort_keys=True) + "\n" for r in runs))
-    print(json.dumps({"runs": len(runs), "per_condition": dict(collections.Counter(r["condition"] for r in runs))}))
+    if config["supplementary_conditions"] != ["latest_tracefix_monitored"]:
+        raise ValueError("the supplemental condition must use the unchanged latest monitoring runtime")
+    latest = []
+    for original in runs:
+        if original["condition"] != "hibana":
+            continue
+        run = dict(original)
+        run["condition"] = "latest_tracefix_monitored"
+        run["run_id"] = original["run_id"].removesuffix("hibana") + run["condition"]
+        run["upstream_revision"] = config["latest_baseline_revision"]
+        latest.append(run)
+    if len(latest) != config["expected_supplementary_runs"] or len(latest) != 432:
+        raise ValueError("supplemental matrix size changed")
+    (ROOT / "benchmark/latest-matrix.jsonl").write_text(
+        "".join(json.dumps(r, sort_keys=True) + "\n" for r in latest))
+    print(json.dumps({"runs": len(runs), "per_condition": dict(collections.Counter(r["condition"] for r in runs)),
+                      "supplementary_runs":len(latest), "total_planned_runs":len(runs)+len(latest)}))
 
 
 if __name__ == "__main__":
