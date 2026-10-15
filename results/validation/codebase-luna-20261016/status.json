@@ -1,0 +1,219 @@
+{
+  "kind": "unscored_direct_wasi_model_preflight",
+  "scored_benchmark": false,
+  "execution_consumer": "2e0c4e6300012b8768c95fa811429e48c0fe5d3d",
+  "runtime_source_revision": "80a46eb86aaa7600acb59bb5d897c9c603ca0c83",
+  "model_verifier_source_revision": "80a46eb86aaa7600acb59bb5d897c9c603ca0c83",
+  "model": "gpt-6-luna",
+  "reasoning_effort": "xhigh",
+  "seed": 0,
+  "depth": 2,
+  "domain_delay_multiplier": 1.0,
+  "artificial_barriers": false,
+  "trials": [
+    {
+      "task": "1E",
+      "audit": {
+        "events_sha256": "436499e10696906677b4f549deba7bddf8d80d24450153193a782e7a9eadca26",
+        "inclusive_tokens": 375541,
+        "kind": "unscored_direct_wasi_model_preflight",
+        "max_simultaneous_model_turns": 3,
+        "model_verifier_sha256": "3bffac14dd11608abefe1b3c87087e2f03f9fd5fe2f391ee6c1e3bb6da63d034",
+        "participant_turns": 3,
+        "participants": [
+          {
+            "inclusive_tokens": 141031,
+            "participant": "DEVELOPER_A",
+            "tool_calls": 8,
+            "turn_end_unix_ns": "1792083836319916000",
+            "turn_start_unix_ns": "1792083807003789000",
+            "usage": {
+              "cacheWriteInputTokens": 0,
+              "cachedInputTokens": 119808,
+              "inputTokens": 140397,
+              "outputTokens": 634,
+              "reasoningOutputTokens": 303,
+              "totalTokens": 141031
+            }
+          },
+          {
+            "inclusive_tokens": 125366,
+            "participant": "DEVELOPER_B",
+            "tool_calls": 7,
+            "turn_end_unix_ns": "1792083838448784000",
+            "turn_start_unix_ns": "1792083807028267000",
+            "usage": {
+              "cacheWriteInputTokens": 0,
+              "cachedInputTokens": 111616,
+              "inputTokens": 124719,
+              "outputTokens": 647,
+              "reasoningOutputTokens": 343,
+              "totalTokens": 125366
+            }
+          },
+          {
+            "inclusive_tokens": 109144,
+            "participant": "DEVELOPER_C",
+            "tool_calls": 6,
+            "turn_end_unix_ns": "1792083838894094000",
+            "turn_start_unix_ns": "1792083807024938000",
+            "usage": {
+              "cacheWriteInputTokens": 0,
+              "cachedInputTokens": 96512,
+              "inputTokens": 108639,
+              "outputTokens": 505,
+              "reasoningOutputTokens": 223,
+              "totalTokens": 109144
+            }
+          }
+        ],
+        "protocol": {
+          "carrier_frames": 1070,
+          "domain_calls": 12,
+          "expected_terminal_test_failure": false,
+          "guest_exits": 3,
+          "kind": "model_direct_wasi_protocol",
+          "max_disjoint_commits": 1,
+          "model_calls": null,
+          "original_test_delays": {},
+          "parallel_acquisition_observed": true,
+          "parallel_return_observed": true,
+          "participants": 3,
+          "scored_benchmark": false,
+          "simulator_complete": true,
+          "status": "passed",
+          "task": "1E",
+          "violations": 0
+        },
+        "protocol_verifier_sha256": "db438c330d9d6469a03d9012cf8f2cba25119b8bf6c4990063789afff5987b32",
+        "scored_benchmark": false,
+        "status": "passed",
+        "task": "1E"
+      },
+      "elapsed_seconds": 32.415713375,
+      "max_admitted_domain_calls": 3,
+      "max_shared_commits": 1
+    },
+    {
+      "task": "1M",
+      "audit": {
+        "events_sha256": "b52df4c173c38b9e2f1bf2484befe829fc9d516db90f393c0819d527d5cb1b9e",
+        "inclusive_tokens": 680037,
+        "kind": "unscored_direct_wasi_model_preflight",
+        "max_simultaneous_model_turns": 5,
+        "model_verifier_sha256": "3bffac14dd11608abefe1b3c87087e2f03f9fd5fe2f391ee6c1e3bb6da63d034",
+        "participant_turns": 5,
+        "participants": [
+          {
+            "inclusive_tokens": 110082,
+            "participant": "DEVELOPER_A",
+            "tool_calls": 6,
+            "turn_end_unix_ns": "1792083833999613000",
+            "turn_start_unix_ns": "1792083807034683000",
+            "usage": {
+              "cacheWriteInputTokens": 0,
+              "cachedInputTokens": 91392,
+              "inputTokens": 109573,
+              "outputTokens": 509,
+              "reasoningOutputTokens": 236,
+              "totalTokens": 110082
+            }
+          },
+          {
+            "inclusive_tokens": 126533,
+            "participant": "DEVELOPER_B",
+            "tool_calls": 7,
+            "turn_end_unix_ns": "1792083836905603000",
+            "turn_start_unix_ns": "1792083807045097000",
+            "usage": {
+              "cacheWriteInputTokens": 0,
+              "cachedInputTokens": 112640,
+              "inputTokens": 125906,
+              "outputTokens": 627,
+              "reasoningOutputTokens": 320,
+              "totalTokens": 126533
+            }
+          },
+          {
+            "inclusive_tokens": 190726,
+            "participant": "DEVELOPER_C",
+            "tool_calls": 11,
+            "turn_end_unix_ns": "1792083842967354000",
+            "turn_start_unix_ns": "1792083807032689000",
+            "usage": {
+              "cacheWriteInputTokens": 0,
+              "cachedInputTokens": 153600,
+              "inputTokens": 190013,
+              "outputTokens": 713,
+              "reasoningOutputTokens": 308,
+              "totalTokens": 190726
+            }
+          },
+          {
+            "inclusive_tokens": 142413,
+            "participant": "DEVELOPER_D",
+            "tool_calls": 8,
+            "turn_end_unix_ns": "1792083843791175000",
+            "turn_start_unix_ns": "1792083807001028000",
+            "usage": {
+              "cacheWriteInputTokens": 0,
+              "cachedInputTokens": 120576,
+              "inputTokens": 141749,
+              "outputTokens": 664,
+              "reasoningOutputTokens": 332,
+              "totalTokens": 142413
+            }
+          },
+          {
+            "inclusive_tokens": 110283,
+            "participant": "DEVELOPER_E",
+            "tool_calls": 6,
+            "turn_end_unix_ns": "1792083844214895000",
+            "turn_start_unix_ns": "1792083807028595000",
+            "usage": {
+              "cacheWriteInputTokens": 0,
+              "cachedInputTokens": 97536,
+              "inputTokens": 109716,
+              "outputTokens": 567,
+              "reasoningOutputTokens": 290,
+              "totalTokens": 110283
+            }
+          }
+        ],
+        "protocol": {
+          "carrier_frames": 1452,
+          "domain_calls": 20,
+          "expected_terminal_test_failure": false,
+          "guest_exits": 5,
+          "kind": "model_direct_wasi_protocol",
+          "max_disjoint_commits": 1,
+          "model_calls": null,
+          "original_test_delays": {},
+          "parallel_acquisition_observed": true,
+          "parallel_return_observed": true,
+          "participants": 5,
+          "scored_benchmark": false,
+          "simulator_complete": true,
+          "status": "passed",
+          "task": "1M",
+          "violations": 0
+        },
+        "protocol_verifier_sha256": "db438c330d9d6469a03d9012cf8f2cba25119b8bf6c4990063789afff5987b32",
+        "scored_benchmark": false,
+        "status": "passed",
+        "task": "1M"
+      },
+      "elapsed_seconds": 37.7490975,
+      "max_admitted_domain_calls": 4,
+      "max_shared_commits": 1
+    }
+  ],
+  "participant_turns": 8,
+  "inclusive_tokens": 1055578,
+  "shell_calls": 59,
+  "domain_operations": 32,
+  "violations": 0,
+  "rejected_model_mutations": 16,
+  "scored_comparison_episodes": 0,
+  "planned_comparison_episodes": 2592
+}

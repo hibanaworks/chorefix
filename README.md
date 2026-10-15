@@ -24,6 +24,13 @@ includes a terminal review failure, original simulator journals and Rust audits
 that reject serialized acquisitions. These are deterministic tests with no model
 calls or scored comparison episodes.
 
+Codebase tasks 1E/1M now use the same direct WASI boundary with three/five
+developers and physical modules in one global. Eight Luna xhigh participants
+completed 32 original domain operations with no resource conflicts.
+The [saved trials](results/validation/codebase-luna-20261016/evidence.md)
+separate observed model concurrency, domain concurrency and shared commits.
+These remain unscored qualification trials.
+
 The original four TraceFix runtime conditions are pinned to the first public
 release `87b01a2c0ae53c5045c9ce3d43cd0235b1831275`. Their coordination logic is
 unchanged. The recorded benchmark inputs are at
@@ -151,14 +158,27 @@ have no owner table. The philosopher functions have no stage or completion flag.
 The tests reject eating before the grants, finishing before the returns, and
 consuming completion twice.
 
-[The codebase protocol](src/tasks/codebase/global.rs) covers 1E, 1M and 1H
-with all three, five and seven developers. Each developer designs once, then
-implements, borrows two modules, commits, returns both modules, and tests.
-The 1E/1M test result is terminal, so these protocols have no retry branch.
-Only 1H repeats failed work. Its resolver reads the actual tool response. `g::route` chooses another attempt
-or completion, and `.roll()` permits another attempt. `g::par` keeps developers
-and the two returns independent. Acquiring modules in one common order prevents
-a cycle while retaining concurrent commits on disjoint modules.
+[The direct codebase protocol](src/tasks/codebase/choreofs/global.rs) connects
+1E/1M's WASI callers, service owners, physical modules and private I/O in one
+global and session. Each developer designs, implements, requests both modules,
+waits for both grants, commits, returns both modules and tests. Both requests
+precede either grant wait, and both returns precede either acknowledgement wait.
+The [localsides](src/tasks/codebase/choreofs/localside/) show those Endpoint
+operations directly. Service input errors follow explicit rejection routes and
+repeated requests. The test result is terminal, including failure.
+
+The deterministic 1M trial observes two disjoint commits together and allows
+B to commit while A's local test waits. The live five-person trial has four
+admitted domain calls in flight, but its shared commits do not overlap because
+the disjoint developers reach them at different times. Both observations are
+retained. The original sequential-acquisition checklist procedure is replaced
+by parallel requests; the original resource and task constraints are preserved.
+
+[The earlier native codebase protocol](src/tasks/codebase/global.rs) also has
+1H's result-driven reconsideration loop. Its resolver reads the actual test
+response, `g::route` chooses another attempt or completion, and `.roll()` permits
+another attempt. This native foundation does not qualify 1H's actual WASI path,
+which still needs to be connected.
 
 The host does not replay a failed tool call. It returns the actual failure and
 waits for new model requests. The model is asked to reconsider its fix and state
@@ -166,14 +186,10 @@ a brief revised approach. Hibana constrains the resulting communication order,
 not the model's thought process. The original tools simulate work and accept no
 source patch, so this benchmark cannot measure the quality of a reconsidered fix.
 
-Follow [the developer](src/tasks/codebase/localside/developer.rs) to see those
-operations in order. [The module localside](src/resource/localside.rs)
-receives only projected requests. It forwards requests, grants, returns and
-acknowledgements through Endpoints. [Each module's global protocol](src/resource/global.rs)
-permits one outstanding loan. The broker records which request arrived. The resource needs only an ordinary
-request, grant, return and acknowledgement; it stores no borrower identity. In 1H both borrowers send explicit completion messages before the module closes.
-In 1E/1M each borrower has one loan; the module closes after both projected loans
-return. No lease request or return uses a separate channel.
+The new [physical module localside](src/tasks/codebase/choreofs/localside/module.rs)
+has its two explicit projected visits. It holds no borrower table. Module loans
+and service requests share the task's global; the measured 1E/1M condition does
+not use the earlier native resource-broker sessions.
 
 A resource can be lent again as soon as its return is acknowledged. It does not
 wait for its former borrower's local test. A regression test holds A's test open

@@ -87,10 +87,13 @@
     }
   ],
   "remaining": [
-    "Qualify live Luna execution and complete the task acceptance and comparison interface review"
+    "Complete the full task-fidelity acceptance and comparison interface review"
   ],
   "scored_benchmark": false,
   "source_revision": "80a46eb86aaa7600acb59bb5d897c9c603ca0c83",
-  "stage": "direct_wasi_boundary_qualified",
-  "task": "1E"
+  "stage": "model_path_qualified",
+  "task": "1E",
+  "model_trials": [
+    "results/validation/codebase-luna-20261016/1E/audit.json"
+  ]
 }

@@ -800,3 +800,19 @@ reviewは元課題どおり終端で、余分なretryを加えない。続いて
 - 1E/1Mの終端test失敗の別試験も成功。どちらもprotocolは完了する一方、
   元simulatorのcompleteはfalseのまま、各人のdomain操作は4回でretryなし。
   正常試験や将来の比較成功率へ混ぜず、元の失敗条件を保持した資料として保存する。
+
+- 正常8構成（1E/M、2E/M/H、9E/M/H）を同じ新buildで再検証し、qualified recordを更新。
+  実装sourceは80a46eb、実行consumerは2e0c4e6。各記録は旧試行のrawやbinaryを上書きしない。
+- その清潔なconsumerから1E/1Mを各depth2で1回、人工barrierなし・delay倍率1.0・seed0で
+  実Luna xhigh試行。全8人、32domain操作、shell59回が完了、資源違反0。
+  inclusive tokensは375,541/680,037、合計1,055,578。時間32.416/37.749秒。
+- model turnは全3/5人で重なった。simulator RPC入口から返答までの実時刻ではdomain操作が
+  最大3/4件並行。共有commitは両試行とも最大1であり、固定刺激の1M最大2と混同しない。
+  1MではAのcommit終了7.464秒よりCのimplement終了8.289秒が遅い。B/Dも同時に準備完了
+  していない。これを都合のよい再試行で捨てず、待ち合わせを追加せずそのまま保存する。
+- 別プロセスのRust監査が両試行で成功。全model/effort、command/reply、source/binary、
+  実frameと元simulator/usageを確認し、各8、計16改変を外側hash再計算後にも拒否。
+  domain intervalのRust集計と3試験も保存する。これはタスクの進行には使わない。
+- 最新sourceのGitHub CI38774076044は実行中。直前5646c0bのCIは成功済み。
+  全要件受理0、採点比較0/2592は維持。次は1Hの実結果による再考と資源handoffの単一global接続、
+  残るfamily、元baselineのprompt/tool/runtime挙動を保つ比較runnerへ進む。論文推敲はしない。
