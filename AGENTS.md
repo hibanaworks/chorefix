@@ -8,6 +8,11 @@ task progress flags. No duplicate coordination or completion management.**
 Write coordination with Hibana `seq`, `send`, `route`, resolvers, `par`, and
 `roll`. The projected Endpoint is the only owner of task progress and permission.
 Keep the actual Endpoint operations directly visible in each localside.
+The globals use `par`, `route`, explicit resolvers, `roll`, `seq`, and `send`;
+the localsides use the published `offer`, `send`, and `recv` directly. Tokio
+current-thread async/await is the executor. Do not introduce a new API name or
+move phase selection into a generic guest driver to work around an ambiguous
+rolled request. Distinguish the projected communication and ownership instead.
 Do not move ordering, authorization, retry, branch, or completion decisions into
 a helper, wrapper, driver, callback, filesystem, or transport layer.
 Do not recreate them as a stage enum, program counter, allowed-operation table,
@@ -33,10 +38,22 @@ published Hibana API. Do not modify Hibana core to add agent-specific APIs.
 
 If a suspected Hibana bug appears, retain a minimal reproduction and report the
 affected version and exact observed behavior. Check the remote current source
-before calling it a current bug. A core bug fix must pass Lean, Z3, Miri, and
-Rust tests, and its impact on the current hibana-quic must be checked with the
-fixed core actually selected. Keep unrelated/dirty working copies intact. Do
+before calling it a current bug. Fix confirmed defects in Hibana itself; an
+application workaround is not completion. Keep the reproducing regression test
+and verify the repair with Lean, Z3, Miri, and Rust tests. Use Kani where bounded
+checks of the affected boundary or transition are useful. Check its impact on
+the current hibana-quic with the fixed core actually selected. Keep
+unrelated/dirty working copies intact. Do
 not claim these gates from stale logs or an unpatched consumer build.
+
+Preserve valid composition rather than accidental acceptance. In core work,
+retain independent `par` branches containing `roll`, ordinary sequential reuse,
+receive-headed request/reply repetition, exclusive route alternatives, and
+valid outer repetition. Validate ambiguity after role projection, including
+global prefixes erased for a particular role. Do not infer that an elastic roll
+has retired merely because a later operation committed. Existing passing runs
+do not establish that its public sends are unambiguous. Do not add public aliases,
+operation modes, or application progress state for compatibility.
 
 Use `g::par` for independent work and `g::route` for alternatives. Connect
 explicit decision sites to the actual domain result through a resolver. Use

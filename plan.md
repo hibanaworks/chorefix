@@ -22,6 +22,8 @@
   本体の不具合を見つけたらバージョンと最小再現を報告する。本体を修正する場合は
   remote最新版を基準に隔離した場所で作業し、Lean・Z3・Miri・Rust testを通し、
   修正版を実際に使うhibana-quicへの影響も確認する。古いログで代用しない。
+  本体の不具合が確定したら必ず本体を直し、再現回帰試験を残す。
+  アプリ側の回避処理で本体修正を省略したり、修正完了と報告してはならない。
 
 ## 設計上の必須条件
 
@@ -218,19 +220,71 @@ WASIの値とmessageの変換はlocalsideで明示し、進行フラグや第二
   保存ログから別scriptで監査した。監査は
   `results/audits/projected-wasi-005-16E.json`。
   ソース・binary・raw eventsのarchiveは結果台帳にhash付きで記録した。
-  最新CIと16E全要件の独立したfidelity受理は未完了。
+  e89db351の最新CI（38699645780）は成功。16E全要件の独立したfidelity受理は未完了。
   全48課題の受理は0、採点済み比較も0のまま。旧4試行は部品資料として保管する。
 
 
+## 6Eの直接WASI接続と反復境界の調査
+
+- `src/tasks/review/choreofs/`、`review-wasi`、実ゲスト試験を追加中。未commit・未push。
+  この作業の全要件受理はまだ0。採点済み比較も0のまま。
+- 共有REPOのopen/write/closeを実WASI Endpointからglobalで運び、同じglobalの
+  REPO所有者がChoreoFSを具体化する。A/Bの並行作業とレビュー差し戻しもglobalに置いた。
+  連携mpsc、所有者表、段階enum、進行フラグ、Endpointラッパーは加えていない。
+- 最初は`offer`を通常の並行受信のdispatchとして誤用しPhaseInvariantになった。
+  次に全要求をrouteで表し、REPOの単一offerループで要求とresolver分岐を扱った。
+  ネストしたofferが必ず直前のcloseの判断を返すという仮定も除いた。
+- 現在の公開0.9.9では、反復内と後続が同じOpen/Write契約を使うと、前の反復を
+  選ぶ失敗が残る。4役だけのunit-payload例でも再現し、remote main
+  `f1c4dd4bab211b005687cfec15bb53a1f77500ed`でも同じ結果を確認した。
+- 既存Lean GlobalSemanticsは意図した後続と古い反復への再入の両方を受理する。
+  従って「反復を単純に閉じる本体バグ修正が正しい」とは断定しない。
+  globalの通信契約とAPIが選ぶ経路の曖昧さを解消する必要がある。
+- 隔離コピーの2候補は最小例を通したが実6Eのdepth 0/1/2を通せなかった。
+  未消費event優先の候補はRust workspace 868 passed / 12 ignoredでも、実6Eは
+  ResolverReject 264で3件失敗した。候補は両方とも取り消し、本体へ採用していない。
+- 本体の元作業コピー、WASI runtime、washは変更していない。本体の隔離コピーには
+  失敗を保持する回帰試験だけを残した。Lean/Z3/Miri/QUICの全ゲートは未実施。
+- 証拠と解釈は `results/validation/roll-boundary/README.md` と `result.json`。
+  実ゲスト失敗、ソース、候補patchのarchive hashも記録した。
+  最小例や通常Rust試験の成功を6E完成の証拠にしない。
+
+
+## 反復の投影と寿命の追加調査（未採用）
+
+- 全ての後続送信とroll先頭を比較する隔離候補は、Lean全ゲート・Z3・Miriの
+  実validator試験4件・Kaniの実validator harness 3件を通した。
+  修正候補を実際に選ぶ現行QUICもdefault 569件、hq 574件が成功した。
+  ただし、この候補は従来動いていた16Eのglobalを拒否するため採用しない。
+  workspace全体もCI-tool fixture試験の5失敗が残り、全面成功ではない。
+  これらは次の寿命候補に引き継げる検証結果ではない。
+- 別の隔離コピー`output/upstream/hibana-scope-lifetime`で、後続操作のcommitと
+  以前のrollの関係を調べた。複数writeを含む4役再現と実6E depth 0は通るが、
+  depth 1/2は`developer_a offer`のPhaseInvariantで失敗した。未採用。
+  同laneの後続完了を走査するコードは診断用であり、最終実装にはしない。
+- 独立した投影反例も保存した。globalの先頭は0→1の異なるmessageだが、
+  role 2からは消え、反復先頭と後続先頭が同じ2→3 messageになる。
+  現行の投影検査はこれを受理した。拒否を要求する試験1件は意図どおり失敗、
+  異なるlocal先頭後のreply再利用と独立par内rollの肯定例2件は成功した。
+  この検査のproductionコードはremote base f1c4dd4から変更していない。
+- `results/validation/roll-scope-20261015/`に候補patch、再現source、ログ、hashを保存。
+  本体・QUICへの採用やpushはしていない。採点済み実験と全要件受理は0のまま。
+
 ## 次の一手
 
-1. 修正した16Eの最新CIを確認し、元要件と実装のfidelityを監査する。
-   続いて6Eなど元から再考を必要とする課題を、同じ実WASI・ChoreoFS接続へ移す。
-   特定タスクのコマンド列を組み込まず、modelがscriptを組み立てる。
-   std版wash、公開runtime、各guest1MiBのbackingを使う。大型Bashは採用しない。
-   shell内の構文・変数・exit statusと、禁止するタスク連携の二重管理を混同しない。
-2. 実Luna xhigh参加者で再検証し、元のsimulatorと独立監査を通す。
-   その後、残りの移植にも同じ境界を適用する。
+1. 反復の投影条件と局所的な寿命を一緒に定義する。roleに無関係なglobal先頭で
+   識別したことにせず、投影後の操作契約で曖昧さを調べる。
+   `par`内rollの独立性、区別できる後続後のmessage再利用、外側rollによる
+   内側visitの再開を回帰条件として保つ。既存の受理だけを正しさの根拠にしない。
+   最終kernelは投影済みの正確な順序・所有権の事実を使い、走査による推測や
+   send候補の優先順位で直さない。API aliasや利用側の進行状態も増やさない。
+2. 意図した意味にLeanモデルとcheckerを合わせ、最小再現、Rust repo cfgを含む試験、
+   Lean・Z3・Miri・必要なKani、修正を実際に選ぶ現行QUICを通す。
+   実6E depth 0/1/2の差し戻し後の再提出、承認前merge拒否、REPO排他、
+   レビュー中の独立した開発、全通知とguest終了が通るまで本体修正を採用しない。
+3. 元課題のfidelityを独立に監査してからLuna xhighの実試行へ進む。
+   その後、残りの移植にも同じ境界を適用する。std版washと公開runtime、
+   各guest 1MiB backing、Tokio current-thread async/awaitを維持する。
 
 ## 比較・論文までの残りのゲート
 
@@ -244,3 +298,46 @@ WASIの値とmessageの変換はlocalsideで明示し、進行フラグや第二
 - fmt / clippy / 関連試験 / 必要なcross-repo検証を通してpushし、GitHub CIを確認する。
 
 未完了を完了に書き換えない。作業を進めたらこの「現在の状態」と「次の一手」を更新する。
+
+## 本体修正の方針確定
+
+ユーザーの指摘どおり、globalから一意に決まるなら投影が情報を保持し、同じ公開操作で
+一意に決まらないならコンパイル時に拒否する。runtimeの送信優先順位では直さない。
+
+- 16Eの既存実行成功を根拠に、強化した検査を過剰とした判断は撤回した。
+  現行のGlobalSemanticsは、par合流と後続の受信後にも古いrollへの再入を許す。
+  この正確な縮小例で、新しい後続sendとroll再入後の旧sendを両方受理することを
+  Leanで確認した。同じrole・label・schemaから二つを選び分けることはできない。
+- したがって今回の修正は反復の寿命の変更ではなく、現行の反復の意味に対する
+  投影検査の不足を直す。`fix/roll-reentry-projection`を隔離コピーに作成した。
+  roleごとの反復先頭と、routeで排他的ではない後続の送信契約を検査し、
+  競合は既存のReentrySelectorで拒否する。kernelと公開APIは変更しない。
+- 追加した診断9件、const projectionのcompile-fail、独立par内roll、通常のseq、
+  受信を先頭とする反復の返信再利用、排他的routeの肯定例を回帰条件にした。
+  Rust workspaceはrepo cfg付き・test-threads=1で878成功、失敗0、明示ignore 12。
+  並行実行で失敗したCI-toolのfixture試験は、変更していないbaselineでも失敗し、
+  単一threadではbaseline・修正版とも成功した。今回その試験のsourceは変更しない。
+- Miriは実投影validatorとbranch ancestryの対象4件が成功。Kaniは本番validatorを呼ぶ
+  4harnessが成功した。symbolicなu8 label/u32 schemaを縮めず、固定4eventまでの
+  fixtureにunwind 8を使い、unwinding assertionも検査した。
+  本体のstable no_stdとthumbv6m build、workspace Clippyも成功。
+- Lean/Z3の新しい10命題と正確なUNSAT/UNSAT/SATは成功。Lean全ゲートと修正版を
+  実際に選ぶ現行QUICのdefault/hqを再検証中。この結果を確認して修正を確定する。
+- 寿命を走査から推測する旧候補は採用しない。ChoreoFixの16E/6Eも新検査に適合する
+  choreographyへ整理する必要がある。既存の16E試行を全要件受理には数えない。
+  全要件受理0・採点済み0は変わらない。
+
+## 本体修正の公開チェックポイント
+
+- 本体修正を`f86451b3fa65508e351fd48db32af5129a0539b6`としてcommitし、
+  `fix/roll-reentry-projection`へpushした。PRは https://github.com/hibanaworks/hibana/pull/8 。
+- Lean全ゲートも再実行して成功。修正版を直接依存とTLS経由の両方で選ぶ現行QUICは、
+  default 593件、hq 598件（各24 doctest込み）が成功し、失敗0。
+- Rust 878件、Clippy、no_std、thumbv6m、Lean、Z3、対象Miri 4件、
+  本番validatorのKani 4harnessを確認済み。検証sourceとログのhashは
+  `results/validation/roll-projection-fix-20261015/status.json`に保存した。
+- mainはまだf1c4dd4。GitHub CIはpush run 38717977624とPR run 38718027357で実行中。
+  registryの0.9.9は変更せず、新版の公開も行っていない。
+- 次はこの本体の投影条件に合う直接WASI choreographyへ16E/6Eを整理する。
+  APIやtask進行フラグで経路を足さない。元の課題要件の独立監査が終わるまで
+  全要件受理0・採点済み0を保つ。
