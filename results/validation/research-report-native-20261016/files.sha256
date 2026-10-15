@@ -1,11 +1,14 @@
 05b103c70b24c31a71f28ba6bdc565a18fad0622bc5536719433f6c5c17dbe51  results/validation/research-report-native-20261016/README.md
 c3ed275ac9c3e461e2c3478aa2b3e58aa433dfb9992b0069b1e3cfed52e7ff1a  results/validation/research-report-native-20261016/async-native-git-pin-trace.json
+00a2989769011f0f0e103f2bd236bb118185a0904c508162f86ffd45fcab8a4c  results/validation/research-report-native-20261016/async-native-integrated-trace.json
 17efd8bf377aeff15599f96c499ec550222e2b096ab6bb05ddc8b632223171f5  results/validation/research-report-native-20261016/async-native-trace.json
 194c3d64b5a403346f10dd0b2f050d74563ac8d290ed3df6316c0acaa0d64ce8  results/validation/research-report-native-20261016/clippy-git-pin.log.gz
+5a1f018fe4cb44e1218f439b6bd3026a50d6b1f0d2c09887494c13bd31e84adb  results/validation/research-report-native-20261016/clippy-integrated-git-pin.log.gz
 4b3faad9cb75aadc1e1a74291ed54652f47217070d0140caae31ad61050196d1  results/validation/research-report-native-20261016/clippy-path-candidate.log.gz
 cd0535e0fd213894237e8bbad6f392eae007fbf94889f54a4e1866fc976c6e52  results/validation/research-report-native-20261016/frozen-builds-after-clean.log
 cd0535e0fd213894237e8bbad6f392eae007fbf94889f54a4e1866fc976c6e52  results/validation/research-report-native-20261016/frozen-builds-before-clean.log
 0cca658ee1d64f23c572b093e8fb097119cff176c06c052cd2fafcc4499c1898  results/validation/research-report-native-20261016/native-git-pin.log.gz
+dc93942090a4379a9e4f5657f1f12d2395aee61d982216d9b339698477da17a7  results/validation/research-report-native-20261016/native-integrated-git-pin.log.gz
 0a6cd73c123c1a433edbadc7baf46807f08874146e9efce7ec11e19e423ae8bd  results/validation/research-report-native-20261016/native-path-candidate.log.gz
 39b8dc3fc8b44765c8e6f1adee04c5b465e555ab791cc42d0d9e810d5b64297c  results/validation/research-report-native-20261016/pending-offer-git-pin.exit
 c524167668cc316cd7c60c6d4815e9ba9e9ac53729afb6f1d6493f0dac7f3f66  results/validation/research-report-native-20261016/pending-offer-git-pin.log

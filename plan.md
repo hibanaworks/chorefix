@@ -1054,3 +1054,30 @@ reviewは元課題どおり終端で、余分なretryを加えない。続いて
 - ディスク空き低下に対し、cargo clean -p choreofixで自分の不要なbuild成果物を15.2GiB削除。
   保存済みqualified runtime/verifier全参照のhashが削除前後で一致することを確認した。
   source、実験raw、freeze済みbinary、鍵は削除していない。採点0/2592、完全受理0を維持する。
+
+### 統合後の実測と、0a296dfのoffer判定が入れた回帰
+
+- ChoreoFix f569c6d3fa7dba330a564d84cf1318d01f98042cを実験branchへpushした。
+  rootの実Git pinで3E native6試験が成功し、root全target strict Clippyも成功。
+  全Rustはsession13506、/tmp/choreofix-research-report-full-rust.logで実行中。
+  ChoreoFix CI38802383924も実行中。6Eを含む全WASI成功とは扱わない。
+- 新core64d4f496/QUIC4a72323のlocal default593件、hq598件がどちらも成功。
+  44cell CI38801818511はplan成功・各group実行中。本体CIのKani jobも成功し、
+  final-formはまだ実行中。個別logはnested-resolver-reentry-20261016へ保存した。
+- 前回ChoreoFix CI38796259207の失敗は6Eの再考あり4条件だった。新coreを選んだ実WASIでも、
+  その4条件だけを再試験し、4件とも20秒のTimeoutErrorで失敗した。未採点の部品試験として
+  失敗資料を残し、採点済み比較の件数には加えない。
+  runtime stderrのterminal transport closedはtest終了処理時の記録であり、原因と断定しない。
+- WASIを除いた4役のEndpoint再現も、rework後のround1で、送信済みのOpen要求をofferが
+  観測できず1秒でtimeoutする。独立parの別flowはidleのまま維持した。
+  現remote main f1c4dd4では同じ再現が成功。64d4f496でpassive_offer_entry_enabledだけを
+  外す診断も成功した。0a296dfで導入した判定の回帰と確認した。診断用の解除は元へ戻した。
+  coreのworking diffはtests/nested_resolver_reentry.rsの新しい回帰試験だけである。
+- gateの診断はscope=ScopeId(6)、lane0、旧Rework label28のentry8、selected=Some(1)、
+  live=None、head=Some(8)、cursor10を示した。古い後続routeの両先頭が無効であっても、
+  新visitの先頭が別のrouteならofferで観測する必要がある。通常recvのframeを誤消費しない
+  既存2回帰を保ち、再入先の実際の投影済み先頭へcandidateを導くのが次の修正点。
+  単なるguard解除、全effectのruntime探索、localsideの受信順固定では済ませない。
+- 実WASI4件の全frame/case/hash/stderr、最小source、main成功、patched失敗、guard解除の
+  診断をresults/failures/review-reentry-core64-20261016へ保存した。本体64d4f496を統合合格や
+  merge可能とはしない。後続受信のpreview問題と1Hのglobal排他不足も引き続き未解決。
