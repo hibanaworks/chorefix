@@ -275,6 +275,7 @@ pub fn run(root: &Path, verifier: &Path) -> Result<Value> {
             .join(task)
             .join("metadata.json"),
     )?;
+    let config = load(&root.join("source/experiment.json"))?;
     let actual_agents: Vec<_> = fixture["fixtures"]
         .as_array()
         .ok_or("fixture actors")?
@@ -284,6 +285,8 @@ pub fn run(root: &Path, verifier: &Path) -> Result<Value> {
     if json!(actual_agents) != metadata["agents"]
         || fixture["task"] != result["task"]
         || fixture["depth"] != result["depth"]
+        || fixture["seed"] != config["python_hash_seed"]
+        || fixture["delay_multiplier"] != config["domain_tool_delay_multiplier"]
     {
         return Err("task identity, depth or participant set differs from original inputs".into());
     }
@@ -363,6 +366,9 @@ pub fn run(root: &Path, verifier: &Path) -> Result<Value> {
     if maximum != participants.len() as i32 {
         return Err("model turns did not overlap".into());
     }
+    if json!(digest(verifier)?) != case["protocol_verifier_sha256"] {
+        return Err("protocol verifier differs from the qualified build".into());
+    }
     let protocol = Command::new(verifier.canonicalize()?)
         .arg("--audit")
         .arg(root.join("events.jsonl"))
@@ -375,6 +381,14 @@ pub fn run(root: &Path, verifier: &Path) -> Result<Value> {
         .into());
     }
     let protocol: Value = serde_json::from_slice(&protocol.stdout)?;
+    if protocol["status"] != "passed"
+        || protocol["task"] != fixture["task"]
+        || protocol["participants"] != participants.len()
+        || protocol["simulator_complete"] != true
+        || protocol["violations"] != 0
+    {
+        return Err("protocol verification did not pass the measured task".into());
+    }
     let total: u64 = participants
         .iter()
         .map(|v| v["inclusive_tokens"].as_u64().unwrap())
