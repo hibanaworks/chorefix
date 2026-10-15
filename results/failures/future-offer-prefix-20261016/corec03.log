@@ -1,0 +1,24 @@
+   Compiling hibana v0.9.9 (/private/var/folders/2h/h7yy0vc92tz6sx58nlwt92kr0000gn/T/hibana-parallel-offer.8GMB3N)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.68s
+     Running tests/nested_resolver_reentry.rs (target/debug/deps/nested_resolver_reentry-2a7f9c89d75c1695)
+
+running 1 test
+test offer_preserves_visible_prefix_before_nested_receive ... FAILED
+
+failures:
+
+---- offer_preserves_visible_prefix_before_nested_receive stdout ----
+
+thread 'offer_preserves_visible_prefix_before_nested_receive' (55788788) panicked at tests/nested_resolver_reentry.rs:86:13:
+assertion `left == right` failed: a later nested choice must not skip its visible prefix on another lane
+  left: 6
+ right: 4
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    offer_preserves_visible_prefix_before_nested_receive
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `--test nested_resolver_reentry`

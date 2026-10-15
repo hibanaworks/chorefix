@@ -3,6 +3,31 @@
 最終更新: 2026-10-16。作業先はこのディレクトリ、リモートは
 `git@github.com:hibanaworks/chorefix.git`。途中の実装を完成扱いしない。
 
+## 現在の作業と受理条件
+
+- 元の逐次取得手順には合わせない。Hibana側は必要な依存と資源の排他だけを保ち、
+  独立した要求・model call・許可後のeffectをTokioで実際に並行実行する。
+  両取得要求をgrant待ちより先に送り、両grantが必要なeffectの直前で待ち合わせる。
+  baselineは変更せず、逐次取得からの手順変更を比較条件に明記する。
+- native 3Eの記録では、独立したrequest同士が約33.8ms、Aの参考文献更新とBの本文執筆が
+  約30.3ms重なった。25msの制御したasync fixtureであり、実モデルの性能測定ではない。
+  source、全frame、intervalは`results/validation/research-report-native-20261016/`。
+- 現在の最優先は、並行flowを直列化せずに本体のoffer再入回帰を直すこと。
+  修正候補は古いsuffixのguardを除去し、正しい通常受信のframeを元のportへ戻す。
+  進行やarmは変えず、そのlaneのoffer cacheだけを外す。公開API・状態fieldは増やさない。
+  本体c03c7af337de6d00c150039450ddb0825b39e3a8をPR8のbranchへpush済み。
+  focused 10件、workspace 887件（12ignored）、strict Clippy、no_std/thumb、
+  strict Miri 4件、Kani 7harness、新補題Lean 8/Z3 8UNSAT+1SATが成功。
+  Lean全体・関連Z3・サイズ検査も成功。新Git pinの実WASIを再buildし、以前失敗した
+  6Eの4条件だけを再試験して4/4成功（14.20秒）。独立flowの直列化は入れていない。
+  新Git pinの3E native6件とstrict Clippyも成功し、25ms fixtureの実際の重なりを保存した。
+- 旧core64d4f496を選んだQUIC4a72323のCI38801818511は44/44成功をsummaryで確認済み。
+  新候補のQUIC検証には流用しない。QUIC2af1e69/corec03のlocal default593/hq598件と
+  pin4件、clean source auditは成功。新44cell CI38807924806はplan成功・各群実行中。
+  後続受信の誤previewは最新main f1c4dd4とc03の両方で再現し、独立した失敗資料へ保存。
+  1Hのglobal排他不足も未解決。
+- 完全受理0、採点済み比較0/2592。論文推敲を先行させない。
+
 ## 目的と変更しない条件
 
 元のTraceFixの48課題を縮めずにHibanaで実装し、論文化に必要な比較データを集める。
