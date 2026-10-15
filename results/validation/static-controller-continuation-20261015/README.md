@@ -6,8 +6,12 @@ change incorrectly dropped a send-selected controller choice while locating its
 receive continuation. Keeping that committed choice does not retain completed
 observer/resolver decisions or prevent enabled parallel resolver work.
 
-The two current QUIC ingress failures also pass. Full default/hq tests, new
-external peer qualification and final GitHub CI remain separate pending gates.
+The two current QUIC ingress failures also pass. Default tests/doctests passed 593 and hq passed 598, with zero failures, using
+the clean local core checkout at c2001ec. The final QUIC revision 44d291a pins
+the exact Git source in all six consumers. Its three ingress tests also passed,
+and the dependency tree selects that same source directly and through TLS.
+Source-pin checks (4), matrix checks (13) and driver tests passed. New external
+peer qualification and final GitHub CI remain separate pending gates.
 No main merge or registry publication is claimed.
 
 The first receive-entry diagnosis was disproved by probes 001/002. Probe 003

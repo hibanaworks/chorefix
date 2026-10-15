@@ -55,6 +55,11 @@ has retired merely because a later operation committed. Existing passing runs
 do not establish that its public sends are unambiguous. Do not add public aliases,
 operation modes, or application progress state for compatibility.
 
+Keep a send-selected controller's committed choice while locating its receive
+continuation. Completing that send alone does not retire the choice. Completed
+observer/resolver visits must still yield to enabled independent resolver work.
+Scheduling an enabled entry does not itself authorize either branch.
+
 Use `g::par` for independent work and `g::route` for alternatives. Connect
 explicit decision sites to the actual domain result through a resolver. Use
 `.roll()` for repeated work and revision cycles. Keep the repetition boundary

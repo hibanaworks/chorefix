@@ -477,3 +477,10 @@ WASIの値とmessageの変換はlocalsideで明示し、進行フラグや第二
   6Eの追加3条件も成功し、元simulatorでの独立replayと共有資源区間/通信同一性監査が成功。
   結果を1件除いたログコピーは拒否された。証拠はstatic-controller-continuation-20261015。
   ChoreoFix全体Python33件も成功した。これを採点比較や全要件受理には数えない。
+
+- c2001ecのclean checkoutでQUIC default593成功・hq598成功、各0失敗。
+  QUIC 44d291aでは全6 consumerとlockを同じGit c2001ecへ更新し、直接とTLS経由の
+  一致をcargo treeで確認。Git pinのingress3件、source pin4件、matrix13件、driver試験が成功。
+  新しい外部interopはrun38735739939。結果は未確定で、本体CIと合わせて成果物を確認する。
+  ChoreoFixは9877301で6E境界と証拠をmainへpush済み。Rust26/Python33/Clippy/fmt/
+  原課題inventoryが成功。本体mainのmerge/registry公開と採点比較は未実施。

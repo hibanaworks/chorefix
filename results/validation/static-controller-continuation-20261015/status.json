@@ -1,5 +1,5 @@
 {
-  "status": "core_repair_validated_locally_quic_integration_pending",
+  "status": "core_and_quic_local_checks_passed_external_ci_pending",
   "core": "c2001ec06944d7f3b299e16b5b3efb5b0ba0366a",
   "core_pr": "https://github.com/hibanaworks/hibana/pull/8",
   "rust": {
@@ -17,7 +17,27 @@
     "original_simulator_replay": "passed",
     "mutant_missing_domain_end": "rejected"
   },
-  "quic": "two original failing ingress unit tests passed; full default/hq and fresh external peers pending",
+  "quic": {
+    "revision": "44d291abc833c3d7d07482e33b186a45c3884a9f",
+    "default": {
+      "passed": 593,
+      "failed": 0
+    },
+    "hq": {
+      "passed": 598,
+      "failed": 0
+    },
+    "full_suites_source": "clean local core checkout at c2001ec",
+    "exact_git_ingress": {
+      "passed": 3,
+      "failed": 0
+    },
+    "source_pin_checks": 4,
+    "matrix_checks": 13,
+    "tls_and_direct_core": "same c2001ec Git source",
+    "external_run": "https://github.com/hibanaworks/hibana-quic/actions/runs/38735739939",
+    "external_result": "pending"
+  },
   "public_api_changed": false,
   "scored_benchmark": false,
   "model_calls": 0,
