@@ -119,8 +119,8 @@
   "checks": {
     "wash_parser_tests": 3,
     "consumer_rust_tests": 28,
-    "consumer_python_tests": 29,
-    "wash_real_wasi_tests": 5,
+    "consumer_python_tests": 30,
+    "wash_real_wasi_tests": 6,
     "fmt": "passed",
     "clippy": "passed",
     "inventories": "passed",
@@ -145,11 +145,14 @@
     "early dependant waits",
     "duplicate effect rejection",
     "original simulator completion",
-    "heap growth through projected request/reply"
+    "heap growth through projected request/reply",
+    "root listing preserves the preopen",
+    "script output survives guest exit",
+    "closed guest reports an I/O error without stopping other guests"
   ],
   "remaining": [
+    "more tasks and domain failure/reconsideration paths on the direct boundary",
     "broader resource and syntax-combination checks",
-    "native Luna xhigh episodes on the new boundary",
     "remaining 48-task ports and task-fidelity acceptance",
     "2592 scored comparisons",
     "paper evidence and final report"
@@ -164,9 +167,8 @@
   "runtime_ci": "https://github.com/hibanaworks/hibana-wasip1-runtime/actions/runs/38691651987",
   "runtime_local_gates": {
     "result": "passed",
-    "rust_tests": 81,
+    "rust_tests": 83,
     "miri_tests": 81,
-    "ignored_correspondence_export_tests": 2,
     "lean_theorems": 30,
     "actual_vm_and_choreofs_decisions": 680,
     "z3_unsat": 4,
@@ -177,6 +179,9 @@
     "vm_host_bytes": 51472,
     "physical_execution": "not verified",
     "worst_case_stack": "not verified",
-    "log": "results/validation/wasi-std-runtime-gates.log"
-  }
+    "log": "results/validation/wasi-std-runtime-gates.log",
+    "miri_ignored_correspondence_export_tests": 2
+  },
+  "runtime_ci_conclusion": "success",
+  "direct_luna_preflight": "results/direct-wasi-preflight.json"
 }

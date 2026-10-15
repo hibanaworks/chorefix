@@ -1,0 +1,588 @@
+{
+  "kind": "direct_wasi_integration_preflight_ledger",
+  "task": "16E",
+  "scored_benchmark": false,
+  "hibana_version": "0.9.9",
+  "runtime_revision": "4ebdad1443cf49488eae924afe528f67f5a5953b",
+  "wash_revision": "12e137aba2cea74f353c198a8d7c92afc977627c",
+  "scope": "Unscored integration attempts during development; no success-rate or performance comparison.",
+  "raw_archive": "output/direct-wasi-preflight/wash-std-20261015-evidence.tar.gz",
+  "raw_archive_sha256": "ca7450de73ba549d583a5888cf3c8f4cb9fca4db197eb81b467433421e6b1f32",
+  "raw_archive_location": "local workspace; source snapshots and binaries included",
+  "runs": [
+    {
+      "run_id": "wash-std-luna-001",
+      "scored_benchmark": false,
+      "scenario_depth": 0,
+      "protocol": {
+        "status": "complete",
+        "type": "run_result"
+      },
+      "simulator_complete": true,
+      "simulator_events": [
+        {
+          "timestamp": 1893015.469742875,
+          "agent": "DEVELOPER",
+          "tool": "compile_and_test",
+          "args": {
+            "component": "application"
+          },
+          "success": true,
+          "result": {
+            "component": "application",
+            "status": "compiled and tested",
+            "developer": "DEVELOPER"
+          },
+          "violations": []
+        },
+        {
+          "timestamp": 1893015.543669958,
+          "agent": "TESTER",
+          "tool": "run_integration_tests",
+          "args": {
+            "suite": "integration"
+          },
+          "success": true,
+          "result": {
+            "suite": "integration",
+            "status": "tests passed",
+            "engineer": "TESTER"
+          },
+          "violations": []
+        },
+        {
+          "timestamp": 1893020.180383541,
+          "agent": "DEPLOYER",
+          "tool": "deploy_application",
+          "args": {
+            "target": "production"
+          },
+          "success": true,
+          "result": {
+            "target": "production",
+            "status": "deployed and smoke-tested",
+            "engineer": "DEPLOYER"
+          },
+          "violations": []
+        }
+      ],
+      "simulator_violations": [],
+      "participants": [
+        {
+          "participant": "DEPLOYER",
+          "status": "completed",
+          "error": null,
+          "requested_model": "gpt-6-luna",
+          "returned_model": "gpt-6-luna",
+          "requested_effort": "xhigh",
+          "returned_effort": "xhigh",
+          "tool_calls": 2,
+          "elapsed_seconds": 16.694099667016417,
+          "usage": {
+            "totalTokens": 46470,
+            "inputTokens": 45976,
+            "cachedInputTokens": 30976,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 494,
+            "reasoningOutputTokens": 399
+          },
+          "raw_events_sha256": "5939c350eebcf0fbd17806bb75a5762565584b258c6889567c18ca6e370e37be"
+        },
+        {
+          "participant": "DEVELOPER",
+          "status": "completed",
+          "error": null,
+          "requested_model": "gpt-6-luna",
+          "returned_model": "gpt-6-luna",
+          "requested_effort": "xhigh",
+          "returned_effort": "xhigh",
+          "tool_calls": 5,
+          "elapsed_seconds": 25.9849974589888,
+          "usage": {
+            "totalTokens": 97013,
+            "inputTokens": 95513,
+            "cachedInputTokens": 77312,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 1500,
+            "reasoningOutputTokens": 1324
+          },
+          "raw_events_sha256": "6bd0db5724cee02abe0723bad6f6817fa8953b25bc56f5f50e87be6d532ae0f8"
+        },
+        {
+          "participant": "TESTER",
+          "status": "completed",
+          "error": null,
+          "requested_model": "gpt-6-luna",
+          "returned_model": "gpt-6-luna",
+          "requested_effort": "xhigh",
+          "returned_effort": "xhigh",
+          "tool_calls": 3,
+          "elapsed_seconds": 15.574568042065948,
+          "usage": {
+            "totalTokens": 61925,
+            "inputTokens": 61626,
+            "cachedInputTokens": 44288,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 299,
+            "reasoningOutputTokens": 179
+          },
+          "raw_events_sha256": "11e62068af20ce771fc4be69cc1bbe2344db7d3741c203dd6c155d9a58260454"
+        }
+      ],
+      "error": null,
+      "elapsed_seconds": 26.577545000007376,
+      "runtime_exit_code": 0,
+      "binary_sha256": {
+        "runtime": "0e08c157cb7efb2900a5086f113db8e5edcd52d69d7b0c0a3c1a4edb68a9f4e3",
+        "wash.wasm": "407e1fe263231022eb542a7d2a35e4d4705a58590f92b77bf21fe5f7c77258bc"
+      },
+      "source_manifest_sha256": "a498af9ce05c6fb34aeb355beb4fbe01d34d9f34ca63ae6a44d749234b707c18",
+      "last_observed_total_tokens": 205408,
+      "usage_may_be_partial": false,
+      "raw_directory": "output/direct-wasi-preflight/wash-std-luna-001/16E",
+      "raw_file_sha256": {
+        "source-manifest.json": "a498af9ce05c6fb34aeb355beb4fbe01d34d9f34ca63ae6a44d749234b707c18",
+        "TESTER-prompt.txt": "c8389a27c0c7d6061f567e836aeb53040714118dc1575605f45586c37fbcbd9e",
+        "result.json": "2426606714bd047807735d3dda40a08933dc1e54615c0488cf9e187f0597f79b",
+        "DEVELOPER-prompt.txt": "bb8c7b5e9717961efaf6bb5d35e1561d9ded6834045f60ba64c5f9080becd13f",
+        "DEPLOYER-prompt.txt": "9a0789baac6a94f3abf669f43113d5a79bfd89e9fdbd14083c0fb3e3c33b00a7",
+        "DEPLOYER/events.jsonl": "5939c350eebcf0fbd17806bb75a5762565584b258c6889567c18ca6e370e37be",
+        "DEPLOYER/participant.json": "84f74db87942231c6fcdd87f4faa0ffe82af575f77bb45d34861d758cf6433c3",
+        "DEVELOPER/events.jsonl": "6bd0db5724cee02abe0723bad6f6817fa8953b25bc56f5f50e87be6d532ae0f8",
+        "DEVELOPER/participant.json": "0eceb953dd641f14d6ddded66f6afc62ccdb798ddd719cbcdaf955380a9764a1",
+        "io/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "io/events.jsonl": "7e1e5d1f5d71a633a2db819eb1a56db7e5b8dc092835b5952235f34adb7d3d23",
+        "TESTER/events.jsonl": "11e62068af20ce771fc4be69cc1bbe2344db7d3741c203dd6c155d9a58260454",
+        "TESTER/participant.json": "e51a2365e511a54c0fbf12267ece0f7d7294f5480a03ca0dac1dfee15e280be4"
+      },
+      "assessment": "Task and models completed, but the first recorder mistakenly used the parent Git revision for the extracted TraceFix archive. Preserve as preliminary evidence, not the final qualified run."
+    },
+    {
+      "run_id": "wash-std-luna-002",
+      "scored_benchmark": false,
+      "scenario_depth": 0,
+      "protocol": {
+        "error": "guest closed before service commit",
+        "status": "failed",
+        "type": "run_result"
+      },
+      "simulator_complete": false,
+      "simulator_events": [
+        {
+          "timestamp": 1893152.286142625,
+          "agent": "DEVELOPER",
+          "tool": "compile_and_test",
+          "args": {
+            "component": "application"
+          },
+          "success": true,
+          "result": {
+            "component": "application",
+            "status": "compiled and tested",
+            "developer": "DEVELOPER"
+          },
+          "violations": []
+        },
+        {
+          "timestamp": 1893152.322204083,
+          "agent": "TESTER",
+          "tool": "run_integration_tests",
+          "args": {
+            "suite": "integration"
+          },
+          "success": true,
+          "result": {
+            "suite": "integration",
+            "status": "tests passed",
+            "engineer": "TESTER"
+          },
+          "violations": []
+        }
+      ],
+      "simulator_violations": [],
+      "participants": [
+        {
+          "participant": "DEPLOYER",
+          "status": "harness_error",
+          "error": "guest closed before service commit",
+          "requested_model": "gpt-6-luna",
+          "returned_model": "gpt-6-luna",
+          "requested_effort": "xhigh",
+          "returned_effort": "xhigh",
+          "tool_calls": 15,
+          "elapsed_seconds": 99.00394700001925,
+          "usage": {
+            "totalTokens": 252038,
+            "inputTokens": 244621,
+            "cachedInputTokens": 217600,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 7417,
+            "reasoningOutputTokens": 6937
+          },
+          "raw_events_sha256": "2698f56f2ed1b9312c506e01670e75150535e93f97213905b278651f6da857c8"
+        },
+        {
+          "participant": "DEVELOPER",
+          "status": "completed",
+          "error": null,
+          "requested_model": "gpt-6-luna",
+          "returned_model": "gpt-6-luna",
+          "requested_effort": "xhigh",
+          "returned_effort": "xhigh",
+          "tool_calls": 6,
+          "elapsed_seconds": 36.441987457918,
+          "usage": {
+            "totalTokens": 115082,
+            "inputTokens": 112563,
+            "cachedInputTokens": 104704,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 2519,
+            "reasoningOutputTokens": 2310
+          },
+          "raw_events_sha256": "8e5f032fade73803e15607132a169d15e5a5aff3fe521999485abcb29e118c90"
+        },
+        {
+          "participant": "TESTER",
+          "status": "completed",
+          "error": null,
+          "requested_model": "gpt-6-luna",
+          "returned_model": "gpt-6-luna",
+          "requested_effort": "xhigh",
+          "returned_effort": "xhigh",
+          "tool_calls": 3,
+          "elapsed_seconds": 17.12147566699423,
+          "usage": {
+            "totalTokens": 62007,
+            "inputTokens": 61685,
+            "cachedInputTokens": 44288,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 322,
+            "reasoningOutputTokens": 202
+          },
+          "raw_events_sha256": "e37a39365a4bd0ee49253101777572bb8a651f1466f1794db4be4f6710f9286d"
+        }
+      ],
+      "error": null,
+      "elapsed_seconds": 100.19123350013979,
+      "runtime_exit_code": 1,
+      "binary_sha256": {
+        "runtime": "0e08c157cb7efb2900a5086f113db8e5edcd52d69d7b0c0a3c1a4edb68a9f4e3",
+        "wash.wasm": "407e1fe263231022eb542a7d2a35e4d4705a58590f92b77bf21fe5f7c77258bc"
+      },
+      "source_manifest_sha256": "57cbbf7992940b5f2d321466ca68af0548ccbb462913a584529f574d18df96de",
+      "last_observed_total_tokens": 429127,
+      "usage_may_be_partial": true,
+      "raw_directory": "output/direct-wasi-preflight/wash-std-luna-002/16E",
+      "raw_file_sha256": {
+        "source-manifest.json": "57cbbf7992940b5f2d321466ca68af0548ccbb462913a584529f574d18df96de",
+        "TESTER-prompt.txt": "c8389a27c0c7d6061f567e836aeb53040714118dc1575605f45586c37fbcbd9e",
+        "result.json": "948b38d99d3ae715748918c56f42aa0ce7a6057c91f28bb5a24043a72ff2f82f",
+        "DEVELOPER-prompt.txt": "bb8c7b5e9717961efaf6bb5d35e1561d9ded6834045f60ba64c5f9080becd13f",
+        "DEPLOYER-prompt.txt": "9a0789baac6a94f3abf669f43113d5a79bfd89e9fdbd14083c0fb3e3c33b00a7",
+        "DEPLOYER/events.jsonl": "2698f56f2ed1b9312c506e01670e75150535e93f97213905b278651f6da857c8",
+        "DEPLOYER/participant.json": "9d678a7dca51ee994c61109fd485d39d9424ccc458af961c594163d3a2498846",
+        "DEVELOPER/events.jsonl": "8e5f032fade73803e15607132a169d15e5a5aff3fe521999485abcb29e118c90",
+        "DEVELOPER/participant.json": "d0a3332ab0ff5949114a254739c229c40650477836d31df9cf25d6ddbda03699",
+        "io/stderr.log": "93bfa86106699ebe9c7ddaad9acdfa897a82f8fec498c72c6d0eda5b1d29ea6c",
+        "io/events.jsonl": "77d299413afc5ce43416bbbd461e448d145438855c82a43a1437ffb06c96d073",
+        "TESTER/events.jsonl": "e37a39365a4bd0ee49253101777572bb8a651f1466f1794db4be4f6710f9286d",
+        "TESTER/participant.json": "91804217f38070df55c6a6073e97f4c08d3146c9f5b3227fca3a75f862761c6e"
+      },
+      "assessment": "Consumer integration failure: opening root reused preopen fd 3; later path operations were rejected. Two domain operations completed. Preserve this failed attempt."
+    },
+    {
+      "run_id": "wash-std-luna-003",
+      "scored_benchmark": false,
+      "scenario_depth": 0,
+      "protocol": {
+        "status": "complete",
+        "type": "run_result"
+      },
+      "simulator_complete": true,
+      "simulator_events": [
+        {
+          "timestamp": 1893440.141673291,
+          "agent": "DEVELOPER",
+          "tool": "compile_and_test",
+          "args": {
+            "component": "application"
+          },
+          "success": true,
+          "result": {
+            "component": "application",
+            "status": "compiled and tested",
+            "developer": "DEVELOPER"
+          },
+          "violations": []
+        },
+        {
+          "timestamp": 1893443.290980791,
+          "agent": "TESTER",
+          "tool": "run_integration_tests",
+          "args": {
+            "suite": "integration"
+          },
+          "success": true,
+          "result": {
+            "suite": "integration",
+            "status": "tests passed",
+            "engineer": "TESTER"
+          },
+          "violations": []
+        },
+        {
+          "timestamp": 1893447.84033625,
+          "agent": "DEPLOYER",
+          "tool": "deploy_application",
+          "args": {
+            "target": "production"
+          },
+          "success": true,
+          "result": {
+            "target": "production",
+            "status": "deployed and smoke-tested",
+            "engineer": "DEPLOYER"
+          },
+          "violations": []
+        }
+      ],
+      "simulator_violations": [],
+      "participants": [
+        {
+          "participant": "DEPLOYER",
+          "status": "completed",
+          "error": null,
+          "requested_model": "gpt-6-luna",
+          "returned_model": "gpt-6-luna",
+          "requested_effort": "xhigh",
+          "returned_effort": "xhigh",
+          "tool_calls": 3,
+          "elapsed_seconds": 19.744185290997848,
+          "usage": {
+            "totalTokens": 62162,
+            "inputTokens": 61817,
+            "cachedInputTokens": 46080,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 345,
+            "reasoningOutputTokens": 219
+          },
+          "raw_events_sha256": "a2747154433542d982123dda2f3d0385998e79435b34f1203bb98d7644e7f2c8"
+        },
+        {
+          "participant": "DEVELOPER",
+          "status": "harness_error",
+          "error": "runtime completed",
+          "requested_model": "gpt-6-luna",
+          "returned_model": "gpt-6-luna",
+          "requested_effort": "xhigh",
+          "returned_effort": "xhigh",
+          "tool_calls": 3,
+          "elapsed_seconds": 18.391910708043724,
+          "usage": {
+            "totalTokens": 30672,
+            "inputTokens": 30485,
+            "cachedInputTokens": 15872,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 187,
+            "reasoningOutputTokens": 112
+          },
+          "raw_events_sha256": "baba1850a7056ffb791fe09cdb7edf991d9ac556632c7cfb2a40660ffbe5feb3"
+        },
+        {
+          "participant": "TESTER",
+          "status": "completed",
+          "error": null,
+          "requested_model": "gpt-6-luna",
+          "returned_model": "gpt-6-luna",
+          "requested_effort": "xhigh",
+          "returned_effort": "xhigh",
+          "tool_calls": 3,
+          "elapsed_seconds": 19.535851540975273,
+          "usage": {
+            "totalTokens": 62148,
+            "inputTokens": 61771,
+            "cachedInputTokens": 44288,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 377,
+            "reasoningOutputTokens": 260
+          },
+          "raw_events_sha256": "03e7fe4670406471c457223dc9356d3798d9d33d65ac0be96c27558adc592285"
+        }
+      ],
+      "error": null,
+      "elapsed_seconds": 20.21023966697976,
+      "runtime_exit_code": 0,
+      "binary_sha256": {
+        "runtime": "16d52aeb75c223a408ee9aaf0075f94c5f8efbf0f9a006b9916667a9fb08a224",
+        "wash.wasm": "407e1fe263231022eb542a7d2a35e4d4705a58590f92b77bf21fe5f7c77258bc"
+      },
+      "source_manifest_sha256": "8926f19a0577e524e1130942e293f6d70f441220f486221c4be83feb3dc158c7",
+      "last_observed_total_tokens": 154982,
+      "usage_may_be_partial": true,
+      "raw_directory": "output/direct-wasi-preflight/wash-std-luna-003/16E",
+      "raw_file_sha256": {
+        "source-manifest.json": "8926f19a0577e524e1130942e293f6d70f441220f486221c4be83feb3dc158c7",
+        "TESTER-prompt.txt": "c8389a27c0c7d6061f567e836aeb53040714118dc1575605f45586c37fbcbd9e",
+        "result.json": "d1701d46b18012723b4e7cbce418cc9645ea0a8750568263f6ec939c6060d697",
+        "DEVELOPER-prompt.txt": "bb8c7b5e9717961efaf6bb5d35e1561d9ded6834045f60ba64c5f9080becd13f",
+        "DEPLOYER-prompt.txt": "9a0789baac6a94f3abf669f43113d5a79bfd89e9fdbd14083c0fb3e3c33b00a7",
+        "DEPLOYER/events.jsonl": "a2747154433542d982123dda2f3d0385998e79435b34f1203bb98d7644e7f2c8",
+        "DEPLOYER/participant.json": "c6bcd31efc02d803b7eeba11ef3104231b9f521b3b043f537f372ff1749e0db8",
+        "DEVELOPER/events.jsonl": "baba1850a7056ffb791fe09cdb7edf991d9ac556632c7cfb2a40660ffbe5feb3",
+        "DEVELOPER/participant.json": "6d8535ea285b9f468863756a439144e0594b509820c7a9e6631f01270343788f",
+        "io/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "io/events.jsonl": "b7b1b0a505d74f2c95e668f042e16e9888eab760d85054ee7d3643d492d42cdb",
+        "TESTER/events.jsonl": "03e7fe4670406471c457223dc9356d3798d9d33d65ac0be96c27558adc592285",
+        "TESTER/participant.json": "e8d1e2e8aaf36c7e320dd3f4d48e4de09912285ff33ddb7211fb37964170e9e8"
+      },
+      "assessment": "Task protocol and simulator completed, but terminal exit discarded script output. A model called the closed guest again and ended with a harness error. Preserve this incomplete participant outcome."
+    },
+    {
+      "run_id": "wash-std-luna-004",
+      "scored_benchmark": false,
+      "scenario_depth": 0,
+      "protocol": {
+        "status": "complete",
+        "type": "run_result"
+      },
+      "simulator_complete": true,
+      "simulator_events": [
+        {
+          "timestamp": 1893745.419107583,
+          "agent": "DEVELOPER",
+          "tool": "compile_and_test",
+          "args": {
+            "component": "application"
+          },
+          "success": true,
+          "result": {
+            "component": "application",
+            "status": "compiled and tested",
+            "developer": "DEVELOPER"
+          },
+          "violations": []
+        },
+        {
+          "timestamp": 1893747.517128958,
+          "agent": "TESTER",
+          "tool": "run_integration_tests",
+          "args": {
+            "suite": "integration"
+          },
+          "success": true,
+          "result": {
+            "suite": "integration",
+            "status": "tests passed",
+            "engineer": "TESTER"
+          },
+          "violations": []
+        },
+        {
+          "timestamp": 1893752.064245583,
+          "agent": "DEPLOYER",
+          "tool": "deploy_application",
+          "args": {
+            "target": "production"
+          },
+          "success": true,
+          "result": {
+            "target": "production",
+            "status": "deployed and smoke-tested",
+            "engineer": "DEPLOYER"
+          },
+          "violations": []
+        }
+      ],
+      "simulator_violations": [],
+      "participants": [
+        {
+          "participant": "DEPLOYER",
+          "status": "completed",
+          "error": null,
+          "requested_model": "gpt-6-luna",
+          "returned_model": "gpt-6-luna",
+          "requested_effort": "xhigh",
+          "returned_effort": "xhigh",
+          "tool_calls": 3,
+          "elapsed_seconds": 17.590329290833324,
+          "usage": {
+            "totalTokens": 61871,
+            "inputTokens": 61616,
+            "cachedInputTokens": 52224,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 255,
+            "reasoningOutputTokens": 131
+          },
+          "raw_events_sha256": "176abc8f7f949489017424df4e5df4ccea50f997a0fb56367eff63621ac3495b"
+        },
+        {
+          "participant": "DEVELOPER",
+          "status": "completed",
+          "error": null,
+          "requested_model": "gpt-6-luna",
+          "returned_model": "gpt-6-luna",
+          "requested_effort": "xhigh",
+          "returned_effort": "xhigh",
+          "tool_calls": 6,
+          "elapsed_seconds": 31.419469832908362,
+          "usage": {
+            "totalTokens": 114160,
+            "inputTokens": 112269,
+            "cachedInputTokens": 93440,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 1891,
+            "reasoningOutputTokens": 1686
+          },
+          "raw_events_sha256": "74a5a1623de8ac087a3c536bac992214672c24520526ffa9af90578927d10ff9"
+        },
+        {
+          "participant": "TESTER",
+          "status": "completed",
+          "error": null,
+          "requested_model": "gpt-6-luna",
+          "returned_model": "gpt-6-luna",
+          "requested_effort": "xhigh",
+          "returned_effort": "xhigh",
+          "tool_calls": 4,
+          "elapsed_seconds": 27.407637291122228,
+          "usage": {
+            "totalTokens": 80533,
+            "inputTokens": 79271,
+            "cachedInputTokens": 60416,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 1262,
+            "reasoningOutputTokens": 1121
+          },
+          "raw_events_sha256": "54a561881b266a4513bbc80ebaa16028c10d62ae5188c5361053984b94740dd0"
+        }
+      ],
+      "error": null,
+      "elapsed_seconds": 32.1513915839605,
+      "runtime_exit_code": 0,
+      "binary_sha256": {
+        "runtime": "021d234dc3182de96acf80f20936db8d571374e9a72c655fe579c0313cff8c3c",
+        "wash.wasm": "407e1fe263231022eb542a7d2a35e4d4705a58590f92b77bf21fe5f7c77258bc"
+      },
+      "source_manifest_sha256": "ac563c7b23c8614b33a43f316bed4b903bb3c3f298ba26ff0b74f93425f271ee",
+      "last_observed_total_tokens": 256564,
+      "usage_may_be_partial": false,
+      "raw_directory": "output/direct-wasi-preflight/wash-std-luna-004/16E",
+      "raw_file_sha256": {
+        "source-manifest.json": "ac563c7b23c8614b33a43f316bed4b903bb3c3f298ba26ff0b74f93425f271ee",
+        "TESTER-prompt.txt": "62ff21361787c5b80d77f9058bf70a7d4a15fafd44f64b3dfed7e201c2c7293f",
+        "result.json": "04eda1034f6d9d706b809132d2b9119bbb93f91af9925f530b1ef042f5eafe54",
+        "DEVELOPER-prompt.txt": "f2ec0b9b66821a70c111aa2ca0570d5bbcce96c062cc0bfe0ca7de5b164919dc",
+        "DEPLOYER-prompt.txt": "bb766bbeef5f701b15150f203b514b97cb23353ec0507f48558e0b9111c69bb2",
+        "DEPLOYER/events.jsonl": "176abc8f7f949489017424df4e5df4ccea50f997a0fb56367eff63621ac3495b",
+        "DEPLOYER/participant.json": "5cb4c2144ce6587cb505bfafeb4fb287ead62071ac6f5e46acddbabe22bcbb53",
+        "DEVELOPER/events.jsonl": "74a5a1623de8ac087a3c536bac992214672c24520526ffa9af90578927d10ff9",
+        "DEVELOPER/participant.json": "9f9f466fef9d67f618efc313633fbbedb333f41610a0e94f729c52de949b61cd",
+        "io/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "io/events.jsonl": "7a66a404d04b45d74b696a4064bd094a942fa7fc24457aad701e41687d358f67",
+        "TESTER/events.jsonl": "54a561881b266a4513bbc80ebaa16028c10d62ae5188c5361053984b94740dd0",
+        "TESTER/participant.json": "3a549770dd0e35656a569ec3ce0663bfe4476ad2972419bc47464a6cd3087ed8"
+      },
+      "assessment": "All three models, the projected protocol, and the original simulator completed. Separate persisted-event audit passed."
+    }
+  ]
+}

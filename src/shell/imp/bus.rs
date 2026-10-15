@@ -89,11 +89,14 @@ impl Reader {
                     let command = value["command"]
                         .as_str()
                         .ok_or_else(|| ShellError::message("RPC command missing"))?;
-                    self.terminals
+                    let terminal = self
+                        .terminals
                         .get(agent)
-                        .ok_or_else(|| ShellError::message("unknown terminal"))?
-                        .send((id, command.to_owned()))
-                        .map_err(|_| ShellError::message("terminal input closed"))?;
+                        .ok_or_else(|| ShellError::message("unknown terminal"))?;
+                    if terminal.send((id, command.to_owned())).is_err() {
+                        bus.emit(json!({"type":"terminal_closed", "id":id, "agent":agent}))
+                            .await?;
+                    }
                 }
                 Some("simulator_result") => {
                     bus.replies
@@ -127,8 +130,11 @@ impl Terminal {
         self.identifier = Some(id);
         Ok(command)
     }
-    pub async fn finish(&self, bus: &Bus, status: i32) -> ShellResult<()> {
-        bus.emit(json!({"type":"exit", "agent":self.agent, "id":self.identifier, "status":status}))
+    pub async fn finish(self, bus: &Bus, status: i32, output: Vec<u8>) -> ShellResult<()> {
+        let stdout =
+            String::from_utf8(output).map_err(|error| ShellError::message(error.to_string()))?;
+        drop(self.commands);
+        bus.emit(json!({"type":"exit", "agent":self.agent, "id":self.identifier, "status":status, "stdout":stdout}))
             .await
     }
 }

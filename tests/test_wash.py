@@ -11,6 +11,47 @@ from test_cicd_wasi import AGENTS, ROOT
 
 
 @pytest.mark.asyncio
+async def test_listing_root_keeps_path_operations_available_in_every_guest(tmp_path):
+    module = importlib.import_module("benchmark.environments.16E.sim")
+    sim = module.SimpleCICDSim()
+    sim._delay_multiplier = 0.01
+    runtime = await asyncio.wait_for(DirectWasi.start(
+        ROOT / "target/debug/cicd-wasi",
+        ROOT / "vendor/hibana-wash/target/wasm32-wasip1/release/hibana-wash.wasm",
+        load_tools("16E", sim=sim), AGENTS, tmp_path / "runtime",
+    ), 10)
+    try:
+        for agent in AGENTS:
+            reply = await runtime.command(agent, """
+ls /
+ls /missing || :
+printf '%s' private-work > /work/notes
+cat /work/notes
+ls /
+cat /work/notes
+""")
+            assert reply["stdout"].count("private-work") == 2
+            assert "Permission denied" not in reply["stdout"]
+        assert not sim.events
+        for agent, script in [
+            ("DEVELOPER", "echo '{\"component\":\"application\"}' > /service/compile_and_test"),
+            ("TESTER", "echo '{\"suite\":\"integration\"}' > /service/run_integration_tests"),
+            ("DEPLOYER", "echo '{\"target\":\"production\"}' > /service/deploy_application"),
+        ]:
+            await runtime.command(agent, script)
+        assert sim.is_complete() and not sim.violations and len(sim.events) == 3
+        exited = await runtime.command("DEVELOPER", "cat /service/result; printf bye; exit 0")
+        assert exited["exit_status"] == 0
+        assert '"success":true' in exited["stdout"] and exited["stdout"].endswith("bye")
+        assert await runtime.command("DEVELOPER", "echo must-not-run") == {"status": "guest_closed"}
+        await asyncio.gather(*(runtime.command(agent, "exit 0") for agent in ["TESTER", "DEPLOYER"]))
+        assert (await runtime.result)["status"] == "complete"
+        assert await runtime.command("DEVELOPER", "echo must-not-run") == {"status": "runtime_closed"}
+    finally:
+        await runtime.stop()
+
+
+@pytest.mark.asyncio
 async def test_scripts_choose_work_and_errors_allow_reconsideration(tmp_path):
     module = importlib.import_module("benchmark.environments.16E.sim")
     sim = module.SimpleCICDSim()
@@ -82,7 +123,7 @@ if true; then echo unfinished
         assert sim.is_complete()
         assert not sim.violations
         assert len(sim.events) == 3
-        assert await asyncio.gather(*(runtime.command(agent, "exit 0") for agent in AGENTS)) == [{"exit_status": 0}] * 3
+        assert await asyncio.gather(*(runtime.command(agent, "exit 0") for agent in AGENTS)) == [{"exit_status": 0, "stdout": ""}] * 3
         assert (await runtime.result)["status"] == "complete"
         await runtime.reader
     finally:

@@ -29,9 +29,9 @@ pub struct PrivateFs<'a> {
     work: [Vec<u8>; 8],
     paths: [Vec<u8>; 8],
     listing: Vec<u8>,
-    offsets: [usize; 15],
-    fd_flags: [u16; 15],
-    output: Vec<u8>,
+    offsets: [usize; 16],
+    fd_flags: [u16; 16],
+    pub output: Vec<u8>,
     pub terminal: Terminal,
     bus: &'a Bus,
 }
@@ -44,8 +44,8 @@ impl<'a> PrivateFs<'a> {
             work: std::array::from_fn(|_| Vec::new()),
             paths: std::array::from_fn(|_| Vec::new()),
             listing: Vec::new(),
-            offsets: [0; 15],
-            fd_flags: [0; 15],
+            offsets: [0; 16],
+            fd_flags: [0; 16],
             output: Vec::new(),
             terminal,
             bus,
@@ -79,7 +79,7 @@ impl PrivateFs<'_> {
         }
     }
 
-    fn objects<'b>(&'b self, reply: &'b [u8]) -> ChoreoFsObjectSet<'b, 14> {
+    fn objects<'b>(&'b self, reply: &'b [u8]) -> ChoreoFsObjectSet<'b, 15> {
         ChoreoFsObjectSet::new([
             ChoreoFsObject::readable(
                 b"llm/stdin",
@@ -101,7 +101,7 @@ impl PrivateFs<'_> {
                 FdBinding::write(FdWriteRow::Base),
             ),
             ChoreoFsObject::readdir(
-                b"",
+                b"\0preopen",
                 ObjectId(3),
                 FdSpec::new(3, READDIR, 1),
                 b"",
@@ -175,6 +175,15 @@ impl PrivateFs<'_> {
                 ObjectId(14),
                 FdSpec::new(14, READDIR, 1),
                 &self.listing,
+                FdBinding::readdir(FdReaddirRow::Base),
+            ),
+            // An opened directory is guest-owned. Its close must not replace
+            // or remove the preopen used to resolve subsequent paths.
+            ChoreoFsObject::readdir(
+                b"",
+                ObjectId(15),
+                FdSpec::new(15, READDIR, 1),
+                b"",
                 FdBinding::readdir(FdReaddirRow::Base),
             ),
         ])

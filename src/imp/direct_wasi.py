@@ -61,6 +61,8 @@ class DirectWasi:
     async def command(self, agent, command):
         # Serialize bytes on each terminal, without deciding task permissions.
         async with self.terminals[agent]:
+            if self.result.done():
+                return {"status": "runtime_closed"}
             self.sequence += 1
             identifier = self.sequence
             future = asyncio.get_running_loop().create_future()
@@ -101,8 +103,12 @@ class DirectWasi:
                             future.set_result(
                                 {"stdout": message["stdout"]}
                                 if message["type"] == "terminal" else
-                                {"exit_status": message["status"]}
+                                {"exit_status": message["status"], "stdout": message["stdout"]}
                             )
+                    case "terminal_closed":
+                        future = self.pending[message["id"]]
+                        if not future.done():
+                            future.set_result({"status": "guest_closed"})
                     case "run_result":
                         failure = RuntimeError(message.get("error", "runtime completed"))
                         if not self.result.done():

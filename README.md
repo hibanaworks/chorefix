@@ -66,6 +66,12 @@ dependencies or guest FS. All file operations go through WASI, projected
 Endpoints, and ChoreoFS. Each guest starts with 64 KiB of committed memory and
 can request more through the projected memory-growth protocol, up to its
 1 MiB caller-supplied backing.
+Four unscored Luna attempts on this direct boundary are retained in
+[the run ledger](results/direct-wasi-preflight.json), including two integration
+failures and a preliminary recording error. The final corrected attempt passed
+[a separate raw-event audit](results/audits/direct-wasi-wash-std-004-16E.json).
+This is one integration check on 16E, which has no injected domain failures.
+It does not establish task fidelity across all 48 tasks or a comparative result.
 See [the work plan](plan.md) for the remaining experiment gates.
 
 ## Follow the protocol

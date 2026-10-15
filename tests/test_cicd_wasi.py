@@ -80,7 +80,7 @@ async def test_real_guest_recovers_then_runs_the_original_pipeline_once(tmp_path
         exits = await asyncio.wait_for(asyncio.gather(*(
             runtime.command(agent, "exit 0") for agent in AGENTS
         )), 5)
-        assert exits == [{"exit_status": 0}] * 3
+        assert exits == [{"exit_status": 0, "stdout": ""}] * 3
         assert await asyncio.wait_for(runtime.result, 5) == {
             "type": "run_result", "status": "complete",
         }
@@ -107,7 +107,7 @@ async def test_guest_exit_before_work_is_a_failed_run_with_no_domain_effect(tmp_
         # terminal exit event. Either observation must retain the task failure.
         try:
             exited = await runtime.command("DEVELOPER", "exit")
-            assert exited == {"exit_status": 0}
+            assert exited == {"exit_status": 0, "stdout": ""}
         except RuntimeError as error:
             assert "guest closed before service open" in str(error)
         verdict = await asyncio.wait_for(runtime.result, 5)

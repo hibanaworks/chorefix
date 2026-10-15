@@ -150,7 +150,9 @@ pub async fn run_guests(
             if guest != io {
                 return Err(ShellError::message("developer guest/IO status differs"));
             }
-            afs.terminal.finish(bus, guest).await?;
+            afs.terminal
+                .finish(bus, guest, std::mem::take(&mut afs.output))
+                .await?;
             if guest != 0 {
                 return Err(ShellError::message("developer guest failed"));
             }
@@ -164,7 +166,9 @@ pub async fn run_guests(
             if guest != io {
                 return Err(ShellError::message("tester guest/IO status differs"));
             }
-            bfs.terminal.finish(bus, guest).await?;
+            bfs.terminal
+                .finish(bus, guest, std::mem::take(&mut bfs.output))
+                .await?;
             if guest != 0 {
                 return Err(ShellError::message("tester guest failed"));
             }
@@ -178,7 +182,9 @@ pub async fn run_guests(
             if guest != io {
                 return Err(ShellError::message("deployer guest/IO status differs"));
             }
-            cfs.terminal.finish(bus, guest).await?;
+            cfs.terminal
+                .finish(bus, guest, std::mem::take(&mut cfs.output))
+                .await?;
             if guest != 0 {
                 return Err(ShellError::message("deployer guest failed"));
             }

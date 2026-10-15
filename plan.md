@@ -66,8 +66,9 @@ ChoreoFSのパス/fd/rightsの事実だけでタスク効果を許可しない�
 - 6EのLunaシェル試行はdepth 0と2が各1件、depth 1が成功1件・失敗1件。
   失敗資料は `results/failures/review-feedback-depth1-001-6E.json`。
   失敗試行と中断したusageを捨てず、成功率の分母から除かない。
-- **現在の実験用シェルはまだ限定コマンド方式で、汎用 `/tools/call` を使う。**
-  シェルの自由度と正しいChoreoFS接続は未達。
+- **従来のmodel preflightは限定コマンド方式で、汎用 `/tools/call` を使う。**
+  16Eには後述のstd版wash・直接ChoreoFS接続のLuna試行を追加したが、
+  残りの課題はまだ同じ境界へ移行していない。
   既存のシェル試行は旧接続の観測資料として残すが、目標の境界を検証した証拠にはしない。
 - 16Eの直接接続を `src/tasks/cicd/choreofs/` に実装中。
   globalにサービスopen/write/close、資源の貸し借り、build→test→deploy、
@@ -135,26 +136,46 @@ ChoreoFSのパス/fd/rightsの事実だけでタスク効果を許可しない�
   VM予算64KiB、default guest込み128KiB、Pico2 fixtureのRAM予算160KiB。
   Pico2 link実測はflash79,848 bytes、24KiB stack予約込みRAM136,664 bytes。
   実機動作やworst-case stack測定は、このlink結果には含まれない。
-- runtime full gatesは成功。Rust/Miri 81件（2 ignored）、strict Clippy、
+- runtime full gatesは成功。native Rust 83件、Miri 81件（2 ignored）、strict Clippy、
   Lean 30定理と実VM/ChoreoFS 680判断の照合、Z3 4 UNSAT/3 SAT、
   Pico2、WASI std demo、doc、packageを通した。
   ログは`results/validation/wasi-std-runtime-gates.log`。
   runtimeは`4ebdad1443cf49488eae924afe528f67f5a5953b`を
-  remote defaultの`development/affine-wasi-boundary`へpush済み。
+  remote defaultの`development/affine-wasi-boundary`へpush済みで、GitHub CIも成功。
   古い32KiB予算の成功を新しい結果として使わない。
 - ChoreoFixでは各guestに1MiBのbackingを用意し、最初はmoduleの64KiB。
   `MemoryGrowReq`をlocalsideで受信し、`would_fit()`の結果を`MemoryGrowRet`で返す。
   メモリ許可も既存globalを通す。stdlibのheapと実行器のstack容量は区別する。
 - 隔離試験ではstd moduleの実接続5件と51,200-byte pipeのheap拡張が通った。
-  ChoreoFixでも公開runtime revを選び、実接続5件を含むPython全29件、
+  ChoreoFixでも公開runtime revを選び、実接続6件を含むPython全30件、
   Rust全28件、parser3件、fmt、全targetと両guestのstrict Clippy、
   inventoryと比較matrix不変を確認した。
-  この結合確認後もLuna試行と採点済み比較は未完了である。
+  採点済み比較は引き続き0。runtimeと採用側8406c11のGitHub CIは成功。
+- `tools/run_direct_wasi_preflight.py`で16Eのモデルharnessを直接接続へ移した。
+  元のdescription・schemas・static step dataを渡し、作業コマンドはモデルが選ぶ。
+  task permissionやprogressのPython側コピーは持たない。
+  archiveのupstream revは親Gitへ問い合わせず、検証済みsource manifestから読む。
+- Luna xhighの直接接続4試行を`results/direct-wasi-preflight.json`へ保存した。
+  001は完了したが初期記録器のupstream rev誤記があり、最終採用試行にはしない。
+  002はroot directoryとpreopenに同じfdを割り当てた接続ミスで失敗した。
+  003はprotocol/simulatorが完了したが、exit時のstdout回収漏れと終了後の呼出で
+  model1人がharness_errorになった。どちらも失敗資料とusageを残した。
+- ChoreoFS factsでpreopen fd3とopened root fd15を分けた。終了時には実際の
+  terminal receiverを消費して出力を返す。終了後のcallはclosed I/Oの応答となり、
+  他の参加者を止めない。タスクの進行フラグや第二の許可表は加えていない。
+  回帰試験はroot listing後の私有作業、共有効果、exit直前の出力、終了後のcallを含む。
+- 修正後004は3人ともcompleted、元simulatorの3操作が各1回成功し、違反なし。
+  32.151秒、inclusive total_tokens=256,564。全source snapshot、binary、raw events、
+  model/effort/usage、効果順序を保存後に別scriptで監査した。
+  誤model、誤rev、改変usage、欠けたdomain eventも監査が拒否することを確認した。
+  auditは`results/audits/direct-wasi-wash-std-004-16E.json`。
+  4試行の全資料は`output/direct-wasi-preflight/wash-std-20261015-evidence.tar.gz`。
+  16Eは元から全depthで障害注入を無効にしている。再考や比較の成功率には数えない。
 
 ## 次の一手
 
-1. `hibana-wash`の残る資源境界とscriptの組合せを検査し、原論文の課題を実行する
-   model harnessを16Eの新しい実WASI・ChoreoFS経路へ移す。
+1. 16Eの元要件と実装のfidelityを独立監査し、完全移植として受理できるか確認する。
+   続いて6Eなど元から再考を必要とする課題を、同じ実WASI・ChoreoFS接続へ移す。
    特定タスクのコマンド列を組み込まず、modelがscriptを組み立てる。
    std版wash、公開runtime、各guest1MiBのbackingを使う。大型Bashは採用しない。
    shell内の構文・変数・exit statusと、禁止するタスク連携の二重管理を混同しない。

@@ -38,6 +38,7 @@ jobs:
       - name: Check the actual WASI and task effect boundary
         run: |
           bash tools/build_shell.sh
+          .venv/bin/python -m py_compile tools/run_direct_wasi_preflight.py tools/audit_direct_wasi.py
           PYTHONPATH=. .venv/bin/pytest -q tests
           .venv/bin/python tools/inventory.py --check
           .venv/bin/python tools/runtime_inventory.py --check
