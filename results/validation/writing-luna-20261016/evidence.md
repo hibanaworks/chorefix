@@ -18,9 +18,10 @@ depths. The separate terminal-review-failure qualification is recorded elsewhere
 
 Execution source is 9ed7738d02d0ebdcb40706316ae5fd5c29425c79. The actual guest
 runtime is the qualified 4096a2a binary with core c2001ec. All three source
-manifests are identical. Source, exact binaries, raw frames, original simulator
-journal, prompts, model events, returned settings, usage and errors were frozen
-before model execution. `execution-source.tar.gz` and each task's `raw.tar.gz`
+manifests are identical. Source and exact binaries were frozen before model
+execution. Raw frames, the original simulator journal, prompts, model events,
+returned settings, usage and errors were recorded during the runs and retained.
+`execution-source.tar.gz` and each task's `raw.tar.gz`
 retain the source and raw observations. `versions.json` records binary hashes.
 Binary-inclusive archives remain under `output/`, with hashes in
 `complete-archives.sha256`. Those archives are required for the complete binary
