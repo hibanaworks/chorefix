@@ -239,6 +239,12 @@ actual notification and request before ChoreoFS returns any result content.
 Private shell work proceeds independently. The terminal failure remains a
 domain failure even when all three guests finish their protocols.
 
+The [three Luna trials](results/validation/api-luna-20261016/evidence.md) use all
+nine participants across failure depths 0/1/2. Each trial has three overlapping
+model turns and delivers the actual result to both developers. The original
+outcomes are one successful task and two terminal failures. These are unscored
+trials, with the failed results retained.
+
 Task localsides match the tool request that actually arrived. Each handler
 shows its Endpoint sends and receives directly, before the corresponding domain
 effect. No helper performs these communication steps, and there is no stored

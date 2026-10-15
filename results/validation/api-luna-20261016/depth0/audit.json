@@ -1,0 +1,82 @@
+{
+  "events_sha256": "0d304343d35d7f01b070994c9a7aebcfef8f67968b98d98e00619da2877f7af2",
+  "inclusive_tokens": 215036,
+  "kind": "unscored_direct_wasi_model_preflight",
+  "max_simultaneous_model_turns": 3,
+  "model_verifier_sha256": "1402197ac4d28bfcfa08bd944068982cb145d8645dd8613f51200292e769f74f",
+  "participant_turns": 3,
+  "participants": [
+    {
+      "inclusive_tokens": 76928,
+      "participant": "BACKEND_DEV",
+      "tool_calls": 4,
+      "turn_end_unix_ns": "1792087658321849000",
+      "turn_start_unix_ns": "1792087637969371000",
+      "usage": {
+        "cacheWriteInputTokens": 0,
+        "cachedInputTokens": 60160,
+        "inputTokens": 76532,
+        "outputTokens": 396,
+        "reasoningOutputTokens": 244,
+        "totalTokens": 76928
+      }
+    },
+    {
+      "inclusive_tokens": 76961,
+      "participant": "DB_ADMIN",
+      "tool_calls": 4,
+      "turn_end_unix_ns": "1792087658321039000",
+      "turn_start_unix_ns": "1792087637963359000",
+      "usage": {
+        "cacheWriteInputTokens": 0,
+        "cachedInputTokens": 66304,
+        "inputTokens": 76576,
+        "outputTokens": 385,
+        "reasoningOutputTokens": 235,
+        "totalTokens": 76961
+      }
+    },
+    {
+      "inclusive_tokens": 61147,
+      "participant": "TESTER",
+      "tool_calls": 3,
+      "turn_end_unix_ns": "1792087659712684000",
+      "turn_start_unix_ns": "1792087637952135000",
+      "usage": {
+        "cacheWriteInputTokens": 0,
+        "cachedInputTokens": 45056,
+        "inputTokens": 60810,
+        "outputTokens": 337,
+        "reasoningOutputTokens": 214,
+        "totalTokens": 61147
+      }
+    }
+  ],
+  "protocol": {
+    "carrier_frames": 444,
+    "complete_result_reads": {
+      "11": 1,
+      "12": 1
+    },
+    "depth": 0,
+    "domain_calls": 3,
+    "early_result_opens": 2,
+    "expected_terminal_test_failure": false,
+    "guest_exits": 3,
+    "kind": "model_direct_wasi_protocol",
+    "model_calls": null,
+    "original_test_delays": {},
+    "participants": 3,
+    "read_dependency_enforced": true,
+    "result_receipts": 2,
+    "scored_benchmark": false,
+    "simulator_complete": true,
+    "status": "passed",
+    "task": "8E",
+    "violations": 0
+  },
+  "protocol_verifier_sha256": "b2055049e148f50807d385ad217c67ca069d5fc723170886c1894870eb0dbfc3",
+  "scored_benchmark": false,
+  "status": "passed",
+  "task": "8E"
+}

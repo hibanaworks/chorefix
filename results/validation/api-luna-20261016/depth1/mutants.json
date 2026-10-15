@@ -1,0 +1,56 @@
+{
+  "checked": [
+    {
+      "mutation": "forged_model",
+      "outer_hashes_recomputed": true,
+      "reason": "failed or altered participant report",
+      "status": "rejected"
+    },
+    {
+      "mutation": "incorrect_inclusive_usage",
+      "outer_hashes_recomputed": true,
+      "reason": "invalid inclusive token accounting",
+      "status": "rejected"
+    },
+    {
+      "mutation": "forged_command",
+      "outer_hashes_recomputed": true,
+      "reason": "model commands/replies differ from actual guest transport",
+      "status": "rejected"
+    },
+    {
+      "mutation": "missing_tool_reply",
+      "outer_hashes_recomputed": true,
+      "reason": "incomplete tool exchanges",
+      "status": "rejected"
+    },
+    {
+      "mutation": "false_simulator_score",
+      "outer_hashes_recomputed": true,
+      "reason": "protocol audit: Error: \"incomplete API boundary evidence\"\n",
+      "status": "rejected"
+    },
+    {
+      "mutation": "changed_upstream_source",
+      "outer_hashes_recomputed": true,
+      "reason": "upstream bytes differ: benchmark/descriptions/8E/description.md",
+      "status": "rejected"
+    },
+    {
+      "mutation": "unqualified_runtime",
+      "outer_hashes_recomputed": true,
+      "reason": "unqualified execution artifacts",
+      "status": "rejected"
+    },
+    {
+      "mutation": "wrong_participant_set",
+      "outer_hashes_recomputed": true,
+      "reason": "task identity, depth or participant set differs from original inputs",
+      "status": "rejected"
+    }
+  ],
+  "model_verifier_sha256": "1402197ac4d28bfcfa08bd944068982cb145d8645dd8613f51200292e769f74f",
+  "original_events_sha256": "68e17248e0c5db703f6a25ead6b5febb7f11eb142385354fab91e42a4b4d3669",
+  "protocol_verifier_sha256": "b2055049e148f50807d385ad217c67ca069d5fc723170886c1894870eb0dbfc3",
+  "status": "passed"
+}

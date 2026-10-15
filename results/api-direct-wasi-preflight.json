@@ -1,0 +1,370 @@
+{
+  "artificial_barriers": false,
+  "domain_calls": 9,
+  "domain_complete": 1,
+  "domain_delay_multiplier": 1.0,
+  "execution_consumer": "50ce492fab130c6c8fdaeb4ad0b58e08cf372148",
+  "inclusive_tokens": 676983,
+  "kind": "unscored_direct_wasi_model_preflight",
+  "limits": [
+    "Unscored qualification, not a success-rate or speed comparison",
+    "Task/checklist O2 conflict remains recorded",
+    "No model rerun after the external mutation-generator correction"
+  ],
+  "model": "gpt-6-luna",
+  "participants": 9,
+  "protocol_completed": 3,
+  "qualified_checker_metric_correction": "The qualified execution checker called all result opens early_result_opens. The separate timing audit counts only opens preceding the actual test result; use that corrected metric. Original raw data and binaries are unchanged.",
+  "reasoning_effort": "xhigh",
+  "runtime_source_revision": "29344a8a4c6800ff583a3d24143fa592de6f6a17",
+  "scored_benchmark": false,
+  "seed": 0,
+  "shell_calls": 35,
+  "terminal_domain_failures": 2,
+  "trials": [
+    {
+      "corrected_result_read_timing_audit": {
+        "carrier_frames": 444,
+        "complete_result_reads": {
+          "11": 1,
+          "12": 1
+        },
+        "depth": 0,
+        "domain_calls": 3,
+        "early_result_opens": 1,
+        "expected_terminal_test_failure": false,
+        "guest_exits": 3,
+        "kind": "model_direct_wasi_protocol",
+        "model_calls": null,
+        "original_test_delays": {},
+        "participants": 3,
+        "read_dependency_enforced": true,
+        "result_opens": 2,
+        "result_receipts": 2,
+        "scored_benchmark": false,
+        "simulator_complete": true,
+        "status": "passed",
+        "task": "8E",
+        "violations": 0
+      },
+      "depth": 0,
+      "elapsed_seconds": 22.216836333,
+      "mutation_checks": 8,
+      "qualified_model_and_protocol_audit": {
+        "events_sha256": "0d304343d35d7f01b070994c9a7aebcfef8f67968b98d98e00619da2877f7af2",
+        "inclusive_tokens": 215036,
+        "kind": "unscored_direct_wasi_model_preflight",
+        "max_simultaneous_model_turns": 3,
+        "model_verifier_sha256": "1402197ac4d28bfcfa08bd944068982cb145d8645dd8613f51200292e769f74f",
+        "participant_turns": 3,
+        "participants": [
+          {
+            "inclusive_tokens": 76928,
+            "participant": "BACKEND_DEV",
+            "tool_calls": 4,
+            "turn_end_unix_ns": "1792087658321849000",
+            "turn_start_unix_ns": "1792087637969371000",
+            "usage": {
+              "cacheWriteInputTokens": 0,
+              "cachedInputTokens": 60160,
+              "inputTokens": 76532,
+              "outputTokens": 396,
+              "reasoningOutputTokens": 244,
+              "totalTokens": 76928
+            }
+          },
+          {
+            "inclusive_tokens": 76961,
+            "participant": "DB_ADMIN",
+            "tool_calls": 4,
+            "turn_end_unix_ns": "1792087658321039000",
+            "turn_start_unix_ns": "1792087637963359000",
+            "usage": {
+              "cacheWriteInputTokens": 0,
+              "cachedInputTokens": 66304,
+              "inputTokens": 76576,
+              "outputTokens": 385,
+              "reasoningOutputTokens": 235,
+              "totalTokens": 76961
+            }
+          },
+          {
+            "inclusive_tokens": 61147,
+            "participant": "TESTER",
+            "tool_calls": 3,
+            "turn_end_unix_ns": "1792087659712684000",
+            "turn_start_unix_ns": "1792087637952135000",
+            "usage": {
+              "cacheWriteInputTokens": 0,
+              "cachedInputTokens": 45056,
+              "inputTokens": 60810,
+              "outputTokens": 337,
+              "reasoningOutputTokens": 214,
+              "totalTokens": 61147
+            }
+          }
+        ],
+        "protocol": {
+          "carrier_frames": 444,
+          "complete_result_reads": {
+            "11": 1,
+            "12": 1
+          },
+          "depth": 0,
+          "domain_calls": 3,
+          "early_result_opens": 2,
+          "expected_terminal_test_failure": false,
+          "guest_exits": 3,
+          "kind": "model_direct_wasi_protocol",
+          "model_calls": null,
+          "original_test_delays": {},
+          "participants": 3,
+          "read_dependency_enforced": true,
+          "result_receipts": 2,
+          "scored_benchmark": false,
+          "simulator_complete": true,
+          "status": "passed",
+          "task": "8E",
+          "violations": 0
+        },
+        "protocol_verifier_sha256": "b2055049e148f50807d385ad217c67ca069d5fc723170886c1894870eb0dbfc3",
+        "scored_benchmark": false,
+        "status": "passed",
+        "task": "8E"
+      },
+      "raw_archive_sha256": "f184af3021d1679af88502fe31647c1bd88ebf706e43141b6d34cc778751d48a",
+      "shell_calls": 11,
+      "task": "8E"
+    },
+    {
+      "corrected_result_read_timing_audit": {
+        "carrier_frames": 271,
+        "complete_result_reads": {
+          "11": 1,
+          "12": 1
+        },
+        "depth": 1,
+        "domain_calls": 3,
+        "early_result_opens": 1,
+        "expected_terminal_test_failure": true,
+        "guest_exits": 3,
+        "kind": "model_direct_wasi_protocol",
+        "model_calls": null,
+        "original_test_delays": {},
+        "participants": 3,
+        "read_dependency_enforced": true,
+        "result_opens": 2,
+        "result_receipts": 2,
+        "scored_benchmark": false,
+        "simulator_complete": false,
+        "status": "passed",
+        "task": "8E",
+        "violations": 0
+      },
+      "depth": 1,
+      "elapsed_seconds": 25.240034875,
+      "mutation_checks": 8,
+      "qualified_model_and_protocol_audit": {
+        "events_sha256": "68e17248e0c5db703f6a25ead6b5febb7f11eb142385354fab91e42a4b4d3669",
+        "inclusive_tokens": 231064,
+        "kind": "unscored_direct_wasi_model_preflight",
+        "max_simultaneous_model_turns": 3,
+        "model_verifier_sha256": "1402197ac4d28bfcfa08bd944068982cb145d8645dd8613f51200292e769f74f",
+        "participant_turns": 3,
+        "participants": [
+          {
+            "inclusive_tokens": 92629,
+            "participant": "BACKEND_DEV",
+            "tool_calls": 5,
+            "turn_end_unix_ns": "1792087660325691000",
+            "turn_start_unix_ns": "1792087637954098000",
+            "usage": {
+              "cacheWriteInputTokens": 0,
+              "cachedInputTokens": 68096,
+              "inputTokens": 92121,
+              "outputTokens": 508,
+              "reasoningOutputTokens": 318,
+              "totalTokens": 92629
+            }
+          },
+          {
+            "inclusive_tokens": 77017,
+            "participant": "DB_ADMIN",
+            "tool_calls": 4,
+            "turn_end_unix_ns": "1792087659552662000",
+            "turn_start_unix_ns": "1792087637952062000",
+            "usage": {
+              "cacheWriteInputTokens": 0,
+              "cachedInputTokens": 60160,
+              "inputTokens": 76599,
+              "outputTokens": 418,
+              "reasoningOutputTokens": 245,
+              "totalTokens": 77017
+            }
+          },
+          {
+            "inclusive_tokens": 61418,
+            "participant": "TESTER",
+            "tool_calls": 3,
+            "turn_end_unix_ns": "1792087662725297000",
+            "turn_start_unix_ns": "1792087637957842000",
+            "usage": {
+              "cacheWriteInputTokens": 0,
+              "cachedInputTokens": 51200,
+              "inputTokens": 60857,
+              "outputTokens": 561,
+              "reasoningOutputTokens": 413,
+              "totalTokens": 61418
+            }
+          }
+        ],
+        "protocol": {
+          "carrier_frames": 271,
+          "complete_result_reads": {
+            "11": 1,
+            "12": 1
+          },
+          "depth": 1,
+          "domain_calls": 3,
+          "early_result_opens": 2,
+          "expected_terminal_test_failure": true,
+          "guest_exits": 3,
+          "kind": "model_direct_wasi_protocol",
+          "model_calls": null,
+          "original_test_delays": {},
+          "participants": 3,
+          "read_dependency_enforced": true,
+          "result_receipts": 2,
+          "scored_benchmark": false,
+          "simulator_complete": false,
+          "status": "passed",
+          "task": "8E",
+          "violations": 0
+        },
+        "protocol_verifier_sha256": "b2055049e148f50807d385ad217c67ca069d5fc723170886c1894870eb0dbfc3",
+        "scored_benchmark": false,
+        "status": "passed",
+        "task": "8E"
+      },
+      "raw_archive_sha256": "e857864187cd9ffd656024d400d2ee7ae5419fa3c67200699b5e706439f8e9e0",
+      "shell_calls": 12,
+      "task": "8E"
+    },
+    {
+      "corrected_result_read_timing_audit": {
+        "carrier_frames": 459,
+        "complete_result_reads": {
+          "11": 1,
+          "12": 1
+        },
+        "depth": 2,
+        "domain_calls": 3,
+        "early_result_opens": 1,
+        "expected_terminal_test_failure": true,
+        "guest_exits": 3,
+        "kind": "model_direct_wasi_protocol",
+        "model_calls": null,
+        "original_test_delays": {},
+        "participants": 3,
+        "read_dependency_enforced": true,
+        "result_opens": 2,
+        "result_receipts": 2,
+        "scored_benchmark": false,
+        "simulator_complete": false,
+        "status": "passed",
+        "task": "8E",
+        "violations": 0
+      },
+      "depth": 2,
+      "elapsed_seconds": 23.044999833,
+      "mutation_checks": 8,
+      "qualified_model_and_protocol_audit": {
+        "events_sha256": "35206f7d29f860b7802a512ea190a4f1e416bf17727f34bc0c1806d9a70d557a",
+        "inclusive_tokens": 230883,
+        "kind": "unscored_direct_wasi_model_preflight",
+        "max_simultaneous_model_turns": 3,
+        "model_verifier_sha256": "1402197ac4d28bfcfa08bd944068982cb145d8645dd8613f51200292e769f74f",
+        "participant_turns": 3,
+        "participants": [
+          {
+            "inclusive_tokens": 76985,
+            "participant": "BACKEND_DEV",
+            "tool_calls": 4,
+            "turn_end_unix_ns": "1792087701558063000",
+            "turn_start_unix_ns": "1792087682197566000",
+            "usage": {
+              "cacheWriteInputTokens": 0,
+              "cachedInputTokens": 58368,
+              "inputTokens": 76534,
+              "outputTokens": 451,
+              "reasoningOutputTokens": 283,
+              "totalTokens": 76985
+            }
+          },
+          {
+            "inclusive_tokens": 76838,
+            "participant": "DB_ADMIN",
+            "tool_calls": 4,
+            "turn_end_unix_ns": "1792087701411975000",
+            "turn_start_unix_ns": "1792087682217443000",
+            "usage": {
+              "cacheWriteInputTokens": 0,
+              "cachedInputTokens": 60160,
+              "inputTokens": 76449,
+              "outputTokens": 389,
+              "reasoningOutputTokens": 224,
+              "totalTokens": 76838
+            }
+          },
+          {
+            "inclusive_tokens": 77060,
+            "participant": "TESTER",
+            "tool_calls": 4,
+            "turn_end_unix_ns": "1792087704832691000",
+            "turn_start_unix_ns": "1792087682201081000",
+            "usage": {
+              "cacheWriteInputTokens": 0,
+              "cachedInputTokens": 60160,
+              "inputTokens": 76487,
+              "outputTokens": 573,
+              "reasoningOutputTokens": 418,
+              "totalTokens": 77060
+            }
+          }
+        ],
+        "protocol": {
+          "carrier_frames": 459,
+          "complete_result_reads": {
+            "11": 1,
+            "12": 1
+          },
+          "depth": 2,
+          "domain_calls": 3,
+          "early_result_opens": 2,
+          "expected_terminal_test_failure": true,
+          "guest_exits": 3,
+          "kind": "model_direct_wasi_protocol",
+          "model_calls": null,
+          "original_test_delays": {},
+          "participants": 3,
+          "read_dependency_enforced": true,
+          "result_receipts": 2,
+          "scored_benchmark": false,
+          "simulator_complete": false,
+          "status": "passed",
+          "task": "8E",
+          "violations": 0
+        },
+        "protocol_verifier_sha256": "b2055049e148f50807d385ad217c67ca069d5fc723170886c1894870eb0dbfc3",
+        "scored_benchmark": false,
+        "status": "passed",
+        "task": "8E"
+      },
+      "raw_archive_sha256": "d2fdd28dd7563370975f1fdde25e33fb3e4c07f1bb0f32f624789723b86a4b58",
+      "shell_calls": 12,
+      "task": "8E"
+    }
+  ],
+  "verification_source_revision": "7a3074868c78f1eb98ab364186ec75e0ca228e8c",
+  "violations": 0
+}

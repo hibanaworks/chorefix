@@ -38,17 +38,29 @@
         "sha256": "b258f4e3b79401605b40919a3f62181e771f7e29c4a91c12a99b727f112401f9"
       }
     ],
-    "model_qualification": "pending",
+    "model_qualification": {
+      "depths": [
+        0,
+        1,
+        2
+      ],
+      "domain_complete": 1,
+      "inclusive_tokens": 676983,
+      "ledger": "results/api-direct-wasi-preflight.json",
+      "participants": 9,
+      "protocol_completed": 3,
+      "scored_benchmark": false,
+      "terminal_domain_failures": 2
+    },
     "read_boundary": "The developer's result-file request and the tester's actual notification are inputs in par; both must be received before ChoreoFS can answer",
     "remaining": [
-      "Live Luna qualification",
       "Resolve task/checklist conflict before claiming full-fidelity acceptance",
       "Scored comparison"
     ],
     "scored_benchmark": false,
     "single_global_session": 28,
     "source_revision": "29344a8a4c6800ff583a3d24143fa592de6f6a17",
-    "stage": "boundary_qualified"
+    "stage": "model_path_qualified"
   },
   "implemented": true,
   "original_inputs_modified": false,

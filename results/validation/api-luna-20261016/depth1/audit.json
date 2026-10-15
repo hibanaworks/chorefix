@@ -1,0 +1,82 @@
+{
+  "events_sha256": "68e17248e0c5db703f6a25ead6b5febb7f11eb142385354fab91e42a4b4d3669",
+  "inclusive_tokens": 231064,
+  "kind": "unscored_direct_wasi_model_preflight",
+  "max_simultaneous_model_turns": 3,
+  "model_verifier_sha256": "1402197ac4d28bfcfa08bd944068982cb145d8645dd8613f51200292e769f74f",
+  "participant_turns": 3,
+  "participants": [
+    {
+      "inclusive_tokens": 92629,
+      "participant": "BACKEND_DEV",
+      "tool_calls": 5,
+      "turn_end_unix_ns": "1792087660325691000",
+      "turn_start_unix_ns": "1792087637954098000",
+      "usage": {
+        "cacheWriteInputTokens": 0,
+        "cachedInputTokens": 68096,
+        "inputTokens": 92121,
+        "outputTokens": 508,
+        "reasoningOutputTokens": 318,
+        "totalTokens": 92629
+      }
+    },
+    {
+      "inclusive_tokens": 77017,
+      "participant": "DB_ADMIN",
+      "tool_calls": 4,
+      "turn_end_unix_ns": "1792087659552662000",
+      "turn_start_unix_ns": "1792087637952062000",
+      "usage": {
+        "cacheWriteInputTokens": 0,
+        "cachedInputTokens": 60160,
+        "inputTokens": 76599,
+        "outputTokens": 418,
+        "reasoningOutputTokens": 245,
+        "totalTokens": 77017
+      }
+    },
+    {
+      "inclusive_tokens": 61418,
+      "participant": "TESTER",
+      "tool_calls": 3,
+      "turn_end_unix_ns": "1792087662725297000",
+      "turn_start_unix_ns": "1792087637957842000",
+      "usage": {
+        "cacheWriteInputTokens": 0,
+        "cachedInputTokens": 51200,
+        "inputTokens": 60857,
+        "outputTokens": 561,
+        "reasoningOutputTokens": 413,
+        "totalTokens": 61418
+      }
+    }
+  ],
+  "protocol": {
+    "carrier_frames": 271,
+    "complete_result_reads": {
+      "11": 1,
+      "12": 1
+    },
+    "depth": 1,
+    "domain_calls": 3,
+    "early_result_opens": 2,
+    "expected_terminal_test_failure": true,
+    "guest_exits": 3,
+    "kind": "model_direct_wasi_protocol",
+    "model_calls": null,
+    "original_test_delays": {},
+    "participants": 3,
+    "read_dependency_enforced": true,
+    "result_receipts": 2,
+    "scored_benchmark": false,
+    "simulator_complete": false,
+    "status": "passed",
+    "task": "8E",
+    "violations": 0
+  },
+  "protocol_verifier_sha256": "b2055049e148f50807d385ad217c67ca069d5fc723170886c1894870eb0dbfc3",
+  "scored_benchmark": false,
+  "status": "passed",
+  "task": "8E"
+}

@@ -1,0 +1,21 @@
+{
+  "binaries": {
+    "protocol-audit": "b2055049e148f50807d385ad217c67ca069d5fc723170886c1894870eb0dbfc3",
+    "runner": "a96b822cbb926ebfb3d240ab412724b7004211048cab462674163f0a1dad8ec1",
+    "runtime": "c140bdcca278729ae132a9d2c84d181f760b94a6061e705cd0a35aaba8033adb",
+    "wash.wasm": "407e1fe263231022eb542a7d2a35e4d4705a58590f92b77bf21fe5f7c77258bc"
+  },
+  "compiler": "rustc 1.95.0 (59807616e 2026-04-14)\nbinary: rustc\ncommit-hash: 59807616e1fa2540724bfbac14d7976d7e4a3860\ncommit-date: 2026-04-14\nhost: aarch64-apple-darwin\nrelease: 1.95.0\nLLVM version: 22.1.2",
+  "consumer": "50ce492fab130c6c8fdaeb4ad0b58e08cf372148",
+  "consumer_diff": "",
+  "effort": "xhigh",
+  "format_version": 2,
+  "model": "gpt-6-luna",
+  "model_client": "codex-cli 0.162.0-alpha.17.2",
+  "model_client_sha256": "50ab38ba21d0d9f8346f32f41848382f15b556190f3c7a07e885a4fb73e379c8",
+  "python": "Python 3.14.6 (main, Jun 10 2026, 10:03:53) [Clang 21.0.0 (clang-2100.0.123.102)]",
+  "qualification_sha256": "a824d1e4c7b8aa8410b94824fb6c82ae448f29bc460128ec342adbc5e12f0271",
+  "runtime_source_revision": "29344a8a4c6800ff583a3d24143fa592de6f6a17",
+  "source_manifest_sha256": "8688f8042013fa239f31bfe53eeffe1b05fcc6f460e1396b0a3ac2cc52122372",
+  "wash": "12e137aba2cea74f353c198a8d7c92afc977627c"
+}

@@ -877,3 +877,10 @@ reviewは元課題どおり終端で、余分なretryを加えない。続いて
 - 修正した外部監査toolのrunner4試験とstrict Clippy、API checkerのbuild/Clippyが成功。
   次に実行時sourceと新監査sourceを分けて記録し、元raw、usage、prompt、全frameと
   qualified buildを固定してデータを保存する。採点0/2592、全要件受理0は維持する。
+
+- 実行consumer50ce492、runtime29344a8、外部監査7a30748を分けて全資料を保存。
+  3試行ともqualified build/source/model/usage/command/reply/frame/simulatorを監査し、
+  各8改変を外側hash再計算後も拒否。実行時checkerとrawはそのまま保持し、
+  正確な早期read指標は別のtiming auditへ記録。各試行でopen2件中1件がtest結果前。
+  成功率や性能比較の結論にはしない。CI50ce492はまだ実行中で、新しい監査修正も
+  この後pushして確認する。残るfamily、native1H、比較runnerを継続する。
