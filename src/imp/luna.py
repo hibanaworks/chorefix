@@ -5,6 +5,7 @@ import hashlib
 import json
 import time
 from pathlib import Path
+import jsonschema
 
 MODEL = "gpt-6-luna"
 EFFORT = "xhigh"
@@ -29,6 +30,7 @@ async def run_participant(*, participant: str, prompt: str, tools: list[dict],
         binary, "app-server", "--listen", "stdio://",
         stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.DEVNULL,
+        limit=8*1024*1024,
     )
     started = time.monotonic()
     rpc_lock = asyncio.Lock()
@@ -39,6 +41,7 @@ async def run_participant(*, participant: str, prompt: str, tools: list[dict],
     call_count = 0
     thread_model = None
     thread_effort = None
+    tool_schemas = {tool["name"]: tool["inputSchema"] for tool in tools}
     with (output / "events.jsonl").open("w") as log:
         def record(direction, message):
             log.write(json.dumps({"elapsed_seconds": time.monotonic()-started, "direction": direction, "message": message}) + "\n")
@@ -62,6 +65,13 @@ async def run_participant(*, participant: str, prompt: str, tools: list[dict],
             if call_count > tool_limit:
                 raise RuntimeError("participant tool-call budget exhausted")
             params = message["params"]
+            try:
+                jsonschema.validate(params["arguments"], tool_schemas[params["tool"]])
+            except (jsonschema.ValidationError, KeyError) as error:
+                await send({"id":message["id"], "result":{
+                    "success":False, "contentItems":[{"type":"inputText", "text":json.dumps({
+                        "status":"invalid_tool_arguments", "error":str(error)})}]}})
+                return
             outcome = await dispatch(params["tool"], params["arguments"])
             await send({"id": message["id"], "result": {
                 "success": True,

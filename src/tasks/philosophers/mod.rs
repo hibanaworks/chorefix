@@ -35,7 +35,7 @@ pub async fn run_9e<D: Domain>(domain: &D) -> Result<(), RunError<D::Error>> {
     let mut fork_c = rendezvous
         .enter(session, &programs.fork_c)
         .map_err(RunError::Attach)?;
-    futures::try_join!(
+    tokio::try_join!(
         localside::philosopher::a(&mut a, domain),
         localside::philosopher::b(&mut b, domain),
         localside::philosopher::c(&mut c, domain),
@@ -99,7 +99,7 @@ pub async fn run_9m<D: Domain>(domain: &D) -> Result<(), RunError<D::Error>> {
     let mut fork_e = rendezvous
         .enter(session, &programs.fork_e)
         .map_err(RunError::Attach)?;
-    futures::try_join!(
+    tokio::try_join!(
         localside::philosopher::run::<{ A }, ForkA, ForkE, D>("PHILOSOPHER_A", &mut a, domain),
         localside::philosopher::run::<{ B }, ForkB, ForkA, D>("PHILOSOPHER_B", &mut b, domain),
         localside::philosopher::run::<{ C }, ForkC, ForkB, D>("PHILOSOPHER_C", &mut c, domain),
@@ -187,7 +187,7 @@ pub async fn run_9h<D: Domain>(domain: &D) -> Result<(), RunError<D::Error>> {
     let mut fork_g = rendezvous
         .enter(session, &programs.fork_g)
         .map_err(RunError::Attach)?;
-    futures::try_join!(
+    tokio::try_join!(
         localside::philosopher::run::<{ A }, ForkA, ForkG, D>("PHILOSOPHER_A", &mut a, domain),
         localside::philosopher::run::<{ B }, ForkB, ForkA, D>("PHILOSOPHER_B", &mut b, domain),
         localside::philosopher::run::<{ C }, ForkC, ForkB, D>("PHILOSOPHER_C", &mut c, domain),
@@ -265,31 +265,29 @@ mod tests {
         }
     }
 
-    fn reject_after_thinking<M: hibana::g::Message<Payload = ()>>() {
+    async fn reject_after_thinking<M: hibana::g::Message<Payload = ()>>() {
         let programs = global::project_9e();
         let mut slab = [0; 32 * 1024];
         let mut storage = SessionKitStorage::<InMemoryTransport>::uninit();
         let kit = storage.init();
         let rendezvous = kit.rendezvous(&mut slab, InMemoryTransport::new()).unwrap();
         let mut endpoint = rendezvous.enter(SessionId::new(2), &programs.a).unwrap();
-        futures::executor::block_on(async {
-            endpoint.send::<global::Think>(&()).await.unwrap();
-            assert!(endpoint.send::<M>(&()).await.is_err());
-        });
+        endpoint.send::<global::Think>(&()).await.unwrap();
+        assert!(endpoint.send::<M>(&()).await.is_err());
     }
 
-    #[test]
-    fn eating_without_both_forks_is_rejected() {
-        reject_after_thinking::<global::Eat>();
+    #[tokio::test(flavor = "current_thread")]
+    async fn eating_without_both_forks_is_rejected() {
+        reject_after_thinking::<global::Eat>().await;
     }
 
-    #[test]
-    fn finishing_without_returning_forks_is_rejected() {
-        reject_after_thinking::<global::Finished>();
+    #[tokio::test(flavor = "current_thread")]
+    async fn finishing_without_returning_forks_is_rejected() {
+        reject_after_thinking::<global::Finished>().await;
     }
 
-    #[test]
-    fn completion_is_consumed_once() {
+    #[tokio::test(flavor = "current_thread")]
+    async fn completion_is_consumed_once() {
         let programs = global::project_9e();
         let journal = Journal {
             inputs: RefCell::new(
@@ -311,30 +309,28 @@ mod tests {
         let mut fork_a = rendezvous.enter(session, &programs.fork_a).unwrap();
         let mut fork_b = rendezvous.enter(session, &programs.fork_b).unwrap();
         let mut fork_c = rendezvous.enter(session, &programs.fork_c).unwrap();
-        futures::executor::block_on(async {
-            futures::try_join!(
-                localside::philosopher::a(&mut a, &journal),
-                localside::philosopher::b(&mut b, &journal),
-                localside::philosopher::c(&mut c, &journal),
-                async {
-                    localside::fork::a(&mut fork_a)
-                        .await
-                        .map_err(RunError::Endpoint)
-                },
-                async {
-                    localside::fork::b(&mut fork_b)
-                        .await
-                        .map_err(RunError::Endpoint)
-                },
-                async {
-                    localside::fork::c(&mut fork_c)
-                        .await
-                        .map_err(RunError::Endpoint)
-                },
-            )
-            .unwrap();
-            assert!(a.send::<global::Finished>(&()).await.is_err());
-        });
+        tokio::try_join!(
+            localside::philosopher::a(&mut a, &journal),
+            localside::philosopher::b(&mut b, &journal),
+            localside::philosopher::c(&mut c, &journal),
+            async {
+                localside::fork::a(&mut fork_a)
+                    .await
+                    .map_err(RunError::Endpoint)
+            },
+            async {
+                localside::fork::b(&mut fork_b)
+                    .await
+                    .map_err(RunError::Endpoint)
+            },
+            async {
+                localside::fork::c(&mut fork_c)
+                    .await
+                    .map_err(RunError::Endpoint)
+            },
+        )
+        .unwrap();
+        assert!(a.send::<global::Finished>(&()).await.is_err());
         assert_eq!(journal.events.borrow().len(), 6);
     }
 }

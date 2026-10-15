@@ -75,6 +75,8 @@ class Bridge:
                     self.pending.pop(value["id"]).set_result(value["result"])
                 elif value["type"] == "run_result":
                     self.result.set_result(value)
+                    self.process.stdin.close()
+                    await self.process.stdin.wait_closed()
                     break
                 else:
                     raise RuntimeError("unknown Rust bridge message")
@@ -94,7 +96,7 @@ class Bridge:
             self.log.close()
 
 
-async def run(task, run_id):
+async def run(task, run_id, scenario):
     config = json.loads((ROOT / "experiment.json").read_text())
     metadata_path = ROOT / "vendor/tracefix/benchmark/descriptions" / task / "metadata.json"
     metadata = json.loads(metadata_path.read_text())
@@ -107,19 +109,31 @@ async def run(task, run_id):
     sim = constructors[0]()
     sim._seed = 0
     sim._delay_multiplier = config["domain_tool_delay_multiplier"]
-    sim.set_scenario_depth(0)
+    sim.set_scenario_depth(scenario)
     registry = load_tools(task, sim=sim)
     output = ROOT / "output" / "integration-preflight" / run_id / task
     output.mkdir(parents=True, exist_ok=False)
     source_files = [path for path in (ROOT / "src").rglob("*")
                     if path.is_file() and "__pycache__" not in path.parts]
     source_files += [ROOT / "Cargo.toml", ROOT / "Cargo.lock", ROOT / "experiment.json",
-                     ROOT / "tools/run_philosophers.py"]
-    source_hashes = {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
-                     for path in sorted(source_files)}
+                     Path(__file__).resolve()]
+    source_hashes = {}
+    for path in sorted(source_files):
+        relative = path.relative_to(ROOT)
+        content = path.read_bytes()
+        source_hashes[str(relative)] = hashlib.sha256(content).hexdigest()
+        snapshot = output / "source" / relative
+        snapshot.parent.mkdir(parents=True, exist_ok=True)
+        snapshot.write_bytes(content)
     (output / "source-manifest.json").write_text(json.dumps(source_hashes, indent=2)+"\n")
+    binary = ROOT / "target/debug" / ("codebase" if task.startswith("1") else "philosophers")
+    binary_content = binary.read_bytes()
+    runtime_binary_sha256 = hashlib.sha256(binary_content).hexdigest()
+    runtime_snapshot = output / "runtime"
+    runtime_snapshot.write_bytes(binary_content)
+    runtime_snapshot.chmod(0o700)
     process = await asyncio.create_subprocess_exec(
-        str(ROOT / "target/debug/philosophers"), task,
+        str(runtime_snapshot), task,
         stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
@@ -135,13 +149,30 @@ async def run(task, run_id):
             jsonschema.validate(arguments, by_name[name]["parameters"])
             return await bridge.call(agent, name, arguments)
 
-        prompt = f"""You are {agent} in the original TraceFix task {task}.
-Call think(philosopher=\"{agent}\"), then eat(philosopher=\"{agent}\").
-Perform both real tool calls exactly once. Resource grants and returns are
-carried out by the Hibana endpoint functions. Each call waits for the resources
-it needs. Do not skip work or simulate a tool result in text. Finish after both
-tool responses succeed. Only the supplied domain tools are available.
+        if task.startswith("1"):
+            features = {step.agent_id:step.feature for step in module._DESIGN_STEPS}
+            feature = features[agent]
+            modules = ", ".join(metadata["agent_resources"][agent])
+            conclusion = ("If tests fail, repeat implement_code, commit_changes, run_local_tests until your actual test result succeeds."
+                          if task == "1H" else "The test result is terminal. Report any failed test and finish. Do not repeat work.")
+            prompt = f"""You are {agent} in the full original TraceFix task {task}.
+Call design_feature(feature_name="{feature}") once.
+Then call implement_code(feature_name="{feature}"),
+commit_changes(modules="{modules}"), and
+run_local_tests(feature_name="{feature}") in that order.
+{conclusion} Do not repeat design.
+Hibana endpoints coordinate both module leases. Calls wait for those leases.
+Do all real domain calls. Do not simulate a tool result in text. Finish only
+when the workflow described above is complete. Use only the supplied tools.
 """
+        else:
+            prompt = f"""You are {agent} in the original TraceFix task {task}.
+    Call think(philosopher=\"{agent}\"), then eat(philosopher=\"{agent}\").
+    Perform both real tool calls exactly once. Resource grants and returns are
+    carried out by the Hibana endpoint functions. Each call waits for the resources
+    it needs. Do not skip work or simulate a tool result in text. Finish after both
+    tool responses succeed. Only the supplied domain tools are available.
+    """
         result = await run_participant(
             participant=agent, prompt=prompt, tools=[tool_spec(schema) for schema in schemas],
             dispatch=dispatch, output=output / agent,
@@ -167,14 +198,18 @@ tool responses succeed. Only the supplied domain tools are available.
         await asyncio.gather(*participants, return_exceptions=True)
         reader.cancel()
         await asyncio.gather(reader, return_exceptions=True)
-        if process.returncode is None:
+        if not process.stdin.is_closing():
+            process.stdin.close()
+        try:
+            await asyncio.wait_for(process.wait(), 5)
+        except asyncio.TimeoutError:
             process.terminate()
-        await process.wait()
+            await process.wait()
     if outcomes is None:
         outcomes = [future.result() for future in participants
                     if future.done() and not future.cancelled() and future.exception() is None]
     result = {
-        "task": task, "kind": "integration_preflight", "scored_benchmark": False,
+        "task": task, "scenario_depth":scenario, "kind": "integration_preflight", "scored_benchmark": False,
         "protocol": protocol, "simulator_complete": sim.is_complete(),
         "simulator_progress": sim.progress,
         "simulator_violations": [dataclasses.asdict(value) for value in sim.violations],
@@ -182,7 +217,9 @@ tool responses succeed. Only the supplied domain tools are available.
         "participants": outcomes, "elapsed_seconds": time.monotonic()-started,
         "error": error, "source_manifest": source_hashes,
         "bridge_events_sha256": hashlib.sha256((output / "bridge-events.jsonl").read_bytes()).hexdigest(),
-        "runtime_binary_sha256": hashlib.sha256((ROOT / "target/debug/philosophers").read_bytes()).hexdigest(),
+        "runtime_binary_sha256": runtime_binary_sha256,
+        "runtime_exit_code": process.returncode,
+        "runtime": "tokio_current_thread",
         "coordination_mode": "endpoint_functions_with_domain_only_model_tools",
     }
     (output / "result.json").write_text(json.dumps(result, indent=2)+"\n")
@@ -192,11 +229,12 @@ tool responses succeed. Only the supplied domain tools are available.
 
 async def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--tasks", nargs="+", choices=["9E", "9M", "9H"], required=True)
+    parser.add_argument("--tasks", nargs="+", choices=["1E", "1M", "1H", "9E", "9M", "9H"], required=True)
     parser.add_argument("--run-id", required=True)
+    parser.add_argument("--scenario", type=int, choices=[0,1,2], default=0)
     args = parser.parse_args()
     for task in args.tasks:
-        await run(task, args.run_id)
+        await run(task, args.run_id, args.scenario)
 
 
 if __name__ == "__main__":

@@ -17,14 +17,26 @@ def audit(directory):
     assert result["protocol"]["status"] == "protocol_completed"
     assert result["simulator_complete"] is True
     assert not result["simulator_violations"]
+    assert result["runtime"] == "tokio_current_thread"
+    assert result["runtime_exit_code"] == 0
+    assert hashlib.sha256((directory / "runtime").read_bytes()).hexdigest() == result["runtime_binary_sha256"]
+    saved_manifest = json.loads((directory / "source-manifest.json").read_text())
+    assert saved_manifest == result["source_manifest"]
+    for relative, digest in saved_manifest.items():
+        assert hashlib.sha256((directory / "source" / relative).read_bytes()).hexdigest() == digest
     expected = json.loads((ROOT / "vendor/tracefix/benchmark/descriptions" / result["task"] / "metadata.json").read_text())["agents"]
     assert {agent["participant"] for agent in result["participants"]} == set(expected)
     total_tokens = 0
+    codebase = result["task"].startswith("1")
+    depth = result["scenario_depth"]
+    retries = depth if result["task"] == "1H" else 0
+    expected_calls = (["design_feature"] + ["implement_code", "commit_changes", "run_local_tests"]*(retries+1)
+                      if codebase else ["think", "eat"])
     for agent in result["participants"]:
         assert agent["status"] == "completed"
         assert agent["returned_model"] == agent["requested_model"] == "gpt-6-luna"
         assert agent["returned_effort"] == agent["requested_effort"] == "xhigh"
-        assert agent["tool_calls"] == 2
+        assert agent["tool_calls"] == len(expected_calls)
         raw = directory / agent["participant"] / "events.jsonl"
         assert hashlib.sha256(raw.read_bytes()).hexdigest() == agent["raw_events_sha256"]
         calls = []
@@ -34,22 +46,24 @@ def audit(directory):
                 calls.append(message["params"]["tool"])
             item = message.get("params", {}).get("item", {})
             assert item.get("type") in {None, "dynamicToolCall", "reasoning", "userMessage", "agentMessage"}
-        assert calls == ["think", "eat"]
+        assert calls == expected_calls
         total_tokens += agent["usage"]["totalTokens"]
     log = directory / "bridge-events.jsonl"
     assert hashlib.sha256(log.read_bytes()).hexdigest() == result["bridge_events_sha256"]
     entries = [json.loads(line) for line in log.read_text().splitlines()]
     executed = [entry["message"] for entry in entries if entry["direction"] == "receive" and entry["message"]["type"] == "execute"]
-    assert len(executed) == 2*len(expected)
+    assert len(executed) == len(expected_calls)*len(expected)
     assert len({call["id"] for call in executed}) == len(executed)
     for agent in expected:
-        assert [call["tool"] for call in executed if call["agent"] == agent] == ["think", "eat"]
-        events = [event["tool"] for event in result["simulator_events"] if event["agent"] == agent]
-        assert events == ["think", "eat"]
+        assert [call["tool"] for call in executed if call["agent"] == agent] == expected_calls
+        events = [event for event in result["simulator_events"] if event["agent"] == agent]
+        assert [event["tool"] for event in events] == expected_calls
+        if codebase:
+            assert [event["success"] for event in events if event["tool"] == "run_local_tests"] == [False]*retries+[True]
     active = set()
     maximum = 0
     for entry in entries:
-        if entry["direction"] not in {"domain_start", "domain_end"} or entry["message"]["tool"] != "eat":
+        if entry["direction"] not in {"domain_start", "domain_end"} or entry["message"]["tool"] != ("commit_changes" if codebase else "eat"):
             continue
         agent = entry["message"]["agent"]
         if entry["direction"] == "domain_start":
@@ -60,8 +74,8 @@ def audit(directory):
             active.remove(agent)
     assert not active
     return {"task": result["task"], "kind":"integration_preflight", "scored_benchmark":False,
-            "audit_passed":True, "participants":len(expected), "domain_calls":len(executed),
-            "maximum_concurrent_eaters":maximum, "total_tokens":total_tokens,
+            "audit_passed":True, "runtime":result["runtime"], "runtime_exit_code":result["runtime_exit_code"], "participants":len(expected), "domain_calls":len(executed),
+            "scenario_depth":depth, "maximum_concurrent_resource_users":maximum, "total_tokens":total_tokens,
             "result_sha256":hashlib.sha256((directory / "result.json").read_bytes()).hexdigest(),
             "source_manifest": result["source_manifest"]}
 

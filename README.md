@@ -50,11 +50,37 @@ have no owner table. The philosopher functions have no stage or completion flag.
 The tests reject eating before the grants, finishing before the returns, and
 consuming completion twice.
 
-These three tasks need no approval branch or revision loop. Tasks that do need
-them will use `g::route`, explicit resolvers, and `.roll()`. A resolver reads the
-actual domain result at a declared choice. Localside follows the branch and the
-repetition recorded in the global protocol. There is no separate approval flag
-or retry state machine. The full 48-task port remains unfinished.
+[The codebase protocol](src/tasks/codebase/global.rs) covers 1E, 1M and 1H
+with all three, five and seven developers. Each developer designs once, then
+implements, borrows two modules, commits, returns both modules, and tests.
+The 1E/1M test result is terminal, so these protocols have no retry branch.
+Only 1H repeats failed work. Its resolver reads the actual tool response. `g::route` chooses another attempt
+or completion, and `.roll()` permits another attempt. `g::par` keeps developers
+and the two returns independent. Acquiring modules in one common order prevents
+a cycle while retaining concurrent commits on disjoint modules.
+
+Follow [the developer](src/tasks/codebase/localside/developer.rs) to see those
+operations in order. [The module localside](src/tasks/codebase/localside/module.rs)
+receives only projected requests. It forwards requests, grants, returns and
+acknowledgements through Endpoints. [Each module's global protocol](src/tasks/codebase/global_resource.rs)
+permits one outstanding loan. Borrower identity is enum message data, not a
+resource state machine. In 1H both borrowers send explicit completion messages before the module closes.
+In 1E/1M each borrower has one loan; the module closes after both projected loans
+return. No lease request or return uses a separate channel.
+
+A resource can be lent again as soon as its return is acknowledged. It does not
+wait for its former borrower's local test. A regression test holds A's test open
+while B commits using a returned module. Another test checks that a controller
+cannot send against its declared resolver when a repeated choice starts again.
+
+The host programs and tests use Tokio's current-thread runtime with async/await.
+Hibana endpoints stay on that runtime. Tokio schedules I/O and futures; the
+projected programs authorize communication. The host supplies descriptor memory
+on the heap explicitly. This does not add an allocation fallback to Hibana.
+
+Six tasks have Rust implementations. The full 48-task port and independent
+checklist review remain unfinished. No implementation is yet accepted for the
+scored six-condition comparison.
 
 Model access and byte queues belong in `imp/`. Those queues carry requests and
 responses. They do not decide which protocol step is allowed. The external
@@ -71,10 +97,16 @@ Run the unscored model/simulator integration check:
 ```sh
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.lock
-cargo +1.95.0 build --locked --bin philosophers
-PYTHONHASHSEED=0 .venv/bin/python tools/run_philosophers.py --tasks 9E 9M 9H --run-id check-1
-.venv/bin/python tools/audit_preflight.py output/integration-preflight/check-1/9H
+cargo +1.95.0 build --locked --bins
+PYTHONHASHSEED=0 .venv/bin/python tools/run_preflight.py --tasks 1H 9M --scenario 2 --run-id check-1
+.venv/bin/python tools/audit_preflight.py output/integration-preflight/check-1/1H
 ```
+
+A real 1H preflight used seven Luna xhigh participants with two failed tests per
+developer. All 70 domain calls completed, with no simulator violations and up to
+three concurrent commits. Saved tool events, simulator events, source snapshots,
+and the executed binary were checked independently. This is an integration
+check, not a benchmark result.
 
 In this integration check the endpoint functions perform resource coordination.
 Models receive the unchanged domain tools for their roles. This mode matches
@@ -100,6 +132,26 @@ python3 tools/probe_luna.py --app-server-bin /path/to/cli --run-id access-1
 The verified binary is the desktop application's bundled CLI,
 `0.162.0-alpha.17.2`. The older PATH CLI `0.145.0` rejected GPT-6 Luna with this
 account. The probe fails on a substituted model or unsuccessful turn.
+
+## What this comparison can show
+
+The current preflight gives participants explicit tool sequences and performs
+resource coordination in Rust. It checks integration and enforcement, not agent
+autonomy or an improvement in task completion. The simulated domain tools do not
+measure the quality of real generated code or documents.
+
+TraceFix's mediator condition also performs coordination in the runtime. Its
+latest monitoring runtime checks step order as well. Enforcing an order is
+therefore not, by itself, a new contribution. The Hibana implementation tests a
+different execution structure: project a shared Rust choreography and drive its
+local Endpoints without application progress flags or ownership tables.
+
+The scored comparison must preserve the same work, legal decisions, resource
+constraints and independent execution. It must distinguish the effect of the
+protocol from the effect of its implementation. TLA+ model checking and Hibana
+projection establish different properties; neither tool validates arbitrary
+agent output quality. A passing preflight is not a proof of distributed deadlock
+freedom or an experimental advantage.
 
 ## Sources
 

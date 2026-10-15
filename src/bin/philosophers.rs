@@ -1,7 +1,7 @@
-use futures::future::{Either, select};
 use hibana_tracefix::{bridge, tasks::philosophers};
 
-fn main() {
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
     let task = std::env::args().nth(1).expect("task: 9E, 9M, or 9H");
     let count = match task.as_str() {
         "9E" => 3,
@@ -15,7 +15,7 @@ fn main() {
         .map(|role| format!("PHILOSOPHER_{role}"))
         .collect::<Vec<_>>();
     let (domain, mut reader) = bridge::open(&agents);
-    let result = futures::executor::block_on(async {
+    let result = {
         let run = async {
             match task.as_str() {
                 "9E" => philosophers::run_9e(&domain).await,
@@ -25,9 +25,10 @@ fn main() {
             }
             .map_err(|error| format!("{error:?}"))
         };
-        match select(Box::pin(run), Box::pin(reader.run(&domain))).await {
-            Either::Left((result, _)) | Either::Right((result, _)) => result,
+        tokio::select! {
+            result = run => result,
+            result = reader.run(&domain) => result,
         }
-    });
-    bridge::report(result).expect("write run result");
+    };
+    domain.report(result).await.expect("write run result");
 }
