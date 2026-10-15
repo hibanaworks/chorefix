@@ -46,7 +46,7 @@ fn prompt(source: &Path, task: &str, actor: &Value) -> Result<String> {
         "/service/read_literature, /service/draft_content, /service/write_to_document and /service/review_own_work"
     };
     let coordination = if dining {
-        "Hibana carries both independent fork requests in parallel and waits for both grants before eating. You do not call acquire/release tools. Your philosopher argument must name your own participant. Both effects run once, then finish."
+        "Hibana carries both independent fork requests in parallel and waits for both grants before eating. You do not call acquire/release tools. Your operations always apply to your participant. The philosopher string is passed to the original simulator. Both effects run once, then finish."
     } else {
         "Hibana carries both independent resource acquisitions in parallel and waits for both grants before the write. You do not call acquire/release tools. This deliberately replaces the original sequential acquisition procedure. The target must match your assigned topic, section or pair of resource names. The review result is terminal, so do not add retries to a failed review."
     };

@@ -208,7 +208,7 @@ async fn runtime_loop(
 mod tests {
     use super::*;
     #[tokio::test(flavor = "current_thread")]
-    #[ignore = "requires the qualified writing runtime, wash module and original simulator environment"]
+    #[ignore = "requires the built writing runtime, wash module and original simulator environment"]
     async fn original_simulator_overlaps_disjoint_actual_wasi_effects() -> Result<()> {
         std::env::set_current_dir(
             Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -228,7 +228,7 @@ mod tests {
             simulator("2M", 2, &output, trace.clone()).await?;
         let runtime = std::env::var_os("CHOREOFIX_WRITING_RUNTIME")
             .map(std::path::PathBuf::from)
-            .unwrap_or_else(|| "output/writing-direct-wasi-final-runtime".into());
+            .unwrap_or_else(|| "target/debug/writing-wasi".into());
         let (guest, guest_loop) = guest(
             &runtime,
             Path::new("vendor/hibana-wash/target/wasm32-wasip1/release/hibana-wash.wasm"),

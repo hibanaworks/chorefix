@@ -16,6 +16,8 @@ pub(crate) async fn run<const ROLE: u8, F: ForkMessages, S: ForkMessages, D: Dom
     domain: &D,
     validation: &Validation,
 ) -> ShellResult<()> {
+    // The projected owner supplies agent_id. The original simulator ignores
+    // the philosopher string, so it does not select or authorize a participant.
     // think: the Endpoint admits this lifetime, including reconsideration.
     let mut file = File::new(b"service/think", SERVICE_FD);
     loop {
@@ -33,18 +35,7 @@ pub(crate) async fn run<const ROLE: u8, F: ForkMessages, S: ForkMessages, D: Dom
             }
             104 => {
                 let request = branch.recv::<ThinkCommit>().await?;
-                validation.record(
-                    file.arguments(request.0, "philosopher")
-                        .and_then(|arguments| {
-                            if arguments["philosopher"] == agent {
-                                Ok(arguments)
-                            } else {
-                                Err(ShellError::message(
-                                    "arguments name a different task object",
-                                ))
-                            }
-                        }),
-                );
+                validation.record(file.arguments(request.0, "philosopher"));
                 let decision = endpoint.offer().await?;
                 match decision.label() {
                     111 => {
@@ -101,18 +92,7 @@ pub(crate) async fn run<const ROLE: u8, F: ForkMessages, S: ForkMessages, D: Dom
             }
             154 => {
                 let request = branch.recv::<EatCommit>().await?;
-                validation.record(
-                    file.arguments(request.0, "philosopher")
-                        .and_then(|arguments| {
-                            if arguments["philosopher"] == agent {
-                                Ok(arguments)
-                            } else {
-                                Err(ShellError::message(
-                                    "arguments name a different philosopher",
-                                ))
-                            }
-                        }),
-                );
+                validation.record(file.arguments(request.0, "philosopher"));
                 let decision = endpoint.offer().await?;
                 match decision.label() {
                     161 => {

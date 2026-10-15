@@ -238,6 +238,7 @@ pub fn freeze(task: &str, output: &Path) -> Result<Value> {
         "qualification_sha256":digest(Path::new(QUALIFICATION))?,
         "wash":command("git", &["-C","vendor/hibana-wash","rev-parse","HEAD"])?,
         "compiler":command("rustc", &["+1.95.0","-Vv"])?,
+        "python":command(".venv/bin/python", &["-VV"])?,
         "model_client":command(model::CLI, &["--version"])?,
         "model_client_sha256":digest(Path::new(model::CLI))?,
         "binaries":binaries,

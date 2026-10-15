@@ -49,7 +49,7 @@ fn stimuli(fixture: &Value) -> Result<VecDeque<(String, String)>> {
             .keys()
             .next()
             .ok_or("argument key")?;
-        let wrong = serde_json::to_string(&json!({key: "a_different_object"}))?;
+        let wrong = serde_json::to_string(&json!({key: 42}))?;
         commands.push_back((
             format!(
                 "echo {} > /service/{tool}; cat /service/result",
@@ -57,7 +57,9 @@ fn stimuli(fixture: &Value) -> Result<VecDeque<(String, String)>> {
             ),
             "invalid_arguments".into(),
         ));
-        let arguments = serde_json::to_string(&call["arguments"])?;
+        // This string is ignored by the original simulator. Caller identity is
+        // the projected owner, so another name must not retarget the effect.
+        let arguments = serde_json::to_string(&json!({"philosopher":"ANOTHER_DISPLAY_NAME"}))?;
         let padded = format!("{}{}", " ".repeat(512), arguments);
         commands.push_back((
             format!(
@@ -380,7 +382,9 @@ fn audit(path: &Path) -> Result<Value> {
                     .get(*next)
                     .ok_or("duplicate task operation")?;
                 if expected["tool"] != message["tool"]
-                    || expected["arguments"] != message["arguments"]
+                    || message["arguments"].as_object().is_none_or(|v| {
+                        v.len() != 1 || !v.get("philosopher").is_some_and(Value::is_string)
+                    })
                 {
                     return Err("task fidelity mismatch".into());
                 }
@@ -534,6 +538,7 @@ fn audit(path: &Path) -> Result<Value> {
         };
         let role = assignments.get(agent.as_str()).ok_or("response agent")?.0;
         if event["result"] != response["data"]
+            || response["data"]["philosopher"] != *agent
             || event["success"] != response["success"]
             || event["args"] != arguments
             || delivered.remove(&(role, tool.clone())).as_ref() != Some(response)
@@ -627,9 +632,7 @@ fn check_mutants(path: &Path, output: &Path) -> Result<Value> {
                 copy.remove(index);
             }
             "altered_frame" => copy[index]["message"]["source"] = json!(254),
-            "forged_arguments" => {
-                copy[index]["message"]["arguments"] = json!({"philosopher":"OTHER"})
-            }
+            "forged_arguments" => copy[index]["message"]["arguments"] = json!({"philosopher":42}),
             "forged_result" => copy[index]["message"]["result"]["data"] = json!({"forged":true}),
             "false_score" => {
                 copy[index]["message"]["complete"] = json!(

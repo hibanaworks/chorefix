@@ -36,7 +36,7 @@
     "tasks": ["9E", "9M", "9H"],
     "preserved": ["Original philosophers and adjacent physical forks", "Both forks held during eat", "Both returned after eat and before finish", "All participants complete the original think and eat steps"],
     "hibana_execution": "Request both independent forks before waiting for either grant; preserve independent thinking and disjoint eating through one projected global",
-    "interface_difference": "The philosopher argument must exactly name its caller; the baseline simulator identifies the caller through agent_id and ignores this extra argument",
+    "caller_binding": "The projected owner supplies the original agent_id. The philosopher string remains ordinary input and does not select a participant, matching the original simulator",
     "scope": "The default simulator has one think and one eat step per philosopher; this finite protocol admits each once and rejects subsequent shared operations",
     "liveness_limit": "Completion still requires each model to do its work and the executor/transport to progress; the qualification runs do not prove termination for an uncooperative model",
     "qualification": "Deterministic actual-WASI 3/5/7 person trials pass, with observed disjoint eating 1/2/3; accepted full-task and scored comparisons remain pending"

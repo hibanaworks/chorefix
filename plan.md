@@ -727,3 +727,21 @@ reviewは元課題どおり終端で、余分なretryを加えない。続いて
   実行commitのGit blobと一致することも監査する。taskの権限や進行には使わない。
   過去の4096a2aを固定した実行は旧監査source20dbbebで再検査できる形のまま保持。
   次に新build記録をcommitしてモデル試行へ進める。モデル変更やfallbackはない。
+
+- fidelityの再確認で、9 familyのphilosopher文字列は元simulatorでは対象を選ばず、
+  元agent_id（こちらでは投影されたowner）が対象を決めることを確認した。
+  最初のportは文字列まで本人名に制限していたが、これは余分な制約なので除去する。
+  型/JSON検査だけを残し、別の表示名でも実効果はowner本人となる刺激へ変更。
+  先の3成功はstrict版の開発資料として保管し、モデル試行はまだ開始しない。
+  新しいsourceで全Rust/build/Clippyを再検査中（session41965）。古いqualified recordは
+  outputの開発資料へ移し、新binaryの検証完了まで新規モデル実行は開始しない。
+
+- caller bindingの修正版も全Rust27/Clippyが成功。cargo testが通常の実行binも作るため、
+  続くbuild --binsは0.04秒だった。今後はこの順で二重のcold codegenを避ける。
+  別の表示名を使う実WASI 9E/M/Hと21改変拒否が全て成功し、実効果は全てowner本人。
+  writingの同じ新buildでも2E/M/H・終端review失敗・2Hの7改変が成功。
+  最初のstrict版は開発資料として分け、最終版のsource/binary/ログへ混ぜない。
+- 新しいmodel runはformat2。task/人数/fork割当、seed/depth/delay、qualified verifierを
+  明示確認し、qualificationは実行Git commitのblobへ照合する。Python版も記録する。
+  元9E simulator/toolsの実import先がvendor/tracefixであることも現物で確認した。
+  c5101a7のCI38760206495は成功。新しいportを含むCIはこれからpushして検査する。
