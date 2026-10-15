@@ -168,16 +168,17 @@ async fn run(task: &str, depth: u8, output: &Path) -> Result<Value> {
 async fn main() -> Result<()> {
     let args: Vec<_> = std::env::args().skip(1).collect();
     match args.as_slice() {
-        [mode, input, output] if mode == "--check-mutants" => println!(
+        [mode, input, output, verifier] if mode == "--check-mutants" => println!(
             "{}",
             serde_json::to_string_pretty(&audit::check_mutants(
                 Path::new(input),
-                Path::new(output)
+                Path::new(output),
+                Path::new(verifier)
             )?)?
         ),
-        [mode, output] if mode == "--audit" => println!(
+        [mode, output, verifier] if mode == "--audit" => println!(
             "{}",
-            serde_json::to_string_pretty(&audit::run(Path::new(output))?)?
+            serde_json::to_string_pretty(&audit::run(Path::new(output), Path::new(verifier))?)?
         ),
         [task, depth, output] => {
             let result = match run(task, depth.parse()?, Path::new(output)).await {

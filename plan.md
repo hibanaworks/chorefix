@@ -663,3 +663,27 @@ reviewは元課題どおり終端で、余分なretryを加えない。続いて
   元manifestは48task配下を対象とするが、新監査がenvironments直下のpackage fileも
   比較したため。元inventoryと同じ範囲へ修正し、全48task/simulatorのbyte一致を
   Rust回帰試験に追加する。停止ログを残し、別run IDで再開する。Hibana本体の問題ではない。
+
+## 2026-10-16: writingの実Luna 3/5/7人の並行動作
+
+- execution source9ed7738、固定runtime4096a2a/c2001ecで2E/M/Hを各depth2で1回実行。
+  actual Luna xhighは計15人。全participantのturnが3/5/7人で重なり、自然なdomain writeは
+  同時1/2/3件。元delay倍率1.0、人工barrierなし。原simulator60操作完了、共有資源違反0。
+  shell91回、inclusive tokens1,674,159。時間は30.419/32.886/37.335秒。
+  どの実行も採点比較へは数えない。実測値はresults/writing-direct-wasi-preflight.json。
+- 原実行のfrozen protocol verifierは、同じsection pairのカンマ空白や並び順まで固定して
+  正しい要求を拒否した。serviceはpair集合で検証し、元simulatorもこの表記を受け入れる。
+  監査だけを修正し、2M固定刺激も逆順/空白なしの同一pairへ変更して回帰試験にした。
+  wrong target、余分な引数、欠落/重複、実効果、競合の検査は残す。本体/consumer実行は
+  変更していない。原実行のbinary/source/rawは書換えず、新verifierを明示して再監査。
+- 新Rust監査が3条件とも成功。model/usage/command/reply/score/sourceの改変を各6件、
+  計18件拒否。外側hashも改変へ合わせた上で拒否する。2M実guestの新表記回帰と
+  7種のprotocol改変拒否も成功。直列取得を偽装したログは引き続き拒否する。
+- 001はinventory範囲の誤り、002はClippyでbuild停止後に旧binaryを起動したため、
+  ともにモデル開始前に停止。失敗と空ディレクトリ/ログを保ち、成功の003へ混ぜない。
+  raw model/carrier、prompt、usage、source manifest、execution source、監査sourceと
+  verifier hashを保存する。完全なbinary付きarchiveはoutputに残す。
+- obsolete CI8a31fc8は新しい9ed7738が開始したため明示cancel。旧4096a2aの20分timeoutと
+  区別する。9ed7738の45分CIはまだ実行中。新しい監査修正のCI結果は未確定。
+  次は残るfamilyの実WASI接続、48課題のfidelity/手順差の分類、原baseline corpusと
+  採点比較へ進む。全要件受理0、採点0/2592、論文推敲停止の指示を維持する。

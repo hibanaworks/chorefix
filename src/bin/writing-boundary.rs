@@ -60,7 +60,20 @@ fn stimuli(fixture: &Value) -> Result<VecDeque<(String, String)>> {
             ),
             "invalid_arguments".into(),
         ));
-        let arguments = serde_json::to_string(&call["arguments"])?;
+        let mut valid_arguments = call["arguments"].clone();
+        if tool == "write_to_document" {
+            valid_arguments["sections"] = json!(
+                call["arguments"]["sections"]
+                    .as_str()
+                    .ok_or("section pair")?
+                    .split(',')
+                    .map(str::trim)
+                    .rev()
+                    .collect::<Vec<_>>()
+                    .join(",")
+            );
+        }
+        let arguments = serde_json::to_string(&valid_arguments)?;
         let padded = format!("{}{}", " ".repeat(512), arguments);
         commands.push_back((
             format!(
@@ -389,9 +402,25 @@ fn audit(path: &Path) -> Result<Value> {
                 let expected = assignment["calls"]
                     .get(*next)
                     .ok_or("duplicate task operation")?;
-                if expected["tool"] != message["tool"]
-                    || expected["arguments"] != message["arguments"]
-                {
+                let arguments_match = if expected["tool"] == "write_to_document" {
+                    let pair = |arguments: &Value| -> Option<Vec<String>> {
+                        if arguments.as_object()?.len() != 1 {
+                            return None;
+                        }
+                        let mut pair: Vec<_> = arguments["sections"]
+                            .as_str()?
+                            .split(',')
+                            .map(|v| v.trim().to_owned())
+                            .collect();
+                        pair.sort();
+                        Some(pair)
+                    };
+                    let expected = pair(&expected["arguments"]);
+                    expected.is_some() && expected == pair(&message["arguments"])
+                } else {
+                    expected["arguments"] == message["arguments"]
+                };
+                if expected["tool"] != message["tool"] || !arguments_match {
                     return Err("task fidelity mismatch".into());
                 }
                 if closes.remove(&role).is_none() {

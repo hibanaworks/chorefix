@@ -214,7 +214,7 @@ fn participant(root: &Path, agent: &str, runtime: &[Value]) -> Result<Value> {
     )
 }
 
-pub fn run(root: &Path) -> Result<Value> {
+pub fn run(root: &Path, verifier: &Path) -> Result<Value> {
     let result = load(&root.join("result.json"))?;
     let versions = load(&root.join("versions.json"))?;
     if result["versions"] != versions
@@ -303,7 +303,7 @@ pub fn run(root: &Path) -> Result<Value> {
     if maximum != participants.len() as i32 {
         return Err("model turns did not overlap".into());
     }
-    let protocol = Command::new(root.join("protocol-audit").canonicalize()?)
+    let protocol = Command::new(verifier.canonicalize()?)
         .arg("--audit")
         .arg(root.join("events.jsonl"))
         .output()?;
@@ -322,12 +322,13 @@ pub fn run(root: &Path) -> Result<Value> {
     Ok(
         json!({"status":"passed","task":fixture["task"],"kind":"unscored_direct_wasi_model_preflight",
         "scored_benchmark":false,"participants":participants,"model_calls":maximum,"max_simultaneous_model_turns":maximum,
-        "inclusive_tokens":total,"protocol":protocol,"events_sha256":result["events_sha256"]}),
+        "inclusive_tokens":total,"protocol":protocol,"events_sha256":result["events_sha256"],
+        "protocol_verifier_sha256":digest(verifier)?,"model_verifier_sha256":digest(&std::env::current_exe()?)?}),
     )
 }
 
-pub fn check_mutants(root: &Path, output: &Path) -> Result<Value> {
-    run(root)?;
+pub fn check_mutants(root: &Path, output: &Path, verifier: &Path) -> Result<Value> {
+    run(root, verifier)?;
     fs::create_dir(output)?;
     if output.canonicalize()?.starts_with(root.canonicalize()?) {
         return Err("mutant output must be outside original evidence".into());
@@ -443,7 +444,7 @@ pub fn check_mutants(root: &Path, output: &Path) -> Result<Value> {
         participant["raw_events_sha256"] = json!(digest(&events)?);
         crate::evidence::save(&case.join(agent).join("participant.json"), &participant)?;
         crate::evidence::save(&case.join("result.json"), &result)?;
-        let error = run(&case)
+        let error = run(&case, verifier)
             .expect_err("altered evidence passed independent audit")
             .to_string();
         checked.push(json!({"mutation":kind,"status":"rejected","reason":error,"outer_hashes_recomputed":true}));
