@@ -13,12 +13,15 @@ pub async fn run<D: Domain>(
     test: &Validation,
 ) -> ShellResult<()> {
     endpoint.recv::<BuildComplete>().await?;
+    endpoint.send::<RequestReady>(&()).await?;
     let request = endpoint.recv::<Open>().await?;
     endpoint.send::<Acquire>(&()).await?;
     endpoint.recv::<Granted>().await?;
     let mut file = File::new(b"service/run_integration_tests", SERVICE_FD);
     endpoint.send::<Opened>(&file.open(request)).await?;
     loop {
+        endpoint.send::<ServeRequest>(&()).await?;
+        endpoint.send::<RequestReady>(&()).await?;
         let branch = endpoint.offer().await?;
         match branch.label() {
             3 => {
@@ -68,6 +71,8 @@ pub async fn run<D: Domain>(
     endpoint.send::<ServiceDone>(&()).await?;
     endpoint.send::<TestsPassed>(&()).await?;
     loop {
+        endpoint.send::<RejectRequest>(&()).await?;
+        endpoint.send::<RequestReady>(&()).await?;
         let branch = endpoint.offer().await?;
         match branch.label() {
             3 => {

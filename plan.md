@@ -270,7 +270,7 @@ WASIの値とmessageの変換はlocalsideで明示し、進行フラグや第二
 - `results/validation/roll-scope-20261015/`に候補patch、再現source、ログ、hashを保存。
   本体・QUICへの採用やpushはしていない。採点済み実験と全要件受理は0のまま。
 
-## 次の一手
+## 以前の作業候補（下の最新チェックポイントを優先）
 
 1. 反復の投影条件と局所的な寿命を一緒に定義する。roleに無関係なglobal先頭で
    識別したことにせず、投影後の操作契約で曖昧さを調べる。
@@ -359,3 +359,45 @@ WASIの値とmessageの変換はlocalsideで明示し、進行フラグや第二
   owner→WASIのRequestReadyをglobalに記述した。修正版本体を使う隔離consumerで
   Rustの対象1試験と実guestの4試験が成功。完全移植受理や採点済み実行には
   まだ数えない。6Eの整理とfidelity監査は未完了。
+
+## 直接WASI反復の最新チェックポイント
+
+- 16EのglobalはownerのServeRequest/RejectRequestと、owner→WASIの
+  RequestReadyを明示した。各共有open/write/closeと終了でその受信を消費する。
+  反復の選択や段階を表すアプリ状態は追加せず、Endpoint操作をlocalsideへ直接置いた。
+- 公開済み0.9.9でRust 30試験・Clippy・実guestの4試験が成功した。
+  新しい6E直接WASI試験を除いた既存Python 30試験も成功。除外した6Eを
+  成功扱いしたり、全48課題の検証へ広げたりしない。
+- 同じ16E sourceは修正版本体f86451bを使う隔離consumerでも、対象Rust 1試験と
+  実guest 4試験が成功。mainの依存はregistryの=0.9.9のまま。
+- Luna xhighの新しい非採点試行readiness-20261015-001は3参加者とも完了し、
+  元simulatorの3操作が成功した。独立した保存イベント監査も成功。
+  11 shell calls、384 frames、220,215 total tokens、27.127秒。
+  課題記述・metadata・tools schema・16E simulator・CICD基底simulatorは
+  原論文revと最新版revで同一bytesであることを確認した。
+  source snapshot、raw model/carrier events、usage、hash、監査結果を
+  results/validation/direct-wasi-readiness-20261015-001/ に保存した。
+- これは比較2592実行の代替ではない。全要件受理0・採点済み0を保つ。
+- 6Eは未確定。最初のreadiness候補はdepth0成功・depth1/2失敗で、
+  2回目の実装後のWASI role0 recv ResultがPhaseInvariantとなった。
+  別候補はdepth0がマージで停止し、depth1/2はREPO offerがPhaseInvariantとなった。
+  どちらも採用済みとしない。output/review-readiness-fixed-* と
+  output/review-aliased-outer-head/ にsourceとログを保持した。
+  2役/3役/4役への縮小では再現しないものもあり、本体とglobalのどちらの問題か
+  まだ確定していない。推測でkernelへ優先順位やアプリ進行状態を追加しない。
+- 本体PR8のGitHub CIはpush/PRの両方でKaniとfinal-formが全成功した。
+  QUICの最初の外部interopは42件成功、ECN 2件は解析ツールの起動失敗で未実行。
+  同じ2115eed/f86451bに固定したECNだけの再試験を
+  https://github.com/hibanaworks/hibana-quic/actions/runs/38723148382 で実行中。
+
+### 次の一手
+
+1. ECN再試験の実結果と、全caseのcore/source/pinを成果物で確認する。
+   最初のworkflow自体はqualification失敗なので、緑と記録しない。
+2. 6Eの停止を、投影した同じglobalと実際のEndpoint操作に沿って縮小する。
+   globalが公開操作から一意でないなら投影で拒否し、一意なのに失敗するなら
+   本体の実装を修正する。既存のpar内rollと有効な外側反復を維持する。
+3. 6Eのdepth0/1/2、共有REPO排他、差し戻し後の再考、独立開発、全guest終了を
+   通し、WASI→Endpoint→ChoreoFS→元simulatorの保存イベントを監査する。
+4. その境界を残り48課題へ広げ、原論文4条件と最新版を変更せず比較し、
+   全2592実行・独立監査・分析・論文を完了する。未完了を縮めて完了とはしない。

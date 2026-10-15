@@ -1,0 +1,20 @@
+{
+  "participant": "DEPLOYER",
+  "status": "completed",
+  "error": null,
+  "requested_model": "gpt-6-luna",
+  "returned_model": "gpt-6-luna",
+  "requested_effort": "xhigh",
+  "returned_effort": "xhigh",
+  "tool_calls": 3,
+  "elapsed_seconds": 18.516257707960904,
+  "usage": {
+    "totalTokens": 61893,
+    "inputTokens": 61633,
+    "cachedInputTokens": 46080,
+    "cacheWriteInputTokens": 0,
+    "outputTokens": 260,
+    "reasoningOutputTokens": 137
+  },
+  "raw_events_sha256": "68051db7e402e1bd474efd03660e3704a32739e61b4e3a18d99adb4de765f139"
+}

@@ -20,6 +20,7 @@ pub async fn run<const ROLE: u8>(
                     pending.complete(WasiImportCompletion::FdWrite(completion))?;
                 }
                 WasiImportRequest::FdWriteObject(request) => {
+                    endpoint.recv::<RequestReady>().await?;
                     endpoint.send::<Write>(&request).await?;
                     let completion = endpoint.recv::<Written>().await?;
                     pending.complete(WasiImportCompletion::FdWriteObject(completion))?;
@@ -41,6 +42,7 @@ pub async fn run<const ROLE: u8>(
                         .strip_prefix(b"/")
                         .unwrap_or(request.0.path());
                     let completion = if path.starts_with(SERVICE_PREFIX) && path != RESULT_PATH {
+                        endpoint.recv::<RequestReady>().await?;
                         endpoint.send::<Open>(&request).await?;
                         endpoint.recv::<Opened>().await?
                     } else {
@@ -112,6 +114,7 @@ pub async fn run<const ROLE: u8>(
                 }
                 WasiImportRequest::FdClose(request) => {
                     let completion = if request.0.fd() == SERVICE_FD {
+                        endpoint.recv::<RequestReady>().await?;
                         endpoint.send::<Commit>(&request).await?;
                         let branch = endpoint.offer().await?;
                         match branch.label() {
@@ -181,6 +184,7 @@ pub async fn run<const ROLE: u8>(
             }
             WasiBoundaryStep::Exit(exit) => {
                 let status = exit.status() as i32;
+                endpoint.recv::<RequestReady>().await?;
                 endpoint.send::<ServiceExit>(&status).await?;
                 endpoint.send::<Exit>(&status).await?;
                 return Ok(status);

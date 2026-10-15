@@ -37,6 +37,9 @@ pub type Return = g::Msg<13, ()>;
 pub type Returned = g::Msg<14, ()>;
 pub type Unavailable = g::Msg<16, protocol::FdClosedRet>;
 pub type ServiceDone = g::Msg<15, ()>;
+pub type ServeRequest = g::Msg<80, ()>;
+pub type RejectRequest = g::Msg<81, ()>;
+pub type RequestReady = g::Msg<82, ()>;
 pub type BuildComplete = g::Msg<20, ()>;
 pub type TestsPassed = g::Msg<21, ()>;
 pub type DeployedToDeveloper = g::Msg<22, ()>;
@@ -60,23 +63,29 @@ pub struct Programs {
 // The entire request, resource loan, materialization and reply are protocol steps.
 fn service<const VM: u8, const OWNER: u8, const RESOURCE: u8, const CHECK: u16>() -> impl Projectable
 {
-    let requests = g::route(
-        g::seq(g::send::<VM, OWNER, Open>(), g::send::<OWNER, VM, Opened>()),
-        g::route(
-            g::seq(
-                g::send::<VM, OWNER, Write>(),
-                g::send::<OWNER, VM, Written>(),
-            ),
-            g::seq(
-                g::send::<VM, OWNER, Commit>(),
+    let requests = g::seq(
+        g::send::<OWNER, OWNER, ServeRequest>(),
+        g::seq(
+            g::send::<OWNER, VM, RequestReady>(),
+            g::route(
+                g::seq(g::send::<VM, OWNER, Open>(), g::send::<OWNER, VM, Opened>()),
                 g::route(
                     g::seq(
-                        g::send::<OWNER, OWNER, Materialize>(),
-                        g::send::<OWNER, VM, Committed<'static>>(),
+                        g::send::<VM, OWNER, Write>(),
+                        g::send::<OWNER, VM, Written>(),
                     ),
-                    g::send::<OWNER, VM, Rejected<'static>>(),
-                )
-                .resolve::<CHECK>(),
+                    g::seq(
+                        g::send::<VM, OWNER, Commit>(),
+                        g::route(
+                            g::seq(
+                                g::send::<OWNER, OWNER, Materialize>(),
+                                g::send::<OWNER, VM, Committed<'static>>(),
+                            ),
+                            g::send::<OWNER, VM, Rejected<'static>>(),
+                        )
+                        .resolve::<CHECK>(),
+                    ),
+                ),
             ),
         ),
     )
@@ -104,19 +113,25 @@ fn service<const VM: u8, const OWNER: u8, const RESOURCE: u8, const CHECK: u16>(
 
 // After the admitted operation, further service requests get an explicit error.
 fn closed_service<const VM: u8, const OWNER: u8>() -> impl Projectable {
-    g::route(
-        g::seq(g::send::<VM, OWNER, Open>(), g::send::<OWNER, VM, Opened>()),
-        g::route(
-            g::seq(
-                g::send::<VM, OWNER, Write>(),
-                g::send::<OWNER, VM, Written>(),
-            ),
+    g::seq(
+        g::send::<OWNER, OWNER, RejectRequest>(),
+        g::seq(
+            g::send::<OWNER, VM, RequestReady>(),
             g::route(
-                g::seq(
-                    g::send::<VM, OWNER, Commit>(),
-                    g::send::<OWNER, VM, Unavailable>(),
+                g::seq(g::send::<VM, OWNER, Open>(), g::send::<OWNER, VM, Opened>()),
+                g::route(
+                    g::seq(
+                        g::send::<VM, OWNER, Write>(),
+                        g::send::<OWNER, VM, Written>(),
+                    ),
+                    g::route(
+                        g::seq(
+                            g::send::<VM, OWNER, Commit>(),
+                            g::send::<OWNER, VM, Unavailable>(),
+                        ),
+                        g::send::<VM, OWNER, ServiceExit>(),
+                    ),
                 ),
-                g::send::<VM, OWNER, ServiceExit>(),
             ),
         ),
     )
@@ -125,18 +140,33 @@ fn closed_service<const VM: u8, const OWNER: u8>() -> impl Projectable {
 
 pub fn programs() -> Programs {
     let build = g::seq(
-        g::send::<DEV_WASI, DEVELOPER, Open>(),
+        g::send::<DEVELOPER, DEV_WASI, RequestReady>(),
         g::seq(
-            service::<DEV_WASI, DEVELOPER, BUILD_SERVER, COMPILE_CLOSE>(),
-            g::send::<DEVELOPER, TESTER, BuildComplete>(),
+            g::send::<DEV_WASI, DEVELOPER, Open>(),
+            g::seq(
+                service::<DEV_WASI, DEVELOPER, BUILD_SERVER, COMPILE_CLOSE>(),
+                g::send::<DEVELOPER, TESTER, BuildComplete>(),
+            ),
         ),
     );
-    let build_and_test_request = g::par(build, g::send::<TEST_WASI, TESTER, Open>());
+    let build_and_test_request = g::par(
+        build,
+        g::seq(
+            g::send::<TESTER, TEST_WASI, RequestReady>(),
+            g::send::<TEST_WASI, TESTER, Open>(),
+        ),
+    );
     let test = g::seq(
         service::<TEST_WASI, TESTER, BUILD_SERVER, TEST_CLOSE>(),
         g::send::<TESTER, DEPLOYER, TestsPassed>(),
     );
-    let test_and_deploy_request = g::par(test, g::send::<DEPLOY_WASI, DEPLOYER, Open>());
+    let test_and_deploy_request = g::par(
+        test,
+        g::seq(
+            g::send::<DEPLOYER, DEPLOY_WASI, RequestReady>(),
+            g::send::<DEPLOY_WASI, DEPLOYER, Open>(),
+        ),
+    );
     // Completed service lifetimes continue independently of downstream work.
     // A guest can inspect its result, get duplicate-operation errors, and exit.
     let task = g::seq(

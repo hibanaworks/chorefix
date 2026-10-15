@@ -7,6 +7,7 @@ import asyncio
 import copy
 import importlib
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -28,7 +29,7 @@ async def test_real_guest_recovers_then_runs_the_original_pipeline_once(tmp_path
     sim.set_scenario_depth(scenario)
     registry = load_tools("16E", sim=sim)
     runtime = await asyncio.wait_for(DirectWasi.start(
-        ROOT / "target/debug/cicd-wasi",
+        Path(os.environ.get("CHOREOFIX_CICD_WASI_BINARY", ROOT / "target/debug/cicd-wasi")),
         ROOT / "vendor/hibana-wash/target/wasm32-wasip1/release/hibana-wash.wasm",
         registry, AGENTS, tmp_path / "runtime",
     ), 10)
@@ -126,7 +127,7 @@ async def test_guest_exit_before_work_is_a_failed_run_with_no_domain_effect(tmp_
     module = importlib.import_module("benchmark.environments.16E.sim")
     sim = module.SimpleCICDSim()
     runtime = await asyncio.wait_for(DirectWasi.start(
-        ROOT / "target/debug/cicd-wasi",
+        Path(os.environ.get("CHOREOFIX_CICD_WASI_BINARY", ROOT / "target/debug/cicd-wasi")),
         ROOT / "vendor/hibana-wash/target/wasm32-wasip1/release/hibana-wash.wasm",
         load_tools("16E", sim=sim), AGENTS, tmp_path / "runtime",
     ), 10)

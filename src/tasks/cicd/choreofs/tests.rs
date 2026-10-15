@@ -30,6 +30,7 @@ async fn write<const VM: u8>(endpoint: &mut Endpoint<'_, VM>, value: Value) {
     let mut bytes = serde_json::to_vec(&value).unwrap();
     bytes.extend_from_slice(&[b' '; 256]);
     for chunk in bytes.chunks(37) {
+        endpoint.recv::<RequestReady>().await.unwrap();
         endpoint
             .send::<Write>(&protocol::FdWriteReq(
                 protocol::FdWrite::new(SERVICE_FD, chunk).unwrap(),
@@ -43,6 +44,7 @@ async fn write<const VM: u8>(endpoint: &mut Endpoint<'_, VM>, value: Value) {
     }
 }
 async fn open<const VM: u8>(endpoint: &mut Endpoint<'_, VM>, path: &[u8]) -> u16 {
+    endpoint.recv::<RequestReady>().await.unwrap();
     endpoint
         .send::<Open>(&protocol::PathOpenReq(
             protocol::PathOpen::new(3, 1 << 6, path)
@@ -55,6 +57,7 @@ async fn open<const VM: u8>(endpoint: &mut Endpoint<'_, VM>, path: &[u8]) -> u16
     endpoint.recv::<Opened>().await.unwrap().0.errno()
 }
 async fn commit<const VM: u8>(endpoint: &mut Endpoint<'_, VM>) {
+    endpoint.recv::<RequestReady>().await.unwrap();
     endpoint
         .send::<Commit>(&protocol::FdCloseReq(protocol::FdRequest::new(SERVICE_FD)))
         .await
@@ -110,6 +113,7 @@ async fn wasi_roles_reach_the_service_owners_only_through_projected_messages() {
                 assert_ne!(open(&mut a, b"service/deploy_application").await, 0);
                 assert_eq!(open(&mut a, b"service/compile_and_test").await, 0);
                 write(&mut a, json!({"wrong":"application"})).await;
+                a.recv::<RequestReady>().await.unwrap();
                 a.send::<Commit>(&protocol::FdCloseReq(protocol::FdRequest::new(4)))
                     .await
                     .unwrap();
@@ -125,9 +129,19 @@ async fn wasi_roles_reach_the_service_owners_only_through_projected_messages() {
                 // Closed-service errors must not wait for downstream effects.
                 assert_eq!(journal.0.borrow().len(), 1);
                 developer_closed.notify_one();
+                a.recv::<RequestReady>().await.unwrap();
                 a.send::<ServiceExit>(&0).await.unwrap();
             },
             async {
+                let mut ready = Box::pin(b.recv::<RequestReady>());
+                assert!(
+                    tokio::time::timeout(Duration::from_millis(10), &mut ready)
+                        .await
+                        .is_err()
+                );
+                assert!(journal.0.borrow().is_empty());
+                test_requested.notify_one();
+                ready.await.unwrap();
                 b.send::<Open>(&protocol::PathOpenReq(
                     protocol::PathOpen::new(3, 1 << 6, b"service/run_integration_tests")
                         .unwrap()
@@ -136,24 +150,18 @@ async fn wasi_roles_reach_the_service_owners_only_through_projected_messages() {
                 ))
                 .await
                 .unwrap();
-                let mut response = Box::pin(b.recv::<Opened>());
-                assert!(
-                    tokio::time::timeout(Duration::from_millis(10), &mut response)
-                        .await
-                        .is_err()
-                );
-                assert!(journal.0.borrow().is_empty());
-                test_requested.notify_one();
-                assert_eq!(response.await.unwrap().0.errno(), 0);
+                assert_eq!(b.recv::<Opened>().await.unwrap().0.errno(), 0);
                 developer_closed.notified().await;
                 write(&mut b, json!({"suite":"integration"})).await;
                 commit(&mut b).await;
+                b.recv::<RequestReady>().await.unwrap();
                 b.send::<ServiceExit>(&0).await.unwrap();
             },
             async {
                 assert_eq!(open(&mut c, b"service/deploy_application").await, 0);
                 write(&mut c, json!({"target":"production"})).await;
                 commit(&mut c).await;
+                c.recv::<RequestReady>().await.unwrap();
                 c.send::<ServiceExit>(&0).await.unwrap();
             },
         );
