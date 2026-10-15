@@ -36,8 +36,8 @@ pub(crate) async fn run<const ROLE: u8, D: Domain>(
             }
             Operation::Commit => {
                 endpoint.send::<AcquireFirst>(&()).await?;
-                endpoint.recv::<GrantedFirst>().await?;
                 endpoint.send::<AcquireSecond>(&()).await?;
+                endpoint.recv::<GrantedFirst>().await?;
                 endpoint.recv::<GrantedSecond>().await?;
                 endpoint.send::<Commit>(&()).await?;
                 let result = domain
@@ -102,8 +102,8 @@ pub(crate) async fn terminal<const ROLE: u8, D: Domain>(
             }
             Operation::Commit => {
                 endpoint.send::<AcquireFirst>(&()).await?;
-                endpoint.recv::<GrantedFirst>().await?;
                 endpoint.send::<AcquireSecond>(&()).await?;
+                endpoint.recv::<GrantedFirst>().await?;
                 endpoint.recv::<GrantedSecond>().await?;
                 endpoint.send::<Commit>(&()).await?;
                 let result = domain

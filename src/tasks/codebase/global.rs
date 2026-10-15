@@ -56,7 +56,7 @@ fn developer<
     const RESULT: u8,
     const RESOLVER: u16,
 >() -> impl Projectable {
-    let acquire = g::seq(
+    let acquire = g::par(
         g::seq(
             g::send::<DEV, FIRST, AcquireFirst>(),
             g::send::<FIRST, DEV, GrantedFirst>(),
@@ -104,7 +104,7 @@ fn developer<
 }
 
 fn terminal_developer<const DEV: u8, const FIRST: u8, const SECOND: u8>() -> impl Projectable {
-    let acquire = g::seq(
+    let acquire = g::par(
         g::seq(
             g::send::<DEV, FIRST, AcquireFirst>(),
             g::send::<FIRST, DEV, GrantedFirst>(),

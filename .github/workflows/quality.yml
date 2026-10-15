@@ -44,6 +44,12 @@ jobs:
       - name: Check the actual WASI and task effect boundary
         run: |
           bash tools/build_shell.sh
+          cargo +1.95.0 run --locked --bin codebase-boundary -- 1E codebase-boundary-1E
+          cargo +1.95.0 run --locked --bin codebase-boundary -- --check-mutants codebase-boundary-1E/events.jsonl codebase-boundary-1E-mutants
+          cargo +1.95.0 run --locked --bin codebase-boundary -- 1M codebase-boundary-1M
+          cargo +1.95.0 run --locked --bin codebase-boundary -- --check-mutants codebase-boundary-1M/events.jsonl codebase-boundary-1M-mutants
+          cargo +1.95.0 run --locked --bin codebase-boundary -- 1E:terminal-test-failure codebase-boundary-terminal-test-failure
+          cargo +1.95.0 run --locked --bin codebase-boundary -- 1M:terminal-test-failure codebase-boundary-terminal-test-failure-1M
           cargo +1.95.0 run --locked --bin writing-boundary -- 2E writing-boundary-2E
           cargo +1.95.0 run --locked --bin writing-boundary -- --check-mutants writing-boundary-2E/events.jsonl writing-boundary-2E-mutants
           cargo +1.95.0 run --locked --bin writing-boundary -- 2M writing-boundary-2M
@@ -75,6 +81,7 @@ jobs:
           name: writing-boundary
           path: |
             writing-boundary-*/
+            codebase-boundary-*/
             philosophers-boundary-*/
             output/writing-rust-runner-probe*/
           if-no-files-found: ignore

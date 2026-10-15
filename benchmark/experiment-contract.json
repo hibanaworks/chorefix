@@ -25,6 +25,16 @@
   ],
   "baseline_policy": "Keep comparison implementations and original input files unchanged",
   "checklist_policy": "Classify original items as problem constraints, hazards or procedural choices; record procedural departures instead of silently claiming identical control flow",
+  "coding_departure": {
+    "tasks": ["1E", "1M"],
+    "original_items": "RA1 through RA3 or RA5 respectively describe sequential acquisition",
+    "hibana_execution": "Send both independent module Acquire requests before waiting for either grant; send both Return requests before waiting for either acknowledgement",
+    "preserved": ["Original developers, assigned features and module pairs", "Design and implementation before acquisition", "Exclusive module ownership during commit", "Both grants before commit", "Return before local tests", "Terminal test outcome, including failure"],
+    "interface": "The projected owner supplies agent_id. Feature strings must name the assigned feature; module strings must contain exactly the assigned pair. Pair order and comma spacing do not matter. Unlike the unchanged simulator's permissive argument matching, malformed or wrong-target requests are returned before any effect",
+    "parallelism": "All guests, private computation and preparation progress independently; disjoint commits run concurrently. A delayed local test must not hold shared modules or block another developer's commit",
+    "scope": "1H requires its own result-driven reconsideration path and is not qualified by these terminal 1E/1M protocols",
+    "qualification": "Requires persisted direct-WASI evidence and task fidelity review before scored comparisons"
+  },
   "writing_departure": {
     "tasks": ["2E", "2M", "2H"],
     "original_items": "RA1 through RA3, RA5 or RA7 respectively describe sequential acquisition",

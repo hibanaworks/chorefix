@@ -33,8 +33,12 @@ fn prompt(source: &Path, task: &str, actor: &Value) -> Result<String> {
         })
         .collect();
     let dining = task.starts_with('9');
+    let coding = task.starts_with('1');
     let data = if dining {
         json!({"participant":agent,"resources":actor["forks"],"philosopher":agent})
+    } else if coding {
+        json!({"participant":agent,"resources":actor["modules"],
+        "feature_name":actor["calls"][0]["arguments"]["feature_name"]})
     } else {
         json!({"participant":agent,"resources":actor["sections"],
         "topic":actor["calls"][0]["arguments"]["topic"],
@@ -42,11 +46,15 @@ fn prompt(source: &Path, task: &str, actor: &Value) -> Result<String> {
     };
     let objects = if dining {
         "/service/think and /service/eat"
+    } else if coding {
+        "/service/design_feature, /service/implement_code, /service/commit_changes and /service/run_local_tests"
     } else {
         "/service/read_literature, /service/draft_content, /service/write_to_document and /service/review_own_work"
     };
     let coordination = if dining {
         "Hibana carries both independent fork requests in parallel and waits for both grants before eating. You do not call acquire/release tools. Your operations always apply to your participant. The philosopher string is passed to the original simulator. Both effects run once, then finish."
+    } else if coding {
+        "Hibana carries both independent module requests in parallel and waits for both grants before committing. You do not call acquire/release tools. This deliberately replaces the original sequential acquisition procedure. The feature and module pair must match your assignment. For this task the test outcome is terminal, including failure. Do not add retries. Modules are returned before testing so that another developer can commit while your test runs."
     } else {
         "Hibana carries both independent resource acquisitions in parallel and waits for both grants before the write. You do not call acquire/release tools. This deliberately replaces the original sequential acquisition procedure. The target must match your assigned topic, section or pair of resource names. The review result is terminal, so do not add retries to a failed review."
     };
@@ -85,8 +93,8 @@ reply, do not call shell again. Leaving before doing the work fails the run.
 }
 
 async fn run(task: &str, depth: u8, output: &Path) -> Result<Value> {
-    if !["2E", "2M", "2H", "9E", "9M", "9H"].contains(&task) || depth > 2 {
-        return Err("expected writing or dining task and depth 0..2".into());
+    if !["1E", "1M", "2E", "2M", "2H", "9E", "9M", "9H"].contains(&task) || depth > 2 {
+        return Err("expected a qualified coding, writing or dining task and depth 0..2".into());
     }
     fs::create_dir_all(output.parent().ok_or("output parent")?)?;
     fs::create_dir(output)?;
@@ -205,7 +213,7 @@ async fn main() -> Result<()> {
             };
             println!("{}", serde_json::to_string(&result)?);
         }
-        _ => return Err("usage: choreofix-experiments 2E|2M|2H|9E|9M|9H DEPTH OUTPUT | --audit RUN VERIFIER | --check-mutants RUN NEW_OUTPUT VERIFIER".into()),
+        _ => return Err("usage: choreofix-experiments 1E|1M|2E|2M|2H|9E|9M|9H DEPTH OUTPUT | --audit RUN VERIFIER | --check-mutants RUN NEW_OUTPUT VERIFIER".into()),
     }
     Ok(())
 }

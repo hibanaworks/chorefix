@@ -293,6 +293,8 @@ pub fn run(root: &Path, verifier: &Path) -> Result<Value> {
     for actor in fixture["fixtures"].as_array().ok_or("fixture actors")? {
         let field = if task.starts_with('9') {
             "forks"
+        } else if task.starts_with('1') {
+            "modules"
         } else {
             "sections"
         };

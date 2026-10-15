@@ -1,6 +1,6 @@
 # ChoreoFix 作業計画
 
-最終更新: 2026-10-15。作業先はこのディレクトリ、リモートは
+最終更新: 2026-10-16。作業先はこのディレクトリ、リモートは
 `git@github.com:hibanaworks/chorefix.git`。途中の実装を完成扱いしない。
 
 ## 目的と変更しない条件
@@ -768,3 +768,35 @@ reviewは元課題どおり終端で、余分なretryを加えない。続いて
   保ち、Lunaへの入出力・記録だけをadapterにする。既存の設計試行は開発資料として保つ。
   新規実験toolはRustを基本とし、Pythonは必要な元simulator/元baselineの接続に限る。
   紙面推敲は再開せず、全要件受理0、採点比較0/2592を維持して残りを進める。
+
+## 2026-10-16: codebase 1E/1Mの実WASI接続
+
+- 前turnは進捗あり。哲学者3/5/7人とwriting更新後5人の実Luna試行・独立監査をpush済み。
+  今回はcodebaseの残る直接接続へ進む。過去の部品試験を新経路の証拠へ流用しない。
+- codebase/choreofsの同じglobal/session20にWASI caller、service owner、物理module、
+  private I/Oを置いた。design→implement→両module取得→commit→両返却→testを記述。
+  両Acquireを発行後にgrantを待ち、両Returnを発行後にackを待つ。1MのA/C、B/Dはpar。
+  1Eの3組は全pairが資源を共有するためcommitは最大1、1Mは最大2。準備とtestは独立。
+- localsideに4つの受付寿命とEndpoint操作を直接書いた。不正な要求の再提出は
+  route/resolver/roll。phase enum、進行flag、owner表、別graphへのrelayは追加しない。
+  既存native側もglobalの両Acquireをparへし、localsideの逐次grant待ちを除去した。
+- 1E/1Mでは元simulatorがtestの障害注入を無効にし、失敗結果も終端としている。
+  新経路でも勝手にretryへ変えない。別の負例として既存FailureSpecで終端test失敗を設定し、
+  protocol完了と元simulatorの成果物完了を分けて検証する。1Hの再考経路はまだ接続していない。
+- Rustのcodebase-boundaryが元simulatorへ接続する。早期/重複操作、対象違い、第三の重複module、
+  chunked write、私有計算、両grant/返却、実closeと効果/返答、frame保存と改変拒否を調べる。
+  AのtestをBのcommit完了まで待たせ、返却後に別developerが進めることも検証する。
+- 元checklistのRAは「逐次取得」という手順を含む。資源独占と両grant後のcommitを維持し、
+  取得方法だけを並行へ変える。元資料とbaselineは変更せず、この差を採点前に記録する。
+- Python43件と元48課題/825checklist、baseline runtimeのbyte一致が成功。
+  Rust model runnerは1E/1Mへ対応し、4件の単体試験とClippy成功。実行用Rust buildは進行中。
+  境界試験・独立監査・新buildの固定・Luna試行はこれから。全要件受理/採点数は増やさない。
+
+- 実行用buildは10分22秒で成功し、全Rust27件とstrict Clippyが成功。
+  新しい実行ファイルを使ったPython43件と原資料/比較実装のinventoryも再確認した。
+- 実WASI 1E/1Mは元simulatorの12/20操作が完了、実commit並行数1/2、資源違反0。
+  AのtestがBのcommitを待つ刺激でも終了し、test中に共有moduleを保持しない。
+  各7種、計14改変を監査が拒否し、取得を逐次化したコピーも全frameを保ったまま拒否。
+- 1E/1Mの終端test失敗の別試験も成功。どちらもprotocolは完了する一方、
+  元simulatorのcompleteはfalseのまま、各人のdomain操作は4回でretryなし。
+  正常試験や将来の比較成功率へ混ぜず、元の失敗条件を保持した資料として保存する。
