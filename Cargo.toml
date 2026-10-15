@@ -17,4 +17,4 @@ unsafe_code = "forbid"
 
 [patch.crates-io]
 # Keep the published 0.9.9 API while selecting its verified core repairs.
-hibana = { git = "https://github.com/hibanaworks/hibana", rev = "c2001ec06944d7f3b299e16b5b3efb5b0ba0366a" }
+hibana = { git = "https://github.com/hibanaworks/hibana", rev = "0a296df98be6664f07e426c086ffbb9486be7c71" }

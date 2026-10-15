@@ -17,22 +17,6 @@ pub(crate) trait LoanMessages {
     type Return: Message<Payload = ()>;
     type Returned: Message<Payload = ()>;
 }
-pub(crate) struct First;
-pub(crate) struct Second;
-impl LoanMessages for First {
-    type Acquire = resource::AcquireFirst;
-    type Closed = resource::ClosedFirst;
-    type Granted = resource::GrantedFirst;
-    type Return = resource::ReturnFirst;
-    type Returned = resource::ReturnedFirst;
-}
-impl LoanMessages for Second {
-    type Acquire = resource::AcquireSecond;
-    type Closed = resource::ClosedSecond;
-    type Granted = resource::GrantedSecond;
-    type Return = resource::ReturnSecond;
-    type Returned = resource::ReturnedSecond;
-}
 
 pub(crate) async fn resource(endpoint: &mut Endpoint<'_, 1>) -> Result<(), RunError<String>> {
     loop {

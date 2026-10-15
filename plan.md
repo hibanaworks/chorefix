@@ -884,3 +884,80 @@ reviewは元課題どおり終端で、余分なretryを加えない。続いて
   正確な早期read指標は別のtiming auditへ記録。各試行でopen2件中1件がtest結果前。
   成功率や性能比較の結論にはしない。CI50ce492はまだ実行中で、新しい監査修正も
   この後pushして確認する。残るfamily、native1H、比較runnerを継続する。
+
+## 2026-10-16: 並行反復の本体修正と1Hの単一global化
+
+- c70615fのCI38783793350は成功。過去の逐次手順に合わせる直列化は維持しない。
+  両取得要求をgrant待ちより先に出し、独立したモデル処理・許可後のdomain処理も
+  asyncで進める。parの宣言と実timestampの重なりを別々に確認する。
+- 1H向け3人・3資源の縮小fixtureで、本体のofferが反復後の通常受信を古い後続routeの
+  evidenceとして取る不具合を確認。resolverや後続tailを外しても再現し、現remote main
+  f1c4dd4と固定c2001ecの両方で失敗した。アプリの受信順固定で回避しない。
+- 本体は既存checkoutを触らずfix/parallel-reentry-offerで修正中。候補生成時とI/O直前に
+  投影済み受信の有効性を確認する。別laneのcommitでcacheが古くなる実例も追加した。
+  ordinary_parallelの回帰2件は修正後成功し、I/O直前の検査だけを外すと追加回帰が失敗。
+  公開API・状態field・wire形式を増やさず、通常frameをofferが消費しない。
+- 同じ修正を選んだ3人fixtureは再考回数3/1/2で全員終了した。これは7人の1Hや実WASIの
+  受理には数えない。次は物理資源ownerを同じglobalに置き、両要求を先行させたまま
+  資源順のgrantで循環待ちを防ぐ。進行flag・owner表・別sessionのbrokerを追加しない。
+- 現修正sourceのworkspace Rust/Clippy/no_std/thumb、Lean全体と関連Z3補題、strict Miriを
+  実行中。修正coreを実選択したQUICの44interopは未実施。前のc200の合格を流用しない。
+  coreworktreeは/tmp/choreofix-current-core-worktree、検査logは
+  /tmp/choreofix-core-parallel-offer-*.log。Rust session2288、proof55931、Miri3548。
+- 論文推敲は保留し、全要件受理0、採点比較0/2592を維持。baselineは変更しない。
+
+- 本体修正は0a296df98be6664f07e426c086ffbb9486be7c71としてPR8の既存branchへpush。
+  workspace Rust885成功/12ignored、Clippy/no_std/thumb、Lean全体、関連Z3、Kani9、
+  strict Miri37、size/layoutが成功。Miriが別途見つけたinline Rxのrequeue借用違反も
+  同commitで修正した。raw失敗/修正後logとpatchはparallel-offer-reentry-20261016へ保存。
+  初回workspaceのCI fixture2失敗は残し、fixture無変更の全体serial再実行は成功。
+- 1Hのnative初版は14役・1global/sessionへ変更し、旧別session brokerと結果relayを除去。
+  7人の再考2回、早期test拒否、model待ち中の解放、test中の他者commit、終了順が違う
+  再考、独立A/C/Eの3commit同時開始を含む10試験が成功（local candidate使用）。
+  両Acquire要求をgrant待ちより先に出し、grantの資源順はglobalのhandoffで表す。
+  戻しは両Return後にackを待つ。7物理ownerのEndpoint操作はlocalsideへ直接記述した。
+- 現sourceは公開済み0a296dfをGit pinにし、観測専用の排他検査も強化して再build中。
+  cargo session3246（/tmp/choreofix-native-loans-test-final.log → clippy.log）。この再build、
+  root全体試験、既存実WASI境界の回帰、新1Hの実WASI接続はまだ未完了。
+  results/qualified-direct-wasi-build.jsonは旧build用のまま保存し、新binaryの認定へ流用しない。
+- QUICは元のdirty checkoutを触らず新cloneで9951c60へ更新し、既存PR1へpush。
+  新しい復号鍵のencrypt/decrypt一致を先に確認し、公開診断証明書だけを設定した。
+  44-cell CI38792896985はplan成功・pilot実行中。workflow headはmainのd9a271eだが、
+  実検証source_refは9951c60、coreは0a296df。local default/hqはsession93073。
+  Linux専用診断を含むCI Python全82件はmacOSでは失敗したが、pin境界4件とsource auditは
+  成功。CIのplanはLinuxで全82件を検査して成功した。試験を削った成功扱いにはしない。
+  clone/key/revisionの場所は/tmp/choreofix-current-quic-{checkout,keydir,revision}。
+  coreの新CIは38792655226/38792648214が実行中。旧CI結果は新sourceの合格へ数えない。
+
+### 1H案の追加監査: globalの排他が不足している
+
+- native10試験の成功は、記述したlocalsideが同時貸出をしない実装の証拠であり、global自体の
+  排他の証拠ではなかった。これを区別せず本実験へ採用してはならない。
+- output/ordered-loans-20261016/ownership_probe.rsで実Endpointを別順に駆動したところ、
+  同じAUTHを使うA/Gへ、返却前に両方のGrantedFirstを送れ、両Commitも許された。
+  /tmp/choreofix-ownership-probe.logはsecond_conflicting_grant_allowed=true、
+  both_conflicting_commits_allowed=true。手書きownerの貸出寿命だけに依存していた。
+  これはg::parが許す独立性に整合するため本体の誤動作ではなく、このアプリglobalの不足。
+- この1H案は未採用・未pushの開発途中とする。実WASI/modelへ展開しない。
+  独立A/C/Eの3並行、両要求先行、model待ち/test中の資源解放を維持しつつ、競合grantを
+  localsideの受信順やowner表に頼らずglobalで禁止する形が次の課題。
+  単にparをseqへ置き換えたり、別graph・進行flag・状態機械へ逃がしてはいけない。
+- negative probeはlocal候補を選んだ初版の開発binaryへ実リンクしたもの。Cargo.tomlを
+  公開済み0a296dfへpinした現sourceの再buildは進行中。完了後に同じnegativeを再検査し、
+  global修正前後の証拠を保持する。現段階でglobal-onlyの排他やfull-fidelityを主張しない。
+
+- 現Git pin 0a296dfの再buildも終了し、native10試験/Clippyが成功。compileは10m57s。
+  排他観測を追加した試験も成功したが、global自体を確認する別probeも現buildへリンクし、
+  同じ二重grant/競合commit許可を再確認した。結果は
+  /tmp/choreofix-ownership-probe-final.log、sourceは
+  output/ordered-loans-20261016/ownership_probe_qualified_core.rs。
+  合格試験だけで排他保証を宣言せず、この不足の修正を継続する。
+- 新coreでQUIC localは569 unit/integration +24 doc=593成功、hq574+24=598成功。
+  CI38792896985はrecovery群が失敗したため、artifactとjob logを取得中。
+  shell session31308が失敗群artifact download、30549がjob logs API。
+  診断証明書に対応するprivate keyはrepository外へ保持してあり、復号して原因を確認する。
+  他群は実行中。全44件成功とはまだ報告しない。本体CIのKani jobは成功、final-formは実行中。
+
+- 開発途中の1H sourceとcounterexampleはexperiment/parallel-resource-ownershipへ保存する。
+  mainの完了実装として扱わず、次のglobal修正の出発点にする。独立3並行を捨てる解決や
+  localsideだけで排他を守る解決は受理しない。probeは現Git pinでも両競合commitを許す。

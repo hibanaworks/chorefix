@@ -12,8 +12,6 @@ pub type AcquireSecond = g::Msg<20, ()>;
 pub type GrantedSecond = g::Msg<21, ()>;
 pub type ReturnSecond = g::Msg<22, ()>;
 pub type ReturnedSecond = g::Msg<23, ()>;
-pub type ClosedFirst = g::Msg<30, ()>;
-pub type ClosedSecond = g::Msg<31, ()>;
 
 pub type Request = g::Msg<1, ()>;
 pub type Granted = g::Msg<2, ()>;

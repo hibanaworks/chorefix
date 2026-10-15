@@ -1,0 +1,60 @@
+#[path="../../src/imp/transport.rs"]
+mod transport;
+use choreofix::tasks::codebase::global::{self, reconsider::{a,g_messages as g}};
+use hibana::runtime::{SessionKitStorage,ids::SessionId,resolver::{DecisionArm,ResolverError,ResolverRef}};
+fn arm(value:&DecisionArm)->Result<DecisionArm,ResolverError>{Ok(*value)}
+fn main(){
+ tokio::runtime::Builder::new_current_thread().build().unwrap().block_on(async {
+ let p=global::project_1h();
+ let right=DecisionArm::Right;
+ let mut slab=vec![0;512*1024];
+ let mut storage=SessionKitStorage::uninit();
+ let kit=storage.init();
+ let rv=kit.rendezvous(&mut slab,transport::InMemoryTransport::new()).unwrap();
+ rv.set_resolver(&p.a,ResolverRef::<{global::TEST_A}>::decision_state(&right,arm)).unwrap();
+ rv.set_resolver(&p.g,ResolverRef::<{global::TEST_G}>::decision_state(&right,arm)).unwrap();
+ let session=SessionId::new(46);
+ let mut dev_a=rv.enter(session,&p.a).unwrap();
+ let mut dev_g=rv.enter(session,&p.g).unwrap();
+ let mut auth=rv.enter(session,&p.auth).unwrap();
+ let mut database=rv.enter(session,&p.database).unwrap();
+ let mut search=rv.enter(session,&p.search).unwrap();
+ dev_a.send::<global::Design>(&()).await.unwrap();
+ dev_a.send::<a::ContactSecond>(&()).await.unwrap();
+ dev_a.send::<global::Implement>(&()).await.unwrap();
+ dev_a.send::<a::AcquireFirst>(&()).await.unwrap();
+ dev_g.send::<global::Design>(&()).await.unwrap();
+ dev_g.send::<g::ContactSecond>(&()).await.unwrap();
+ dev_g.send::<global::Implement>(&()).await.unwrap();
+ dev_g.send::<g::AcquireFirst>(&()).await.unwrap();
+ auth.recv::<a::AcquireFirst>().await.unwrap();
+ auth.send::<a::Handoff>(&()).await.unwrap();
+ database.recv::<a::Handoff>().await.unwrap();
+ database.send::<a::SecondReady>(&()).await.unwrap();
+ auth.recv::<a::SecondReady>().await.unwrap();
+ auth.send::<a::GrantedFirst>(&()).await.unwrap();
+ auth.recv::<g::AcquireFirst>().await.unwrap();
+ auth.send::<g::Handoff>(&()).await.unwrap();
+ search.recv::<g::Handoff>().await.unwrap();
+ search.send::<g::SecondReady>(&()).await.unwrap();
+ auth.recv::<g::SecondReady>().await.unwrap();
+ let second_grant=auth.send::<g::GrantedFirst>(&()).await;
+ println!("second_conflicting_grant_allowed={}",second_grant.is_ok());
+ second_grant.unwrap();
+ dev_a.recv::<a::GrantedFirst>().await.unwrap();
+ dev_g.recv::<g::GrantedFirst>().await.unwrap();
+ dev_a.send::<a::ConfirmSecond>(&()).await.unwrap();
+ dev_g.send::<g::ConfirmSecond>(&()).await.unwrap();
+ database.recv::<a::ContactSecond>().await.unwrap();
+ database.recv::<a::ConfirmSecond>().await.unwrap();
+ database.send::<a::GrantedSecond>(&()).await.unwrap();
+ search.recv::<g::ContactSecond>().await.unwrap();
+ search.recv::<g::ConfirmSecond>().await.unwrap();
+ search.send::<g::GrantedSecond>(&()).await.unwrap();
+ dev_a.recv::<a::GrantedSecond>().await.unwrap();
+ dev_g.recv::<g::GrantedSecond>().await.unwrap();
+ let first=dev_a.send::<global::Commit>(&()).await;
+ let second=dev_g.send::<global::Commit>(&()).await;
+ println!("both_conflicting_commits_allowed={}",first.is_ok()&&second.is_ok());
+ });
+}

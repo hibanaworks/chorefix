@@ -1,5 +1,6 @@
 //! Dispatch actual requests; the projected endpoint decides which can progress.
 use super::super::{
+    global::reconsider::Messages,
     global::*,
     imp::{Domain, Operation, Request, TestInput, decide, response},
 };
@@ -7,7 +8,7 @@ use crate::{RunError, resource::global::*};
 use hibana::{Endpoint, runtime::resolver::DecisionArm};
 
 /// 1H retries follow the declared resolver and rolled choice.
-pub(crate) async fn run<const ROLE: u8, D: Domain>(
+pub(crate) async fn run<const ROLE: u8, D: Domain, M: Messages>(
     agent: &'static str,
     endpoint: &mut Endpoint<'_, ROLE>,
     domain: &D,
@@ -24,9 +25,9 @@ pub(crate) async fn run<const ROLE: u8, D: Domain>(
                     .await
                     .map_err(RunError::Domain)?;
                 input.record(response(operation, result)?);
-                endpoint.send::<Attempt>(&()).await?;
             }
             Operation::Implement => {
+                endpoint.send::<M::AcquireSecond>(&()).await?;
                 endpoint.send::<Implement>(&()).await?;
                 let result = domain
                     .execute(agent, call)
@@ -35,20 +36,20 @@ pub(crate) async fn run<const ROLE: u8, D: Domain>(
                 response(operation, result)?;
             }
             Operation::Commit => {
-                endpoint.send::<AcquireFirst>(&()).await?;
-                endpoint.send::<AcquireSecond>(&()).await?;
-                endpoint.recv::<GrantedFirst>().await?;
-                endpoint.recv::<GrantedSecond>().await?;
+                endpoint.send::<M::AcquireFirst>(&()).await?;
+                endpoint.recv::<M::GrantedFirst>().await?;
+                endpoint.send::<M::ConfirmSecond>(&()).await?;
+                endpoint.recv::<M::GrantedSecond>().await?;
                 endpoint.send::<Commit>(&()).await?;
                 let result = domain
                     .execute(agent, call)
                     .await
                     .map_err(RunError::Domain)?;
                 response(operation, result)?;
-                endpoint.send::<ReturnSecond>(&()).await?;
-                endpoint.send::<ReturnFirst>(&()).await?;
-                endpoint.recv::<ReturnedSecond>().await?;
-                endpoint.recv::<ReturnedFirst>().await?;
+                endpoint.send::<M::ReturnSecond>(&()).await?;
+                endpoint.send::<M::ReturnFirst>(&()).await?;
+                endpoint.recv::<M::ReturnedSecond>().await?;
+                endpoint.recv::<M::ReturnedFirst>().await?;
             }
             Operation::Test => {
                 endpoint.send::<Test>(&()).await?;
@@ -61,13 +62,19 @@ pub(crate) async fn run<const ROLE: u8, D: Domain>(
                 // Endpoint independently checks it before either send commits.
                 match decide(input).map_err(RunError::Resolver)? {
                     DecisionArm::Left => {
-                        endpoint.send::<Passed>(&()).await?;
-                        endpoint.send::<ClosedFirst>(&()).await?;
-                        endpoint.send::<ClosedSecond>(&()).await?;
-                        endpoint.send::<Finished>(&()).await?;
+                        endpoint.send::<M::AcquireSecond>(&()).await?;
+                        endpoint.send::<M::CloseFirst>(&()).await?;
+                        endpoint.recv::<M::ClosePrimed>().await?;
+                        endpoint.send::<M::CloseFirstRequest>(&()).await?;
+                        endpoint.send::<M::CloseSecondRequest>(&()).await?;
+                        endpoint.recv::<M::ClosedFirst>().await?;
+                        endpoint.recv::<M::ClosedSecond>().await?;
+                        endpoint.send::<M::DoneFirst>(&()).await?;
+                        endpoint.send::<M::DoneSecond>(&()).await?;
+                        endpoint.send::<M::Finished>(&()).await?;
                         return Ok(());
                     }
-                    DecisionArm::Right => endpoint.send::<Attempt>(&()).await?,
+                    DecisionArm::Right => {}
                 }
             }
         }

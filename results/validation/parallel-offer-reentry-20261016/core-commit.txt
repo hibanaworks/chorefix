@@ -1,0 +1,19 @@
+commit 0a296df98be6664f07e426c086ffbb9486be7c71
+Author:     Hayato Ohhashi <o8@vmm.dev>
+AuthorDate: Fri Oct 16 04:17:07 2026 +0900
+Commit:     Hayato Ohhashi <o8@vmm.dev>
+CommitDate: Fri Oct 16 04:17:07 2026 +0900
+
+    Keep ordinary input separate from parallel offer reentry
+    
+    Check projected receive dependencies before polling cached passive offers, including candidates invalidated by another lane. Keep staged payload pointers unborrowed during requeue so cancelling a preview can safely return an inline Rx frame.
+
+ .github/scripts/check_miri.sh                      |   6 +
+ proofs/parallel-offer-ingress/README.md            |  50 +++++++
+ src/endpoint/kernel/core/offer_refresh.rs          |  44 ++++++
+ src/endpoint/kernel/offer/ingress.rs               |   7 +
+ src/rendezvous/port/recv_frame.rs                  |  26 +++-
+ tests/shared_query_tail_reentry.rs                 |   3 +
+ .../shared_query_tail_reentry/ordinary_parallel.rs | 161 +++++++++++++++++++++
+ .../shared_query_tail_reentry/static_controller.rs | 130 +++++++++--------
+ 8 files changed, 360 insertions(+), 67 deletions(-)

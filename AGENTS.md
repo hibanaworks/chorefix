@@ -84,6 +84,16 @@ Run independent model participants and already-admitted domain operations as
 concurrent async tasks too. A shared stdout reader must keep reading while an
 independent simulator operation awaits I/O. Measure observed overlap from raw
 timestamps; declared `par` nodes alone are not evidence of concurrent execution.
+Do not retain a serial localside merely to match an older experimental recipe.
+Start independent work before awaiting its results and join only where the
+global requires both. Keep overlapping participant calls and admitted effects
+visible in the persisted evidence. Treat resource conflicts and data dependencies
+separately from historical procedural order when documenting fidelity.
+One physical owner Endpoint alone does not prove exclusive grants: independent
+`par` branches can permit several loans. Test the global by driving other legal
+Endpoint interleavings as well as the intended localside. Do not qualify a port
+when exclusion depends only on waiting for a return before calling `offer` again.
+Keep failed global-authority audits explicit and out of scored experiments.
 
 ## Shell, WASI, and ChoreoFS boundary
 

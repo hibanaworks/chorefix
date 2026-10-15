@@ -348,3 +348,101 @@ async fn waiting_for_a_model_commit_request_does_not_hold_its_modules() {
         .unwrap();
     assert_eq!(input.input.events.borrow().len(), 28);
 }
+
+#[tokio::test(flavor = "current_thread")]
+async fn seven_role_protocol_runs_three_disjoint_commits_concurrently() {
+    struct Concurrent {
+        input: Input,
+        commits: tokio::sync::Barrier,
+        observations: RefCell<Vec<(&'static str, &'static str)>>,
+    }
+    impl Domain for Concurrent {
+        type Call = Call;
+        async fn request(&self, agent: &'static str) -> Result<Call, String> {
+            self.input.request(agent).await
+        }
+        async fn execute(&self, agent: &'static str, call: Call) -> Result<Value, String> {
+            if call.operation == Operation::Commit {
+                self.observations.borrow_mut().push((agent, "begin"));
+            }
+            if call.operation == Operation::Commit
+                && matches!(agent, "DEVELOPER_A" | "DEVELOPER_C" | "DEVELOPER_E")
+            {
+                // Test fixture only. All three actual domain futures must enter
+                // before any can finish. Serial execution stalls this test.
+                self.commits.wait().await;
+            }
+            if call.operation == Operation::Commit {
+                tokio::task::yield_now().await;
+                self.observations.borrow_mut().push((agent, "end"));
+            }
+            self.input.execute(agent, call).await
+        }
+    }
+    let domain = Concurrent {
+        input: Input::failures_then_pass(0),
+        commits: tokio::sync::Barrier::new(3),
+        observations: RefCell::default(),
+    };
+    tokio::time::timeout(std::time::Duration::from_secs(5), codebase::run_1h(&domain))
+        .await
+        .expect("three disjoint commits did not run concurrently")
+        .unwrap();
+    assert_eq!(domain.input.events.borrow().len(), 28);
+    assert!(domain.input.calls.borrow().values().all(VecDeque::is_empty));
+    // Offline observation only. This set never authorizes a domain operation.
+    let pairs = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5), (5, 6), (0, 6)];
+    let mut active = std::collections::BTreeSet::new();
+    let mut peak = 0;
+    for &(agent, event) in domain.observations.borrow().iter() {
+        let role = (agent.as_bytes().last().unwrap() - b'A') as usize;
+        match event {
+            "begin" => {
+                let (first, second) = pairs[role];
+                for &other in &active {
+                    let (left, right) = pairs[other];
+                    assert!(first != left && first != right && second != left && second != right);
+                }
+                assert!(active.insert(role));
+                peak = peak.max(active.len());
+            }
+            "end" => assert!(active.remove(&role)),
+            _ => panic!("unexpected domain observation"),
+        }
+    }
+    assert!(active.is_empty());
+    assert_eq!(peak, 3);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn early_finished_developers_do_not_stop_remaining_reconsideration() {
+    let input = Input::failures_then_pass(3);
+    let failures = [0, 2, 1, 3, 0, 2, 1];
+    for (role, count) in "ABCDEFG".chars().zip(failures) {
+        let mut all = input.calls.borrow_mut();
+        let calls = all.get_mut(&format!("DEVELOPER_{role}")).unwrap();
+        for _ in 0..(3 - count) * 3 {
+            calls.remove(1).unwrap();
+        }
+    }
+    tokio::time::timeout(std::time::Duration::from_secs(5), codebase::run_1h(&input))
+        .await
+        .expect("remaining developers stalled after an independent owner finished")
+        .unwrap();
+    let events = input.events.borrow();
+    assert_eq!(events.len(), 28 + 3 * failures.iter().sum::<usize>());
+    for (role, count) in "ABCDEFG".chars().zip(failures) {
+        let tests: Vec<_> = events
+            .iter()
+            .filter(|event| event.0 == format!("DEVELOPER_{role}") && event.1 == Operation::Test)
+            .collect();
+        assert_eq!(tests.len(), count + 1);
+        assert!(
+            tests[..count]
+                .iter()
+                .all(|event| event.2["success"] == false)
+        );
+        assert_eq!(tests.last().unwrap().2["success"], true);
+    }
+    assert!(input.calls.borrow().values().all(VecDeque::is_empty));
+}
