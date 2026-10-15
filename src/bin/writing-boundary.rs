@@ -230,6 +230,10 @@ fn audit(path: &Path) -> Result<Value> {
         .collect::<Result<Vec<_>>>()?;
     let fixture = &records.first().ok_or("empty evidence")?["message"];
     let actors = fixture["fixtures"].as_array().ok_or("fixtures")?;
+    let model_run = fixture["model_run"] == true;
+    if model_run && fixture["test_delays"] != json!({}) {
+        return Err("model trial contains artificial concurrency delays".into());
+    }
     let terminal_review_failure = fixture["terminal_review_failure"]
         .as_bool()
         .ok_or("terminal failure scenario")?;
@@ -578,12 +582,15 @@ fn audit(path: &Path) -> Result<Value> {
         || score["complete"] != !terminal_review_failure
         || score["violations"] != json!([])
         || score["events"].as_array().ok_or("sim events")?.len() != 4 * actors.len()
-        || maximum_writes != expected_parallel
+        || maximum_writes == 0
+        || maximum_writes > expected_parallel
+        || (!model_run && maximum_writes != expected_parallel)
     {
         return Err("incomplete boundary evidence".into());
     }
     Ok(
-        json!({"task":fixture["task"], "kind":"deterministic_direct_wasi_boundary", "model_calls":0,
+        json!({"task":fixture["task"], "kind":if model_run { "model_direct_wasi_protocol" } else { "deterministic_direct_wasi_boundary" },
+        "model_calls":if model_run { Value::Null } else { json!(0) },
         "scored_benchmark":false, "status":"passed", "participants":actors.len(), "domain_calls":4 * actors.len(),
         "carrier_frames":frames.len(), "max_disjoint_writes":maximum_writes, "simulator_complete":score["complete"],
         "expected_terminal_review_failure":terminal_review_failure,

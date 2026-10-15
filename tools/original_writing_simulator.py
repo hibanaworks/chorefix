@@ -23,9 +23,14 @@ async def main():
     task = sys.argv[1]
     module = importlib.import_module(f"benchmark.environments.{task}.sim")
     sim = module.ResearchPaperSim()
-    sim._seed = 0
-    sim._delay_multiplier = 0.01
-    sim.set_scenario_depth(2)
+    model_run = len(sys.argv) == 4 and sys.argv[2] == "model"
+    config = json.loads(Path("experiment.json").read_text())
+    depth = int(sys.argv[3]) if model_run else 2
+    if depth not in (0, 1, 2):
+        raise ValueError("invalid scenario depth")
+    sim._seed = config["python_hash_seed"]
+    sim._delay_multiplier = config["domain_tool_delay_multiplier"] if model_run else 0.01
+    sim.set_scenario_depth(depth)
     terminal_review_failure = sys.argv[2:] == ["terminal-review-failure"]
     if terminal_review_failure:
         sim._failure_specs.append(FailureSpec(tool_name="review_own_work", call_index=0))
@@ -46,21 +51,21 @@ async def main():
         first_writers.add("RESEARCHER_C")
     if task == "2H":
         first_writers.add("RESEARCHER_E")
-    emit({"type": "fixtures", "task": task, "fixtures": fixtures,
-          "test_delays": {"first_write_barrier": sorted(first_writers), "a_review_waits_for_b_write": True},
-          "delay_multiplier": 0.01, "depth": 2, "seed": 0,
+    emit({"type": "fixtures", "task": task, "fixtures": fixtures, "model_run": model_run,
+          "test_delays": {} if model_run else {"first_write_barrier": sorted(first_writers), "a_review_waits_for_b_write": True},
+          "delay_multiplier": sim._delay_multiplier, "depth": depth, "seed": sim._seed,
           "terminal_review_failure": terminal_review_failure})
     arrived = set()
     barrier, b_written = asyncio.Event(), asyncio.Event()
 
     async def execute(call):
         start = time.monotonic_ns()
-        if call["tool"] == "write_to_document" and call["agent"] in first_writers:
+        if not model_run and call["tool"] == "write_to_document" and call["agent"] in first_writers:
             arrived.add(call["agent"])
             if arrived == first_writers:
                 barrier.set()
             await barrier.wait()
-        if call["tool"] == "review_own_work" and call["agent"] == "RESEARCHER_A":
+        if not model_run and call["tool"] == "review_own_work" and call["agent"] == "RESEARCHER_A":
             await b_written.wait()
         result = await registry.call(call["tool"], agent_id=call["agent"], **call["arguments"])
         if call["tool"] == "write_to_document" and call["agent"] == "RESEARCHER_B":

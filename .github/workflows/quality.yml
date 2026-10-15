@@ -7,7 +7,10 @@ permissions:
 jobs:
   boundary:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
+    env:
+      CARGO_INCREMENTAL: '0'
+      CARGO_BUILD_JOBS: '2'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -28,6 +31,9 @@ jobs:
       - name: Check projected task implementations
         run: |
           cargo +1.95.0 fmt --check
+          cargo +1.95.0 fmt --manifest-path tools/runner/Cargo.toml --check
+          cargo +1.95.0 test --locked --manifest-path tools/runner/Cargo.toml
+          cargo +1.95.0 clippy --locked --manifest-path tools/runner/Cargo.toml --all-targets -- -D warnings
           cargo +1.95.0 fmt --manifest-path guests/shell/Cargo.toml --check
           cargo +1.95.0 fmt --manifest-path vendor/hibana-wash/Cargo.toml --check
           cargo +1.95.0 test --locked --manifest-path vendor/hibana-wash/Cargo.toml --lib
@@ -45,6 +51,7 @@ jobs:
           cargo +1.95.0 run --locked --bin writing-boundary -- 2H writing-boundary-2H
           cargo +1.95.0 run --locked --bin writing-boundary -- --check-mutants writing-boundary-2H/events.jsonl writing-boundary-2H-mutants
           cargo +1.95.0 run --locked --bin writing-boundary -- 2E:terminal-review-failure writing-boundary-terminal-review-failure
+          CHOREOFIX_WRITING_RUNTIME="$PWD/target/debug/writing-wasi" cargo +1.95.0 test --locked --manifest-path tools/runner/Cargo.toml original_simulator_overlaps -- --ignored --nocapture
           .venv/bin/python -m py_compile tools/run_direct_wasi_preflight.py tools/audit_direct_wasi.py
           PYTHONPATH=. .venv/bin/pytest -q tests
           .venv/bin/python tools/inventory.py --check
@@ -60,5 +67,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: writing-boundary
-          path: writing-boundary-*/
+          path: |
+            writing-boundary-*/
+            output/writing-rust-runner-probe*/
           if-no-files-found: ignore

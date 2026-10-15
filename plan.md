@@ -635,3 +635,26 @@ reviewは元課題どおり終端で、余分なretryを加えない。続いて
   開発中の失敗をwriting-direct-wasi-20261015に保存。完全archiveはoutputに保持する。
   source archiveは作業treeのコードを固定したもの。全課題受理0、採点比較0/2592は変えない。
   次はこの接続のLuna試験と残るfamily、baseline corpus、全課題の条件分類を進める。
+
+## 2026-10-16: Rustの実モデルrunnerと実並行性
+
+- 新規の実験runnerと独立監査をtools/runnerへRustで実装。root libを依存にせず、
+  実験用の変更のたびに7人globalのconst投影を再コンパイルしない。taskのEndpoint操作は
+  既存のglobal/localsideに置いたまま。host側はmodel/stdio RPCの相関と観測だけを扱う。
+- Tokio current-threadで全Luna参加者、実guestのstdout、元simulatorの独立effectを
+  同時にpollする。modelの待機が別guestやdomain effectの読取りを止めない。
+  全実行をgpt-6-luna/xhighへ固定し、実応答とnative tool禁止を検査する。
+- 元simulatorの必須Python adapterだけにモデル用設定を追加。seed/depth/delayは
+  experiment.jsonに合わせ、並行性確認用barrierは実モデル試験には入れない。
+  元TraceFix、baseline、元inputは変更しない。決定的試験は既存barrierを維持する。
+- Rustの3接続試験が成功。誤ったmodelとnative toolを拒否し、実wireのtool応答と
+  inclusive usageを確認。別に実WASI/元simulatorの5人試験を明示実行して成功。
+  人工barrierなし、元delay倍率1.0でwriteの実並行数2。これは固定入力、model_calls=0。
+- 新監査は保存source/実binary、要求/実返答modelとeffort、raw turn重複、usage、
+  実guestと同一のcommand/response、全モデルturnの重複区間、元simulator/frame監査を
+  検査する。改変コピーの外側hashも再計算して拒否を確認する機能を用意した。
+  これから実Luna 2E/M/Hを実行し、独立監査と改変試験を通して保存する。
+- 4096a2aのCI38753129971はRust検証を18分33秒で通過後、WASI build中に20分上限で
+  cancelされた。annotationが明示する実行時間超過であり、本体の失敗とは扱わない。
+  検査を削らず45分へ変更し、Rust runnerのfmt/test/Clippyと明示integrationを追加。
+  Python43件と旧2H/終端失敗ログの再監査も成功。採点済み0/2592、全要件受理0を維持。

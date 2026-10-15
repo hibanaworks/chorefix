@@ -13,3 +13,4 @@ __pycache__/
 /guests/shell/target/
 /guests/bash/target/
 /vendor/rust-bash/
+/tools/runner/target/

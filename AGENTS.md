@@ -80,6 +80,10 @@ outcome, participants, resource constraints and necessary data dependencies;
 improve the coordination procedure using Hibana rather than copying legacy
 control flow. Keep baselines unchanged and record procedural differences before
 scored runs, including departure from sequential-acquisition checklist text.
+Run independent model participants and already-admitted domain operations as
+concurrent async tasks too. A shared stdout reader must keep reading while an
+independent simulator operation awaits I/O. Measure observed overlap from raw
+timestamps; declared `par` nodes alone are not evidence of concurrent execution.
 
 ## Shell, WASI, and ChoreoFS boundary
 
