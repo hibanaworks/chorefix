@@ -83,7 +83,7 @@ ChoreoFSのパス/fd/rightsの事実だけでタスク効果を許可しない�
   ログは`output/direct-wasi-pytest-004/`。固定コマンドによる境界試験であり、
   モデルの自由度や比較成功率を検証したものではない。
 - fmtと`cargo +1.95.0 clippy --locked --all-targets -- -D warnings`は通った。
-  Rust全28試験とPythonの自repo全27試験も通った。
+  Rust全28試験とPythonの自repo全28試験も通った。
   pytestの探索先は`tests/`へ固定し、2つの未変更upstreamや調査用cloneを
   自repoの試験と混在させない。upstream試験はそれぞれを明示して別途実行する。
   この新しい経路のLuna試行、汎用シェル、全48課題の受理はまだ完了していない。
@@ -102,6 +102,17 @@ ChoreoFSのパス/fd/rightsの事実だけでタスク効果を許可しない�
   このコードは`too many core wasm function types`に対応する。simulator効果は0。
   容量調査であり、モデル実験や採点済み実行には数えない。
   原ログは`output/bash-guest-probe-001/`、宣言値は`output/bash-guest-profile.json`。
+- `a1ece11608ae19c8f548bac52f15b531236f1f80`のCIで、タスク拒否後に
+  別のmodelからRPCが届くと、閉じたログへの書き込みエラーで元の拒否を隠す競合が出た。
+  実際の終了verdictを送信境界で保持し、RPC Futureの回収を修正した。
+  意図的にlogger/stream終了後へ送信する回帰試験を加え、Python全28件が通った。
+  これはRPCの寿命処理であり、タスク進行や許可をPythonへ移す変更ではない。
+- runtimeの更新は既存コピーを触らず
+  `output/upstream/hibana-wasip1-shell`の`development/caller-workspace-shell`で作業中。
+  関数ごとにlocals型配列を複製せず、宣言をmodule bytesから借用する変更を加えた。
+  localsの値は宣言型で初期化され、書き込み前に型を検査する。
+  Rust 79件（2 ignored）、関連Miri 5件、strict Clippy、thumbv8m no_stdは通った。
+  未push・実験未採用であり、まだ大きいシェルを実行できる状態ではない。
 
 ## 次の一手
 

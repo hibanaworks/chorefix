@@ -38,6 +38,11 @@ class Bridge:
 
     async def send(self, value):
         async with self.write_lock:
+            # A terminal verdict closes this RPC direction. Preserve its
+            # original failure before touching a closed stream or its log.
+            if self.result.done():
+                verdict = self.result.result()
+                raise RuntimeError(verdict.get("error", "protocol run already ended"))
             self.record("send", value)
             self.process.stdin.write((json.dumps(value) + "\n").encode())
             await self.process.stdin.drain()
@@ -47,9 +52,16 @@ class Bridge:
         identifier = self.sequence
         future = asyncio.get_running_loop().create_future()
         self.pending[identifier] = future
-        await self.send({"type": "call", "id": identifier, "agent": agent,
-                         "tool": tool, "arguments": arguments})
-        return await future
+        try:
+            await self.send({"type": "call", "id": identifier, "agent": agent,
+                             "tool": tool, "arguments": arguments})
+            return await future
+        finally:
+            self.pending.pop(identifier, None)
+            if not future.done():
+                future.cancel()
+            elif not future.cancelled():
+                future.exception()
 
     async def execute(self, value):
         try:
