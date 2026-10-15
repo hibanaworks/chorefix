@@ -1,0 +1,1 @@
+Error: "runtime failed: {\"error\":\"EndpointError { operation: \\\"offer\\\", kind: ResolverReject { resolver_id: 280 } }\",\"status\":\"failed\",\"type\":\"run_result\"}"

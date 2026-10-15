@@ -4,13 +4,25 @@ This repository tests whether Hibana can enforce the communication procedures
 in TraceFix with multiple GPT-6 Luna agents using xhigh reasoning.
 
 The task set remains the full 16 scenarios at three difficulty levels, for 48
-tasks. The experiment keeps the original task descriptions, tools, simulator,
-and coordination checklists. It replaces coordination in the Hibana condition
-with global protocols and attached endpoints.
+tasks. The experiment keeps the original task inputs, tools, simulator,
+participants, resources and outcome checks. The original checklists remain
+recorded source material. Hibana can improve the coordination procedure rather
+than reproduce a legacy control algorithm. For example, independent resource
+requests run in parallel, with both grants required before writing. Procedural
+differences are recorded before scored runs; the comparison runtimes are unchanged.
+Global protocols and attached endpoints own the Hibana coordination.
 
 Hibana owns coordination progress. Participant code does not keep another state
 machine or flags to decide which communication step is allowed. The external
 simulator owns the domain environment and checks task outcomes.
+
+The writing tasks 2E/2M/2H now have a direct WASI boundary qualification with
+all 3/5/7 researchers and physical sections in one global. Both independent
+acquisition requests are in flight before either grant. Disjoint writes overlap
+in groups of 1/2/3. The [saved evidence](results/validation/writing-direct-wasi-20261015)
+includes a terminal review failure, original simulator journals and Rust audits
+that reject serialized acquisitions. These are deterministic tests with no model
+calls or scored comparison episodes.
 
 The original four TraceFix runtime conditions are pinned to the first public
 release `87b01a2c0ae53c5045c9ce3d43cd0235b1831275`. Their coordination logic is

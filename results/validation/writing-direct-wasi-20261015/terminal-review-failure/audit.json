@@ -1,0 +1,23 @@
+{
+  "carrier_frames": 2294,
+  "domain_calls": 12,
+  "expected_terminal_review_failure": true,
+  "guest_exits": 3,
+  "kind": "deterministic_direct_wasi_boundary",
+  "max_disjoint_writes": 1,
+  "model_calls": 0,
+  "original_test_delays": {
+    "a_review_waits_for_b_write": true,
+    "first_write_barrier": [
+      "RESEARCHER_A"
+    ]
+  },
+  "parallel_acquisition_observed": true,
+  "parallel_return_observed": true,
+  "participants": 3,
+  "scored_benchmark": false,
+  "simulator_complete": false,
+  "status": "passed",
+  "task": "2E",
+  "violations": 0
+}

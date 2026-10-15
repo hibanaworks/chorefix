@@ -1,0 +1,141 @@
+{
+  "kind": "writing_direct_wasi_boundary_qualification",
+  "source_base_revision": "ab9172f521fe66ca0173d68b565fecb392250cc0",
+  "source_worktree_changes_in_archive": true,
+  "source_archive": "source.tar.gz",
+  "source_archive_sha256": "5a7bf0bb8f360621dd5b667ae009148e263ba54cbf34751ef27a9138e44742d5",
+  "hibana_version": "0.9.9",
+  "hibana_git_revision": "c2001ec06944d7f3b299e16b5b3efb5b0ba0366a",
+  "wasi_runtime_revision": "4ebdad1443cf49488eae924afe528f67f5a5953b",
+  "wash_revision": "12e137aba2cea74f353c198a8d7c92afc977627c",
+  "runtime_sha256": "bbeed751bbf811e6aadf97f5cc787fe8a00b9208889a02af5dca75ca210b35d5",
+  "runner_sha256": "7bf751fcee4ea3acbb01dfa2c09df8e184e44f7c588470ce3f6db60a9859d8f0",
+  "guest_sha256": "407e1fe263231022eb542a7d2a35e4d4705a58590f92b77bf21fe5f7c77258bc",
+  "cases": [
+    {
+      "carrier_frames": 2290,
+      "domain_calls": 12,
+      "expected_terminal_review_failure": false,
+      "guest_exits": 3,
+      "kind": "deterministic_direct_wasi_boundary",
+      "max_disjoint_writes": 1,
+      "model_calls": 0,
+      "original_test_delays": {
+        "a_review_waits_for_b_write": true,
+        "first_write_barrier": [
+          "RESEARCHER_A"
+        ]
+      },
+      "parallel_acquisition_observed": true,
+      "parallel_return_observed": true,
+      "participants": 3,
+      "scored_benchmark": false,
+      "simulator_complete": true,
+      "status": "passed",
+      "task": "2E",
+      "violations": 0
+    },
+    {
+      "carrier_frames": 3832,
+      "domain_calls": 20,
+      "expected_terminal_review_failure": false,
+      "guest_exits": 5,
+      "kind": "deterministic_direct_wasi_boundary",
+      "max_disjoint_writes": 2,
+      "model_calls": 0,
+      "original_test_delays": {
+        "a_review_waits_for_b_write": true,
+        "first_write_barrier": [
+          "RESEARCHER_A",
+          "RESEARCHER_C"
+        ]
+      },
+      "parallel_acquisition_observed": true,
+      "parallel_return_observed": true,
+      "participants": 5,
+      "scored_benchmark": false,
+      "simulator_complete": true,
+      "status": "passed",
+      "task": "2M",
+      "violations": 0
+    },
+    {
+      "carrier_frames": 5370,
+      "domain_calls": 28,
+      "expected_terminal_review_failure": false,
+      "guest_exits": 7,
+      "kind": "deterministic_direct_wasi_boundary",
+      "max_disjoint_writes": 3,
+      "model_calls": 0,
+      "original_test_delays": {
+        "a_review_waits_for_b_write": true,
+        "first_write_barrier": [
+          "RESEARCHER_A",
+          "RESEARCHER_C",
+          "RESEARCHER_E"
+        ]
+      },
+      "parallel_acquisition_observed": true,
+      "parallel_return_observed": true,
+      "participants": 7,
+      "scored_benchmark": false,
+      "simulator_complete": true,
+      "status": "passed",
+      "task": "2H",
+      "violations": 0
+    },
+    {
+      "carrier_frames": 2294,
+      "domain_calls": 12,
+      "expected_terminal_review_failure": true,
+      "guest_exits": 3,
+      "kind": "deterministic_direct_wasi_boundary",
+      "max_disjoint_writes": 1,
+      "model_calls": 0,
+      "original_test_delays": {
+        "a_review_waits_for_b_write": true,
+        "first_write_barrier": [
+          "RESEARCHER_A"
+        ]
+      },
+      "parallel_acquisition_observed": true,
+      "parallel_return_observed": true,
+      "participants": 3,
+      "scored_benchmark": false,
+      "simulator_complete": false,
+      "status": "passed",
+      "task": "2E",
+      "violations": 0
+    }
+  ],
+  "audit_mutants_rejected": 21,
+  "validation": {
+    "rust_tests_passed": 27,
+    "python_tests_passed": 43,
+    "clippy": "passed",
+    "fmt": "passed",
+    "original_input_inventory": "unchanged",
+    "baseline_runtime_inventory": "unchanged"
+  },
+  "model_calls": 0,
+  "accepted_full_task_ports": 0,
+  "scored_comparison_episodes": 0,
+  "planned_comparison_episodes": 2592,
+  "scope": "Direct WASI/ChoreoFS mechanism and adversarial scheduling tests, not model episodes or a comparative performance result.",
+  "procedural_change": "Independent acquisitions are genuinely in flight together; the original sequential-acquisition procedure is intentionally improved. Problem constraints and baseline implementations remain unchanged.",
+  "test_environment": "Original simulator with delay_multiplier 0.01 and explicit first-writer/review delays. The terminal-failure case uses its existing FailureSpec hook.",
+  "source_build": "Stable Rust 1.95; only the compiler's finite const-evaluation work lint is allowed. No projection semantic check is bypassed.",
+  "development_failures_retained": [
+    "unsupported arithmetic stimulus",
+    "shared resolver-ID registration",
+    "missing causal handoff",
+    "ambiguous rolled selectors"
+  ],
+  "binary_artifacts": "Frozen runtime, runner, Wasm and complete raw development/qualification records remain under output; they are not Git binary releases.",
+  "remaining": [
+    "Full task fidelity classification under experiment-contract.json",
+    "Luna xhigh writing trials",
+    "Remaining task families and baseline corpus",
+    "Scored matrix and maintenance/performance analysis"
+  ]
+}

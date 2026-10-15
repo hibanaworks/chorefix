@@ -12,6 +12,10 @@
 - 原論文の4条件とHibana: 48課題 × 3障害条件 × 3反復 × 5条件 = 2,160実行。
 - TraceFix最新版の補足比較: 432実行。Hibana側432実行と対応付ける。
 - 合計予定2,592実行。採点済み比較実行は現在0。
+- まず最新版TraceFix 432件と対応するHibana 432件、計864件を優先する。
+  旧4条件は追加比較として残す。現時点で全体予定から削除したとは扱わない。
+- 新しいツール、実験runner、監査、Hibana統合はRustを基本にする。
+  未変更のTraceFix比較実装と元simulatorに必要なPythonは保持する。
 - 実験参加モデルはすべて `gpt-6-luna` / `xhigh`。
 - Hibanaは公開済み `=0.9.9`。WASI runtimeの現在の固定revは
   `4ebdad1443cf49488eae924afe528f67f5a5953b`。
@@ -580,3 +584,54 @@ reviewは元課題どおり終端で、余分なretryを加えない。続いて
   section競合0。不完全区間と偽造結果のhash再計算コピーも監査が拒否した。
   証拠はwriting-single-global-20261015。次は同じglobalへの実WASI/ChoreoFS接続。
   ここはnative側の土台であり、全要件受理0/採点0を維持する。論文は編集再開しない。
+
+## 2026-10-15: writingの実WASI接続とRust検証runner
+
+- 必要な比較と追加試験を全て行う指示を維持し、最新版との864件を先に進める。
+  旧4条件を削除したとは扱わない。新規のrunnerと監査はRustを基本とする。
+- writing 2E/M/HのWASI caller、実物化owner、物理section、private I/Oを同じglobalへ
+  接続中。順序や所有者を別のflag/enum/tableで管理せず、両側にEndpoint操作を明記する。
+- 要求型を4つのrollで再利用した候補は再入先が曖昧で、実行用buildの投影が拒否した。
+  cargo checkの成功を投影完了と誤認した点は訂正。段階ごとに要求/応答型を区別し、
+  WASI localsideも4段階と完了後の受付を直接書く。汎用driverに段階selectorは持たせない。
+- 資源の空き通知と個人の準備/要求をparに置く。実Acquireは有効なwrite close後。
+  5人の2組/7人の3組の独立writeを維持し、Return後にreviewへ進む。
+- writing-boundaryはRustの外部刺激runnerと保存ログ監査。変更しない元Python simulatorへ
+  接続する最小のRPC部分だけoriginal_writing_simulator.pyを使う。
+  不正引数、対象違い、早い要求、完了後重複、分割JSON、private計算、実closeから効果まで、
+  資源競合と独立write、review中の返却を実guestで検査する予定。実モデル試験ではない。
+- 7人分のglobalはrustcの既定const評価作業量を超える。stableのlint設定だけで有限評価を
+  継続し、projectionの意味検査は省略しない。本体/API/元simulatorは変更していない。
+  実行用buildと新runnerの検証は進行中で、受理/採点件数はまだ増やさない。
+- 直前ab9172fのChoreoFix CI38744181443は成功。現在の未commit変更の成功とは混同しない。
+
+- ユーザー訂正: 独立した資源取得のglobalはparを保つ。チェックリストの逐次取得表現を
+  理由にglobalまでseqへ強化しかけた変更は取り消した。両grant→effect→returnsの依存だけを
+  強制する。続く訂正でlocalsideも両Acquireを先に送信し、その後で両grantを待つ形へ変更。
+  parを宣言しただけで実行を直列化しない。実際の通信で両要求が待ち合わせより前に出た
+  ことを検査する。別endpointのclone、進行flag、owner表、wrapperは追加しない。
+- 元実験の制御手順をコピーすることは目的ではない。成果物・参加者・資源独占・必要な
+  データ依存・障害条件を保ち、Hibanaで自然な並行/分岐/再考を実装して比較する。
+  逐次取得など元checklistの手順との違いを採点前に記録し、比較側と原資料は変更しない。
+
+- 実guestの初回は検証runnerが未対応のshell算術構文を送って失敗した。標準で用意した
+  exprへ刺激を修正し、失敗ログは2E-001に保存。次は同じresolver IDを全ownerへ登録した
+  アプリ側の誤りでResolverRejectとなった。登録keyはglobal image+IDでありrole別ではない。
+  2E-002と変更前sourceを保存し、各ownerのCHECK_A..Gへ分離中。本体は変更していない。
+  native/実WASIのlocalsideは両Acquireを発行後にgrant待機する形へ変更した。
+  Rust監査では両要求が最初のgrant受信より前に出たことを直接検査し、直列化ログの
+  改変も拒否する。実行用buildの初回成功は5分28秒。現修正後の再build/試験は進行中。
+
+- 最終版の実WASI 2E/M/Hは全員3/5/7人、原simulator12/20/28操作で完了し、共有資源競合0。
+  独立writeの同時実行は1/2/3。最初のgrantが送られる前に両Acquireが出たことと、最初の
+  返却ackが送られる前に両Returnが出たことをログで確認する。単なるpar宣言ではない。
+  7改変×3構成=21改変が拒否された。直列化したコピーも全frameを保ったまま拒否する。
+- 2Eの終端review失敗を元simulatorの既存FailureSpecで設定する別境界試験も成功。
+  protocolは正常終了する一方、domainのis_completeはfalse。4操作/人のままでretryなし。
+  本比較には混ぜない。失敗を成功へ読み替えず、protocolと成果物の完了を分けて保存する。
+- Rust27/Python43/Clippy/fmt、元入力とbaseline runtimeのbyte inventoryが成功。
+  最終Rust test buildは5分39秒。有限const評価の作業量lintだけを許可し、意味検査は保持。
+  final source、実binary/Wasm hash、4試験のraw log、元simulator記録、21改変拒否、
+  開発中の失敗をwriting-direct-wasi-20261015に保存。完全archiveはoutputに保持する。
+  source archiveは作業treeのコードを固定したもの。全課題受理0、採点比較0/2592は変えない。
+  次はこの接続のLuna試験と残るfamily、baseline corpus、全課題の条件分類を進める。

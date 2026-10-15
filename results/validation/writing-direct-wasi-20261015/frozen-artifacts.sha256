@@ -1,0 +1,4 @@
+fa8dd22b751a92ffddc10c294e6576c9e13edff51138383455768c53eb00c73a  output/writing-direct-wasi-final-source.tar.gz
+bbeed751bbf811e6aadf97f5cc787fe8a00b9208889a02af5dca75ca210b35d5  output/writing-direct-wasi-final-runtime
+7bf751fcee4ea3acbb01dfa2c09df8e184e44f7c588470ce3f6db60a9859d8f0  output/writing-direct-wasi-final-runner
+407e1fe263231022eb542a7d2a35e4d4705a58590f92b77bf21fe5f7c77258bc  vendor/hibana-wash/target/wasm32-wasip1/release/hibana-wash.wasm

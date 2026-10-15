@@ -33,10 +33,10 @@ pub(crate) async fn run<const ROLE: u8, F: SectionMessages, S: SectionMessages, 
             }
             Operation::Write => {
                 endpoint.recv::<F::Available>().await?;
-                endpoint.send::<F::Acquire>(&()).await?;
-                endpoint.recv::<F::Granted>().await?;
                 endpoint.recv::<S::Available>().await?;
+                endpoint.send::<F::Acquire>(&()).await?;
                 endpoint.send::<S::Acquire>(&()).await?;
+                endpoint.recv::<F::Granted>().await?;
                 endpoint.recv::<S::Granted>().await?;
                 endpoint.send::<Write>(&()).await?;
                 let result = domain

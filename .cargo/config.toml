@@ -1,0 +1,5 @@
+# The complete 7-participant WASI choreography exceeds rustc's default const
+# evaluation work threshold. Keep all projection checks; allow the finite
+# computation to finish on stable Rust rather than shrink the task or protocol.
+[build]
+rustflags = ["-A", "long_running_const_eval"]

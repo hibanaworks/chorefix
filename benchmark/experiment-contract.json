@@ -1,0 +1,43 @@
+{
+  "recorded_before_scored_runs": true,
+  "scored_runs_completed_at_recording": 0,
+  "comparison_priority": {
+    "latest_tracefix": 432,
+    "matched_hibana": 432,
+    "primary_total": 864,
+    "all_planned_conditions_total": 2592
+  },
+  "shared_problem": [
+    "Original 48 task identities and domain objectives",
+    "Original participants and physical resource counts",
+    "Original simulator, tool behavior and outcome checks",
+    "Exclusive access to each constrained shared resource",
+    "Data dependencies needed to produce the required artifacts",
+    "Matched failure settings, repetitions and participant model"
+  ],
+  "hibana_procedure": [
+    "Global choreography is the only coordination authority",
+    "Independent work and resource requests execute in parallel",
+    "Both resource grants precede the constrained effect",
+    "Resources are returned before unrelated review or private computation",
+    "Routes, resolvers and repetition express actual choices and reconsideration",
+    "No second progress state, permission table or wrapper hiding Endpoint operations"
+  ],
+  "baseline_policy": "Keep comparison implementations and original input files unchanged",
+  "checklist_policy": "Classify original items as problem constraints, hazards or procedural choices; record procedural departures instead of silently claiming identical control flow",
+  "writing_departure": {
+    "tasks": ["2E", "2M", "2H"],
+    "original_items": "RA1 through RA3, RA5 or RA7 respectively describe sequential acquisition",
+    "hibana_execution": "Send both independent Acquire requests before waiting for either grant",
+    "preserved": ["Read and draft precede acquisition", "Exclusive section ownership", "Both grants before write", "Terminal review outcome"],
+    "qualification": "Requires persisted direct-WASI evidence and task fidelity review; not yet an accepted scored port"
+  },
+  "report_separately": [
+    "Domain task completion and actual unsafe effects",
+    "Rejected attempts returned to the model before an effect",
+    "Protocol completion, domain failure, timeout, deadlock and harness errors",
+    "Inclusive tokens and elapsed time including waiting and failed attempts",
+    "Observed parallel requests and disjoint work, not declared par nodes alone",
+    "Shell and service interface differences and implementation maintenance costs"
+  ]
+}

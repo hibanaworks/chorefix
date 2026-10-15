@@ -67,6 +67,20 @@ and its exit visible in the global protocol and localside functions. Do not
 replace them with a stage enum, approval flags, or an application program counter.
 Do not add choices or repeated work that the task does not require.
 
+Resolver registration is keyed by the compiled global program and resolver ID,
+not by the role argument alone. Independent owners with independent validation
+results need distinct resolver IDs. Reuse an ID only for the same policy owner
+and callback data; a RoleProgram argument does not create a role-local namespace.
+
+Preserve parallel acquisition of independent resources in the global and in
+actual execution. Issue both asynchronous acquisition requests before waiting
+for either grant. Require both grants before the effect and returns after it.
+Do not serialize a parallel fragment in the localside. Preserve the task's
+outcome, participants, resource constraints and necessary data dependencies;
+improve the coordination procedure using Hibana rather than copying legacy
+control flow. Keep baselines unchanged and record procedural differences before
+scored runs, including departure from sequential-acquisition checklist text.
+
 ## Shell, WASI, and ChoreoFS boundary
 
 The model chooses its own shell commands, scripts, calculations, and private
@@ -169,6 +183,11 @@ completion does not prove domain task correctness. Score both independently.
 All participant model calls use GPT-6 Luna with xhigh reasoning. Record the
 requested and returned model, reasoning effort, usage, raw tool events, source
 versions, and failures. Never silently substitute a model or a protocol.
+
+Use Rust for new experiment tooling, runners, audits, and integration code.
+Keep Python where the unchanged TraceFix baseline or original simulator
+requires it. Do not add Python merely for convenience, and do not rewrite the
+comparison implementation while moving the Hibana harness to Rust.
 
 Do not report a run as measured until its persisted events and simulator result
 have been independently checked. Keep harness errors, protocol rejection, domain
