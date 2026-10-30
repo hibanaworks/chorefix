@@ -182,6 +182,18 @@ pub async fn run<const ROLE: u8>(
                                         89 => {
                                             branch.recv::<AgainBAfterA>().await?;
                                         }
+                                        92 => {
+                                            branch.recv::<AgainADuringBRevision>().await?;
+                                        }
+                                        93 => {
+                                            branch.recv::<AgainBDuringARevision>().await?;
+                                        }
+                                        94 => {
+                                            branch.recv::<AgainBBeforeAReview>().await?;
+                                        }
+                                        95 => {
+                                            branch.recv::<AgainABeforeBReview>().await?;
+                                        }
                                         30 if ROLE == B_WASI => {
                                             branch.recv::<ApprovedA<'_>>().await?;
                                         }
@@ -253,6 +265,26 @@ pub async fn run<const ROLE: u8>(
                                                     }
                                                     89 => {
                                                         branch.recv::<AgainBAfterA>().await?;
+                                                    }
+                                                    92 => {
+                                                        branch
+                                                            .recv::<AgainADuringBRevision>()
+                                                            .await?;
+                                                    }
+                                                    93 => {
+                                                        branch
+                                                            .recv::<AgainBDuringARevision>()
+                                                            .await?;
+                                                    }
+                                                    94 => {
+                                                        branch
+                                                            .recv::<AgainBBeforeAReview>()
+                                                            .await?;
+                                                    }
+                                                    95 => {
+                                                        branch
+                                                            .recv::<AgainABeforeBReview>()
+                                                            .await?;
                                                     }
                                                     30 if ROLE == A_WASI => {
                                                         break branch
@@ -422,6 +454,18 @@ pub async fn run<const ROLE: u8>(
                         }
                         89 => {
                             branch.recv::<AgainBAfterA>().await?;
+                        }
+                        92 => {
+                            branch.recv::<AgainADuringBRevision>().await?;
+                        }
+                        93 => {
+                            branch.recv::<AgainBDuringARevision>().await?;
+                        }
+                        94 => {
+                            branch.recv::<AgainBBeforeAReview>().await?;
+                        }
+                        95 => {
+                            branch.recv::<AgainABeforeBReview>().await?;
                         }
                         30 if ROLE == B_WASI => {
                             branch.recv::<ApprovedA<'_>>().await?;

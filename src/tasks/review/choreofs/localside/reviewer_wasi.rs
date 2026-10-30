@@ -15,7 +15,7 @@ use serde_json::{Value, json};
 pub async fn run(
     guest: &mut HibanaWasiGuest<'_>,
     endpoint: &mut hibana::Endpoint<'_, REVIEW_WASI>,
-    selection: &super::super::imp::FirstReview,
+    selection: &super::super::imp::ReviewTarget,
 ) -> ShellResult<i32> {
     let [mut task, mut private] = endpoint.par()?;
     let mut fuel_id = 0u16;
@@ -253,6 +253,52 @@ pub async fn run(
                                             task.send::<AgainBAfterA>(&arguments).await?;
                                             task.send::<AgainBAfterA>(&arguments).await?;
                                             task.send::<ReReviewB>(&arguments).await?;
+                                        }
+                                        92 if feature == FEATURE_A => {
+                                            branch
+                                                .send::<AgainADuringBRevision>(&arguments)
+                                                .await?;
+                                            task.send::<AgainADuringBRevision>(&arguments).await?;
+                                            task.send::<AgainADuringBRevision>(&arguments).await?;
+                                            task.send::<AgainADuringBRevision>(&arguments).await?;
+                                            task.send::<AgainADuringBRevision>(&arguments).await?;
+                                            let [mut other, mut review] = task.par()?;
+                                            tokio::try_join!(
+                                                other.recv::<ReadyB<'_>>(),
+                                                review.send::<ReReviewA>(&arguments)
+                                            )?;
+                                        }
+                                        93 if feature == FEATURE_B => {
+                                            branch
+                                                .send::<AgainBDuringARevision>(&arguments)
+                                                .await?;
+                                            task.send::<AgainBDuringARevision>(&arguments).await?;
+                                            task.send::<AgainBDuringARevision>(&arguments).await?;
+                                            task.send::<AgainBDuringARevision>(&arguments).await?;
+                                            task.send::<AgainBDuringARevision>(&arguments).await?;
+                                            let [mut other, mut review] = task.par()?;
+                                            tokio::try_join!(
+                                                other.recv::<ReadyA<'_>>(),
+                                                review.send::<ReReviewB>(&arguments)
+                                            )?;
+                                        }
+                                        94 if feature == FEATURE_B => {
+                                            branch.send::<AgainBBeforeAReview>(&arguments).await?;
+                                            task.send::<AgainBBeforeAReview>(&arguments).await?;
+                                            task.send::<AgainBBeforeAReview>(&arguments).await?;
+                                            task.send::<AgainBBeforeAReview>(&arguments).await?;
+                                            task.send::<AgainBBeforeAReview>(&arguments).await?;
+                                            task.recv::<ReadyB<'_>>().await?;
+                                            task.send::<ReReviewB>(&arguments).await?;
+                                        }
+                                        95 if feature == FEATURE_A => {
+                                            branch.send::<AgainABeforeBReview>(&arguments).await?;
+                                            task.send::<AgainABeforeBReview>(&arguments).await?;
+                                            task.send::<AgainABeforeBReview>(&arguments).await?;
+                                            task.send::<AgainABeforeBReview>(&arguments).await?;
+                                            task.send::<AgainABeforeBReview>(&arguments).await?;
+                                            task.recv::<ReadyA<'_>>().await?;
+                                            task.send::<ReReviewA>(&arguments).await?;
                                         }
                                         _ => {
                                             break (

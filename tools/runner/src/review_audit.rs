@@ -544,11 +544,20 @@ fn check(rows: &[Value]) -> Result<Value> {
             }
         }
     }
+    let mut selections: Vec<_> = calls
+        .values()
+        .filter(|call| call.tool().is_ok_and(|tool| tool == "code_review"))
+        .collect();
+    selections.sort_by_key(|call| call.emitted);
+    let targets = selections
+        .iter()
+        .map(|call| call.target())
+        .collect::<Result<Vec<_>>>()?;
     Ok(
         json!({"status":"passed","task":"6E","kind":"completed_actual_wasi_review_trace","scored_benchmark":false,
         "depth":fixture["depth"],"carrier_frames":frames.len(),"domain_calls":calls.len(),"actual_resource_endpoint_requests":loans.len(),
         "actual_resource_endpoint_returns":returns,"actual_review_requests":reviews,"guest_exits":exits.len(),"simulator_complete":true,
-        "violations":0,"overlapping_effect_pairs":overlap}),
+        "violations":0,"overlapping_effect_pairs":overlap,"review_targets":targets}),
     )
 }
 pub fn audit(path: &Path) -> Result<Value> {

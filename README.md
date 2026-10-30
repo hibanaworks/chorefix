@@ -23,6 +23,13 @@ levels, with three injected failure conditions and three repetitions.
 | Latest TraceFix monitoring runtime | 432 |
 | Total | 2,592 |
 
+The [updated research plan](plan.md) also covers ZipperGen, Concordat, handoff,
+causal comparisons and two real-artifact cases: 1,368 additional planned runs
+and a reserve of at most 600. The overall budget is 4,560 runs. These additions
+still require task, connection and statistical-design qualification; the current
+executable matrix covers the 2,592 runs above. The first comparison remains
+latest TraceFix against ChoreoFix, with 432 runs each.
+
 The paper comparison is pinned to
 `87b01a2c0ae53c5045c9ce3d43cd0235b1831275`; the latest comparison and benchmark
 inputs are pinned to `36b4bd108fcd74f7efb17613aebbe3fdf55499a9`.
@@ -42,7 +49,10 @@ preserving their original prompts, history, tool schemas and execution order.
 
 **Scored runs: 0 / 2,592.** The full task port and controlled comparison are
 unfinished. Existing results are integration qualifications, not benchmark
-success rates.
+success rates. The additional planned comparisons also have zero scored runs.
+The next research gate connects unique endpoint ownership and its remaining
+protocol to actual effects, with explicit adapter assumptions and runtime
+counterexamples, before starting the scored comparison.
 
 Current qualifications include actual Wasm guests and subscription model
 participants for three/five/seven-person Dining, seven-person collaborative

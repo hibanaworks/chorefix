@@ -1,4 +1,4 @@
-//! Repository request data and the first review's actual WASI path.
+//! Repository request data and the actual selected review target.
 use crate::shell::{ShellError, ShellResult};
 use hibana::runtime::{
     resolver::{DecisionArm, ResolverError},
@@ -48,8 +48,8 @@ impl<const OPERATION: u8> WirePayload for RepositoryArguments<OPERATION> {
     }
 }
 #[derive(Default)]
-pub struct FirstReview(Cell<Option<&'static str>>);
-impl FirstReview {
+pub struct ReviewTarget(Cell<Option<&'static str>>);
+impl ReviewTarget {
     pub fn record(&self, feature: &'static str) {
         self.0.set(Some(feature));
     }

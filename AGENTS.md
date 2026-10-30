@@ -381,6 +381,29 @@ Read `plan.md` before continuing this work. Keep its verified state, next action
 and remaining gates current. Do not replace incomplete evidence with a success
 claim or count unaccepted ports as accepted full-task implementations.
 
+The 2026-10-30 research plan makes resource ownership, remaining protocol and
+actual effects the central claim. Establish the T3/T4 minimal composition and
+its real effect-boundary counterexamples before spending the scored-run budget.
+Reuse the existing core semantics for T1/T2, including evaluated par and roll;
+record the exact correspondence and assumptions for T5/T6. Ghost ownership and
+occurrence histories belong in the model, never in a new application authority
+table. Do not expand completion into a proof of arbitrary Rust or all failures.
+
+Audit every effect entry: WASI imports, host APIs, argument codecs and physical
+bindings. `Domain::execute` is ordinary host Rust. Its agreement with the
+received request, exact arguments and required resource Endpoints is an explicit
+adapter trust boundary. Record-mutation rejection only tests the auditor;
+test runtime rejection at the effect boundary separately. A local I/O error or
+deadline does not revoke remote ownership or authorize reissuance.
+
+Keep the existing 2,592-run comparison and its 864-run first stage. Additional
+ZipperGen, Concordat, handoff and causal comparisons are planned in `plan.md`,
+not qualified by the existing matrix. Audit native expressiveness before task
+selection. Preserve comparator engines and distinguish native system comparison
+from matched causal comparison. Count unsupported tasks separately from failed
+runs. Freeze precision, reserve allocation and rerun rules before scored results;
+do not repeat until the preferred result appears. Preserve negative evidence.
+
 The unchanged upstream simulator is an external environment and scorer. Its
 resource and artifact state must not authorize Hibana endpoint transitions.
 Upstream state tracking belongs only to the explicitly named baseline condition.

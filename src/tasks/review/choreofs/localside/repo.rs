@@ -108,6 +108,18 @@ pub async fn run<'r, D: Domain>(
             89 => {
                 branch.recv::<AgainBAfterA>().await?;
             }
+            92 => {
+                branch.recv::<AgainADuringBRevision>().await?;
+            }
+            93 => {
+                branch.recv::<AgainBDuringARevision>().await?;
+            }
+            94 => {
+                branch.recv::<AgainBBeforeAReview>().await?;
+            }
+            95 => {
+                branch.recv::<AgainABeforeBReview>().await?;
+            }
             234 => {
                 branch.recv::<RepoExit>().await?;
                 return Ok(());

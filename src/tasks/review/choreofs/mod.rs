@@ -23,7 +23,7 @@ async fn run_guests(
     let p = programs();
     let review_a_result = ReviewInput::default();
     let review_b_result = ReviewInput::default();
-    let selected_review = imp::FirstReview::default();
+    let selected_review = imp::ReviewTarget::default();
     let mut slab = vec![0; 1024 * 1024];
     let mut storage = SessionKitStorage::<&InMemoryTransport>::uninit();
     let kit = storage.init();
@@ -40,7 +40,7 @@ async fn run_guests(
     .map_err(|e| ShellError::message(format!("{e:?}")))?;
     rv.set_resolver(
         &p.review_wasi,
-        ResolverRef::<SELECT_REVIEW>::decision_state(&selected_review, imp::FirstReview::decide),
+        ResolverRef::<SELECT_REVIEW>::decision_state(&selected_review, imp::ReviewTarget::decide),
     )
     .map_err(|e| ShellError::message(format!("{e:?}")))?;
     let session = SessionId::new(6);

@@ -17,6 +17,7 @@ use std::{
 enum ReviewSchedule {
     FinishFirst,
     Alternate,
+    AlternateThenRepeat,
 }
 
 fn response(reply: &Value) -> Result<Value> {
@@ -171,6 +172,16 @@ async fn reviewer(
             match schedule {
                 ReviewSchedule::FinishFirst => requests.push_front(feature),
                 ReviewSchedule::Alternate => requests.push_back(feature),
+                ReviewSchedule::AlternateThenRepeat => {
+                    if before
+                        .iter()
+                        .any(|event| event["tool"] == "code_review" && event["success"] == false)
+                    {
+                        requests.push_front(feature);
+                    } else {
+                        requests.push_back(feature);
+                    }
+                }
             }
             continue;
         }
@@ -219,10 +230,15 @@ async fn real_wasi_reviews_reconsider_and_interleave_with_unchanged_upstream() -
     let mut outcomes = Vec::new();
     for depth in [0, 1, 2] {
         for review_first in ["user_authentication", "notification_feature"] {
-            for schedule in [ReviewSchedule::FinishFirst, ReviewSchedule::Alternate] {
+            for schedule in [
+                ReviewSchedule::FinishFirst,
+                ReviewSchedule::Alternate,
+                ReviewSchedule::AlternateThenRepeat,
+            ] {
                 let delays: &[f64] = if (depth == 0
                     && matches!(schedule, ReviewSchedule::FinishFirst))
                     || (depth == 1 && matches!(schedule, ReviewSchedule::Alternate))
+                    || (depth == 2 && !matches!(schedule, ReviewSchedule::FinishFirst))
                 {
                     &[0.01, 1.0]
                 } else {
@@ -335,6 +351,23 @@ async fn real_wasi_reviews_reconsider_and_interleave_with_unchanged_upstream() -
                         }
                     }
                     let audit = review_audit::audit(&case.join("events.jsonl"))?;
+                    if depth == 2 && !matches!(schedule, ReviewSchedule::FinishFirst) {
+                        let other = if review_first == "user_authentication" {
+                            "notification_feature"
+                        } else {
+                            "user_authentication"
+                        };
+                        let expected = match schedule {
+                            ReviewSchedule::Alternate => {
+                                json!([review_first, other, review_first, other])
+                            }
+                            ReviewSchedule::AlternateThenRepeat => {
+                                json!([review_first, other, other, review_first])
+                            }
+                            _ => unreachable!(),
+                        };
+                        assert_eq!(audit["review_targets"], expected);
+                    }
                     save(&case.join("resource-audit.json"), &audit)?;
                     let mutants = review_audit::check_mutants(
                         &case.join("events.jsonl"),
@@ -348,6 +381,14 @@ async fn real_wasi_reviews_reconsider_and_interleave_with_unchanged_upstream() -
                                     .as_u64()
                                     .is_some_and(|n| n > 0),
                                 "missing actual overlap: {pair}"
+                            );
+                        }
+                        if depth == 2 && matches!(schedule, ReviewSchedule::Alternate) {
+                            assert!(
+                                audit["overlapping_effect_pairs"]["code_review+implement_feature"]
+                                    .as_u64()
+                                    .is_some_and(|n| n >= 3),
+                                "both-rejected revision and re-review did not overlap"
                             );
                         }
                     }
