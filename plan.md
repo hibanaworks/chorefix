@@ -53,7 +53,7 @@ ChoreoFixのmanifest/lockは本体
 | --- | --- | --- |
 | 1E/1M/1H | 実資源Endpointの要求・結果・返却。1Hは7人が実結果で再考。実Endpoint・実Wasm試験と実モデルの予備記録あり | source固定後の全条件の認定と比較 |
 | 2E/2M/2H | 両sectionの実Endpoint要求・結果・返却。実Wasm15条件と3/5/7人のLuna予備試験が通過 | source固定後の全条件の認定と比較 |
-| 6E | globalとlocalsideを実Repo Endpointの貸出・要求・結果・返却から全面刷新。再考、途中のレビュー対象変更、並行処理を投影で駆動 | 全crate build、Clippyと実Wasm12条件が通過。元scoreはすべて完了・資源違反0件。ローカルcore修正を選んだ検証であり、通常Git pin、資源監査と実モデルの認定は未完 |
+| 6E | globalとlocalsideを実Repo Endpointの貸出・要求・結果・返却から全面刷新。再考、途中のレビュー対象変更を投影で駆動 | 実Wasm16条件・資源監査・256変異拒否とLuna3人の予備試験が成功。通常Git pinの認定と、両feature拒否後の残る直列化の除去が必要 |
 | 8E | DB・test環境の実Endpoint委譲、単独所有の結果ファイル、実Wasm3条件、Luna成功・終端失敗の予備試験 | source固定後の認定と比較 |
 | 9E/9M/9H | 実fork Endpointを両方受け取り、実要求・結果・返却。3/5/7人の実Wasm・実モデル予備試験あり | source固定後の認定と比較 |
 | 16E | build/deploy環境の実Endpoint委譲。実Wasm3条件、早期終了拒否、3人のLuna予備試験あり | source固定後の認定と比較 |
@@ -95,13 +95,22 @@ choreographyに置き、業務のglobalには実要求、唯一のRepo Endpoint�
 mergeと正常終了は承認された枝へ置く。選択と実レビュー結果は、分岐を知る必要がある
 参加者へglobalの通信で伝える。進行はEndpointが管理し、アプリにphaseや完了flagを置かない。
 
-全crateのbuildとClippyは成功した。buildは255.68秒、全子孫の最大memoryは
-1,212,514,304bytesだった。実Wasmでは、元障害深さ0/1/2、最初のレビュー対象A/B、
-一方を承認まで続ける順序と交互にレビューする順序の12条件が完走した。
-元scoreはすべて完了・資源違反0件であり、深さ2の交互順序では両featureが実際に
-一度ずつ失敗してから成功した。早いmerge、誤った引数、完了後の重複要求は効果を起こさない。
-この検証はAIを呼ばないRustのshell刺激であり、ローカルcore修正を選択している。
-通常Git pin、実資源の記録監査、並行した効果の観測と実モデル試験の認定は残っている。
+現行globalのbuildとClippyは成功した。buildは259秒、全子孫の最大memoryは
+1,081,558,528bytesで、build前後のアプリ・core source hashは一致した。
+元障害条件0/1/2、最初のレビュー対象A/B、一方を承認まで続ける順序と交互にレビューする
+順序の12条件と、通常遅延の4条件、合計16条件が実Wasmで完走した。元scoreはすべて完了・
+資源違反0件だった。各16変異、合計256件を拒否した。監査は実frameとWASI要求、業務引数、
+元simulator結果とscore、貸出・返却、最新実装への承認後のmerge、guest終了を照合する。
+通常遅延4条件すべてで実装・レビュー、merge・レビューの実時間の重なりを確認した。
+再考後に他方が承認された経路の不要な直列化は、globalの`par`へ置き直して修正した。
+
+3人のLuna xhighも通常遅延・障害条件2で39.13秒で完走した。両featureが一度ずつ拒否された後に
+成功し、元score完了、違反0件、実Endpoint要求・返却は各6件だった。全員のChatGPT認証、モデル、
+effort、usageを確認し、inclusive tokensは360,770だった。実モデルの記録も16変異を拒否した。
+16個のscript記録と1個のモデル記録は別processでも同じauditorを実行し、組み込み監査と一致した。
+監査アルゴリズム自体は同じである。使用binary、Wasm、runtime source、モデル記録を保持した。
+これらはローカルcore修正を選ぶ予備試験である。通常Git pinの認定は未完であり、両featureが
+拒否された後に他方のrevisionを遅らせる直列化も残る。その並行性は次のglobal修正対象である。
 
 1Hの委譲版には、通常のmodule localsideを動かさず、現在のglobalを公開`project`で
 直接駆動する排他試験を追加した。A/Bそれぞれのdesign・implementationを完了し、
@@ -172,7 +181,9 @@ CI待ちの間も独立した実装作業は続ける。
 最新stableで開発し、Miri/Kaniだけは各ツールが必要な検証compilerを使う。
 
 既存のdirty sourceを保ち、同名packageの別checkoutでtarget directoryを共有しない。
-本体等の検証済み修正は開発branchへpushし、研究repo `hibana-tracefix`はローカルで作業する。
+本体等の検証済み修正は開発branchへpushする。研究repoの現在sourceはGitHubの
+`development/endpoint-delegation`へ公開し、旧検証ログ・sourceコピー・build生成物は追加しない。
+GitHub Actionsの残予算はないため、必要な検査はローカルで実行し、進捗pushは`[skip ci]`を付ける。
 古いbuild・不要cache・未使用の実験成果物は削除し、profilerと論文に必要なraw証拠は保持する。
 
 完了には、全48課題の実装・認定、未変更比較側の接続認定、固定した全2,592実行、独立採点・集計、

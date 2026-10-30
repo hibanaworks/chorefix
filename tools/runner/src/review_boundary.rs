@@ -2,7 +2,7 @@
 //! These tests neither authorize an operation nor replace a localside.
 use crate::{
     evidence::{Result, Trace, digest, save},
-    oracle, process,
+    oracle, process, review_audit,
 };
 use serde_json::{Value, json};
 use std::{
@@ -220,112 +220,143 @@ async fn real_wasi_reviews_reconsider_and_interleave_with_unchanged_upstream() -
     for depth in [0, 1, 2] {
         for review_first in ["user_authentication", "notification_feature"] {
             for schedule in [ReviewSchedule::FinishFirst, ReviewSchedule::Alternate] {
-                let case = directory.join(format!("depth{depth}-{review_first}-{schedule:?}"));
-                fs::create_dir(&case)?;
-                save(
-                    &case.join("case.json"),
-                    &json!({"task":"6E","depth":depth,"review_first":review_first,"schedule":format!("{schedule:?}"),
+                let delays: &[f64] = if (depth == 0
+                    && matches!(schedule, ReviewSchedule::FinishFirst))
+                    || (depth == 1 && matches!(schedule, ReviewSchedule::Alternate))
+                {
+                    &[0.01, 1.0]
+                } else {
+                    &[0.01]
+                };
+                for &delay in delays {
+                    let case = directory.join(format!(
+                        "depth{depth}-{review_first}-{schedule:?}-delay{delay}"
+                    ));
+                    fs::create_dir(&case)?;
+                    save(
+                        &case.join("case.json"),
+                        &json!({"task":"6E","depth":depth,"review_first":review_first,"schedule":format!("{schedule:?}"),"delay_multiplier":delay,
                 "kind":"deterministic_rust_wasi_regression","model_calls":0,"scored_benchmark":false,
                 "test_barriers":"none",
                 "source_qualification":"This fixture does not qualify the recorded root Git dependencies",
                 "runtime_binary_sha256":digest(&runtime)?,"guest_wasm_sha256":digest(module)?,
                 "root_lock_sha256":digest(Path::new("Cargo.lock"))?,"runner_lock_sha256":digest(Path::new("tools/runner/Cargo.lock"))?,
                 "simulator_source_sha256":digest(Path::new("vendor/tracefix/benchmark/environments/6E/sim.py"))?}),
-                )?;
-                let trace = Arc::new(Trace::create(&case.join("events.jsonl"))?);
-                let (simulator, _) = oracle::Simulator::new("6E", depth, 0.01, trace.clone(), &[])?;
-                let (guest, runtime_loop) =
-                    process::guest(&runtime, module, "6E", &case, trace, simulator.clone())?;
-                let (a, b, review, result) = tokio::time::timeout(Duration::from_secs(60), async {
-                    tokio::join!(
-                        developer(
-                            guest.clone(),
-                            simulator.clone(),
-                            "DEVELOPER_A",
-                            "user_authentication",
-                            "dev_a_feature"
-                        ),
-                        developer(
-                            guest.clone(),
-                            simulator.clone(),
-                            "DEVELOPER_B",
-                            "notification_feature",
-                            "dev_b_feature"
-                        ),
-                        reviewer(guest.clone(), simulator.clone(), review_first, schedule),
-                        runtime_loop,
-                    )
-                })
-                .await?;
-                let a = a?;
-                let b = b?;
-                review?;
-                let result = result?;
-                assert_eq!(
-                    result["protocol"],
-                    json!({"type":"run_result","status":"complete"})
-                );
-                assert_eq!(result["runtime_exit_code"], 0);
-                assert_eq!(result["backend_errors"], json!([]));
-                assert_eq!(result["score"]["complete"], true);
-                assert_eq!(result["score"]["violations"], json!([]));
-                assert_eq!(
-                    result["score"]["events"]
-                        .as_array()
-                        .ok_or("original events")?
-                        .len(),
-                    6 + 2 * usize::from(depth)
-                );
-                assert_eq!(
-                    a.iter()
-                        .chain(&b)
-                        .filter(|reply| reply["success"] == false)
-                        .count(),
-                    usize::from(depth)
-                );
-                for feedback in [&a, &b] {
+                    )?;
+                    let trace = Arc::new(Trace::create(&case.join("events.jsonl"))?);
+                    let (simulator, _) =
+                        oracle::Simulator::new("6E", depth, delay, trace.clone(), &[])?;
+                    let (guest, runtime_loop) =
+                        process::guest(&runtime, module, "6E", &case, trace, simulator.clone())?;
+                    let (a, b, review, result) =
+                        tokio::time::timeout(Duration::from_secs(60), async {
+                            tokio::join!(
+                                developer(
+                                    guest.clone(),
+                                    simulator.clone(),
+                                    "DEVELOPER_A",
+                                    "user_authentication",
+                                    "dev_a_feature"
+                                ),
+                                developer(
+                                    guest.clone(),
+                                    simulator.clone(),
+                                    "DEVELOPER_B",
+                                    "notification_feature",
+                                    "dev_b_feature"
+                                ),
+                                reviewer(guest.clone(), simulator.clone(), review_first, schedule),
+                                runtime_loop,
+                            )
+                        })
+                        .await?;
+                    let a = a?;
+                    let b = b?;
+                    review?;
+                    let result = result?;
                     assert_eq!(
-                        feedback.last().ok_or("missing review feedback")?["success"],
-                        true
+                        result["protocol"],
+                        json!({"type":"run_result","status":"complete"})
                     );
-                }
-                if matches!(schedule, ReviewSchedule::FinishFirst) {
-                    for (feedback, expected) in [
-                        (
-                            &a,
-                            if review_first == "user_authentication" {
-                                depth
-                            } else {
-                                0
-                            },
-                        ),
-                        (
-                            &b,
-                            if review_first == "notification_feature" {
-                                depth
-                            } else {
-                                0
-                            },
-                        ),
-                    ] {
-                        let expected: Vec<_> =
-                            std::iter::repeat_n(json!(false), usize::from(expected))
-                                .chain([json!(true)])
-                                .collect();
+                    assert_eq!(result["runtime_exit_code"], 0);
+                    assert_eq!(result["backend_errors"], json!([]));
+                    assert_eq!(result["score"]["complete"], true);
+                    assert_eq!(result["score"]["violations"], json!([]));
+                    assert_eq!(
+                        result["score"]["events"]
+                            .as_array()
+                            .ok_or("original events")?
+                            .len(),
+                        6 + 2 * usize::from(depth)
+                    );
+                    assert_eq!(
+                        a.iter()
+                            .chain(&b)
+                            .filter(|reply| reply["success"] == false)
+                            .count(),
+                        usize::from(depth)
+                    );
+                    for feedback in [&a, &b] {
                         assert_eq!(
-                            feedback
-                                .iter()
-                                .map(|r| r["success"].clone())
-                                .collect::<Vec<_>>(),
-                            expected
+                            feedback.last().ok_or("missing review feedback")?["success"],
+                            true
                         );
                     }
-                }
-                let result = json!({"depth":depth,"review_first":review_first,"schedule":format!("{schedule:?}"),"result":result,"a_feedback":a,"b_feedback":b,
+                    if matches!(schedule, ReviewSchedule::FinishFirst) {
+                        for (feedback, expected) in [
+                            (
+                                &a,
+                                if review_first == "user_authentication" {
+                                    depth
+                                } else {
+                                    0
+                                },
+                            ),
+                            (
+                                &b,
+                                if review_first == "notification_feature" {
+                                    depth
+                                } else {
+                                    0
+                                },
+                            ),
+                        ] {
+                            let expected: Vec<_> =
+                                std::iter::repeat_n(json!(false), usize::from(expected))
+                                    .chain([json!(true)])
+                                    .collect();
+                            assert_eq!(
+                                feedback
+                                    .iter()
+                                    .map(|r| r["success"].clone())
+                                    .collect::<Vec<_>>(),
+                                expected
+                            );
+                        }
+                    }
+                    let audit = review_audit::audit(&case.join("events.jsonl"))?;
+                    save(&case.join("resource-audit.json"), &audit)?;
+                    let mutants = review_audit::check_mutants(
+                        &case.join("events.jsonl"),
+                        &case.join("resource-mutants"),
+                    )?;
+                    assert_eq!(mutants["count"], 16);
+                    if delay == 1.0 {
+                        for pair in ["code_review+implement_feature", "code_review+merge_code"] {
+                            assert!(
+                                audit["overlapping_effect_pairs"][pair]
+                                    .as_u64()
+                                    .is_some_and(|n| n > 0),
+                                "missing actual overlap: {pair}"
+                            );
+                        }
+                    }
+                    let result = json!({"depth":depth,"review_first":review_first,"schedule":format!("{schedule:?}"),"delay_multiplier":delay,"result":result,"a_feedback":a,"b_feedback":b,"audit":audit,"mutant_count":mutants["count"],
                 "kind":"deterministic_rust_wasi_regression","model_calls":0,"scored_benchmark":false});
-                save(&case.join("result.json"), &result)?;
-                outcomes.push(result);
-                save(&directory.join("summary.json"), &json!(outcomes))?;
+                    save(&case.join("result.json"), &result)?;
+                    outcomes.push(result);
+                    save(&directory.join("summary.json"), &json!(outcomes))?;
+                }
             }
         }
     }

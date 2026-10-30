@@ -17,6 +17,7 @@ mod model;
 mod model_boundary;
 mod oracle;
 mod process;
+mod review_audit;
 #[cfg(test)]
 mod review_boundary;
 mod snapshot;
@@ -106,7 +107,7 @@ fn prompt(source: &Path, task: &str, actor: &Value) -> Result<String> {
         "/service/read_literature, /service/draft_content, /service/write_to_document and /service/review_own_work"
     };
     let coordination = if review {
-        "Hibana delegates the repository Endpoint during implementation and merging; each actual request and result travels through it before it returns. Code review does not hold the repository. You do not call resource acquisition, release or notification tools. A developer's implementation response includes the actual review under coordination.code_review. If review fails, reconsider and implement again; merge your assigned branch after approval. The reviewer may choose either assigned feature first, review that feature until it passes, then review the other. Reviewing one feature can overlap independent work on the other feature. Read every actual result and finish after your own assigned work is complete."
+        "Hibana delegates the repository Endpoint during implementation and merging; each actual request and result travels through it before it returns. Code review does not hold the repository. You do not call resource acquisition, release or notification tools. A developer's implementation response includes the actual review under coordination.code_review. If review fails, reconsider and implement again; merge your assigned branch after approval. The reviewer chooses the order of the assigned features and may switch to the other feature after a rejection while the developer revises. Review both features until each passes. Reviewing one feature can overlap independent work on the other feature. Read every actual result and finish after your own assigned work is complete."
     } else if cicd {
         "Hibana passes the build-server or deployment-environment Endpoint to your WASI participant. Your actual request and result travel through that Endpoint before it returns. The developer's build precedes integration testing, which precedes deployment. Hibana sends build-complete, tests-passed and both deployment-complete notifications. You do not call acquire/release or notification tools. Read your actual result, then finish. This original task has no retry loop or injected domain failures."
     } else if dining {
@@ -251,6 +252,8 @@ async fn run(task: &str, depth: u8, output: &Path) -> Result<Value> {
 async fn main() -> Result<()> {
     let args: Vec<_> = std::env::args().skip(1).collect();
     match args.as_slice() {
+        [mode, events] if mode == "--audit-review" => println!("{}", serde_json::to_string_pretty(&review_audit::audit(Path::new(events))?)?),
+        [mode, events, output] if mode == "--check-review-mutants" => println!("{}", serde_json::to_string_pretty(&review_audit::check_mutants(Path::new(events), Path::new(output))?)?),
         [mode, events] if mode == "--audit-writing" => println!("{}", serde_json::to_string_pretty(&writing_audit::audit(Path::new(events))?)?),
         [mode, events, output] if mode == "--check-writing-mutants" => println!("{}", serde_json::to_string_pretty(&writing_audit::check_mutants(Path::new(events), Path::new(output))?)?),
         [mode, events] if mode == "--audit-cicd" => println!(
@@ -297,7 +300,13 @@ async fn main() -> Result<()> {
             };
             println!("{}", serde_json::to_string(&result)?);
         }
-        _ => return Err("usage: choreofix-experiments 1E|1M|2E|2M|2H|8E|9E|9M|9H DEPTH OUTPUT | --audit-cicd EVENTS | --check-cicd-mutants EVENTS NEW_OUTPUT | --audit EVENTS | --check-protocol-mutants EVENTS NEW_OUTPUT | --audit RUN VERIFIER | --check-mutants RUN NEW_OUTPUT VERIFIER".into()),
+        _ => return Err(concat!(
+            "usage: choreofix-experiments 1E|1M|2E|2M|2H|8E|9E|9M|9H DEPTH OUTPUT\n",
+            "       --audit-review|--audit-writing|--audit-cicd|--audit EVENTS\n",
+            "       --check-review-mutants|--check-writing-mutants|--check-cicd-mutants|--check-protocol-mutants EVENTS NEW_OUTPUT\n",
+            "       --audit RUN VERIFIER\n",
+            "       --check-mutants RUN NEW_OUTPUT VERIFIER"
+        ).into()),
     }
     Ok(())
 }

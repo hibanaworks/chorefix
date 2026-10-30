@@ -226,30 +226,24 @@ fn repeat_a_last() -> impl Projectable {
     .roll()
 }
 
-fn b_after_a_merge() -> impl Projectable {
+fn merge_a_and_review_b(review: impl Projectable) -> impl Projectable {
     g::seq(
-        intent::<84>(),
-        g::seq(
-            g::par(merge_a(), g::send::<REVIEW_WASI, REVIEW_B, ReviewB>()),
-            g::route(
-                g::seq(outcome_b::<40>(), g::seq(merge_b(), finish())),
-                g::seq(outcome_b::<41>(), repeat_b_last()),
-            )
-            .resolve::<DECIDE_B>(),
-        ),
+        g::par(merge_a(), review),
+        g::route(
+            g::seq(outcome_b::<40>(), g::seq(merge_b(), finish())),
+            g::seq(outcome_b::<41>(), repeat_b_last()),
+        )
+        .resolve::<DECIDE_B>(),
     )
 }
-fn a_after_b_merge() -> impl Projectable {
+fn merge_b_and_review_a(review: impl Projectable) -> impl Projectable {
     g::seq(
-        intent::<88>(),
-        g::seq(
-            g::par(merge_b(), g::send::<REVIEW_WASI, REVIEW_A, ReviewA>()),
-            g::route(
-                g::seq(outcome_a::<30>(), g::seq(merge_a(), finish())),
-                g::seq(outcome_a::<31>(), repeat_a_last()),
-            )
-            .resolve::<DECIDE_A>(),
-        ),
+        g::par(merge_b(), review),
+        g::route(
+            g::seq(outcome_a::<30>(), g::seq(merge_a(), finish())),
+            g::seq(outcome_a::<31>(), repeat_a_last()),
+        )
+        .resolve::<DECIDE_A>(),
     )
 }
 
@@ -291,7 +285,13 @@ fn repeat_a_before_b() -> impl Projectable {
                 g::seq(
                     g::send::<REVIEW_WASI, REVIEW_A, ReReviewA>(),
                     g::route(
-                        g::seq(outcome_a::<30>(), b_after_a_merge()),
+                        g::seq(
+                            outcome_a::<30>(),
+                            g::seq(
+                                intent::<84>(),
+                                merge_a_and_review_b(g::send::<REVIEW_WASI, REVIEW_B, ReviewB>()),
+                            ),
+                        ),
                         outcome_a::<31>(),
                     )
                     .resolve::<DECIDE_A>(),
@@ -308,7 +308,10 @@ fn repeat_a_before_b() -> impl Projectable {
                 g::route(
                     g::seq(
                         outcome_b::<40>(),
-                        repeat_a_after_b(g::seq(merge_b(), finish())),
+                        g::seq(
+                            intent::<85>(),
+                            merge_b_and_review_a(g::send::<REVIEW_WASI, REVIEW_A, ReReviewA>()),
+                        ),
                     ),
                     g::seq(outcome_b::<41>(), repeat_a_after_b(repeat_b_last())),
                 )
@@ -331,7 +334,10 @@ fn repeat_b_before_a() -> impl Projectable {
                 g::route(
                     g::seq(
                         outcome_a::<30>(),
-                        repeat_b_after_a(g::seq(merge_a(), finish())),
+                        g::seq(
+                            intent::<89>(),
+                            merge_a_and_review_b(g::send::<REVIEW_WASI, REVIEW_B, ReReviewB>()),
+                        ),
                     ),
                     g::seq(outcome_a::<31>(), repeat_b_after_a(repeat_a_last())),
                 )
@@ -345,7 +351,13 @@ fn repeat_b_before_a() -> impl Projectable {
                 g::seq(
                     g::send::<REVIEW_WASI, REVIEW_B, ReReviewB>(),
                     g::route(
-                        g::seq(outcome_b::<40>(), a_after_b_merge()),
+                        g::seq(
+                            outcome_b::<40>(),
+                            g::seq(
+                                intent::<88>(),
+                                merge_b_and_review_a(g::send::<REVIEW_WASI, REVIEW_A, ReviewA>()),
+                            ),
+                        ),
                         outcome_b::<41>(),
                     )
                     .resolve::<DECIDE_B>(),
@@ -367,7 +379,13 @@ fn first_a() -> impl Projectable {
                     implement_b::<169>(),
                 ),
                 g::route(
-                    g::seq(outcome_a::<30>(), b_after_a_merge()),
+                    g::seq(
+                        outcome_a::<30>(),
+                        g::seq(
+                            intent::<84>(),
+                            merge_a_and_review_b(g::send::<REVIEW_WASI, REVIEW_B, ReviewB>()),
+                        ),
+                    ),
                     g::seq(outcome_a::<31>(), repeat_a_before_b()),
                 )
                 .resolve::<DECIDE_A>(),
@@ -386,7 +404,13 @@ fn first_b() -> impl Projectable {
                     implement_a::<69>(),
                 ),
                 g::route(
-                    g::seq(outcome_b::<40>(), a_after_b_merge()),
+                    g::seq(
+                        outcome_b::<40>(),
+                        g::seq(
+                            intent::<88>(),
+                            merge_b_and_review_a(g::send::<REVIEW_WASI, REVIEW_A, ReviewA>()),
+                        ),
+                    ),
                     g::seq(outcome_b::<41>(), repeat_b_before_a()),
                 )
                 .resolve::<DECIDE_B>(),

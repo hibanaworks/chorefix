@@ -47,7 +47,8 @@ success rates.
 Current qualifications include actual Wasm guests and subscription model
 participants for three/five/seven-person Dining, seven-person collaborative
 coding with reconsideration, collaborative writing at three/five/seven participants,
-and the three-person API and CI/CD tasks. The API checks
+and the three-person API, CI/CD and code-review tasks. Code review includes
+revisions after rejected reviews. The API checks
 preserve both the original successful outcome and terminal test failure.
 Audits check resource transfers, requests, returned results, shared effects,
 file reads and guest exits. Record mutations check that the audits reject

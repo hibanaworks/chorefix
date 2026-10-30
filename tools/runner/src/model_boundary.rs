@@ -56,6 +56,12 @@ async fn subscription_cicd_participants_use_resource_endpoints() -> Result<()> {
 }
 
 #[tokio::test(flavor = "current_thread")]
+#[ignore = "uses three Luna xhigh participants, actual repository Endpoints and upstream review failures"]
+async fn subscription_review_participants_reconsider_with_resource_endpoints() -> Result<()> {
+    subscription_case("6E", 2).await
+}
+
+#[tokio::test(flavor = "current_thread")]
 #[ignore = "uses three Luna xhigh participants and actual section Endpoints through WASI"]
 async fn subscription_writing_three_participants_use_section_endpoints() -> Result<()> {
     subscription_case("2E", 0).await
@@ -105,6 +111,7 @@ async fn subscription_case(task: &str, depth: u8) -> Result<()> {
         "1H" => ("CHOREOFIX_CODEBASE_WASI_BINARY", 7),
         "8E" => ("CHOREOFIX_API_WASI_BINARY", 3),
         "16E" => ("CHOREOFIX_CICD_WASI_BINARY", 3),
+        "6E" => ("CHOREOFIX_REVIEW_WASI_BINARY", 3),
         "2E" => ("CHOREOFIX_WRITING_WASI_BINARY", 3),
         "2M" => ("CHOREOFIX_WRITING_WASI_BINARY", 5),
         "2H" => ("CHOREOFIX_WRITING_WASI_BINARY", 7),
@@ -124,6 +131,7 @@ async fn subscription_case(task: &str, depth: u8) -> Result<()> {
         "1H" => Some("CHOREOFIX_CODEBASE_BUILD_RECEIPT"),
         "8E" => Some("CHOREOFIX_API_BUILD_RECEIPT"),
         "16E" => Some("CHOREOFIX_CICD_BUILD_RECEIPT"),
+        "6E" => Some("CHOREOFIX_REVIEW_BUILD_RECEIPT"),
         "2E" | "2M" | "2H" => Some("CHOREOFIX_WRITING_BUILD_RECEIPT"),
         _ => None,
     };
@@ -149,6 +157,7 @@ async fn subscription_case(task: &str, depth: u8) -> Result<()> {
     let (simulator, fixture) = oracle::Simulator::new(task, depth, 1.0, trace.clone(), &[])?;
     let audit_source = match task {
         "16E" => "tools/runner/src/cicd_audit.rs",
+        "6E" => "tools/runner/src/review_audit.rs",
         "2E" | "2M" | "2H" => "tools/runner/src/writing_audit.rs",
         "8E" => "tools/runner/src/api_audit.rs",
         "1H" => "tools/runner/src/codebase_audit.rs",
@@ -265,6 +274,8 @@ async fn subscription_case(task: &str, depth: u8) -> Result<()> {
     }
     let audit = if task == "16E" {
         crate::cicd_audit::audit(&directory.join("events.jsonl"))?
+    } else if task == "6E" {
+        crate::review_audit::audit(&directory.join("events.jsonl"))?
     } else if matches!(task, "2E" | "2M" | "2H") {
         crate::writing_audit::audit(&directory.join("events.jsonl"))?
     } else if task == "8E" {
@@ -288,6 +299,10 @@ async fn subscription_case(task: &str, depth: u8) -> Result<()> {
     };
     save(&directory.join("audit.json"), &audit)?;
     if audit["status"] != "passed"
+        || (task == "6E"
+            && (audit["actual_resource_endpoint_requests"] != 4 + u64::from(depth)
+                || audit["actual_resource_endpoint_returns"] != 4 + u64::from(depth)
+                || audit["actual_review_requests"] != 2 + u64::from(depth)))
         || (task == "16E"
             && (audit["actual_resource_endpoint_requests"] != 3
                 || audit["actual_resource_endpoint_returns"] != 3))
