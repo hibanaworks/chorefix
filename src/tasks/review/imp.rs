@@ -1,6 +1,6 @@
 use hibana::runtime::resolver::{DecisionArm, ResolverError};
 use serde_json::Value;
-use std::cell::RefCell;
+use std::cell::Cell;
 
 /// The actual tool target or the model stream's observed completion event.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -32,21 +32,19 @@ pub trait Domain {
 
 /// The original response at this explicit resolver point, never a progress flag.
 #[derive(Default)]
-pub(crate) struct ReviewInput(RefCell<Option<Value>>);
+pub(crate) struct ReviewInput(Cell<Option<Value>>);
 impl ReviewInput {
     pub(crate) fn record(&self, result: Value) {
         self.0.replace(Some(result));
     }
 }
 pub(crate) fn decide(input: &ReviewInput) -> Result<DecisionArm, ResolverError> {
-    match input
-        .0
-        .borrow()
-        .as_ref()
-        .and_then(|v| v["success"].as_bool())
-    {
+    let result = input.0.take();
+    let decision = match result.as_ref().and_then(|v| v["success"].as_bool()) {
         Some(true) => Ok(DecisionArm::Left),
         Some(false) => Ok(DecisionArm::Right),
         None => Err(ResolverError::reject()),
-    }
+    };
+    input.0.set(result);
+    decision
 }

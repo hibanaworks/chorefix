@@ -1,6 +1,6 @@
 use hibana::runtime::resolver::{DecisionArm, ResolverError};
 use serde_json::Value;
-use std::cell::RefCell;
+use std::cell::Cell;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Operation {
@@ -23,21 +23,22 @@ pub trait Domain {
 
 /// Only the unmodified test response is stored. Endpoint owns progress.
 #[derive(Default)]
-pub(crate) struct TestInput(RefCell<Option<Value>>);
+pub(crate) struct TestInput(Cell<Option<Value>>);
 impl TestInput {
     pub(crate) fn record(&self, result: Value) {
         self.0.replace(Some(result));
     }
 }
 pub(crate) fn decide(input: &TestInput) -> Result<DecisionArm, ResolverError> {
-    match input
-        .0
-        .borrow()
+    let result = input.0.take();
+    let decision = match result
         .as_ref()
         .and_then(|result| result["success"].as_bool())
     {
         Some(true) => Ok(DecisionArm::Left),
         Some(false) => Ok(DecisionArm::Right),
         None => Err(ResolverError::reject()),
-    }
+    };
+    input.0.set(result);
+    decision
 }

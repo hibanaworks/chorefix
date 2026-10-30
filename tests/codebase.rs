@@ -23,6 +23,20 @@ struct Input {
     events: RefCell<Vec<(&'static str, Operation, Value)>>,
 }
 
+impl Drop for Input {
+    fn drop(&mut self) {
+        if std::thread::panicking() {
+            eprintln!("actual domain events: {:?}", self.events.borrow());
+            for (agent, calls) in self.calls.borrow().iter() {
+                eprintln!(
+                    "pending model input {agent}: {:?}",
+                    calls.iter().map(|call| call.operation).collect::<Vec<_>>()
+                );
+            }
+        }
+    }
+}
+
 impl Input {
     fn failures_then_pass(failures: usize) -> Self {
         Self::for_roles(7, failures)
@@ -412,6 +426,67 @@ async fn seven_role_protocol_runs_three_disjoint_commits_concurrently() {
     }
     assert!(active.is_empty());
     assert_eq!(peak, 3);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn b_can_commit_while_disjoint_e_still_holds_its_modules() {
+    use tokio::sync::oneshot;
+
+    struct Overlap {
+        input: Input,
+        e_started: RefCell<Option<oneshot::Sender<()>>>,
+        wait_for_e: RefCell<Option<oneshot::Receiver<()>>>,
+        b_committed: RefCell<Option<oneshot::Sender<()>>>,
+        release_e: RefCell<Option<oneshot::Receiver<()>>>,
+    }
+    impl Domain for Overlap {
+        type Call = Call;
+        async fn request(&self, agent: &'static str) -> Result<Call, String> {
+            self.input.request(agent).await
+        }
+        async fn execute(&self, agent: &'static str, call: Call) -> Result<Value, String> {
+            if agent == "DEVELOPER_E" && call.operation == Operation::Commit {
+                self.e_started
+                    .borrow_mut()
+                    .take()
+                    .unwrap()
+                    .send(())
+                    .unwrap();
+                let release = self.release_e.borrow_mut().take().unwrap();
+                release.await.unwrap();
+            }
+            if agent == "DEVELOPER_B" && call.operation == Operation::Implement {
+                let started = self.wait_for_e.borrow_mut().take().unwrap();
+                started.await.unwrap();
+            }
+            if agent == "DEVELOPER_B" && call.operation == Operation::Commit {
+                self.b_committed
+                    .borrow_mut()
+                    .take()
+                    .unwrap()
+                    .send(())
+                    .unwrap();
+            }
+            self.input.execute(agent, call).await
+        }
+    }
+    let (e_started, wait_for_e) = oneshot::channel();
+    let (b_committed, release_e) = oneshot::channel();
+    let domain = Overlap {
+        input: Input::failures_then_pass(0),
+        e_started: RefCell::new(Some(e_started)),
+        wait_for_e: RefCell::new(Some(wait_for_e)),
+        b_committed: RefCell::new(Some(b_committed)),
+        release_e: RefCell::new(Some(release_e)),
+    };
+    // A test-only dependency holds E's actual effect until B enters its own.
+    // A wave-wide join between A/C/E and B/D/F would stall here.
+    tokio::time::timeout(std::time::Duration::from_secs(5), codebase::run_1h(&domain))
+        .await
+        .expect("an unrelated outstanding loan serialized B")
+        .unwrap();
+    assert_eq!(domain.input.events.borrow().len(), 28);
+    assert!(domain.input.calls.borrow().values().all(VecDeque::is_empty));
 }
 
 #[tokio::test(flavor = "current_thread")]

@@ -26,11 +26,13 @@ pub(crate) async fn run<D: Domain>(
                 a.record(result.clone());
                 match decide(a).map_err(RunError::Resolver)? {
                     DecisionArm::Left => {
-                        endpoint.send::<ApprovedA<'_>>(&bytes.as_slice()).await?;
+                        let response = bytes.as_slice();
+                        endpoint.send::<ApprovedA<'_>>(&response).await?;
                         endpoint.send::<ApprovedPortA>(&()).await?;
                     }
                     DecisionArm::Right => {
-                        endpoint.send::<ReviseA<'_>>(&bytes.as_slice()).await?;
+                        let response = bytes.as_slice();
+                        endpoint.send::<ReviseA<'_>>(&response).await?;
                         endpoint.send::<RevisePortA>(&()).await?;
                     }
                 }
@@ -51,11 +53,13 @@ pub(crate) async fn run<D: Domain>(
                 b.record(result.clone());
                 match decide(b).map_err(RunError::Resolver)? {
                     DecisionArm::Left => {
-                        endpoint.send::<ApprovedB<'_>>(&bytes.as_slice()).await?;
+                        let response = bytes.as_slice();
+                        endpoint.send::<ApprovedB<'_>>(&response).await?;
                         endpoint.send::<ApprovedPortB>(&()).await?;
                     }
                     DecisionArm::Right => {
-                        endpoint.send::<ReviseB<'_>>(&bytes.as_slice()).await?;
+                        let response = bytes.as_slice();
+                        endpoint.send::<ReviseB<'_>>(&response).await?;
                         endpoint.send::<RevisePortB>(&()).await?;
                     }
                 }

@@ -1,35 +1,53 @@
-//! Host-only carrier for the runnable example.
-//!
-//! Production deployments replace this module with their own `Transport`.
+//! In-process transport for one experimental execution.
 
 use std::{
-    cell::RefCell,
+    cell::Cell,
     collections::VecDeque,
-    rc::Rc,
     task::{Context, Poll, Waker},
 };
 
 use hibana::runtime::{
     ids::SessionId,
-    transport::{FrameHeader, Outgoing, PortOpen, ReceivedFrame, Transport, TransportError},
+    transport::{
+        EndpointBinding, FrameHeader, Outgoing, PortOpen, ReceivedFrame, Transport, TransportError,
+    },
     wire::Payload,
 };
 
-#[derive(Clone)]
 pub(crate) struct InMemoryTransport {
-    state: Rc<RefCell<IoQueues>>,
+    state: Cell<IoQueues>,
+    bindings: Vec<InitialBinding>,
+}
+
+struct InitialBinding {
+    session: SessionId,
+    role: u8,
+    binding: EndpointBinding,
 }
 
 impl InMemoryTransport {
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new(
+        bindings: impl IntoIterator<Item = (SessionId, u8, EndpointBinding)>,
+    ) -> Self {
         Self {
-            state: Rc::new(RefCell::new(IoQueues::default())),
+            state: Cell::new(IoQueues::default()),
+            bindings: bindings
+                .into_iter()
+                .map(|(session, role, binding)| InitialBinding {
+                    session,
+                    role,
+                    binding,
+                })
+                .collect(),
         }
     }
 
     /// Append-only observations; no observer can authorize an operation.
     pub(crate) fn take_observations(&self) -> Vec<serde_json::Value> {
-        std::mem::take(&mut self.state.borrow_mut().observations)
+        let mut state = self.state.take();
+        let observations = std::mem::take(&mut state.observations);
+        self.state.set(state);
+        observations
     }
 }
 
@@ -47,7 +65,7 @@ struct Frame {
     lane: u8,
     source: u8,
     target: u8,
-    label: u8,
+    label: u16,
     payload: Vec<u8>,
 }
 
@@ -61,6 +79,7 @@ impl Frame {
 
     fn received(&self) -> ReceivedFrame<'_> {
         let session = self.session.raw().to_be_bytes();
+        let label = self.label.to_be_bytes();
         let header = FrameHeader::from_bytes([
             session[0],
             session[1],
@@ -69,7 +88,8 @@ impl Frame {
             self.lane,
             self.source,
             self.target,
-            self.label,
+            label[0],
+            label[1],
         ]);
         ReceivedFrame::framed(header, Payload::new(&self.payload))
     }
@@ -109,9 +129,22 @@ pub(crate) struct Rx {
     current: Option<Frame>,
 }
 
-impl Transport for InMemoryTransport {
-    type Tx<'a> = Tx;
-    type Rx<'a> = Rx;
+impl Transport for &InMemoryTransport {
+    fn initial_endpoint_binding(&self, session: SessionId, role: u8) -> Option<&EndpointBinding> {
+        self.bindings
+            .iter()
+            .find(|binding| binding.session == session && binding.role == role)
+            .map(|binding| &binding.binding)
+    }
+
+    type Tx<'a>
+        = Tx
+    where
+        Self: 'a;
+    type Rx<'a>
+        = Rx
+    where
+        Self: 'a;
 
     fn open(&self, port: PortOpen) -> (Self::Tx<'_>, Self::Rx<'_>) {
         let session = port.session_id();
@@ -132,15 +165,12 @@ impl Transport for InMemoryTransport {
         )
     }
 
-    fn poll_send<'a, 'f>(
+    fn poll_send<'f>(
         &self,
-        tx: &'a mut Self::Tx<'a>,
+        tx: &mut Tx,
         outgoing: Outgoing<'f>,
         _context: &mut Context<'_>,
-    ) -> Poll<Result<(), TransportError>>
-    where
-        'a: 'f,
-    {
+    ) -> Poll<Result<(), TransportError>> {
         if outgoing.lane() != tx.lane {
             return Poll::Ready(Err(TransportError::Failed));
         }
@@ -154,7 +184,7 @@ impl Transport for InMemoryTransport {
             payload: outgoing.payload().as_bytes().to_vec(),
         };
         let wake = {
-            let mut state = self.state.borrow_mut();
+            let mut state = self.state.take();
             frame.id = state.next_frame;
             state.next_frame += 1;
             state.observations.push(frame.observation("send"));
@@ -164,6 +194,7 @@ impl Transport for InMemoryTransport {
                 .position(|waiter| waiter.is_for_frame(&frame))
                 .map(|index| state.waiters.swap_remove(index).waker);
             state.frames.push_back(frame);
+            self.state.set(state);
             wake
         };
         if let Some(waker) = wake {
@@ -172,18 +203,19 @@ impl Transport for InMemoryTransport {
         Poll::Ready(Ok(()))
     }
 
-    fn cancel_send<'a>(&self, _tx: &'a mut Self::Tx<'a>) {
+    fn cancel_send(&self, _tx: &mut Tx) {
         // Sends complete atomically and never retain pending payload state.
     }
 
     fn poll_recv<'a>(
         &'a self,
-        rx: &'a mut Self::Rx<'a>,
+        rx: &'a mut Rx,
         context: &mut Context<'_>,
     ) -> Poll<Result<ReceivedFrame<'a>, TransportError>> {
         rx.current = None;
-        let frame = {
-            let mut state = self.state.borrow_mut();
+        let next_waker = context.waker().clone();
+        let (frame, replaced_waker) = {
+            let mut state = self.state.take();
             let frame = state
                 .frames
                 .iter()
@@ -192,20 +224,25 @@ impl Transport for InMemoryTransport {
             if let Some(frame) = &frame {
                 state.observations.push(frame.observation("receive"));
             }
-            if frame.is_none() {
+            let replaced_waker = if frame.is_none() {
                 if let Some(waiter) = state.waiters.iter_mut().find(|waiter| waiter.is_for_rx(rx)) {
-                    waiter.waker = context.waker().clone();
+                    Some(std::mem::replace(&mut waiter.waker, next_waker))
                 } else {
                     state.waiters.push(Waiter {
                         session: rx.session,
                         lane: rx.lane,
                         local_role: rx.local_role,
-                        waker: context.waker().clone(),
+                        waker: next_waker,
                     });
+                    None
                 }
-            }
-            frame
+            } else {
+                None
+            };
+            self.state.set(state);
+            (frame, replaced_waker)
         };
+        drop(replaced_waker);
         match frame {
             Some(frame) => {
                 rx.current = Some(frame);
@@ -215,11 +252,20 @@ impl Transport for InMemoryTransport {
         }
     }
 
-    fn requeue(&self, rx: &mut Self::Rx<'_>) -> Result<(), TransportError> {
+    fn requeue(&self, rx: &mut Rx) -> Result<(), TransportError> {
         let frame = rx.current.take().ok_or(TransportError::Failed)?;
-        let mut state = self.state.borrow_mut();
+        let mut state = self.state.take();
         state.observations.push(frame.observation("requeue"));
+        let wake = state
+            .waiters
+            .iter()
+            .position(|waiter| waiter.is_for_frame(&frame))
+            .map(|index| state.waiters.swap_remove(index).waker);
         state.frames.push_front(frame);
+        self.state.set(state);
+        if let Some(waker) = wake {
+            waker.wake();
+        }
         Ok(())
     }
 }

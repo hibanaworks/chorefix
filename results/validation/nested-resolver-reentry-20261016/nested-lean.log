@@ -1,6 +1,0 @@
-'NestedResolverReentry.child_entry_retains_parent' does not depend on any axioms
-'NestedResolverReentry.no_selection_is_fresh' does not depend on any axioms
-'NestedResolverReentry.completed_own_entry_is_fresh' does not depend on any axioms
-'NestedResolverReentry.containing_new_visit_owns_descendant' does not depend on any axioms
-'NestedResolverReentry.retained_parent_ignores_changed_callback' does not depend on any axioms
-'NestedResolverReentry.completion_alone_misclassifies_child_entry' does not depend on any axioms

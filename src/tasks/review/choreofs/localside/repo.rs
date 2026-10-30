@@ -1,263 +1,120 @@
-//! The single REPO owner materializes every admitted shared operation.
+//! The repository owner lends its sole Endpoint and executes only requests
+//! received through that Endpoint.
 use super::super::global::*;
-use crate::shell::{
-    ShellError, ShellResult,
-    imp::service::{Domain, File, Validation},
-};
+use crate::shell::{ShellError, ShellResult, imp::service::Domain};
 use hibana::Endpoint;
-use serde_json::json;
 
-pub async fn run<D: Domain>(
-    endpoint: &mut Endpoint<'_, REPO>,
+pub async fn run<'r, D: Domain>(
+    endpoint: &mut Endpoint<'r, REPO>,
+    mut repository: Endpoint<'r, REPO_ENDPOINT>,
     domain: &D,
-    implement_a: &Validation,
-    merge_a: &Validation,
-    implement_b: &Validation,
-    merge_b: &Validation,
 ) -> ShellResult<()> {
-    let mut a_implementation = File::new(b"service/implement_feature", SERVICE_FD);
-    let mut a_merge = File::new(b"service/merge_code", SERVICE_FD);
-    let mut b_implementation = File::new(b"service/implement_feature", SERVICE_FD);
-    let mut b_merge = File::new(b"service/merge_code", SERVICE_FD);
     loop {
-        let branch = endpoint
-            .offer()
-            .await
-            .map_err(|e| ShellError::message(format!("repo offer: {e:?}")))?;
+        let branch = endpoint.offer().await?;
         match branch.label() {
-            110 => {
-                let request = branch.recv::<OpenImplementA>().await?;
-                endpoint
-                    .send::<OpenedImplementA>(&a_implementation.open(request))
-                    .await?;
-            }
-            112 => {
-                let request = branch.recv::<WriteImplementA>().await?;
-                endpoint
-                    .send::<WrittenImplementA>(&a_implementation.write(request))
-                    .await?;
-            }
-            114 => {
-                let request = branch.recv::<CommitImplementA>().await?;
-                implement_a.record(
-                    a_implementation
-                        .arguments(request.0, "feature_name")
-                        .and_then(|value| {
-                            if value["feature_name"] == FEATURE_A {
-                                Ok(value)
-                            } else {
-                                Err(ShellError::message(
-                                    "operation target differs from this service",
-                                ))
-                            }
-                        }),
-                );
-            }
-            115 => {
-                branch.recv::<MaterializeImplementA>().await?;
+            69 | 76 | 169 | 176 => {
+                let (agent, feature, admitted) = match branch.label() {
+                    69 => ("DEVELOPER_A", FEATURE_A, branch.recv::<ImplementA>().await?),
+                    76 => ("DEVELOPER_A", FEATURE_A, branch.recv::<ReviseA>().await?),
+                    169 => ("DEVELOPER_B", FEATURE_B, branch.recv::<ImplementB>().await?),
+                    176 => ("DEVELOPER_B", FEATURE_B, branch.recv::<ReviseB>().await?),
+                    _ => unreachable!(),
+                };
+                let admitted = admitted.into_value();
+                endpoint.send::<RepoLoan<'_>>(repository).await?;
+                let request = endpoint.recv::<ImplementOnRepo>().await?.into_value();
+                if request != admitted || request["feature_name"] != feature {
+                    return Err(ShellError::message(
+                        "repository implementation arguments differ",
+                    ));
+                }
                 let result = domain
-                    .execute("DEVELOPER_A", "implement_feature", implement_a.take()?)
+                    .execute(agent, "implement_feature", request)
                     .await
                     .map_err(ShellError::message)?;
-                let bytes =
-                    serde_json::to_vec(&result).map_err(|e| ShellError::message(e.to_string()))?;
-                endpoint
-                    .send::<CompletedImplementA<'_>>(&bytes.as_slice())
-                    .await?;
-                if result["success"] != true {
-                    return Err(ShellError::message(format!(
-                        "terminal REPO operation failure: {result}"
-                    )));
+                let bytes = serde_json::to_vec(&result)
+                    .map_err(|error| ShellError::message(error.to_string()))?;
+                endpoint.send::<RepoResult<'_>>(&bytes.as_slice()).await?;
+                repository = endpoint.recv::<RepoLoan<'_>>().await?;
+            }
+            70 | 170 => {
+                let (agent, assigned_branch, admitted) = match branch.label() {
+                    70 => (
+                        "DEVELOPER_A",
+                        MERGE_BRANCH_A,
+                        branch.recv::<MergeA>().await?,
+                    ),
+                    170 => (
+                        "DEVELOPER_B",
+                        MERGE_BRANCH_B,
+                        branch.recv::<MergeB>().await?,
+                    ),
+                    _ => unreachable!(),
+                };
+                let admitted = admitted.into_value();
+                endpoint.send::<RepoLoan<'_>>(repository).await?;
+                let request = endpoint.recv::<MergeOnRepo>().await?.into_value();
+                if request != admitted || request["branch"] != assigned_branch {
+                    return Err(ShellError::message("repository merge arguments differ"));
                 }
-            }
-            117 => {
-                let bytes = serde_json::to_vec(
-                    &json!({"status":"invalid_arguments", "error":implement_a.rejection()?}),
-                )
-                .map_err(|e| ShellError::message(e.to_string()))?;
-                branch
-                    .send::<RejectedImplementA<'_>>(&bytes.as_slice())
-                    .await?;
-            }
-            130 => {
-                let request = branch.recv::<OpenMergeA>().await?;
-                endpoint
-                    .send::<OpenedMergeA>(&a_merge.open(request))
-                    .await?;
-            }
-            132 => {
-                let request = branch.recv::<WriteMergeA>().await?;
-                endpoint
-                    .send::<WrittenMergeA>(&a_merge.write(request))
-                    .await?;
-            }
-            134 => {
-                let request = branch.recv::<CommitMergeA>().await?;
-                merge_a.record(a_merge.arguments(request.0, "branch").and_then(|value| {
-                    if value["branch"] == MERGE_BRANCH_A {
-                        Ok(value)
-                    } else {
-                        Err(ShellError::message(
-                            "operation target differs from this service",
-                        ))
-                    }
-                }));
-            }
-            135 => {
-                branch.recv::<MaterializeMergeA>().await?;
                 let result = domain
-                    .execute("DEVELOPER_A", "merge_code", merge_a.take()?)
+                    .execute(agent, "merge_code", request)
                     .await
                     .map_err(ShellError::message)?;
-                let bytes =
-                    serde_json::to_vec(&result).map_err(|e| ShellError::message(e.to_string()))?;
-                endpoint
-                    .send::<CompletedMergeA<'_>>(&bytes.as_slice())
-                    .await?;
-                if result["success"] != true {
-                    return Err(ShellError::message(format!(
-                        "terminal REPO operation failure: {result}"
-                    )));
-                }
+                let bytes = serde_json::to_vec(&result)
+                    .map_err(|error| ShellError::message(error.to_string()))?;
+                endpoint.send::<RepoResult<'_>>(&bytes.as_slice()).await?;
+                repository = endpoint.recv::<RepoLoan<'_>>().await?;
             }
-            137 => {
-                let bytes = serde_json::to_vec(
-                    &json!({"status":"invalid_arguments", "error":merge_a.rejection()?}),
-                )
-                .map_err(|e| ShellError::message(e.to_string()))?;
-                branch.send::<RejectedMergeA<'_>>(&bytes.as_slice()).await?;
+            30 => {
+                branch.recv::<ApprovedA<'_>>().await?;
             }
-            150 => {
-                let request = branch.recv::<OpenImplementB>().await?;
-                endpoint
-                    .send::<OpenedImplementB>(&b_implementation.open(request))
-                    .await?;
+            31 => {
+                branch.recv::<RejectedA<'_>>().await?;
             }
-            152 => {
-                let request = branch.recv::<WriteImplementB>().await?;
-                endpoint
-                    .send::<WrittenImplementB>(&b_implementation.write(request))
-                    .await?;
+            40 => {
+                branch.recv::<ApprovedB<'_>>().await?;
             }
-            154 => {
-                let request = branch.recv::<CommitImplementB>().await?;
-                implement_b.record(
-                    b_implementation
-                        .arguments(request.0, "feature_name")
-                        .and_then(|value| {
-                            if value["feature_name"] == FEATURE_B {
-                                Ok(value)
-                            } else {
-                                Err(ShellError::message(
-                                    "operation target differs from this service",
-                                ))
-                            }
-                        }),
-                );
+            41 => {
+                branch.recv::<RejectedB<'_>>().await?;
             }
-            155 => {
-                branch.recv::<MaterializeImplementB>().await?;
-                let result = domain
-                    .execute("DEVELOPER_B", "implement_feature", implement_b.take()?)
-                    .await
-                    .map_err(ShellError::message)?;
-                let bytes =
-                    serde_json::to_vec(&result).map_err(|e| ShellError::message(e.to_string()))?;
-                endpoint
-                    .send::<CompletedImplementB<'_>>(&bytes.as_slice())
-                    .await?;
-                if result["success"] != true {
-                    return Err(ShellError::message(format!(
-                        "terminal REPO operation failure: {result}"
-                    )));
-                }
+            80 => {
+                branch.recv::<FirstA>().await?;
             }
-            157 => {
-                let bytes = serde_json::to_vec(
-                    &json!({"status":"invalid_arguments", "error":implement_b.rejection()?}),
-                )
-                .map_err(|e| ShellError::message(e.to_string()))?;
-                branch
-                    .send::<RejectedImplementB<'_>>(&bytes.as_slice())
-                    .await?;
+            81 => {
+                branch.recv::<FirstB>().await?;
             }
-            170 => {
-                let request = branch.recv::<OpenMergeB>().await?;
-                endpoint
-                    .send::<OpenedMergeB>(&b_merge.open(request))
-                    .await?;
+            82 => {
+                branch.recv::<AgainABeforeB>().await?;
             }
-            172 => {
-                let request = branch.recv::<WriteMergeB>().await?;
-                endpoint
-                    .send::<WrittenMergeB>(&b_merge.write(request))
-                    .await?;
+            83 => {
+                branch.recv::<BDuringARevision>().await?;
             }
-            174 => {
-                let request = branch.recv::<CommitMergeB>().await?;
-                merge_b.record(b_merge.arguments(request.0, "branch").and_then(|value| {
-                    if value["branch"] == MERGE_BRANCH_B {
-                        Ok(value)
-                    } else {
-                        Err(ShellError::message(
-                            "operation target differs from this service",
-                        ))
-                    }
-                }));
+            84 => {
+                branch.recv::<BAfterAMerge>().await?;
             }
-            175 => {
-                branch.recv::<MaterializeMergeB>().await?;
-                let result = domain
-                    .execute("DEVELOPER_B", "merge_code", merge_b.take()?)
-                    .await
-                    .map_err(ShellError::message)?;
-                let bytes =
-                    serde_json::to_vec(&result).map_err(|e| ShellError::message(e.to_string()))?;
-                endpoint
-                    .send::<CompletedMergeB<'_>>(&bytes.as_slice())
-                    .await?;
-                if result["success"] != true {
-                    return Err(ShellError::message(format!(
-                        "terminal REPO operation failure: {result}"
-                    )));
-                }
+            85 => {
+                branch.recv::<AgainAAfterB>().await?;
             }
-            177 => {
-                let bytes = serde_json::to_vec(
-                    &json!({"status":"invalid_arguments", "error":merge_b.rejection()?}),
-                )
-                .map_err(|e| ShellError::message(e.to_string()))?;
-                branch.send::<RejectedMergeB<'_>>(&bytes.as_slice()).await?;
+            86 => {
+                branch.recv::<AgainBBeforeA>().await?;
             }
-            180 => {
-                branch.recv::<ApproveRepoA>().await?;
-                endpoint.send::<DecisionRecordedA>(&()).await?;
+            87 => {
+                branch.recv::<ADuringBRevision>().await?;
             }
-            181 => {
-                branch.recv::<ReworkRepoA>().await?;
-                endpoint.send::<DecisionRecordedA>(&()).await?;
+            88 => {
+                branch.recv::<AAfterBMerge>().await?;
             }
-            182 => {
-                branch.recv::<ApproveRepoB>().await?;
-                endpoint.send::<DecisionRecordedB>(&()).await?;
+            89 => {
+                branch.recv::<AgainBAfterA>().await?;
             }
-            183 => {
-                branch.recv::<ReworkRepoB>().await?;
-                endpoint.send::<DecisionRecordedB>(&()).await?;
-            }
-            35 => {
+            234 => {
                 branch.recv::<RepoExit>().await?;
                 return Ok(());
             }
-            36 => {
-                let status = branch.recv::<RepoFailed>().await?;
-                return Err(ShellError::message(format!(
-                    "reviewer guest failed: {status}"
-                )));
-            }
             label => {
                 return Err(ShellError::message(format!(
-                    "unexpected REPO request: {label}"
+                    "unexpected repository operation {label}"
                 )));
             }
         }

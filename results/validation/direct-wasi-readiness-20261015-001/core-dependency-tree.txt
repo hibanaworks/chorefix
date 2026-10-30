@@ -1,4 +1,0 @@
-hibana v0.9.9
-├── choreofix v0.1.0 (/Users/ovm/Code/hibanaworks/hibana-tracefix)
-└── hibana-wasip1-runtime v0.1.0 (https://github.com/hibanaworks/hibana-wasip1-runtime?rev=4ebdad1443cf49488eae924afe528f67f5a5953b#4ebdad14)
-    └── choreofix v0.1.0 (/Users/ovm/Code/hibanaworks/hibana-tracefix)

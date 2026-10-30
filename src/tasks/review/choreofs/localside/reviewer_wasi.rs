@@ -1,226 +1,337 @@
-//! One guest drives separate projected service roles from the same global.
-//! Static path/fd binding selects the caller endpoint. Endpoint owns progress.
-use super::super::global::*;
-use crate::shell::{ShellResult, global::Exit as IoExit};
+//! The reviewer's actual request selects a projected branch; each independent
+//! projected operation is driven concurrently where the global uses par.
+use super::super::{global::*, imp::RepositoryArguments};
+use crate::shell::{
+    ShellError, ShellResult,
+    global::Exit as IoExit,
+    imp::file_wire::{ClosedFileMsg, ResultChunk, ResultChunkMsg, SERVICE_FD},
+};
 use hibana_wasip1_runtime::{
     exchange::{HibanaWasiGuest, WasiBoundaryStep, WasiImportCompletion, WasiImportRequest},
     protocol,
 };
+use serde_json::{Value, json};
 
 pub async fn run(
     guest: &mut HibanaWasiGuest<'_>,
     endpoint: &mut hibana::Endpoint<'_, REVIEW_WASI>,
-    review_a: &mut hibana::Endpoint<'_, REVIEW_A_WASI>,
-    review_b: &mut hibana::Endpoint<'_, REVIEW_B_WASI>,
-    reply_bytes: std::rc::Rc<std::cell::RefCell<Vec<u8>>>,
+    selection: &super::super::imp::FirstReview,
 ) -> ShellResult<i32> {
+    let [mut task, mut private] = endpoint.par()?;
     let mut fuel_id = 0u16;
     loop {
         match guest.resume_wasi_boundary(protocol::BudgetRun::new(fuel_id, 0, 100_000))? {
             WasiBoundaryStep::ImportPending(pending) => match pending.request()? {
                 WasiImportRequest::FdWrite(request) => {
-                    endpoint.send::<protocol::FdWriteReqMsg>(&request).await?;
-                    let completion = endpoint.recv::<protocol::FdWriteRetMsg>().await?;
+                    private.send::<protocol::FdWriteReqMsg>(&request).await?;
+                    let completion = private.recv::<protocol::FdWriteRetMsg>().await?;
                     pending.complete(WasiImportCompletion::FdWrite(completion))?;
                 }
                 WasiImportRequest::FdWriteObject(request) => {
-                    let completion = if request.0.fd() == REVIEW_B_FD {
-                        review_b.recv::<ReviewRequestReadyB>().await?;
-                        review_b.send::<WriteB>(&request).await?;
-                        review_b.recv::<WrittenB>().await?
-                    } else {
-                        review_a.recv::<ReviewRequestReady>().await?;
-                        review_a.send::<Write>(&request).await?;
-                        review_a.recv::<Written>().await?
-                    };
+                    private
+                        .send::<protocol::FdWriteObjectReqMsg>(&request)
+                        .await?;
+                    let completion = private.recv::<protocol::FdWriteObjectRetMsg>().await?;
                     pending.complete(WasiImportCompletion::FdWriteObject(completion))?;
                 }
                 WasiImportRequest::FdRead(request) => {
-                    endpoint.send::<protocol::FdReadReqMsg>(&request).await?;
-                    let completion = endpoint.recv::<protocol::FdReadRetMsg>().await?;
+                    private.send::<protocol::FdReadReqMsg>(&request).await?;
+                    let completion = private.recv::<protocol::FdReadRetMsg>().await?;
                     pending.complete(WasiImportCompletion::FdRead(completion))?;
                 }
                 WasiImportRequest::FdReaddir(request) => {
-                    endpoint.send::<protocol::FdReaddirReqMsg>(&request).await?;
-                    let completion = endpoint.recv::<protocol::FdReaddirRetMsg>().await?;
+                    private.send::<protocol::FdReaddirReqMsg>(&request).await?;
+                    let completion = private.recv::<protocol::FdReaddirRetMsg>().await?;
                     pending.complete(WasiImportCompletion::FdReaddir(completion))?;
                 }
                 WasiImportRequest::PathOpen(request) => {
-                    let path = request
-                        .0
-                        .path()
-                        .strip_prefix(b"/")
-                        .unwrap_or(request.0.path());
-                    let completion = if path == b"service/code_review/notification_feature" {
-                        review_b.recv::<ReviewRequestReadyB>().await?;
-                        review_b.send::<OpenB>(&request).await?;
-                        review_b.recv::<OpenedB>().await.map_err(|e| {
-                            crate::shell::ShellError::message(format!("review WASI OpenedB: {e:?}"))
-                        })?
-                    } else if path.starts_with(SERVICE_PREFIX) && path != RESULT_PATH {
-                        review_a.recv::<ReviewRequestReady>().await?;
-                        review_a.send::<Open>(&request).await?;
-                        review_a.recv::<Opened>().await.map_err(|e| {
-                            crate::shell::ShellError::message(format!("review WASI Opened: {e:?}"))
-                        })?
-                    } else {
-                        endpoint.send::<protocol::PathOpenReqMsg>(&request).await?;
-                        endpoint.recv::<protocol::PathOpenRetMsg>().await?
-                    };
+                    private.send::<protocol::PathOpenReqMsg>(&request).await?;
+                    let completion = private.recv::<protocol::PathOpenRetMsg>().await?;
                     pending.complete(WasiImportCompletion::PathOpen(completion))?;
                 }
                 WasiImportRequest::FdPrestatGet(request) => {
-                    endpoint
+                    private
                         .send::<protocol::FdPrestatGetReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::FdPrestatGetRetMsg>().await?;
+                    let completion = private.recv::<protocol::FdPrestatGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::FdPrestatGet(completion))?;
                 }
                 WasiImportRequest::FdPrestatDirName(request) => {
-                    endpoint
+                    private
                         .send::<protocol::FdPrestatDirNameReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::FdPrestatDirNameRetMsg>().await?;
+                    let completion = private.recv::<protocol::FdPrestatDirNameRetMsg>().await?;
                     pending.complete(WasiImportCompletion::FdPrestatDirName(completion))?;
                 }
                 WasiImportRequest::FdFilestatGet(request) => {
-                    endpoint
+                    private
                         .send::<protocol::FdFilestatGetReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::FdFilestatGetRetMsg>().await?;
+                    let completion = private.recv::<protocol::FdFilestatGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::FdFilestatGet(completion))?;
                 }
                 WasiImportRequest::ArgsSizesGet(request) => {
-                    endpoint
+                    private
                         .send::<protocol::ArgsSizesGetReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::ArgsSizesGetRetMsg>().await?;
+                    let completion = private.recv::<protocol::ArgsSizesGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::ArgsSizesGet(completion))?;
                 }
                 WasiImportRequest::ArgsGet(request) => {
-                    endpoint.send::<protocol::ArgsGetReqMsg>(&request).await?;
-                    let completion = endpoint.recv::<protocol::ArgsGetRetMsg>().await?;
+                    private.send::<protocol::ArgsGetReqMsg>(&request).await?;
+                    let completion = private.recv::<protocol::ArgsGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::ArgsGet(completion))?;
                 }
                 WasiImportRequest::EnvironSizesGet(request) => {
-                    endpoint
+                    private
                         .send::<protocol::EnvironSizesGetReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::EnvironSizesGetRetMsg>().await?;
+                    let completion = private.recv::<protocol::EnvironSizesGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::EnvironSizesGet(completion))?;
                 }
                 WasiImportRequest::EnvironGet(request) => {
-                    endpoint
-                        .send::<protocol::EnvironGetReqMsg>(&request)
-                        .await?;
-                    let completion = endpoint.recv::<protocol::EnvironGetRetMsg>().await?;
+                    private.send::<protocol::EnvironGetReqMsg>(&request).await?;
+                    let completion = private.recv::<protocol::EnvironGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::EnvironGet(completion))?;
                 }
                 WasiImportRequest::FdFdstatGet(request) => {
-                    endpoint
+                    private
                         .send::<protocol::FdFdstatGetReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::FdFdstatGetRetMsg>().await?;
+                    let completion = private.recv::<protocol::FdFdstatGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::FdFdstatGet(completion))?;
                 }
                 WasiImportRequest::PathFilestatGet(request) => {
-                    endpoint
+                    private
                         .send::<protocol::PathFilestatGetReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::PathFilestatGetRetMsg>().await?;
+                    let completion = private.recv::<protocol::PathFilestatGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::PathFilestatGet(completion))?;
                 }
                 WasiImportRequest::FdClose(request) => {
-                    let completion = if request.0.fd() == REVIEW_B_FD {
-                        review_b.recv::<ReviewRequestReadyB>().await?;
-                        review_b.send::<CommitB>(&request).await?;
-                        let branch = review_b.offer().await?;
-                        match branch.label() {
-                            48 => {
-                                branch.recv::<AdmittedB>().await?;
-                                let bytes = review_b.recv::<ResultB<'_>>().await?.to_vec();
-                                review_b.recv::<ServiceDoneB>().await?;
-                                reply_bytes.replace(bytes);
-                                protocol::FdClosedRet(protocol::FdClosed::new(request.0.fd()))
+                    private.send::<protocol::FdCloseReqMsg>(&request).await?;
+                    let closed = private.recv::<ClosedFileMsg>().await?;
+                    let completion = if request.0.fd() == SERVICE_FD {
+                        let arguments = match closed.path.as_slice() {
+                            b"service/code_review/user_authentication" => closed
+                                .arguments(b"service/code_review/user_authentication", "pr_id")
+                                .and_then(|value| {
+                                    if value["pr_id"] == FEATURE_A {
+                                        Ok((FEATURE_A, value))
+                                    } else {
+                                        Err(ShellError::message("review target differs from path"))
+                                    }
+                                }),
+                            b"service/code_review/notification_feature" => closed
+                                .arguments(b"service/code_review/notification_feature", "pr_id")
+                                .and_then(|value| {
+                                    if value["pr_id"] == FEATURE_B {
+                                        Ok((FEATURE_B, value))
+                                    } else {
+                                        Err(ShellError::message("review target differs from path"))
+                                    }
+                                }),
+                            _ => Err(ShellError::message("unknown review service")),
+                        };
+                        let (reply, errno) = match arguments {
+                            Err(error) => (
+                                json!({"status":"invalid_arguments","error":error.to_string()}),
+                                28,
+                            ),
+                            Ok((feature, value)) => {
+                                let bytes = serde_json::to_vec(&value)
+                                    .map_err(|e| ShellError::message(e.to_string()))?;
+                                let arguments = RepositoryArguments::<3>::from_bytes(&bytes)?;
+                                selection.record(feature);
+                                loop {
+                                    let branch = task.offer().await?;
+                                    match branch.label() {
+                                        90 => {
+                                            branch.recv::<ReadyA<'_>>().await?;
+                                            continue;
+                                        }
+                                        91 => {
+                                            branch.recv::<ReadyB<'_>>().await?;
+                                            continue;
+                                        }
+                                        80 if feature == FEATURE_A => {
+                                            branch.send::<FirstA>(&arguments).await?;
+                                            task.send::<FirstA>(&arguments).await?;
+                                            task.send::<FirstA>(&arguments).await?;
+                                            task.send::<FirstA>(&arguments).await?;
+                                            task.send::<FirstA>(&arguments).await?;
+                                            task.recv::<ReadyA<'_>>().await?;
+                                            let [mut review, mut other] = task.par()?;
+                                            tokio::try_join!(
+                                                review.send::<ReviewA>(&arguments),
+                                                other.recv::<ReadyB<'_>>()
+                                            )?;
+                                        }
+                                        81 if feature == FEATURE_B => {
+                                            branch.send::<FirstB>(&arguments).await?;
+                                            task.send::<FirstB>(&arguments).await?;
+                                            task.send::<FirstB>(&arguments).await?;
+                                            task.send::<FirstB>(&arguments).await?;
+                                            task.send::<FirstB>(&arguments).await?;
+                                            task.recv::<ReadyB<'_>>().await?;
+                                            let [mut review, mut other] = task.par()?;
+                                            tokio::try_join!(
+                                                review.send::<ReviewB>(&arguments),
+                                                other.recv::<ReadyA<'_>>()
+                                            )?;
+                                        }
+                                        82 if feature == FEATURE_A => {
+                                            branch.send::<AgainABeforeB>(&arguments).await?;
+                                            task.send::<AgainABeforeB>(&arguments).await?;
+                                            task.send::<AgainABeforeB>(&arguments).await?;
+                                            task.send::<AgainABeforeB>(&arguments).await?;
+                                            task.send::<AgainABeforeB>(&arguments).await?;
+                                            task.recv::<ReadyA<'_>>().await?;
+                                            task.send::<ReReviewA>(&arguments).await?;
+                                        }
+                                        83 if feature == FEATURE_B => {
+                                            branch.send::<BDuringARevision>(&arguments).await?;
+                                            task.send::<BDuringARevision>(&arguments).await?;
+                                            task.send::<BDuringARevision>(&arguments).await?;
+                                            task.send::<BDuringARevision>(&arguments).await?;
+                                            task.send::<BDuringARevision>(&arguments).await?;
+                                            let [mut other, mut review] = task.par()?;
+                                            tokio::try_join!(
+                                                other.recv::<ReadyA<'_>>(),
+                                                review.send::<ReviewB>(&arguments)
+                                            )?;
+                                        }
+                                        84 if feature == FEATURE_B => {
+                                            branch.send::<BAfterAMerge>(&arguments).await?;
+                                            task.send::<BAfterAMerge>(&arguments).await?;
+                                            task.send::<BAfterAMerge>(&arguments).await?;
+                                            task.send::<BAfterAMerge>(&arguments).await?;
+                                            task.send::<BAfterAMerge>(&arguments).await?;
+                                            task.send::<ReviewB>(&arguments).await?;
+                                        }
+                                        85 if feature == FEATURE_A => {
+                                            branch.send::<AgainAAfterB>(&arguments).await?;
+                                            task.send::<AgainAAfterB>(&arguments).await?;
+                                            task.send::<AgainAAfterB>(&arguments).await?;
+                                            task.send::<AgainAAfterB>(&arguments).await?;
+                                            task.send::<AgainAAfterB>(&arguments).await?;
+                                            task.send::<ReReviewA>(&arguments).await?;
+                                        }
+                                        86 if feature == FEATURE_B => {
+                                            branch.send::<AgainBBeforeA>(&arguments).await?;
+                                            task.send::<AgainBBeforeA>(&arguments).await?;
+                                            task.send::<AgainBBeforeA>(&arguments).await?;
+                                            task.send::<AgainBBeforeA>(&arguments).await?;
+                                            task.send::<AgainBBeforeA>(&arguments).await?;
+                                            task.recv::<ReadyB<'_>>().await?;
+                                            task.send::<ReReviewB>(&arguments).await?;
+                                        }
+                                        87 if feature == FEATURE_A => {
+                                            branch.send::<ADuringBRevision>(&arguments).await?;
+                                            task.send::<ADuringBRevision>(&arguments).await?;
+                                            task.send::<ADuringBRevision>(&arguments).await?;
+                                            task.send::<ADuringBRevision>(&arguments).await?;
+                                            task.send::<ADuringBRevision>(&arguments).await?;
+                                            let [mut other, mut review] = task.par()?;
+                                            tokio::try_join!(
+                                                other.recv::<ReadyB<'_>>(),
+                                                review.send::<ReviewA>(&arguments)
+                                            )?;
+                                        }
+                                        88 if feature == FEATURE_A => {
+                                            branch.send::<AAfterBMerge>(&arguments).await?;
+                                            task.send::<AAfterBMerge>(&arguments).await?;
+                                            task.send::<AAfterBMerge>(&arguments).await?;
+                                            task.send::<AAfterBMerge>(&arguments).await?;
+                                            task.send::<AAfterBMerge>(&arguments).await?;
+                                            task.send::<ReviewA>(&arguments).await?;
+                                        }
+                                        89 if feature == FEATURE_B => {
+                                            branch.send::<AgainBAfterA>(&arguments).await?;
+                                            task.send::<AgainBAfterA>(&arguments).await?;
+                                            task.send::<AgainBAfterA>(&arguments).await?;
+                                            task.send::<AgainBAfterA>(&arguments).await?;
+                                            task.send::<AgainBAfterA>(&arguments).await?;
+                                            task.send::<ReReviewB>(&arguments).await?;
+                                        }
+                                        _ => {
+                                            break (
+                                                json!({"status":"out_of_order","error":"review is unavailable in the projected protocol"}),
+                                                8,
+                                            );
+                                        }
+                                    }
+                                    let feedback = task.offer().await?;
+                                    let bytes = match feedback.label() {
+                                        30 => feedback.recv::<ApprovedA<'_>>().await?.to_vec(),
+                                        31 => feedback.recv::<RejectedA<'_>>().await?.to_vec(),
+                                        40 => feedback.recv::<ApprovedB<'_>>().await?.to_vec(),
+                                        41 => feedback.recv::<RejectedB<'_>>().await?.to_vec(),
+                                        label => {
+                                            return Err(ShellError::message(format!(
+                                                "unexpected review reply {label}"
+                                            )));
+                                        }
+                                    };
+                                    break (
+                                        serde_json::from_slice::<Value>(&bytes)
+                                            .map_err(|e| ShellError::message(e.to_string()))?,
+                                        0,
+                                    );
+                                }
                             }
-                            49 => {
-                                reply_bytes.replace(branch.recv::<RejectedB<'_>>().await?.to_vec());
-                                protocol::FdClosedRet(protocol::FdClosed::new_with_errno(
-                                    request.0.fd(),
-                                    28,
-                                ))
-                            }
-                            66 => branch.recv::<UnavailableB>().await?,
-                            _ => {
-                                return Err(crate::shell::ShellError::message(
-                                    "unexpected review B completion",
-                                ));
-                            }
+                        };
+                        let bytes = serde_json::to_vec(&reply)
+                            .map_err(|e| ShellError::message(e.to_string()))?;
+                        for (index, chunk) in
+                            bytes.chunks(protocol::WASIP1_IO_CHUNK_CAPACITY).enumerate()
+                        {
+                            private
+                                .send::<ResultChunkMsg>(&ResultChunk::new(
+                                    index * protocol::WASIP1_IO_CHUNK_CAPACITY,
+                                    chunk,
+                                )?)
+                                .await?;
                         }
-                    } else if request.0.fd() == SERVICE_FD {
-                        review_a.recv::<ReviewRequestReady>().await?;
-                        review_a.send::<Commit>(&request).await?;
-                        let branch = review_a.offer().await?;
-                        match branch.label() {
-                            8 => {
-                                branch.recv::<Admitted>().await?;
-                                let bytes = review_a.recv::<Result<'_>>().await?.to_vec();
-                                review_a.recv::<ServiceDone>().await?;
-                                reply_bytes.replace(bytes);
-                                protocol::FdClosedRet(protocol::FdClosed::new(request.0.fd()))
-                            }
-                            9 => {
-                                reply_bytes.replace(branch.recv::<Rejected<'_>>().await?.to_vec());
-                                protocol::FdClosedRet(protocol::FdClosed::new_with_errno(
-                                    request.0.fd(),
-                                    28,
-                                ))
-                            }
-                            26 => branch.recv::<Unavailable>().await?,
-                            _ => {
-                                return Err(crate::shell::ShellError::message(
-                                    "unexpected service completion",
-                                ));
-                            }
-                        }
+                        protocol::FdClosedRet(protocol::FdClosed::new_with_errno(
+                            request.0.fd(),
+                            errno,
+                        ))
                     } else {
-                        endpoint.send::<protocol::FdCloseReqMsg>(&request).await?;
-                        endpoint.recv::<protocol::FdCloseRetMsg>().await?
+                        closed.completion
                     };
                     pending.complete(WasiImportCompletion::FdClose(completion))?;
                 }
                 WasiImportRequest::ClockResGet(request) => {
-                    endpoint
+                    private
                         .send::<protocol::ClockResGetReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::ClockResGetRetMsg>().await?;
+                    let completion = private.recv::<protocol::ClockResGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::ClockResGet(completion))?;
                 }
                 WasiImportRequest::ClockTimeGet(request) => {
-                    endpoint
+                    private
                         .send::<protocol::ClockTimeGetReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::ClockTimeGetRetMsg>().await?;
+                    let completion = private.recv::<protocol::ClockTimeGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::ClockTimeGet(completion))?;
                 }
                 WasiImportRequest::PollOneoff(request) => {
-                    endpoint
-                        .send::<protocol::PollOneoffReqMsg>(&request)
-                        .await?;
-                    let completion = endpoint.recv::<protocol::PollOneoffRetMsg>().await?;
+                    private.send::<protocol::PollOneoffReqMsg>(&request).await?;
+                    let completion = private.recv::<protocol::PollOneoffRetMsg>().await?;
                     pending.complete(WasiImportCompletion::PollOneoff(completion))?;
                 }
                 WasiImportRequest::RandomGet(request) => {
-                    endpoint.send::<protocol::RandomGetReqMsg>(&request).await?;
-                    let completion = endpoint.recv::<protocol::RandomGetRetMsg>().await?;
+                    private.send::<protocol::RandomGetReqMsg>(&request).await?;
+                    let completion = private.recv::<protocol::RandomGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::RandomGet(completion))?;
                 }
             },
             WasiBoundaryStep::MemoryGrowPending(pending) => {
-                endpoint
+                private
                     .send::<protocol::MemoryGrowReqMsg>(&pending.request())
                     .await?;
-                let response = endpoint.recv::<protocol::MemoryGrowRetMsg>().await?;
+                let response = private.recv::<protocol::MemoryGrowRetMsg>().await?;
                 pending.complete(response)?;
             }
             WasiBoundaryStep::BudgetExpired(_) => {
@@ -229,13 +340,19 @@ pub async fn run(
             }
             WasiBoundaryStep::Exit(exit) => {
                 let status = exit.status() as i32;
-                review_a.recv::<ReviewRequestReady>().await?;
-                review_a.send::<Exit>(&status).await?;
-                review_b.recv::<ReviewRequestReadyB>().await?;
-                review_b.send::<ExitB>(&()).await?;
-                review_a.recv::<ReviewExitAck>().await?;
-                review_b.recv::<ReviewExitAckB>().await?;
-                endpoint.send::<IoExit>(&status).await?;
+                {
+                    let [mut a, mut b] = task.par()?;
+                    tokio::try_join!(a.recv::<ExitA>(), b.recv::<ExitB>())?;
+                }
+                {
+                    let [mut a, mut b] = task.par()?;
+                    tokio::try_join!(
+                        a.send::<ReviewExitA>(&status),
+                        b.send::<ReviewExitB>(&status)
+                    )?;
+                }
+                task.send::<RepoExit>(&status).await?;
+                private.send::<IoExit>(&status).await?;
                 return Ok(status);
             }
         }

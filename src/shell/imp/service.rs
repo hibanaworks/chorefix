@@ -1,11 +1,14 @@
 use crate::shell::{ShellError, ShellResult};
-use hibana::runtime::resolver::{DecisionArm, ResolverError};
+use hibana::runtime::{
+    resolver::{DecisionArm, ResolverError},
+    wire::ReceivedPayload,
+};
 use hibana_wasip1_runtime::{
-    choreofs::{ChoreoFsObject, ChoreoFsObjectSet, FdSpec, ObjectId},
+    choreofs::{ChoreoFsObject, ChoreoFsObjectSet, ChoreoFsRequest, FdSpec, ObjectId},
     protocol,
 };
 use serde_json::Value;
-use std::cell::RefCell;
+use std::cell::Cell;
 
 pub trait Domain {
     fn execute(
@@ -17,32 +20,37 @@ pub trait Domain {
 }
 
 /// The resolver reads only the actual validation result for this close.
-pub struct Validation(RefCell<Option<ShellResult<Value>>>);
+pub struct Validation(Cell<Option<ShellResult<Value>>>);
 impl Validation {
     pub fn new() -> Self {
-        Self(RefCell::new(None))
+        Self(Cell::new(None))
     }
     pub fn record(&self, result: ShellResult<Value>) {
         self.0.replace(Some(result));
     }
     pub fn take(&self) -> ShellResult<Value> {
         self.0
-            .borrow_mut()
             .take()
             .ok_or_else(|| ShellError::message("missing validation result"))?
     }
     pub fn rejection(&self) -> ShellResult<String> {
-        match self.0.borrow().as_ref() {
+        let result = self.0.take();
+        let rejection = match result.as_ref() {
             Some(Err(error)) => Ok(error.to_string()),
             _ => Err(ShellError::message("missing argument rejection")),
-        }
+        };
+        self.0.set(result);
+        rejection
     }
     pub fn decide(&self) -> Result<DecisionArm, ResolverError> {
-        match self.0.borrow().as_ref() {
+        let result = self.0.take();
+        let decision = match result.as_ref() {
             Some(Ok(_)) => Ok(DecisionArm::Left),
             Some(Err(_)) => Ok(DecisionArm::Right),
             None => Err(ResolverError::reject()),
-        }
+        };
+        self.0.set(result);
+        decision
     }
 }
 impl Default for Validation {
@@ -74,19 +82,26 @@ impl File {
             protocol::FdBinding::write(protocol::FdWriteRow::Object),
         )])
     }
-    pub fn open(&mut self, request: protocol::PathOpenReq) -> protocol::PathOpenedRet {
-        let operation = self.objects().choreofs().path_open(request.0);
-        if operation.is_open() && request.0.open_flags() & 8 != 0 {
+    pub fn open(
+        &mut self,
+        request: ReceivedPayload<'_, protocol::PathOpenReq>,
+    ) -> protocol::PathOpenedRet {
+        let truncate = protocol::PathOpenReq::request(&request).0.open_flags() & 8 != 0;
+        let operation = self.objects().choreofs().path_open(request);
+        if operation.is_open() && truncate {
             self.bytes.clear();
         }
         operation.opened_ret()
     }
-    pub fn write(&mut self, request: protocol::FdWriteReq) -> protocol::FdWriteDoneRet {
-        let operation = self.objects().choreofs().fd_write(request.0);
+    pub fn write<P>(&mut self, request: ReceivedPayload<'_, P>) -> protocol::FdWriteDoneRet
+    where
+        P: ChoreoFsRequest<Request = (protocol::FdWrite, protocol::FdWriteRow)>,
+    {
+        let operation = self.objects().choreofs().fd_write(request);
         if operation.is_writable() {
             if self.bytes.len() + operation.bytes().len() > 8192 {
                 return protocol::FdWriteDoneRet(protocol::FdWriteDone::new_with_errno(
-                    request.0.fd(),
+                    operation.request().fd(),
                     0,
                     22,
                 ));
@@ -95,7 +110,11 @@ impl File {
         }
         operation.written()
     }
-    pub fn arguments(&self, request: protocol::FdRequest, key: &str) -> ShellResult<Value> {
+    pub fn arguments(
+        &self,
+        request: ReceivedPayload<'_, protocol::FdCloseReq>,
+        key: &str,
+    ) -> ShellResult<Value> {
         let response = self.objects().choreofs().fd_close(request);
         if response.0.errno() != 0 {
             return Err(ShellError::message("invalid service fd"));

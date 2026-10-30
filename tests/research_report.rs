@@ -281,10 +281,10 @@ async fn global_blocks_second_document_loan_before_first_return() {
     use report::global::{self as g, author_a as a, author_b as b};
     let p = g::project_3e();
     let mut slab = vec![0; 256 * 1024];
+    let transport = carrier::InMemoryTransport::new([]);
     let mut storage = SessionKitStorage::uninit();
     let kit = storage.init();
-    let transport = carrier::InMemoryTransport::new();
-    let rv = kit.rendezvous(&mut slab, transport.clone()).unwrap();
+    let rv = kit.rendezvous(&mut slab, &transport).unwrap();
     let session = SessionId::new(48);
     let mut author_a = rv.enter(session, &p.a).unwrap();
     let mut author_b = rv.enter(session, &p.b).unwrap();
@@ -309,9 +309,9 @@ async fn global_blocks_second_database_loan_before_first_return() {
     use report::global::{self as g, author_a as a, author_b as b};
     let p = g::project_3e();
     let mut slab = vec![0; 256 * 1024];
+    let transport = carrier::InMemoryTransport::new([]);
     let mut storage = SessionKitStorage::uninit();
-    let transport = carrier::InMemoryTransport::new();
-    let rv = storage.init().rendezvous(&mut slab, transport).unwrap();
+    let rv = storage.init().rendezvous(&mut slab, &transport).unwrap();
     let session = SessionId::new(50);
     let mut author_a = rv.enter(session, &p.a).unwrap();
     let mut author_b = rv.enter(session, &p.b).unwrap();

@@ -1,3 +1,4 @@
+use crate::shell::imp::file_wire::{ClosedFileMsg, RESULT_CHUNK_LABEL, ResultChunkMsg};
 use crate::shell::{ShellError, ShellResult, global::Exit, imp::private_fs::PrivateFs};
 use hibana_wasip1_runtime::protocol;
 
@@ -9,38 +10,49 @@ pub async fn run<const ROLE: u8>(
         let branch = endpoint.offer().await?;
         match branch.label() {
             240 => return Ok(branch.recv::<Exit>().await?),
+            RESULT_CHUNK_LABEL => {
+                let request = branch.recv::<ResultChunkMsg>().await?;
+                io.result_chunk(request)?;
+            }
             protocol::LABEL_WASI_FD_READDIR => {
                 let request = branch.recv::<protocol::FdReaddirReqMsg>().await?;
-                let response = io.read_dir(request.0)?;
+                let response = io.read_dir(request)?;
                 endpoint
                     .send::<protocol::FdReaddirRetMsg>(&response)
                     .await?;
             }
             protocol::LABEL_WASI_FD_READ => {
                 let request = branch.recv::<protocol::FdReadReqMsg>().await?;
-                let response = io.read(request.0).await?;
+                let response = io.read(request).await?;
                 endpoint.send::<protocol::FdReadRetMsg>(&response).await?;
             }
             protocol::LABEL_WASI_FD_WRITE => {
                 let request = branch.recv::<protocol::FdWriteReqMsg>().await?;
-                let response = io.write(request.0).await?;
+                let response = io.write(request).await?;
                 endpoint.send::<protocol::FdWriteRetMsg>(&response).await?;
+            }
+            protocol::LABEL_WASI_FD_WRITE_OBJECT => {
+                let request = branch.recv::<protocol::FdWriteObjectReqMsg>().await?;
+                let response = io.write(request).await?;
+                endpoint
+                    .send::<protocol::FdWriteObjectRetMsg>(&response)
+                    .await?;
             }
             protocol::LABEL_WASI_PATH_OPEN => {
                 let request = branch.recv::<protocol::PathOpenReqMsg>().await?;
-                let response = io.open(request.0)?;
+                let response = io.open(request)?;
                 endpoint.send::<protocol::PathOpenRetMsg>(&response).await?;
             }
             protocol::LABEL_WASI_FD_FDSTAT_GET => {
                 let request = branch.recv::<protocol::FdFdstatGetReqMsg>().await?;
-                let response = io.stat(request.0);
+                let response = io.stat(request);
                 endpoint
                     .send::<protocol::FdFdstatGetRetMsg>(&response)
                     .await?;
             }
             protocol::LABEL_WASI_FD_FILESTAT_GET => {
                 let request = branch.recv::<protocol::FdFilestatGetReqMsg>().await?;
-                let response = io.file_stat(request.0);
+                let response = io.file_stat(request);
                 endpoint
                     .send::<protocol::FdFilestatGetRetMsg>(&response)
                     .await?;
@@ -71,12 +83,12 @@ pub async fn run<const ROLE: u8>(
             }
             protocol::LABEL_WASI_FD_CLOSE => {
                 let request = branch.recv::<protocol::FdCloseReqMsg>().await?;
-                let response = io.close(request.0);
-                endpoint.send::<protocol::FdCloseRetMsg>(&response).await?;
+                let response = io.close(request);
+                endpoint.send::<ClosedFileMsg>(&response).await?;
             }
             protocol::LABEL_WASI_PATH_FILESTAT_GET => {
                 let request = branch.recv::<protocol::PathFilestatGetReqMsg>().await?;
-                let response = io.path_stat(request.0)?;
+                let response = io.path_stat(request)?;
                 endpoint
                     .send::<protocol::PathFilestatGetRetMsg>(&response)
                     .await?;

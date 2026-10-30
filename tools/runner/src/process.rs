@@ -15,79 +15,24 @@ use tokio::{
 };
 
 type Request = (Value, oneshot::Sender<Value>);
-#[derive(Clone)]
-pub struct Simulator(mpsc::UnboundedSender<Request>);
-impl Simulator {
-    pub async fn call(&self, value: Value) -> Result<Value> {
-        let (send, receive) = oneshot::channel();
-        self.0
-            .send((value, send))
-            .map_err(|_| "simulator process closed")?;
-        Ok(receive
-            .await
-            .map_err(|_| "simulator response direction closed")?)
-    }
-}
+pub type Simulator = Arc<crate::oracle::Simulator>;
 
 pub async fn simulator(
     task: &str,
     depth: u8,
     output: &Path,
     trace: Arc<Trace>,
-) -> Result<(Simulator, Value, impl Future<Output = Result<()>> + use<>)> {
-    let mut child = Command::new(".venv/bin/python")
-        .env("PYTHONPATH", std::env::current_dir()?)
-        .env("PYTHONHASHSEED", "0")
-        .args([
-            "tools/original_simulator.py",
-            task,
-            "model",
-            &depth.to_string(),
-        ])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(File::create_new(output.join("simulator-stderr.log"))?)
-        .kill_on_drop(true)
-        .spawn()?;
-    let mut input = child.stdin.take().ok_or("simulator stdin")?;
-    let mut lines = BufReader::new(child.stdout.take().ok_or("simulator stdout")?).lines();
-    let fixture: Value = serde_json::from_str(
-        &lines
-            .next_line()
-            .await?
-            .ok_or("simulator fixtures missing")?,
-    )?;
-    if fixture["type"] != "fixtures" || fixture["model_run"] != true {
-        return Err("wrong simulator mode".into());
+) -> Result<(Simulator, Value)> {
+    let config: Value = serde_json::from_slice(&std::fs::read("experiment.json")?)?;
+    if config["python_hash_seed"] != 0 {
+        return Err("the recorded upstream interpreter seed must be zero".into());
     }
-    trace.record("simulator", &fixture)?;
-    let (sender, mut requests) = mpsc::unbounded_channel::<Request>();
-    let future = async move {
-        let mut pending = BTreeMap::new();
-        loop {
-            tokio::select! {
-                request = requests.recv() => {
-                    let (message, response) = request.ok_or("simulator request direction closed")?;
-                    let id = if message["type"] == "score" { 0 } else { message["id"].as_u64().ok_or("simulator request id")? };
-                    if pending.insert(id,response).is_some() { return Err("duplicate simulator RPC id".into()); }
-                    wire::send(&mut input,&message).await?;
-                }
-                line = lines.next_line() => {
-                    let message: Value = serde_json::from_str(&line?.ok_or("simulator stdout closed")?)?;
-                    trace.record("simulator",&message)?;
-                    let id = if message["type"] == "score" { 0 } else { message["id"].as_u64().ok_or("simulator reply id")? };
-                    pending.remove(&id).ok_or("unexpected simulator reply")?.send(message).map_err(|_| "simulator reply receiver dropped")?;
-                    if id == 0 { break; }
-                }
-            }
-        }
-        drop(input);
-        if !child.wait().await?.success() {
-            return Err("original simulator failed".into());
-        }
-        Ok(())
-    };
-    Ok((Simulator(sender), fixture, future))
+    let delay = config["domain_tool_delay_multiplier"]
+        .as_f64()
+        .ok_or("tool delay multiplier")?;
+    let result = crate::oracle::Simulator::new(task, depth, delay, trace, &[])?;
+    crate::evidence::save(&output.join("simulator-fixture.json"), &result.1)?;
+    Ok(result)
 }
 
 #[derive(Clone)]
@@ -224,11 +169,20 @@ mod tests {
         std::fs::create_dir_all(output.parent().ok_or("probe output parent")?)?;
         std::fs::create_dir(&output)?;
         let trace = Arc::new(Trace::create(&output.join("events.jsonl"))?);
-        let (simulator, fixture, simulator_loop) =
-            simulator("2M", 2, &output, trace.clone()).await?;
+        let (simulator, fixture) = simulator("2M", 2, &output, trace.clone()).await?;
         let runtime = std::env::var_os("CHOREOFIX_WRITING_RUNTIME")
             .map(std::path::PathBuf::from)
             .unwrap_or_else(|| "target/debug/writing-wasi".into());
+        crate::evidence::save(
+            &output.join("case.json"),
+            &json!({
+                "task":"2M","depth":2,"model_calls":0,"scored_benchmark":false,
+                "kind":"rust_upstream_api_and_existing_wasi_process_probe",
+                "runtime_binary_sha256":crate::evidence::digest(&runtime)?,
+                "guest_wasm_sha256":crate::evidence::digest(Path::new("vendor/hibana-wash/target/wasm32-wasip1/release/hibana-wash.wasm"))?,
+                "runtime_source_scope":"existing binary; this bridge test does not establish its Hibana source pin"
+            }),
+        )?;
         let (guest, guest_loop) = guest(
             &runtime,
             Path::new("vendor/hibana-wash/target/wasm32-wasip1/release/hibana-wash.wasm"),
@@ -277,25 +231,16 @@ mod tests {
             }
             Ok::<_, Box<dyn std::error::Error + Send + Sync>>(())
         };
-        let (sim, result, actors) =
-            tokio::time::timeout(std::time::Duration::from_secs(120), async {
-                tokio::join!(simulator_loop, guest_loop, participants)
-            })
-            .await?;
-        sim?;
+        let (result, actors) = tokio::time::timeout(std::time::Duration::from_secs(120), async {
+            tokio::join!(guest_loop, participants)
+        })
+        .await?;
         actors?;
         let result = result?;
         if result["protocol"]["status"] != "complete" || result["score"]["complete"] != true {
             return Err(format!("probe failed: {result}").into());
         }
-        let audit = std::process::Command::new("target/debug/writing-boundary")
-            .arg("--audit")
-            .arg(output.join("events.jsonl"))
-            .output()?;
-        if !audit.status.success() {
-            return Err(String::from_utf8_lossy(&audit.stderr).into_owned().into());
-        }
-        let audit: Value = serde_json::from_slice(&audit.stdout)?;
+        let audit = crate::writing_audit::audit(&output.join("events.jsonl"))?;
         assert_eq!(audit["max_disjoint_writes"], 2);
         crate::evidence::save(
             &output.join("probe.json"),

@@ -1,344 +1,78 @@
-//! Real WASI requests, physical modules and effects share one global.
+//! Typed service requests and physical module handoffs share one global.
+pub use super::input::{EASY, HARD, MEDIUM};
+use super::wire::{COMMIT, Close, DESIGN, IMPLEMENT, TEST};
 use hibana::{
-    g,
+    Endpoint, g,
     runtime::program::{Projectable, RoleProgram, project},
 };
-use hibana_wasip1_runtime::protocol;
+
 pub const SERVICE_FD: u8 = 4;
 pub const SERVICE_PREFIX: &[u8] = b"service/";
 pub const RESULT_PATH: &[u8] = b"service/result";
-pub const CHECK_A: u16 = 580;
-pub const CHECK_B: u16 = 581;
-pub const CHECK_C: u16 = 582;
-pub const CHECK_D: u16 = 583;
-pub const CHECK_E: u16 = 584;
-pub const CHECK_F: u16 = 585;
-pub const CHECK_G: u16 = 586;
-pub(crate) trait RequestMessages {
-    type Open: g::Message<Payload = protocol::PathOpenReq>;
-    type Opened: g::Message<Payload = protocol::PathOpenedRet>;
-    type Write: g::Message<Payload = protocol::FdWriteReq>;
-    type Written: g::Message<Payload = protocol::FdWriteDoneRet>;
-    type Commit: g::Message<Payload = protocol::FdCloseReq>;
-    type Admitted: g::Message<Payload = ()>;
-    type Rejected: g::Message<Payload = &'static [u8]>;
-    type RequestReady: g::Message<Payload = ()>;
-    type Validate: g::Message<Payload = ()>;
-}
-pub(crate) struct Design;
-pub type DesignOpen = g::Msg<100, protocol::PathOpenReq>;
-pub type DesignOpened = g::Msg<101, protocol::PathOpenedRet>;
-pub type DesignWrite = g::Msg<102, protocol::FdWriteReq>;
-pub type DesignWritten = g::Msg<103, protocol::FdWriteDoneRet>;
-pub type DesignCommit = g::Msg<104, protocol::FdCloseReq>;
-pub type DesignAdmitted = g::Msg<105, ()>;
-pub type DesignRejected<'a> = g::Msg<106, &'a [u8]>;
+pub type DesignRequest<const TASK: u8, const ROLE: u8> = g::Msg<104, Close<TASK, ROLE, DESIGN>>;
 pub type DesignCompleted<'a> = g::Msg<107, &'a [u8]>;
-pub type DesignServiceDone = g::Msg<108, ()>;
-pub type DesignRequestReady = g::Msg<110, ()>;
-pub type DesignValidate = g::Msg<111, ()>;
-impl RequestMessages for Design {
-    type Open = DesignOpen;
-    type Opened = DesignOpened;
-    type Write = DesignWrite;
-    type Written = DesignWritten;
-    type Commit = DesignCommit;
-    type Admitted = DesignAdmitted;
-    type Rejected = DesignRejected<'static>;
-    type RequestReady = DesignRequestReady;
-    type Validate = DesignValidate;
-}
-pub(crate) struct Implement;
-pub type ImplementOpen = g::Msg<125, protocol::PathOpenReq>;
-pub type ImplementOpened = g::Msg<126, protocol::PathOpenedRet>;
-pub type ImplementWrite = g::Msg<127, protocol::FdWriteReq>;
-pub type ImplementWritten = g::Msg<128, protocol::FdWriteDoneRet>;
-pub type ImplementCommit = g::Msg<129, protocol::FdCloseReq>;
-pub type ImplementAdmitted = g::Msg<130, ()>;
-pub type ImplementRejected<'a> = g::Msg<131, &'a [u8]>;
+pub type ImplementRequest<const TASK: u8, const ROLE: u8> =
+    g::Msg<129, Close<TASK, ROLE, IMPLEMENT>>;
 pub type ImplementCompleted<'a> = g::Msg<132, &'a [u8]>;
-pub type ImplementServiceDone = g::Msg<133, ()>;
-pub type ImplementRequestReady = g::Msg<135, ()>;
-pub type ImplementValidate = g::Msg<136, ()>;
-impl RequestMessages for Implement {
-    type Open = ImplementOpen;
-    type Opened = ImplementOpened;
-    type Write = ImplementWrite;
-    type Written = ImplementWritten;
-    type Commit = ImplementCommit;
-    type Admitted = ImplementAdmitted;
-    type Rejected = ImplementRejected<'static>;
-    type RequestReady = ImplementRequestReady;
-    type Validate = ImplementValidate;
-}
-pub(crate) struct Commit;
-pub type CommitOpen = g::Msg<150, protocol::PathOpenReq>;
-pub type CommitOpened = g::Msg<151, protocol::PathOpenedRet>;
-pub type CommitWrite = g::Msg<152, protocol::FdWriteReq>;
-pub type CommitWritten = g::Msg<153, protocol::FdWriteDoneRet>;
-pub type CommitCommit = g::Msg<154, protocol::FdCloseReq>;
-pub type CommitAdmitted = g::Msg<155, ()>;
-pub type CommitRejected<'a> = g::Msg<156, &'a [u8]>;
-pub type CommitCompleted<'a> = g::Msg<157, &'a [u8]>;
-pub type CommitServiceDone = g::Msg<158, ()>;
-pub type CommitRequestReady = g::Msg<160, ()>;
-pub type CommitValidate = g::Msg<161, ()>;
-impl RequestMessages for Commit {
-    type Open = CommitOpen;
-    type Opened = CommitOpened;
-    type Write = CommitWrite;
-    type Written = CommitWritten;
-    type Commit = CommitCommit;
-    type Admitted = CommitAdmitted;
-    type Rejected = CommitRejected<'static>;
-    type RequestReady = CommitRequestReady;
-    type Validate = CommitValidate;
-}
-pub(crate) struct Test;
-pub type TestOpen = g::Msg<175, protocol::PathOpenReq>;
-pub type TestOpened = g::Msg<176, protocol::PathOpenedRet>;
-pub type TestWrite = g::Msg<177, protocol::FdWriteReq>;
-pub type TestWritten = g::Msg<178, protocol::FdWriteDoneRet>;
-pub type TestCommit = g::Msg<179, protocol::FdCloseReq>;
-pub type TestAdmitted = g::Msg<180, ()>;
-pub type TestRejected<'a> = g::Msg<181, &'a [u8]>;
+pub type CommitRequest<const TASK: u8, const ROLE: u8, const RESOURCE: u8> =
+    g::Msg<RESOURCE, Close<TASK, ROLE, COMMIT>>;
+pub type CommitCompleted<'a, const RESOURCE: u8> = g::Msg<RESOURCE, &'a [u8]>;
+pub type Loan<'r, const RESOURCE: u8> = g::Msg<10, Endpoint<'r, RESOURCE>>;
+pub type TestRequest<const TASK: u8, const ROLE: u8> = g::Msg<179, Close<TASK, ROLE, TEST>>;
 pub type TestCompleted<'a> = g::Msg<182, &'a [u8]>;
-pub type TestServiceDone = g::Msg<183, ()>;
-pub type TestRequestReady = g::Msg<185, ()>;
-pub type TestValidate = g::Msg<186, ()>;
-impl RequestMessages for Test {
-    type Open = TestOpen;
-    type Opened = TestOpened;
-    type Write = TestWrite;
-    type Written = TestWritten;
-    type Commit = TestCommit;
-    type Admitted = TestAdmitted;
-    type Rejected = TestRejected<'static>;
-    type RequestReady = TestRequestReady;
-    type Validate = TestValidate;
-}
-pub type ClosedOpen = g::Msg<200, protocol::PathOpenReq>;
-pub type ClosedOpened = g::Msg<201, protocol::PathOpenedRet>;
-pub type ClosedWrite = g::Msg<202, protocol::FdWriteReq>;
-pub type ClosedWritten = g::Msg<203, protocol::FdWriteDoneRet>;
-pub type ClosedCommit = g::Msg<204, protocol::FdCloseReq>;
-pub type ClosedUnavailable = g::Msg<209, protocol::FdClosedRet>;
-pub type ClosedRequestReady = g::Msg<210, ()>;
-pub type DesignRequest = g::Msg<230, ()>;
-pub type ImplementRequest = g::Msg<231, ()>;
-pub type CommitRequest = g::Msg<232, ()>;
-pub type TestRequest = g::Msg<233, ()>;
-pub type RejectRequest = g::Msg<234, ()>;
-pub type DesignEffect = g::Msg<235, ()>;
-pub type ImplementEffect = g::Msg<236, ()>;
-pub type CommitEffect = g::Msg<237, ()>;
-pub type TestEffect = g::Msg<238, ()>;
 pub type ServiceExit = g::Msg<241, i32>;
 
-// START makes the four distinct request lifetimes explicit at their owner.
-// This fragment validates bytes, never executes the task or chooses its phase.
-fn requests<
-    const VM: u8,
-    const OWNER: u8,
-    const CHECK: u16,
-    START: g::Message<Payload = ()>,
-    P: RequestMessages,
->() -> impl Projectable {
-    g::seq(
-        g::send::<OWNER, OWNER, START>(),
-        g::seq(
-            g::send::<OWNER, VM, P::RequestReady>(),
-            g::route(
-                g::seq(
-                    g::send::<VM, OWNER, P::Open>(),
-                    g::send::<OWNER, VM, P::Opened>(),
-                ),
-                g::route(
-                    g::seq(
-                        g::send::<VM, OWNER, P::Write>(),
-                        g::send::<OWNER, VM, P::Written>(),
-                    ),
-                    g::seq(
-                        g::send::<VM, OWNER, P::Commit>(),
-                        g::route(
-                            g::seq(
-                                g::send::<OWNER, OWNER, P::Validate>(),
-                                g::send::<OWNER, VM, P::Admitted>(),
-                            ),
-                            g::send::<OWNER, VM, P::Rejected>(),
-                        )
-                        .resolve::<CHECK>(),
-                    ),
-                ),
-            ),
-        ),
-    )
-    .roll()
-}
-fn closed<const VM: u8, const OWNER: u8>() -> impl Projectable {
-    g::seq(
-        g::send::<OWNER, OWNER, RejectRequest>(),
-        g::seq(
-            g::send::<OWNER, VM, ClosedRequestReady>(),
-            g::route(
-                g::seq(
-                    g::send::<VM, OWNER, ClosedOpen>(),
-                    g::send::<OWNER, VM, ClosedOpened>(),
-                ),
-                g::route(
-                    g::seq(
-                        g::send::<VM, OWNER, ClosedWrite>(),
-                        g::send::<OWNER, VM, ClosedWritten>(),
-                    ),
-                    g::route(
-                        g::seq(
-                            g::send::<VM, OWNER, ClosedCommit>(),
-                            g::send::<OWNER, VM, ClosedUnavailable>(),
-                        ),
-                        g::send::<VM, OWNER, ServiceExit>(),
-                    ),
-                ),
-            ),
-        ),
-    )
-    .roll()
-}
-fn prepare<const VM: u8, const OWNER: u8, const CHECK: u16>() -> impl Projectable {
-    let design = g::seq(
-        requests::<VM, OWNER, CHECK, DesignRequest, Design>(),
-        g::seq(
-            g::send::<OWNER, OWNER, DesignEffect>(),
-            g::seq(
-                g::send::<OWNER, VM, DesignCompleted<'static>>(),
-                g::send::<OWNER, VM, DesignServiceDone>(),
-            ),
-        ),
-    );
-    let implementation = g::seq(
-        requests::<VM, OWNER, CHECK, ImplementRequest, Implement>(),
-        g::seq(
-            g::send::<OWNER, OWNER, ImplementEffect>(),
-            g::seq(
-                g::send::<OWNER, VM, ImplementCompleted<'static>>(),
-                g::send::<OWNER, VM, ImplementServiceDone>(),
-            ),
-        ),
-    );
-    g::seq(design, implementation)
-}
-fn commit<
+fn developer<
+    const TASK: u8,
     const VM: u8,
     const OWNER: u8,
     const FIRST: u8,
     const SECOND: u8,
-    const CHECK: u16,
-    F: ModuleMessages,
-    S: ModuleMessages,
+    const FIRST_RESOURCE: u8,
+    const SECOND_RESOURCE: u8,
 >() -> impl Projectable {
-    let preparation = g::seq(
-        prepare::<VM, OWNER, CHECK>(),
-        requests::<VM, OWNER, CHECK, CommitRequest, Commit>(),
+    let design = g::seq(
+        g::send::<VM, OWNER, DesignRequest<TASK, OWNER>>(),
+        g::send::<OWNER, VM, DesignCompleted<'static>>(),
     );
-    let availability = g::par(
-        g::send::<FIRST, OWNER, F::Available>(),
-        g::send::<SECOND, OWNER, S::Available>(),
+    let implementation = g::seq(
+        g::send::<VM, OWNER, ImplementRequest<TASK, OWNER>>(),
+        g::send::<OWNER, VM, ImplementCompleted<'static>>(),
     );
     let acquire = g::par(
         g::seq(
-            g::send::<OWNER, FIRST, F::Acquire>(),
-            g::send::<FIRST, OWNER, F::Granted>(),
+            g::send::<FIRST, VM, Loan<'_, FIRST_RESOURCE>>(),
+            g::send::<FIRST_RESOURCE, OWNER, CommitRequest<TASK, OWNER, FIRST_RESOURCE>>(),
         ),
         g::seq(
-            g::send::<OWNER, SECOND, S::Acquire>(),
-            g::send::<SECOND, OWNER, S::Granted>(),
+            g::send::<SECOND, VM, Loan<'_, SECOND_RESOURCE>>(),
+            g::send::<SECOND_RESOURCE, OWNER, CommitRequest<TASK, OWNER, SECOND_RESOURCE>>(),
         ),
     );
     let release = g::par(
-        g::seq(
-            g::send::<OWNER, FIRST, F::Return>(),
-            g::send::<FIRST, OWNER, F::Returned>(),
-        ),
-        g::seq(
-            g::send::<OWNER, SECOND, S::Return>(),
-            g::send::<SECOND, OWNER, S::Returned>(),
-        ),
+        g::send::<VM, FIRST, Loan<'_, FIRST_RESOURCE>>(),
+        g::send::<VM, SECOND, Loan<'_, SECOND_RESOURCE>>(),
     );
     let commit = g::seq(
-        g::par(preparation, availability),
+        g::seq(design, implementation),
         g::seq(
             acquire,
             g::seq(
-                g::send::<OWNER, OWNER, CommitEffect>(),
-                g::seq(
-                    release,
-                    g::seq(
-                        g::send::<OWNER, VM, CommitCompleted<'static>>(),
-                        g::send::<OWNER, VM, CommitServiceDone>(),
-                    ),
+                g::par(
+                    g::send::<OWNER, FIRST_RESOURCE, CommitCompleted<'static, FIRST_RESOURCE>>(),
+                    g::send::<OWNER, SECOND_RESOURCE, CommitCompleted<'static, SECOND_RESOURCE>>(),
                 ),
+                release,
             ),
         ),
     );
     let test = g::seq(
-        requests::<VM, OWNER, CHECK, TestRequest, Test>(),
-        g::seq(
-            g::send::<OWNER, OWNER, TestEffect>(),
-            g::seq(
-                g::send::<OWNER, VM, TestCompleted<'static>>(),
-                g::send::<OWNER, VM, TestServiceDone>(),
-            ),
-        ),
+        g::send::<VM, OWNER, TestRequest<TASK, OWNER>>(),
+        g::send::<OWNER, VM, TestCompleted<'static>>(),
     );
-    g::seq(commit, g::seq(test, closed::<VM, OWNER>()))
+    g::seq(commit, g::seq(test, g::send::<VM, OWNER, ServiceExit>()))
 }
 
-pub(crate) trait ModuleMessages {
-    type Available: g::Message<Payload = ()>;
-    type Acquire: g::Message<Payload = ()>;
-    type Granted: g::Message<Payload = ()>;
-    type Return: g::Message<Payload = ()>;
-    type Returned: g::Message<Payload = ()>;
-}
-pub(crate) struct Auth;
-impl ModuleMessages for Auth {
-    type Available = g::Msg<80, ()>;
-    type Acquire = g::Msg<10, ()>;
-    type Granted = g::Msg<11, ()>;
-    type Return = g::Msg<12, ()>;
-    type Returned = g::Msg<13, ()>;
-}
-pub(crate) struct Database;
-impl ModuleMessages for Database {
-    type Available = g::Msg<81, ()>;
-    type Acquire = g::Msg<14, ()>;
-    type Granted = g::Msg<15, ()>;
-    type Return = g::Msg<16, ()>;
-    type Returned = g::Msg<17, ()>;
-}
-pub(crate) struct Api;
-impl ModuleMessages for Api {
-    type Available = g::Msg<82, ()>;
-    type Acquire = g::Msg<18, ()>;
-    type Granted = g::Msg<19, ()>;
-    type Return = g::Msg<20, ()>;
-    type Returned = g::Msg<21, ()>;
-}
-pub(crate) struct Payment;
-impl ModuleMessages for Payment {
-    type Available = g::Msg<83, ()>;
-    type Acquire = g::Msg<22, ()>;
-    type Granted = g::Msg<23, ()>;
-    type Return = g::Msg<24, ()>;
-    type Returned = g::Msg<25, ()>;
-}
-pub(crate) struct Notify;
-impl ModuleMessages for Notify {
-    type Available = g::Msg<84, ()>;
-    type Acquire = g::Msg<26, ()>;
-    type Granted = g::Msg<27, ()>;
-    type Return = g::Msg<28, ()>;
-    type Returned = g::Msg<29, ()>;
-}
 pub mod roles1e {
     pub const A: u8 = 0;
     pub const A_WASI: u8 = 14;
@@ -350,8 +84,11 @@ pub mod roles1e {
     pub const C_WASI: u8 = 16;
     pub const C_IO: u8 = 23;
     pub const AUTH: u8 = 7;
+    pub const AUTH_RESOURCE: u8 = 28;
     pub const DATABASE: u8 = 8;
+    pub const DATABASE_RESOURCE: u8 = 29;
     pub const API: u8 = 9;
+    pub const API_RESOURCE: u8 = 30;
 }
 pub struct Programs1E {
     pub a: RoleProgram<{ roles1e::A }>,
@@ -364,14 +101,17 @@ pub struct Programs1E {
     pub c_wasi: RoleProgram<{ roles1e::C_WASI }>,
     pub c_io: RoleProgram<{ roles1e::C_IO }>,
     pub auth: RoleProgram<{ roles1e::AUTH }>,
+    pub auth_resource: RoleProgram<{ roles1e::AUTH_RESOURCE }>,
     pub database: RoleProgram<{ roles1e::DATABASE }>,
+    pub database_resource: RoleProgram<{ roles1e::DATABASE_RESOURCE }>,
     pub api: RoleProgram<{ roles1e::API }>,
+    pub api_resource: RoleProgram<{ roles1e::API_RESOURCE }>,
 }
 pub fn project_1e() -> Programs1E {
     use roles1e::*;
-    let dev_0 = commit::<A_WASI, A, AUTH, DATABASE, CHECK_A, Auth, Database>();
-    let dev_1 = commit::<B_WASI, B, API, DATABASE, CHECK_B, Api, Database>();
-    let dev_2 = commit::<C_WASI, C, API, AUTH, CHECK_C, Api, Auth>();
+    let dev_0 = developer::<EASY, A_WASI, A, AUTH, DATABASE, AUTH_RESOURCE, DATABASE_RESOURCE>();
+    let dev_1 = developer::<EASY, B_WASI, B, API, DATABASE, API_RESOURCE, DATABASE_RESOURCE>();
+    let dev_2 = developer::<EASY, C_WASI, C, API, AUTH, API_RESOURCE, AUTH_RESOURCE>();
     let task = g::seq(dev_0, g::seq(dev_1, dev_2));
     let protocol = g::par(
         task,
@@ -394,8 +134,11 @@ pub fn project_1e() -> Programs1E {
         c_wasi: project(&protocol),
         c_io: project(&protocol),
         auth: project(&protocol),
+        auth_resource: project(&protocol),
         database: project(&protocol),
+        database_resource: project(&protocol),
         api: project(&protocol),
+        api_resource: project(&protocol),
     }
 }
 pub mod roles1m {
@@ -415,10 +158,15 @@ pub mod roles1m {
     pub const E_WASI: u8 = 18;
     pub const E_IO: u8 = 25;
     pub const AUTH: u8 = 7;
+    pub const AUTH_RESOURCE: u8 = 28;
     pub const DATABASE: u8 = 8;
+    pub const DATABASE_RESOURCE: u8 = 29;
     pub const API: u8 = 9;
+    pub const API_RESOURCE: u8 = 30;
     pub const PAYMENT: u8 = 10;
+    pub const PAYMENT_RESOURCE: u8 = 31;
     pub const NOTIFY: u8 = 11;
+    pub const NOTIFY_RESOURCE: u8 = 32;
 }
 pub struct Programs1M {
     pub a: RoleProgram<{ roles1m::A }>,
@@ -437,18 +185,24 @@ pub struct Programs1M {
     pub e_wasi: RoleProgram<{ roles1m::E_WASI }>,
     pub e_io: RoleProgram<{ roles1m::E_IO }>,
     pub auth: RoleProgram<{ roles1m::AUTH }>,
+    pub auth_resource: RoleProgram<{ roles1m::AUTH_RESOURCE }>,
     pub database: RoleProgram<{ roles1m::DATABASE }>,
+    pub database_resource: RoleProgram<{ roles1m::DATABASE_RESOURCE }>,
     pub api: RoleProgram<{ roles1m::API }>,
+    pub api_resource: RoleProgram<{ roles1m::API_RESOURCE }>,
     pub payment: RoleProgram<{ roles1m::PAYMENT }>,
+    pub payment_resource: RoleProgram<{ roles1m::PAYMENT_RESOURCE }>,
     pub notify: RoleProgram<{ roles1m::NOTIFY }>,
+    pub notify_resource: RoleProgram<{ roles1m::NOTIFY_RESOURCE }>,
 }
 pub fn project_1m() -> Programs1M {
     use roles1m::*;
-    let dev_0 = commit::<A_WASI, A, AUTH, DATABASE, CHECK_A, Auth, Database>();
-    let dev_1 = commit::<B_WASI, B, API, DATABASE, CHECK_B, Api, Database>();
-    let dev_2 = commit::<C_WASI, C, API, PAYMENT, CHECK_C, Api, Payment>();
-    let dev_3 = commit::<D_WASI, D, NOTIFY, PAYMENT, CHECK_D, Notify, Payment>();
-    let dev_4 = commit::<E_WASI, E, AUTH, NOTIFY, CHECK_E, Auth, Notify>();
+    let dev_0 = developer::<MEDIUM, A_WASI, A, AUTH, DATABASE, AUTH_RESOURCE, DATABASE_RESOURCE>();
+    let dev_1 = developer::<MEDIUM, B_WASI, B, API, DATABASE, API_RESOURCE, DATABASE_RESOURCE>();
+    let dev_2 = developer::<MEDIUM, C_WASI, C, API, PAYMENT, API_RESOURCE, PAYMENT_RESOURCE>();
+    let dev_3 =
+        developer::<MEDIUM, D_WASI, D, NOTIFY, PAYMENT, NOTIFY_RESOURCE, PAYMENT_RESOURCE>();
+    let dev_4 = developer::<MEDIUM, E_WASI, E, AUTH, NOTIFY, AUTH_RESOURCE, NOTIFY_RESOURCE>();
     let task = g::seq(g::par(dev_0, dev_2), g::seq(g::par(dev_1, dev_3), dev_4));
     let protocol = g::par(
         task,
@@ -483,9 +237,295 @@ pub fn project_1m() -> Programs1M {
         e_wasi: project(&protocol),
         e_io: project(&protocol),
         auth: project(&protocol),
+        auth_resource: project(&protocol),
         database: project(&protocol),
+        database_resource: project(&protocol),
         api: project(&protocol),
+        api_resource: project(&protocol),
         payment: project(&protocol),
+        payment_resource: project(&protocol),
         notify: project(&protocol),
+        notify_resource: project(&protocol),
+    }
+}
+
+pub type TestPassed<'a> = g::Msg<183, &'a [u8]>;
+pub type TestFailed<'a> = g::Msg<184, &'a [u8]>;
+// Each result names the developer's other module: its resource ID on success,
+// its owner ID on failure. The ring's distinct pairs identify both developers
+// at a module, and each developer's two parallel notifications stay distinct.
+pub type ModuleTestResult<'a, const LABEL: u8> = g::Msg<LABEL, &'a [u8]>;
+
+fn revision_attempt<
+    const VM: u8,
+    const OWNER: u8,
+    const FIRST: u8,
+    const SECOND: u8,
+    const FIRST_RESOURCE: u8,
+    const SECOND_RESOURCE: u8,
+>() -> impl Projectable {
+    g::seq(
+        g::seq(
+            g::send::<VM, OWNER, ImplementRequest<HARD, OWNER>>(),
+            g::send::<OWNER, VM, ImplementCompleted<'static>>(),
+        ),
+        g::seq(
+            g::par(
+                g::seq(
+                    g::send::<FIRST, VM, Loan<'_, FIRST_RESOURCE>>(),
+                    g::send::<FIRST_RESOURCE, OWNER, CommitRequest<HARD, OWNER, FIRST_RESOURCE>>(),
+                ),
+                g::seq(
+                    g::send::<SECOND, VM, Loan<'_, SECOND_RESOURCE>>(),
+                    g::send::<SECOND_RESOURCE, OWNER, CommitRequest<HARD, OWNER, SECOND_RESOURCE>>(
+                    ),
+                ),
+            ),
+            g::seq(
+                g::par(
+                    g::send::<OWNER, FIRST_RESOURCE, CommitCompleted<'static, FIRST_RESOURCE>>(),
+                    g::send::<OWNER, SECOND_RESOURCE, CommitCompleted<'static, SECOND_RESOURCE>>(),
+                ),
+                g::seq(
+                    g::par(
+                        g::send::<VM, FIRST, Loan<'_, FIRST_RESOURCE>>(),
+                        g::send::<VM, SECOND, Loan<'_, SECOND_RESOURCE>>(),
+                    ),
+                    g::send::<VM, OWNER, TestRequest<HARD, OWNER>>(),
+                ),
+            ),
+        ),
+    )
+}
+
+fn revising_developer<
+    const VM: u8,
+    const OWNER: u8,
+    const FIRST: u8,
+    const SECOND: u8,
+    const FIRST_RESOURCE: u8,
+    const SECOND_RESOURCE: u8,
+    const CHECK: u16,
+>() -> (impl Projectable, impl Projectable) {
+    let complete = g::seq(
+        g::par(
+            g::send::<OWNER, VM, TestPassed<'static>>(),
+            g::par(
+                g::send::<OWNER, FIRST, ModuleTestResult<'static, SECOND_RESOURCE>>(),
+                g::send::<OWNER, SECOND, ModuleTestResult<'static, FIRST_RESOURCE>>(),
+            ),
+        ),
+        g::send::<VM, OWNER, ServiceExit>(),
+    );
+    let revise = g::seq(
+        g::par(
+            g::send::<OWNER, VM, TestFailed<'static>>(),
+            g::par(
+                g::send::<OWNER, FIRST, ModuleTestResult<'static, SECOND>>(),
+                g::send::<OWNER, SECOND, ModuleTestResult<'static, FIRST>>(),
+            ),
+        ),
+        revision_attempt::<VM, OWNER, FIRST, SECOND, FIRST_RESOURCE, SECOND_RESOURCE>(),
+    );
+    let initial = g::seq(
+        g::seq(
+            g::send::<VM, OWNER, DesignRequest<HARD, OWNER>>(),
+            g::send::<OWNER, VM, DesignCompleted<'static>>(),
+        ),
+        revision_attempt::<VM, OWNER, FIRST, SECOND, FIRST_RESOURCE, SECOND_RESOURCE>(),
+    );
+    (
+        initial,
+        g::route(complete, revise).resolve::<CHECK>().roll(),
+    )
+}
+
+pub mod roles1h {
+    pub const A: u8 = 0;
+    pub const A_WASI: u8 = 14;
+    pub const A_IO: u8 = 21;
+    pub const CHECK_A: u16 = 300;
+    pub const B: u8 = 1;
+    pub const B_WASI: u8 = 15;
+    pub const B_IO: u8 = 22;
+    pub const CHECK_B: u16 = 301;
+    pub const C: u8 = 2;
+    pub const C_WASI: u8 = 16;
+    pub const C_IO: u8 = 23;
+    pub const CHECK_C: u16 = 302;
+    pub const D: u8 = 3;
+    pub const D_WASI: u8 = 17;
+    pub const D_IO: u8 = 24;
+    pub const CHECK_D: u16 = 303;
+    pub const E: u8 = 4;
+    pub const E_WASI: u8 = 18;
+    pub const E_IO: u8 = 25;
+    pub const CHECK_E: u16 = 304;
+    pub const F: u8 = 5;
+    pub const F_WASI: u8 = 19;
+    pub const F_IO: u8 = 26;
+    pub const CHECK_F: u16 = 305;
+    pub const G: u8 = 6;
+    pub const G_WASI: u8 = 20;
+    pub const G_IO: u8 = 27;
+    pub const CHECK_G: u16 = 306;
+    pub const AUTH: u8 = 7;
+    pub const AUTH_RESOURCE: u8 = 28;
+    pub const DATABASE: u8 = 8;
+    pub const DATABASE_RESOURCE: u8 = 29;
+    pub const API: u8 = 9;
+    pub const API_RESOURCE: u8 = 30;
+    pub const PAYMENT: u8 = 10;
+    pub const PAYMENT_RESOURCE: u8 = 31;
+    pub const NOTIFY: u8 = 11;
+    pub const NOTIFY_RESOURCE: u8 = 32;
+    pub const ANALYTICS: u8 = 12;
+    pub const ANALYTICS_RESOURCE: u8 = 33;
+    pub const SEARCH: u8 = 13;
+    pub const SEARCH_RESOURCE: u8 = 34;
+}
+pub struct Programs1H {
+    pub a: RoleProgram<{ roles1h::A }>,
+    pub a_wasi: RoleProgram<{ roles1h::A_WASI }>,
+    pub a_io: RoleProgram<{ roles1h::A_IO }>,
+    pub b: RoleProgram<{ roles1h::B }>,
+    pub b_wasi: RoleProgram<{ roles1h::B_WASI }>,
+    pub b_io: RoleProgram<{ roles1h::B_IO }>,
+    pub c: RoleProgram<{ roles1h::C }>,
+    pub c_wasi: RoleProgram<{ roles1h::C_WASI }>,
+    pub c_io: RoleProgram<{ roles1h::C_IO }>,
+    pub d: RoleProgram<{ roles1h::D }>,
+    pub d_wasi: RoleProgram<{ roles1h::D_WASI }>,
+    pub d_io: RoleProgram<{ roles1h::D_IO }>,
+    pub e: RoleProgram<{ roles1h::E }>,
+    pub e_wasi: RoleProgram<{ roles1h::E_WASI }>,
+    pub e_io: RoleProgram<{ roles1h::E_IO }>,
+    pub f: RoleProgram<{ roles1h::F }>,
+    pub f_wasi: RoleProgram<{ roles1h::F_WASI }>,
+    pub f_io: RoleProgram<{ roles1h::F_IO }>,
+    pub g: RoleProgram<{ roles1h::G }>,
+    pub g_wasi: RoleProgram<{ roles1h::G_WASI }>,
+    pub g_io: RoleProgram<{ roles1h::G_IO }>,
+    pub auth: RoleProgram<{ roles1h::AUTH }>,
+    pub auth_resource: RoleProgram<{ roles1h::AUTH_RESOURCE }>,
+    pub database: RoleProgram<{ roles1h::DATABASE }>,
+    pub database_resource: RoleProgram<{ roles1h::DATABASE_RESOURCE }>,
+    pub api: RoleProgram<{ roles1h::API }>,
+    pub api_resource: RoleProgram<{ roles1h::API_RESOURCE }>,
+    pub payment: RoleProgram<{ roles1h::PAYMENT }>,
+    pub payment_resource: RoleProgram<{ roles1h::PAYMENT_RESOURCE }>,
+    pub notify: RoleProgram<{ roles1h::NOTIFY }>,
+    pub notify_resource: RoleProgram<{ roles1h::NOTIFY_RESOURCE }>,
+    pub analytics: RoleProgram<{ roles1h::ANALYTICS }>,
+    pub analytics_resource: RoleProgram<{ roles1h::ANALYTICS_RESOURCE }>,
+    pub search: RoleProgram<{ roles1h::SEARCH }>,
+    pub search_resource: RoleProgram<{ roles1h::SEARCH_RESOURCE }>,
+}
+pub fn project_1h() -> Programs1H {
+    use roles1h::*;
+    let (initial_0, result_0) =
+        revising_developer::<A_WASI, A, AUTH, DATABASE, AUTH_RESOURCE, DATABASE_RESOURCE, CHECK_A>(
+        );
+    let (initial_1, result_1) =
+        revising_developer::<B_WASI, B, API, DATABASE, API_RESOURCE, DATABASE_RESOURCE, CHECK_B>();
+    let (initial_2, result_2) =
+        revising_developer::<C_WASI, C, API, PAYMENT, API_RESOURCE, PAYMENT_RESOURCE, CHECK_C>();
+    let (initial_3, result_3) = revising_developer::<
+        D_WASI,
+        D,
+        NOTIFY,
+        PAYMENT,
+        NOTIFY_RESOURCE,
+        PAYMENT_RESOURCE,
+        CHECK_D,
+    >();
+    let (initial_4, result_4) = revising_developer::<
+        E_WASI,
+        E,
+        ANALYTICS,
+        NOTIFY,
+        ANALYTICS_RESOURCE,
+        NOTIFY_RESOURCE,
+        CHECK_E,
+    >();
+    let (initial_5, result_5) = revising_developer::<
+        F_WASI,
+        F,
+        ANALYTICS,
+        SEARCH,
+        ANALYTICS_RESOURCE,
+        SEARCH_RESOURCE,
+        CHECK_F,
+    >();
+    let (initial_6, result_6) =
+        revising_developer::<G_WASI, G, AUTH, SEARCH, AUTH_RESOURCE, SEARCH_RESOURCE, CHECK_G>();
+    let task = g::seq(
+        g::seq(
+            g::par(initial_0, g::par(initial_2, initial_4)),
+            g::seq(g::par(initial_1, g::par(initial_3, initial_5)), initial_6),
+        ),
+        g::seq(
+            g::par(result_0, g::par(result_2, result_4)),
+            g::seq(g::par(result_1, g::par(result_3, result_5)), result_6),
+        ),
+    );
+    let protocol = g::par(
+        task,
+        g::par(
+            crate::shell::global::private_io::<A_WASI, A_IO>(),
+            g::par(
+                crate::shell::global::private_io::<B_WASI, B_IO>(),
+                g::par(
+                    crate::shell::global::private_io::<C_WASI, C_IO>(),
+                    g::par(
+                        crate::shell::global::private_io::<D_WASI, D_IO>(),
+                        g::par(
+                            crate::shell::global::private_io::<E_WASI, E_IO>(),
+                            g::par(
+                                crate::shell::global::private_io::<F_WASI, F_IO>(),
+                                crate::shell::global::private_io::<G_WASI, G_IO>(),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        ),
+    );
+    Programs1H {
+        a: project(&protocol),
+        a_wasi: project(&protocol),
+        a_io: project(&protocol),
+        b: project(&protocol),
+        b_wasi: project(&protocol),
+        b_io: project(&protocol),
+        c: project(&protocol),
+        c_wasi: project(&protocol),
+        c_io: project(&protocol),
+        d: project(&protocol),
+        d_wasi: project(&protocol),
+        d_io: project(&protocol),
+        e: project(&protocol),
+        e_wasi: project(&protocol),
+        e_io: project(&protocol),
+        f: project(&protocol),
+        f_wasi: project(&protocol),
+        f_io: project(&protocol),
+        g: project(&protocol),
+        g_wasi: project(&protocol),
+        g_io: project(&protocol),
+        auth: project(&protocol),
+        auth_resource: project(&protocol),
+        database: project(&protocol),
+        database_resource: project(&protocol),
+        api: project(&protocol),
+        api_resource: project(&protocol),
+        payment: project(&protocol),
+        payment_resource: project(&protocol),
+        notify: project(&protocol),
+        notify_resource: project(&protocol),
+        analytics: project(&protocol),
+        analytics_resource: project(&protocol),
+        search: project(&protocol),
+        search_resource: project(&protocol),
     }
 }

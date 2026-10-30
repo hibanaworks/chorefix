@@ -1,5 +1,0 @@
-{
-  "change": "forward termination and wait for capture children; scenarios unchanged",
-  "original_sha256": "4c13b79e0b882c8655fa493db6d8045d9f72465fb6b5c50921fc781b3bcda847",
-  "patched_sha256": "55e8400ec978de73e2694c4cab6aa86d9b340b58b3b7944b42c0351672aaea9f"
-}

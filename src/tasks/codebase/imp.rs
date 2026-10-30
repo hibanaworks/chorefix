@@ -66,6 +66,58 @@ pub(crate) fn decide(input: &TestInput) -> Result<DecisionArm, ResolverError> {
     }
 }
 
+/// The unconsumed model requests themselves, not a second permission table.
+/// Removing a request is acknowledged by `Submitted` in the global protocol.
+pub(crate) struct Requests<C> {
+    pub(crate) pending: RefCell<std::collections::VecDeque<(u8, C)>>,
+    pub(crate) results: [TestInput; 7],
+    pub(crate) available: tokio::sync::Notify,
+}
+impl<C> Requests<C> {
+    pub(crate) fn new() -> Self {
+        Self {
+            pending: RefCell::new(std::collections::VecDeque::new()),
+            results: std::array::from_fn(|_| TestInput::default()),
+            available: tokio::sync::Notify::new(),
+        }
+    }
+    pub(crate) fn all_passed(&self) -> bool {
+        self.results.iter().all(|input| {
+            let value = input.0.borrow();
+            value.as_ref().is_some_and(|value| {
+                value.operation == Operation::Test && value.result["success"] == true
+            })
+        })
+    }
+}
+pub(crate) fn ready<const ROLE: u8, C: Request>(
+    input: &Requests<C>,
+) -> Result<DecisionArm, ResolverError> {
+    let calls = input.pending.borrow();
+    let Some((_, call)) = calls.iter().find(|(role, _)| *role == ROLE) else {
+        return Ok(DecisionArm::Right);
+    };
+    if call.operation() != Operation::Commit {
+        return Err(ResolverError::reject());
+    }
+    if input.results[ROLE as usize]
+        .0
+        .borrow()
+        .as_ref()
+        .is_some_and(|r| r.operation == Operation::Test && r.result["success"] == true)
+    {
+        return Ok(DecisionArm::Right);
+    }
+    Ok(DecisionArm::Left)
+}
+pub(crate) fn complete<C>(input: &Requests<C>) -> Result<DecisionArm, ResolverError> {
+    Ok(if input.all_passed() {
+        DecisionArm::Left
+    } else {
+        DecisionArm::Right
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -95,9 +147,10 @@ mod tests {
             result: serde_json::json!({"success":false}),
         });
         let mut slab = [0; 32 * 1024];
-        let mut storage = SessionKitStorage::<InMemoryTransport>::uninit();
+        let transport_storage = InMemoryTransport::new([]);
+        let mut storage = SessionKitStorage::<&InMemoryTransport>::uninit();
         let kit = storage.init();
-        let rendezvous = kit.rendezvous(&mut slab, InMemoryTransport::new()).unwrap();
+        let rendezvous = kit.rendezvous(&mut slab, &transport_storage).unwrap();
         rendezvous
             .set_resolver(&program, ResolverRef::<100>::decision_state(&input, decide))
             .unwrap();
@@ -128,9 +181,10 @@ mod tests {
             result: serde_json::json!({"success":false}),
         });
         let mut slab = [0; 32 * 1024];
-        let mut storage = SessionKitStorage::<InMemoryTransport>::uninit();
+        let transport_storage = InMemoryTransport::new([]);
+        let mut storage = SessionKitStorage::<&InMemoryTransport>::uninit();
         let kit = storage.init();
-        let rendezvous = kit.rendezvous(&mut slab, InMemoryTransport::new()).unwrap();
+        let rendezvous = kit.rendezvous(&mut slab, &transport_storage).unwrap();
         rendezvous
             .set_resolver(&program, ResolverRef::<100>::decision_state(&input, decide))
             .unwrap();

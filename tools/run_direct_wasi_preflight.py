@@ -48,7 +48,7 @@ async def run(run_id, scenario, task):
 
     # Freeze source and inputs before starting any participant. These are
     # evidence snapshots, never another owner of protocol progress.
-    source_files = [path for base in ("src", "vendor/hibana-wash/src", "vendor/tracefix/benchmark")
+    source_files = [path for base in ("src", "tools/inputs/src", "vendor/hibana-wash/src", "vendor/tracefix/benchmark")
                     for path in (ROOT / base).rglob("*")
                     if path.is_file() and "__pycache__" not in path.parts]
     source_files += [ROOT / name for name in (
@@ -57,7 +57,7 @@ async def run(run_id, scenario, task):
         "tools/audit_review_preflight.py", "tools/audit_model_evidence.py",
         "tools/build_shell.sh", "vendor/hibana-wash/Cargo.toml",
         "vendor/hibana-wash/Cargo.lock", "vendor/hibana-wash/scripts/build.sh",
-        "benchmark/upstream-manifest.json", "tools/inventory.py",
+        "benchmark/upstream-manifest.json", "tools/inputs/Cargo.toml", "tools/inputs/Cargo.lock",
     )]
     manifest = {}
     for path in sorted(source_files):

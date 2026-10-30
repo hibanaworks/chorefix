@@ -2,7 +2,7 @@
   "schema_version": 1,
   "model": "gpt-6-luna",
   "reasoning_effort": "xhigh",
-  "hibana_version": "0.9.9",
+  "hibana_version": "0.10.0",
   "benchmark_revision": "36b4bd108fcd74f7efb17613aebbe3fdf55499a9",
   "paper_baseline_revision": "87b01a2c0ae53c5045c9ce3d43cd0235b1831275",
   "latest_baseline_revision": "36b4bd108fcd74f7efb17613aebbe3fdf55499a9",
@@ -27,5 +27,5 @@
   "run_timeout_seconds": 600,
   "coordination_wait_seconds": 30,
   "participant_tool_call_limit": 200,
-  "concurrent_runs": 2
+  "concurrent_runs": 1
 }

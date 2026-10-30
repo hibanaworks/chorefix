@@ -1,0 +1,434 @@
+//! Inspect persisted observations. This code never authorizes a task operation.
+use super::Result;
+use serde_json::{Value, json};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fs::File,
+    io::{BufRead, BufReader},
+    path::Path,
+};
+
+struct Frame {
+    identity: Value,
+    queued: bool,
+    received: usize,
+}
+
+fn bytes(message: &Value) -> Result<Vec<u8>> {
+    message["payload"]
+        .as_array()
+        .ok_or("payload bytes")?
+        .iter()
+        .map(|value| {
+            value
+                .as_u64()
+                .and_then(|n| u8::try_from(n).ok())
+                .ok_or_else(|| "payload byte".into())
+        })
+        .collect()
+}
+
+pub(super) fn audit(path: &Path) -> Result<Value> {
+    use choreofix::tasks::philosophers::choreofs::global::{
+        roles9e as e, roles9h as h, roles9m as m,
+    };
+    let records = BufReader::new(File::open(path)?)
+        .lines()
+        .map(|line| Ok(serde_json::from_str::<Value>(&line?)?))
+        .collect::<Result<Vec<_>>>()?;
+    let fixture = &records.first().ok_or("empty evidence")?["message"];
+    let actors = fixture["fixtures"].as_array().ok_or("fixtures")?;
+    let model_run = fixture["model_run"] == true;
+    if (model_run && fixture["test_delays"] != json!({}))
+        || fixture["terminal_review_failure"] != false
+    {
+        return Err("invalid dining trial configuration".into());
+    }
+    let fork_rows: &[(&str, u8, u8)] = match fixture["task"].as_str() {
+        Some("9E") => &[
+            ("FORK_A", e::FORK_A, e::FORK_A_RESOURCE),
+            ("FORK_B", e::FORK_B, e::FORK_B_RESOURCE),
+            ("FORK_C", e::FORK_C, e::FORK_C_RESOURCE),
+        ],
+        Some("9M") => &[
+            ("FORK_A", m::FORK_A, m::FORK_A_RESOURCE),
+            ("FORK_B", m::FORK_B, m::FORK_B_RESOURCE),
+            ("FORK_C", m::FORK_C, m::FORK_C_RESOURCE),
+            ("FORK_D", m::FORK_D, m::FORK_D_RESOURCE),
+            ("FORK_E", m::FORK_E, m::FORK_E_RESOURCE),
+        ],
+        Some("9H") => &[
+            ("FORK_A", h::FORK_A, h::FORK_A_RESOURCE),
+            ("FORK_B", h::FORK_B, h::FORK_B_RESOURCE),
+            ("FORK_C", h::FORK_C, h::FORK_C_RESOURCE),
+            ("FORK_D", h::FORK_D, h::FORK_D_RESOURCE),
+            ("FORK_E", h::FORK_E, h::FORK_E_RESOURCE),
+            ("FORK_F", h::FORK_F, h::FORK_F_RESOURCE),
+            ("FORK_G", h::FORK_G, h::FORK_G_RESOURCE),
+        ],
+        _ => return Err("unknown dining task".into()),
+    };
+    if actors.len() != fork_rows.len() {
+        return Err("participant count".into());
+    }
+    let forks: BTreeMap<_, _> = fork_rows
+        .iter()
+        .map(|&(name, owner, resource)| (name, (u64::from(owner), u64::from(resource))))
+        .collect();
+    let assignments: BTreeMap<_, _> = actors
+        .iter()
+        .enumerate()
+        .map(|(index, actor)| {
+            Ok((
+                actor["agent"].as_str().ok_or("actor name")?,
+                (index as u64, actor),
+            ))
+        })
+        .collect::<Result<_>>()?;
+    // These maps reconstruct the saved trace. They are not runtime permissions.
+    let mut held: BTreeMap<u64, Option<u64>> = forks
+        .values()
+        .map(|&(owner, resource)| (resource, Some(owner)))
+        .collect();
+    let mut in_flight = BTreeMap::<u64, u64>::new();
+    let mut loans = BTreeMap::<u64, usize>::new();
+    let mut returns = BTreeMap::<u64, usize>::new();
+    let mut frames = BTreeMap::<u64, Frame>::new();
+    let mut requests = BTreeMap::<(u64, String), Vec<(u64, Value)>>::new();
+    let mut delivered = BTreeMap::<(u64, String), Vec<Value>>::new();
+    let mut meals = BTreeSet::<(u64, u64)>::new();
+    let mut calls = BTreeMap::<&str, usize>::new();
+    let mut outstanding = BTreeMap::<u64, Value>::new();
+    let mut responses = BTreeMap::<(u64, String), Value>::new();
+    let mut active = BTreeMap::<u64, BTreeSet<String>>::new();
+    let mut maximum_eaters = 0;
+    let mut exits = BTreeSet::new();
+    let mut verdict = false;
+    let mut score = None;
+    for record in &records {
+        let message = &record["message"];
+        match (record["direction"].as_str(), message["type"].as_str()) {
+            (Some("runtime"), Some("protocol_frame")) => {
+                let id = message["frame_id"].as_u64().ok_or("frame id")?;
+                let source = message["source"].as_u64().ok_or("source")?;
+                let target = message["target"].as_u64().ok_or("target")?;
+                let payload = bytes(message)?;
+                let mut identity = message.clone();
+                identity
+                    .as_object_mut()
+                    .ok_or("frame object")?
+                    .remove("action");
+                let first_receive = match message["action"].as_str() {
+                    Some("send") => {
+                        if frames
+                            .insert(
+                                id,
+                                Frame {
+                                    identity: identity.clone(),
+                                    queued: true,
+                                    received: 0,
+                                },
+                            )
+                            .is_some()
+                        {
+                            return Err("duplicate frame send".into());
+                        }
+                        false
+                    }
+                    Some("receive" | "requeue") => {
+                        let frame = frames.get_mut(&id).ok_or("frame has no send")?;
+                        if frame.identity != identity {
+                            return Err("altered frame identity".into());
+                        }
+                        if message["action"] == "receive" {
+                            if !frame.queued {
+                                return Err("duplicate receive".into());
+                            }
+                            frame.queued = false;
+                            frame.received += 1;
+                            frame.received == 1
+                        } else {
+                            if frame.queued || frame.received == 0 {
+                                return Err("invalid requeue".into());
+                            }
+                            frame.queued = true;
+                            false
+                        }
+                    }
+                    _ => return Err("unknown frame action".into()),
+                };
+                if fork_rows
+                    .iter()
+                    .any(|&(_, owner, _)| u64::from(owner) == source || u64::from(owner) == target)
+                {
+                    if payload.len() != 3 {
+                        return Err("owned Endpoint envelope".into());
+                    }
+                    let resource = u64::from(payload[0]);
+                    let owner = forks
+                        .values()
+                        .find(|&&(_, r)| r == resource)
+                        .ok_or("unknown resource")?
+                        .0;
+                    let vm = if source == owner {
+                        target
+                    } else if target == owner {
+                        source
+                    } else {
+                        return Err("wrong resource owner".into());
+                    };
+                    let actor = actors
+                        .get(vm.checked_sub(14).ok_or("guest role")? as usize)
+                        .ok_or("guest role")?;
+                    if !actor["forks"]
+                        .as_array()
+                        .ok_or("assigned forks")?
+                        .iter()
+                        .any(|name| {
+                            forks
+                                .get(name.as_str().unwrap_or(""))
+                                .is_some_and(|&(_, r)| r == resource)
+                        })
+                    {
+                        return Err("Endpoint delivered to unassigned philosopher".into());
+                    }
+                    if message["action"] == "send" {
+                        if held.insert(resource, None) != Some(Some(source))
+                            || in_flight.insert(resource, id).is_some()
+                        {
+                            return Err("duplicate or unheld Endpoint transfer".into());
+                        }
+                        if target == owner {
+                            if !meals.remove(&(resource, vm - 14)) {
+                                return Err("return precedes actual meal reply".into());
+                            }
+                            *returns.entry(resource).or_default() += 1;
+                        } else {
+                            *loans.entry(resource).or_default() += 1;
+                        }
+                    } else if first_receive
+                        && (in_flight.remove(&resource) != Some(id)
+                            || held.insert(resource, Some(target)) != Some(None))
+                    {
+                        return Err("Endpoint receive has no matching transfer".into());
+                    }
+                }
+                if first_receive && target < actors.len() as u64 {
+                    let arguments = serde_json::from_slice::<Value>(&payload).ok();
+                    if source == target + 14
+                        && arguments
+                            .as_ref()
+                            .is_some_and(|v| v["philosopher"].is_string())
+                    {
+                        requests
+                            .entry((target, "think".into()))
+                            .or_default()
+                            .push((source, arguments.unwrap()));
+                    } else if held.contains_key(&source) {
+                        if held[&source] != Some(target + 14) {
+                            return Err("request without held resource".into());
+                        }
+                        requests
+                            .entry((target, "eat".into()))
+                            .or_default()
+                            .push((source, arguments.ok_or("actual resource request JSON")?));
+                    }
+                }
+                if first_receive
+                    && source < actors.len() as u64
+                    && (target == source + 14 || held.contains_key(&target))
+                {
+                    let result: Value = serde_json::from_slice(&payload)?;
+                    let tool = result["tool_name"]
+                        .as_str()
+                        .ok_or("actual result tool")?
+                        .to_owned();
+                    if held.contains_key(&target) {
+                        if tool != "eat"
+                            || held[&target] != Some(source + 14)
+                            || !meals.insert((target, source))
+                        {
+                            return Err("meal reply without its unique resource".into());
+                        }
+                    } else if tool != "think" {
+                        return Err("result bypassed resource Endpoint".into());
+                    }
+                    delivered.entry((source, tool)).or_default().push(result);
+                }
+            }
+            (Some("runtime"), Some("execute")) => {
+                let agent = message["agent"].as_str().ok_or("execute agent")?;
+                let &(role, assignment) = assignments.get(agent).ok_or("unknown execute agent")?;
+                let tool = message["tool"].as_str().ok_or("execute tool")?;
+                let count = calls.entry(agent).or_default();
+                if assignment["calls"]
+                    .get(*count)
+                    .ok_or("duplicate task effect")?["tool"]
+                    != tool
+                    || !message["arguments"]["philosopher"].is_string()
+                {
+                    return Err("task fidelity mismatch".into());
+                }
+                let observed = requests
+                    .remove(&(role, tool.to_owned()))
+                    .ok_or("effect without actual projected request")?;
+                if observed
+                    .iter()
+                    .any(|(_, arguments)| arguments != &message["arguments"])
+                {
+                    return Err("request/effect argument mismatch".into());
+                }
+                if tool == "think" {
+                    if observed.len() != 1 || observed[0].0 != role + 14 {
+                        return Err("think request count".into());
+                    }
+                } else if tool == "eat" {
+                    let required = assignment["forks"]
+                        .as_array()
+                        .ok_or("forks")?
+                        .iter()
+                        .map(|name| {
+                            forks
+                                .get(name.as_str().ok_or("fork name")?)
+                                .map(|&(_, r)| r)
+                                .ok_or_else(|| "unknown fork".into())
+                        })
+                        .collect::<Result<BTreeSet<_>>>()?;
+                    if observed.len() != 2
+                        || observed.iter().map(|&(r, _)| r).collect::<BTreeSet<_>>() != required
+                        || required.iter().any(|r| held[r] != Some(role + 14))
+                        || delivered.get(&(role, "think".into())).map(Vec::len) != Some(1)
+                    {
+                        return Err(
+                            "effect without both unique Endpoints and completed think".into()
+                        );
+                    }
+                    let names = assignment["forks"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|v| v.as_str().unwrap().to_owned())
+                        .collect::<BTreeSet<_>>();
+                    if active.values().any(|other| !other.is_disjoint(&names)) {
+                        return Err("overlapping physical forks".into());
+                    }
+                    active.insert(message["id"].as_u64().ok_or("execute id")?, names);
+                    maximum_eaters = maximum_eaters.max(active.len());
+                } else {
+                    return Err("unknown effect".into());
+                }
+                *count += 1;
+                if outstanding
+                    .insert(message["id"].as_u64().ok_or("execute id")?, message.clone())
+                    .is_some()
+                {
+                    return Err("duplicate execute id".into());
+                }
+            }
+            (Some("simulator"), Some("simulator_result")) => {
+                let id = message["id"].as_u64().ok_or("result id")?;
+                let call = outstanding
+                    .remove(&id)
+                    .ok_or("unmatched simulator result")?;
+                if call["tool"] != message["result"]["tool_name"]
+                    || message["result"]["success"] != true
+                {
+                    return Err("unexpected simulator result".into());
+                }
+                let role = assignments[call["agent"].as_str().ok_or("agent")?].0;
+                if responses
+                    .insert(
+                        (role, call["tool"].as_str().unwrap().to_owned()),
+                        message["result"].clone(),
+                    )
+                    .is_some()
+                {
+                    return Err("duplicate domain result".into());
+                }
+                active.remove(&id);
+            }
+            (Some("runtime"), Some("exit")) => {
+                if message["status"] != 0
+                    || !exits.insert(message["agent"].as_str().ok_or("exit agent")?.to_owned())
+                {
+                    return Err("failed or duplicate guest exit".into());
+                }
+            }
+            (Some("runtime"), Some("run_result")) => {
+                if message["status"] != "complete" || verdict {
+                    return Err("failed or duplicate runtime verdict".into());
+                }
+                verdict = true;
+            }
+            (Some("simulator"), Some("score")) if score.is_none() => {
+                score = Some(message.clone());
+            }
+            (Some("simulator"), Some("score")) => return Err("duplicate score".into()),
+            _ => {}
+        }
+    }
+    let score = score.ok_or("missing score")?;
+    for (&agent, &(role, assignment)) in &assignments {
+        for tool in ["think", "eat"] {
+            let result = responses
+                .get(&(role, tool.to_owned()))
+                .ok_or("missing effect result")?;
+            let values = delivered
+                .remove(&(role, tool.to_owned()))
+                .ok_or("missing received result")?;
+            if values.len() != if tool == "eat" { 2 } else { 1 }
+                || values.iter().any(|v| v != result)
+            {
+                return Err("effect and delivered result disagree".into());
+            }
+            let events = score["events"]
+                .as_array()
+                .ok_or("score events")?
+                .iter()
+                .filter(|e| e["agent"] == agent && e["tool"] == tool)
+                .collect::<Vec<_>>();
+            let expected_args = if tool == "think" {
+                json!({})
+            } else {
+                json!({"left_fork":assignment["forks"][0],"right_fork":assignment["forks"][1]})
+            };
+            if events.len() != 1
+                || events[0]["args"] != expected_args
+                || events[0]["result"] != result["data"]
+                || events[0]["success"] != result["success"]
+                || result["data"]["philosopher"] != agent
+            {
+                return Err("original simulator result mismatch".into());
+            }
+        }
+    }
+    let expected_parallel = actors.len() / 2;
+    if !verdict
+        || exits.len() != actors.len()
+        || calls.len() != actors.len()
+        || calls.values().any(|&n| n != 2)
+        || !outstanding.is_empty()
+        || !requests.is_empty()
+        || !delivered.is_empty()
+        || !meals.is_empty()
+        || !in_flight.is_empty()
+        || !active.is_empty()
+        || frames.values().any(|f| f.queued || f.received == 0)
+        || forks.values().any(|&(owner, resource)| {
+            held[&resource] != Some(owner)
+                || loans.get(&resource) != Some(&2)
+                || returns.get(&resource) != Some(&2)
+        })
+        || score["complete"] != true
+        || score["violations"] != json!([])
+        || score["events"].as_array().ok_or("events")?.len() != 2 * actors.len()
+        || maximum_eaters == 0
+        || maximum_eaters > expected_parallel
+        || (!model_run && maximum_eaters != expected_parallel)
+    {
+        return Err("incomplete delegation boundary evidence".into());
+    }
+    Ok(
+        json!({"task":fixture["task"],"kind":if model_run {"model_direct_wasi_delegation"} else {"deterministic_direct_wasi_delegation"},"model_calls":if model_run {Value::Null} else {json!(0)},"scored_benchmark":false,"status":"passed","participants":actors.len(),"domain_calls":2*actors.len(),"carrier_frames":frames.len(),"max_disjoint_eaters":maximum_eaters,"simulator_complete":true,"actual_resource_endpoint_requests":2*actors.len(),"actual_resource_endpoint_returns":2*actors.len(),"violations":0,"guest_exits":exits.len(),"original_test_delays":fixture["test_delays"]}),
+    )
+}

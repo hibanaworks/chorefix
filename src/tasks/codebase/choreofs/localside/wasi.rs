@@ -1,16 +1,29 @@
-//! Five explicit projected lifetimes, without a stored phase selector.
-use super::super::global::*;
-use crate::shell::{ShellResult, global::Exit};
+//! The literal request sequence follows the global; argument bytes are private.
+use super::super::{
+    global::*,
+    wire::{COMMIT, Close, DESIGN, IMPLEMENT, TEST},
+};
+use crate::shell::{
+    ShellResult,
+    global::Exit,
+    imp::file_wire::{ClosedFileMsg, ResultChunk, ResultChunkMsg},
+};
 use hibana_wasip1_runtime::{
     exchange::{HibanaWasiGuest, WasiBoundaryStep, WasiImportCompletion, WasiImportRequest},
     protocol,
 };
 
-pub async fn run<const ROLE: u8>(
+pub async fn run<
+    const ROLE: u8,
+    const SUBJECT: u8,
+    const TASK: u8,
+    const FIRST: u8,
+    const SECOND: u8,
+>(
     guest: &mut HibanaWasiGuest<'_>,
     endpoint: &mut hibana::Endpoint<'_, ROLE>,
-    reply_bytes: std::rc::Rc<std::cell::RefCell<Vec<u8>>>,
 ) -> ShellResult<i32> {
+    let [mut task, mut private] = endpoint.par()?;
     let mut fuel_id = 0u16;
 
     // Design: directly consumes this projected lifetime.
@@ -18,171 +31,178 @@ pub async fn run<const ROLE: u8>(
         match guest.resume_wasi_boundary(protocol::BudgetRun::new(fuel_id, 0, 100_000))? {
             WasiBoundaryStep::ImportPending(pending) => match pending.request()? {
                 WasiImportRequest::FdWrite(request) => {
-                    endpoint.send::<protocol::FdWriteReqMsg>(&request).await?;
-                    let completion = endpoint.recv::<protocol::FdWriteRetMsg>().await?;
+                    private.send::<protocol::FdWriteReqMsg>(&request).await?;
+                    let completion = private.recv::<protocol::FdWriteRetMsg>().await?;
                     pending.complete(WasiImportCompletion::FdWrite(completion))?;
                 }
                 WasiImportRequest::FdWriteObject(request) => {
-                    endpoint.recv::<DesignRequestReady>().await?;
-                    endpoint.send::<DesignWrite>(&request).await?;
-                    let completion = endpoint.recv::<DesignWritten>().await?;
+                    private
+                        .send::<protocol::FdWriteObjectReqMsg>(&request)
+                        .await?;
+                    let completion = private.recv::<protocol::FdWriteObjectRetMsg>().await?;
                     pending.complete(WasiImportCompletion::FdWriteObject(completion))?;
                 }
                 WasiImportRequest::FdRead(request) => {
-                    endpoint.send::<protocol::FdReadReqMsg>(&request).await?;
-                    let completion = endpoint.recv::<protocol::FdReadRetMsg>().await?;
+                    private.send::<protocol::FdReadReqMsg>(&request).await?;
+                    let completion = private.recv::<protocol::FdReadRetMsg>().await?;
                     pending.complete(WasiImportCompletion::FdRead(completion))?;
                 }
                 WasiImportRequest::FdReaddir(request) => {
-                    endpoint.send::<protocol::FdReaddirReqMsg>(&request).await?;
-                    let completion = endpoint.recv::<protocol::FdReaddirRetMsg>().await?;
+                    private.send::<protocol::FdReaddirReqMsg>(&request).await?;
+                    let completion = private.recv::<protocol::FdReaddirRetMsg>().await?;
                     pending.complete(WasiImportCompletion::FdReaddir(completion))?;
                 }
                 WasiImportRequest::PathOpen(request) => {
-                    let path = request
-                        .0
-                        .path()
-                        .strip_prefix(b"/")
-                        .unwrap_or(request.0.path());
-                    let completion = if path.starts_with(SERVICE_PREFIX) && path != RESULT_PATH {
-                        endpoint.recv::<DesignRequestReady>().await?;
-                        endpoint.send::<DesignOpen>(&request).await?;
-                        endpoint.recv::<DesignOpened>().await?
-                    } else {
-                        endpoint.send::<protocol::PathOpenReqMsg>(&request).await?;
-                        endpoint.recv::<protocol::PathOpenRetMsg>().await?
-                    };
+                    private.send::<protocol::PathOpenReqMsg>(&request).await?;
+                    let completion = private.recv::<protocol::PathOpenRetMsg>().await?;
                     pending.complete(WasiImportCompletion::PathOpen(completion))?;
                 }
                 WasiImportRequest::FdPrestatGet(request) => {
-                    endpoint
+                    private
                         .send::<protocol::FdPrestatGetReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::FdPrestatGetRetMsg>().await?;
+                    let completion = private.recv::<protocol::FdPrestatGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::FdPrestatGet(completion))?;
                 }
                 WasiImportRequest::FdPrestatDirName(request) => {
-                    endpoint
+                    private
                         .send::<protocol::FdPrestatDirNameReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::FdPrestatDirNameRetMsg>().await?;
+                    let completion = private.recv::<protocol::FdPrestatDirNameRetMsg>().await?;
                     pending.complete(WasiImportCompletion::FdPrestatDirName(completion))?;
                 }
                 WasiImportRequest::FdFilestatGet(request) => {
-                    endpoint
+                    private
                         .send::<protocol::FdFilestatGetReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::FdFilestatGetRetMsg>().await?;
+                    let completion = private.recv::<protocol::FdFilestatGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::FdFilestatGet(completion))?;
                 }
                 WasiImportRequest::ArgsSizesGet(request) => {
-                    endpoint
+                    private
                         .send::<protocol::ArgsSizesGetReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::ArgsSizesGetRetMsg>().await?;
+                    let completion = private.recv::<protocol::ArgsSizesGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::ArgsSizesGet(completion))?;
                 }
                 WasiImportRequest::ArgsGet(request) => {
-                    endpoint.send::<protocol::ArgsGetReqMsg>(&request).await?;
-                    let completion = endpoint.recv::<protocol::ArgsGetRetMsg>().await?;
+                    private.send::<protocol::ArgsGetReqMsg>(&request).await?;
+                    let completion = private.recv::<protocol::ArgsGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::ArgsGet(completion))?;
                 }
                 WasiImportRequest::EnvironSizesGet(request) => {
-                    endpoint
+                    private
                         .send::<protocol::EnvironSizesGetReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::EnvironSizesGetRetMsg>().await?;
+                    let completion = private.recv::<protocol::EnvironSizesGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::EnvironSizesGet(completion))?;
                 }
                 WasiImportRequest::EnvironGet(request) => {
-                    endpoint
-                        .send::<protocol::EnvironGetReqMsg>(&request)
-                        .await?;
-                    let completion = endpoint.recv::<protocol::EnvironGetRetMsg>().await?;
+                    private.send::<protocol::EnvironGetReqMsg>(&request).await?;
+                    let completion = private.recv::<protocol::EnvironGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::EnvironGet(completion))?;
                 }
                 WasiImportRequest::FdFdstatGet(request) => {
-                    endpoint
+                    private
                         .send::<protocol::FdFdstatGetReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::FdFdstatGetRetMsg>().await?;
+                    let completion = private.recv::<protocol::FdFdstatGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::FdFdstatGet(completion))?;
                 }
                 WasiImportRequest::PathFilestatGet(request) => {
-                    endpoint
+                    private
                         .send::<protocol::PathFilestatGetReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::PathFilestatGetRetMsg>().await?;
+                    let completion = private.recv::<protocol::PathFilestatGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::PathFilestatGet(completion))?;
                 }
                 WasiImportRequest::FdClose(request) => {
+                    private.send::<protocol::FdCloseReqMsg>(&request).await?;
+                    let closed = private.recv::<ClosedFileMsg>().await?;
+
                     let completion = if request.0.fd() == SERVICE_FD {
-                        endpoint.recv::<DesignRequestReady>().await?;
-                        endpoint.send::<DesignCommit>(&request).await?;
-                        let branch = endpoint.offer().await?;
-                        match branch.label() {
-                            105 => {
-                                branch.recv::<DesignAdmitted>().await?;
-                                let bytes = endpoint.recv::<DesignCompleted<'_>>().await?.to_vec();
-                                endpoint.recv::<DesignServiceDone>().await?;
-                                reply_bytes.replace(bytes);
+                        let arguments = closed
+                            .arguments(
+                                Close::<TASK, SUBJECT, DESIGN>::PATH,
+                                Close::<TASK, SUBJECT, DESIGN>::KEY,
+                            )
+                            .and_then(|arguments| {
+                                Close::<TASK, SUBJECT, DESIGN>::new(request, arguments)
+                            });
+                        match arguments {
+                            Ok(arguments) => {
+                                task.send::<DesignRequest<TASK, SUBJECT>>(&arguments)
+                                    .await?;
+                                let bytes = task.recv::<DesignCompleted<'_>>().await?.to_vec();
+                                for (index, chunk) in
+                                    bytes.chunks(protocol::WASIP1_IO_CHUNK_CAPACITY).enumerate()
+                                {
+                                    private
+                                        .send::<ResultChunkMsg>(&ResultChunk::new(
+                                            index * protocol::WASIP1_IO_CHUNK_CAPACITY,
+                                            chunk,
+                                        )?)
+                                        .await?;
+                                }
                                 pending.complete(WasiImportCompletion::FdClose(
                                     protocol::FdClosedRet(protocol::FdClosed::new(request.0.fd())),
                                 ))?;
                                 break;
                             }
-                            106 => {
-                                reply_bytes
-                                    .replace(branch.recv::<DesignRejected<'_>>().await?.to_vec());
+                            Err(error) => {
+                                let bytes = serde_json::to_vec(&serde_json::json!({"status":"invalid_arguments","error":error.to_string()}))
+                .map_err(|error| crate::shell::ShellError::message(error.to_string()))?;
+                                for (index, chunk) in
+                                    bytes.chunks(protocol::WASIP1_IO_CHUNK_CAPACITY).enumerate()
+                                {
+                                    private
+                                        .send::<ResultChunkMsg>(&ResultChunk::new(
+                                            index * protocol::WASIP1_IO_CHUNK_CAPACITY,
+                                            chunk,
+                                        )?)
+                                        .await?;
+                                }
                                 protocol::FdClosedRet(protocol::FdClosed::new_with_errno(
                                     request.0.fd(),
                                     28,
                                 ))
                             }
-                            _ => {
-                                return Err(crate::shell::ShellError::message(
-                                    "unexpected service completion",
-                                ));
-                            }
                         }
                     } else {
-                        endpoint.send::<protocol::FdCloseReqMsg>(&request).await?;
-                        endpoint.recv::<protocol::FdCloseRetMsg>().await?
+                        closed.completion
                     };
                     pending.complete(WasiImportCompletion::FdClose(completion))?;
                 }
                 WasiImportRequest::ClockResGet(request) => {
-                    endpoint
+                    private
                         .send::<protocol::ClockResGetReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::ClockResGetRetMsg>().await?;
+                    let completion = private.recv::<protocol::ClockResGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::ClockResGet(completion))?;
                 }
                 WasiImportRequest::ClockTimeGet(request) => {
-                    endpoint
+                    private
                         .send::<protocol::ClockTimeGetReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::ClockTimeGetRetMsg>().await?;
+                    let completion = private.recv::<protocol::ClockTimeGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::ClockTimeGet(completion))?;
                 }
                 WasiImportRequest::PollOneoff(request) => {
-                    endpoint
-                        .send::<protocol::PollOneoffReqMsg>(&request)
-                        .await?;
-                    let completion = endpoint.recv::<protocol::PollOneoffRetMsg>().await?;
+                    private.send::<protocol::PollOneoffReqMsg>(&request).await?;
+                    let completion = private.recv::<protocol::PollOneoffRetMsg>().await?;
                     pending.complete(WasiImportCompletion::PollOneoff(completion))?;
                 }
                 WasiImportRequest::RandomGet(request) => {
-                    endpoint.send::<protocol::RandomGetReqMsg>(&request).await?;
-                    let completion = endpoint.recv::<protocol::RandomGetRetMsg>().await?;
+                    private.send::<protocol::RandomGetReqMsg>(&request).await?;
+                    let completion = private.recv::<protocol::RandomGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::RandomGet(completion))?;
                 }
             },
             WasiBoundaryStep::MemoryGrowPending(pending) => {
-                endpoint
+                private
                     .send::<protocol::MemoryGrowReqMsg>(&pending.request())
                     .await?;
-                let response = endpoint.recv::<protocol::MemoryGrowRetMsg>().await?;
+                let response = private.recv::<protocol::MemoryGrowRetMsg>().await?;
                 pending.complete(response)?;
             }
             WasiBoundaryStep::BudgetExpired(_) => {
@@ -203,173 +223,178 @@ pub async fn run<const ROLE: u8>(
         match guest.resume_wasi_boundary(protocol::BudgetRun::new(fuel_id, 0, 100_000))? {
             WasiBoundaryStep::ImportPending(pending) => match pending.request()? {
                 WasiImportRequest::FdWrite(request) => {
-                    endpoint.send::<protocol::FdWriteReqMsg>(&request).await?;
-                    let completion = endpoint.recv::<protocol::FdWriteRetMsg>().await?;
+                    private.send::<protocol::FdWriteReqMsg>(&request).await?;
+                    let completion = private.recv::<protocol::FdWriteRetMsg>().await?;
                     pending.complete(WasiImportCompletion::FdWrite(completion))?;
                 }
                 WasiImportRequest::FdWriteObject(request) => {
-                    endpoint.recv::<ImplementRequestReady>().await?;
-                    endpoint.send::<ImplementWrite>(&request).await?;
-                    let completion = endpoint.recv::<ImplementWritten>().await?;
+                    private
+                        .send::<protocol::FdWriteObjectReqMsg>(&request)
+                        .await?;
+                    let completion = private.recv::<protocol::FdWriteObjectRetMsg>().await?;
                     pending.complete(WasiImportCompletion::FdWriteObject(completion))?;
                 }
                 WasiImportRequest::FdRead(request) => {
-                    endpoint.send::<protocol::FdReadReqMsg>(&request).await?;
-                    let completion = endpoint.recv::<protocol::FdReadRetMsg>().await?;
+                    private.send::<protocol::FdReadReqMsg>(&request).await?;
+                    let completion = private.recv::<protocol::FdReadRetMsg>().await?;
                     pending.complete(WasiImportCompletion::FdRead(completion))?;
                 }
                 WasiImportRequest::FdReaddir(request) => {
-                    endpoint.send::<protocol::FdReaddirReqMsg>(&request).await?;
-                    let completion = endpoint.recv::<protocol::FdReaddirRetMsg>().await?;
+                    private.send::<protocol::FdReaddirReqMsg>(&request).await?;
+                    let completion = private.recv::<protocol::FdReaddirRetMsg>().await?;
                     pending.complete(WasiImportCompletion::FdReaddir(completion))?;
                 }
                 WasiImportRequest::PathOpen(request) => {
-                    let path = request
-                        .0
-                        .path()
-                        .strip_prefix(b"/")
-                        .unwrap_or(request.0.path());
-                    let completion = if path.starts_with(SERVICE_PREFIX) && path != RESULT_PATH {
-                        endpoint.recv::<ImplementRequestReady>().await?;
-                        endpoint.send::<ImplementOpen>(&request).await?;
-                        endpoint.recv::<ImplementOpened>().await?
-                    } else {
-                        endpoint.send::<protocol::PathOpenReqMsg>(&request).await?;
-                        endpoint.recv::<protocol::PathOpenRetMsg>().await?
-                    };
+                    private.send::<protocol::PathOpenReqMsg>(&request).await?;
+                    let completion = private.recv::<protocol::PathOpenRetMsg>().await?;
                     pending.complete(WasiImportCompletion::PathOpen(completion))?;
                 }
                 WasiImportRequest::FdPrestatGet(request) => {
-                    endpoint
+                    private
                         .send::<protocol::FdPrestatGetReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::FdPrestatGetRetMsg>().await?;
+                    let completion = private.recv::<protocol::FdPrestatGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::FdPrestatGet(completion))?;
                 }
                 WasiImportRequest::FdPrestatDirName(request) => {
-                    endpoint
+                    private
                         .send::<protocol::FdPrestatDirNameReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::FdPrestatDirNameRetMsg>().await?;
+                    let completion = private.recv::<protocol::FdPrestatDirNameRetMsg>().await?;
                     pending.complete(WasiImportCompletion::FdPrestatDirName(completion))?;
                 }
                 WasiImportRequest::FdFilestatGet(request) => {
-                    endpoint
+                    private
                         .send::<protocol::FdFilestatGetReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::FdFilestatGetRetMsg>().await?;
+                    let completion = private.recv::<protocol::FdFilestatGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::FdFilestatGet(completion))?;
                 }
                 WasiImportRequest::ArgsSizesGet(request) => {
-                    endpoint
+                    private
                         .send::<protocol::ArgsSizesGetReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::ArgsSizesGetRetMsg>().await?;
+                    let completion = private.recv::<protocol::ArgsSizesGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::ArgsSizesGet(completion))?;
                 }
                 WasiImportRequest::ArgsGet(request) => {
-                    endpoint.send::<protocol::ArgsGetReqMsg>(&request).await?;
-                    let completion = endpoint.recv::<protocol::ArgsGetRetMsg>().await?;
+                    private.send::<protocol::ArgsGetReqMsg>(&request).await?;
+                    let completion = private.recv::<protocol::ArgsGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::ArgsGet(completion))?;
                 }
                 WasiImportRequest::EnvironSizesGet(request) => {
-                    endpoint
+                    private
                         .send::<protocol::EnvironSizesGetReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::EnvironSizesGetRetMsg>().await?;
+                    let completion = private.recv::<protocol::EnvironSizesGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::EnvironSizesGet(completion))?;
                 }
                 WasiImportRequest::EnvironGet(request) => {
-                    endpoint
-                        .send::<protocol::EnvironGetReqMsg>(&request)
-                        .await?;
-                    let completion = endpoint.recv::<protocol::EnvironGetRetMsg>().await?;
+                    private.send::<protocol::EnvironGetReqMsg>(&request).await?;
+                    let completion = private.recv::<protocol::EnvironGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::EnvironGet(completion))?;
                 }
                 WasiImportRequest::FdFdstatGet(request) => {
-                    endpoint
+                    private
                         .send::<protocol::FdFdstatGetReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::FdFdstatGetRetMsg>().await?;
+                    let completion = private.recv::<protocol::FdFdstatGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::FdFdstatGet(completion))?;
                 }
                 WasiImportRequest::PathFilestatGet(request) => {
-                    endpoint
+                    private
                         .send::<protocol::PathFilestatGetReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::PathFilestatGetRetMsg>().await?;
+                    let completion = private.recv::<protocol::PathFilestatGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::PathFilestatGet(completion))?;
                 }
                 WasiImportRequest::FdClose(request) => {
+                    private.send::<protocol::FdCloseReqMsg>(&request).await?;
+                    let closed = private.recv::<ClosedFileMsg>().await?;
+
                     let completion = if request.0.fd() == SERVICE_FD {
-                        endpoint.recv::<ImplementRequestReady>().await?;
-                        endpoint.send::<ImplementCommit>(&request).await?;
-                        let branch = endpoint.offer().await?;
-                        match branch.label() {
-                            130 => {
-                                branch.recv::<ImplementAdmitted>().await?;
-                                let bytes =
-                                    endpoint.recv::<ImplementCompleted<'_>>().await?.to_vec();
-                                endpoint.recv::<ImplementServiceDone>().await?;
-                                reply_bytes.replace(bytes);
+                        let arguments = closed
+                            .arguments(
+                                Close::<TASK, SUBJECT, IMPLEMENT>::PATH,
+                                Close::<TASK, SUBJECT, IMPLEMENT>::KEY,
+                            )
+                            .and_then(|arguments| {
+                                Close::<TASK, SUBJECT, IMPLEMENT>::new(request, arguments)
+                            });
+                        match arguments {
+                            Ok(arguments) => {
+                                task.send::<ImplementRequest<TASK, SUBJECT>>(&arguments)
+                                    .await?;
+                                let bytes = task.recv::<ImplementCompleted<'_>>().await?.to_vec();
+                                for (index, chunk) in
+                                    bytes.chunks(protocol::WASIP1_IO_CHUNK_CAPACITY).enumerate()
+                                {
+                                    private
+                                        .send::<ResultChunkMsg>(&ResultChunk::new(
+                                            index * protocol::WASIP1_IO_CHUNK_CAPACITY,
+                                            chunk,
+                                        )?)
+                                        .await?;
+                                }
                                 pending.complete(WasiImportCompletion::FdClose(
                                     protocol::FdClosedRet(protocol::FdClosed::new(request.0.fd())),
                                 ))?;
                                 break;
                             }
-                            131 => {
-                                reply_bytes.replace(
-                                    branch.recv::<ImplementRejected<'_>>().await?.to_vec(),
-                                );
+                            Err(error) => {
+                                let bytes = serde_json::to_vec(&serde_json::json!({"status":"invalid_arguments","error":error.to_string()}))
+                .map_err(|error| crate::shell::ShellError::message(error.to_string()))?;
+                                for (index, chunk) in
+                                    bytes.chunks(protocol::WASIP1_IO_CHUNK_CAPACITY).enumerate()
+                                {
+                                    private
+                                        .send::<ResultChunkMsg>(&ResultChunk::new(
+                                            index * protocol::WASIP1_IO_CHUNK_CAPACITY,
+                                            chunk,
+                                        )?)
+                                        .await?;
+                                }
                                 protocol::FdClosedRet(protocol::FdClosed::new_with_errno(
                                     request.0.fd(),
                                     28,
                                 ))
                             }
-                            _ => {
-                                return Err(crate::shell::ShellError::message(
-                                    "unexpected service completion",
-                                ));
-                            }
                         }
                     } else {
-                        endpoint.send::<protocol::FdCloseReqMsg>(&request).await?;
-                        endpoint.recv::<protocol::FdCloseRetMsg>().await?
+                        closed.completion
                     };
                     pending.complete(WasiImportCompletion::FdClose(completion))?;
                 }
                 WasiImportRequest::ClockResGet(request) => {
-                    endpoint
+                    private
                         .send::<protocol::ClockResGetReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::ClockResGetRetMsg>().await?;
+                    let completion = private.recv::<protocol::ClockResGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::ClockResGet(completion))?;
                 }
                 WasiImportRequest::ClockTimeGet(request) => {
-                    endpoint
+                    private
                         .send::<protocol::ClockTimeGetReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::ClockTimeGetRetMsg>().await?;
+                    let completion = private.recv::<protocol::ClockTimeGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::ClockTimeGet(completion))?;
                 }
                 WasiImportRequest::PollOneoff(request) => {
-                    endpoint
-                        .send::<protocol::PollOneoffReqMsg>(&request)
-                        .await?;
-                    let completion = endpoint.recv::<protocol::PollOneoffRetMsg>().await?;
+                    private.send::<protocol::PollOneoffReqMsg>(&request).await?;
+                    let completion = private.recv::<protocol::PollOneoffRetMsg>().await?;
                     pending.complete(WasiImportCompletion::PollOneoff(completion))?;
                 }
                 WasiImportRequest::RandomGet(request) => {
-                    endpoint.send::<protocol::RandomGetReqMsg>(&request).await?;
-                    let completion = endpoint.recv::<protocol::RandomGetRetMsg>().await?;
+                    private.send::<protocol::RandomGetReqMsg>(&request).await?;
+                    let completion = private.recv::<protocol::RandomGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::RandomGet(completion))?;
                 }
             },
             WasiBoundaryStep::MemoryGrowPending(pending) => {
-                endpoint
+                private
                     .send::<protocol::MemoryGrowReqMsg>(&pending.request())
                     .await?;
-                let response = endpoint.recv::<protocol::MemoryGrowRetMsg>().await?;
+                let response = private.recv::<protocol::MemoryGrowRetMsg>().await?;
                 pending.complete(response)?;
             }
             WasiBoundaryStep::BudgetExpired(_) => {
@@ -390,171 +415,230 @@ pub async fn run<const ROLE: u8>(
         match guest.resume_wasi_boundary(protocol::BudgetRun::new(fuel_id, 0, 100_000))? {
             WasiBoundaryStep::ImportPending(pending) => match pending.request()? {
                 WasiImportRequest::FdWrite(request) => {
-                    endpoint.send::<protocol::FdWriteReqMsg>(&request).await?;
-                    let completion = endpoint.recv::<protocol::FdWriteRetMsg>().await?;
+                    private.send::<protocol::FdWriteReqMsg>(&request).await?;
+                    let completion = private.recv::<protocol::FdWriteRetMsg>().await?;
                     pending.complete(WasiImportCompletion::FdWrite(completion))?;
                 }
                 WasiImportRequest::FdWriteObject(request) => {
-                    endpoint.recv::<CommitRequestReady>().await?;
-                    endpoint.send::<CommitWrite>(&request).await?;
-                    let completion = endpoint.recv::<CommitWritten>().await?;
+                    private
+                        .send::<protocol::FdWriteObjectReqMsg>(&request)
+                        .await?;
+                    let completion = private.recv::<protocol::FdWriteObjectRetMsg>().await?;
                     pending.complete(WasiImportCompletion::FdWriteObject(completion))?;
                 }
                 WasiImportRequest::FdRead(request) => {
-                    endpoint.send::<protocol::FdReadReqMsg>(&request).await?;
-                    let completion = endpoint.recv::<protocol::FdReadRetMsg>().await?;
+                    private.send::<protocol::FdReadReqMsg>(&request).await?;
+                    let completion = private.recv::<protocol::FdReadRetMsg>().await?;
                     pending.complete(WasiImportCompletion::FdRead(completion))?;
                 }
                 WasiImportRequest::FdReaddir(request) => {
-                    endpoint.send::<protocol::FdReaddirReqMsg>(&request).await?;
-                    let completion = endpoint.recv::<protocol::FdReaddirRetMsg>().await?;
+                    private.send::<protocol::FdReaddirReqMsg>(&request).await?;
+                    let completion = private.recv::<protocol::FdReaddirRetMsg>().await?;
                     pending.complete(WasiImportCompletion::FdReaddir(completion))?;
                 }
                 WasiImportRequest::PathOpen(request) => {
-                    let path = request
-                        .0
-                        .path()
-                        .strip_prefix(b"/")
-                        .unwrap_or(request.0.path());
-                    let completion = if path.starts_with(SERVICE_PREFIX) && path != RESULT_PATH {
-                        endpoint.recv::<CommitRequestReady>().await?;
-                        endpoint.send::<CommitOpen>(&request).await?;
-                        endpoint.recv::<CommitOpened>().await?
-                    } else {
-                        endpoint.send::<protocol::PathOpenReqMsg>(&request).await?;
-                        endpoint.recv::<protocol::PathOpenRetMsg>().await?
-                    };
+                    private.send::<protocol::PathOpenReqMsg>(&request).await?;
+                    let completion = private.recv::<protocol::PathOpenRetMsg>().await?;
                     pending.complete(WasiImportCompletion::PathOpen(completion))?;
                 }
                 WasiImportRequest::FdPrestatGet(request) => {
-                    endpoint
+                    private
                         .send::<protocol::FdPrestatGetReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::FdPrestatGetRetMsg>().await?;
+                    let completion = private.recv::<protocol::FdPrestatGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::FdPrestatGet(completion))?;
                 }
                 WasiImportRequest::FdPrestatDirName(request) => {
-                    endpoint
+                    private
                         .send::<protocol::FdPrestatDirNameReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::FdPrestatDirNameRetMsg>().await?;
+                    let completion = private.recv::<protocol::FdPrestatDirNameRetMsg>().await?;
                     pending.complete(WasiImportCompletion::FdPrestatDirName(completion))?;
                 }
                 WasiImportRequest::FdFilestatGet(request) => {
-                    endpoint
+                    private
                         .send::<protocol::FdFilestatGetReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::FdFilestatGetRetMsg>().await?;
+                    let completion = private.recv::<protocol::FdFilestatGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::FdFilestatGet(completion))?;
                 }
                 WasiImportRequest::ArgsSizesGet(request) => {
-                    endpoint
+                    private
                         .send::<protocol::ArgsSizesGetReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::ArgsSizesGetRetMsg>().await?;
+                    let completion = private.recv::<protocol::ArgsSizesGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::ArgsSizesGet(completion))?;
                 }
                 WasiImportRequest::ArgsGet(request) => {
-                    endpoint.send::<protocol::ArgsGetReqMsg>(&request).await?;
-                    let completion = endpoint.recv::<protocol::ArgsGetRetMsg>().await?;
+                    private.send::<protocol::ArgsGetReqMsg>(&request).await?;
+                    let completion = private.recv::<protocol::ArgsGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::ArgsGet(completion))?;
                 }
                 WasiImportRequest::EnvironSizesGet(request) => {
-                    endpoint
+                    private
                         .send::<protocol::EnvironSizesGetReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::EnvironSizesGetRetMsg>().await?;
+                    let completion = private.recv::<protocol::EnvironSizesGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::EnvironSizesGet(completion))?;
                 }
                 WasiImportRequest::EnvironGet(request) => {
-                    endpoint
-                        .send::<protocol::EnvironGetReqMsg>(&request)
-                        .await?;
-                    let completion = endpoint.recv::<protocol::EnvironGetRetMsg>().await?;
+                    private.send::<protocol::EnvironGetReqMsg>(&request).await?;
+                    let completion = private.recv::<protocol::EnvironGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::EnvironGet(completion))?;
                 }
                 WasiImportRequest::FdFdstatGet(request) => {
-                    endpoint
+                    private
                         .send::<protocol::FdFdstatGetReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::FdFdstatGetRetMsg>().await?;
+                    let completion = private.recv::<protocol::FdFdstatGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::FdFdstatGet(completion))?;
                 }
                 WasiImportRequest::PathFilestatGet(request) => {
-                    endpoint
+                    private
                         .send::<protocol::PathFilestatGetReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::PathFilestatGetRetMsg>().await?;
+                    let completion = private.recv::<protocol::PathFilestatGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::PathFilestatGet(completion))?;
                 }
                 WasiImportRequest::FdClose(request) => {
+                    private.send::<protocol::FdCloseReqMsg>(&request).await?;
+                    let closed = private.recv::<ClosedFileMsg>().await?;
+
                     let completion = if request.0.fd() == SERVICE_FD {
-                        endpoint.recv::<CommitRequestReady>().await?;
-                        endpoint.send::<CommitCommit>(&request).await?;
-                        let branch = endpoint.offer().await?;
-                        match branch.label() {
-                            155 => {
-                                branch.recv::<CommitAdmitted>().await?;
-                                let bytes = endpoint.recv::<CommitCompleted<'_>>().await?.to_vec();
-                                endpoint.recv::<CommitServiceDone>().await?;
-                                reply_bytes.replace(bytes);
+                        let arguments = closed
+                            .arguments(
+                                Close::<TASK, SUBJECT, COMMIT>::PATH,
+                                Close::<TASK, SUBJECT, COMMIT>::KEY,
+                            )
+                            .and_then(|arguments| {
+                                Close::<TASK, SUBJECT, COMMIT>::new(request, arguments)
+                            });
+                        match arguments {
+                            Ok(arguments) => {
+                                let (mut first, mut second) = {
+                                    let [mut first_loan, mut second_loan] = task.par()?;
+                                    tokio::try_join!(
+                                        async {
+                                            let mut resource =
+                                                first_loan.recv::<Loan<'_, FIRST>>().await?;
+                                            resource
+                                                .send::<CommitRequest<TASK, SUBJECT, FIRST>>(
+                                                    &arguments,
+                                                )
+                                                .await?;
+                                            Ok::<_, hibana::EndpointError>(resource)
+                                        },
+                                        async {
+                                            let mut resource =
+                                                second_loan.recv::<Loan<'_, SECOND>>().await?;
+                                            resource
+                                                .send::<CommitRequest<TASK, SUBJECT, SECOND>>(
+                                                    &arguments,
+                                                )
+                                                .await?;
+                                            Ok::<_, hibana::EndpointError>(resource)
+                                        },
+                                    )?
+                                };
+                                let (bytes, second_bytes) = tokio::try_join!(
+                                    async {
+                                        Ok::<_, hibana::EndpointError>(
+                                            first
+                                                .recv::<CommitCompleted<'_, FIRST>>()
+                                                .await?
+                                                .to_vec(),
+                                        )
+                                    },
+                                    async {
+                                        Ok::<_, hibana::EndpointError>(
+                                            second
+                                                .recv::<CommitCompleted<'_, SECOND>>()
+                                                .await?
+                                                .to_vec(),
+                                        )
+                                    },
+                                )?;
+                                if bytes != second_bytes {
+                                    return Err(crate::shell::ShellError::message(
+                                        "modules received different commit results",
+                                    ));
+                                }
+                                {
+                                    let [mut first_return, mut second_return] = task.par()?;
+                                    tokio::try_join!(
+                                        first_return.send::<Loan<'_, FIRST>>(first),
+                                        second_return.send::<Loan<'_, SECOND>>(second)
+                                    )?;
+                                }
+                                for (index, chunk) in
+                                    bytes.chunks(protocol::WASIP1_IO_CHUNK_CAPACITY).enumerate()
+                                {
+                                    private
+                                        .send::<ResultChunkMsg>(&ResultChunk::new(
+                                            index * protocol::WASIP1_IO_CHUNK_CAPACITY,
+                                            chunk,
+                                        )?)
+                                        .await?;
+                                }
                                 pending.complete(WasiImportCompletion::FdClose(
                                     protocol::FdClosedRet(protocol::FdClosed::new(request.0.fd())),
                                 ))?;
                                 break;
                             }
-                            156 => {
-                                reply_bytes
-                                    .replace(branch.recv::<CommitRejected<'_>>().await?.to_vec());
+                            Err(error) => {
+                                let bytes = serde_json::to_vec(&serde_json::json!({"status":"invalid_arguments","error":error.to_string()}))
+                .map_err(|error| crate::shell::ShellError::message(error.to_string()))?;
+                                for (index, chunk) in
+                                    bytes.chunks(protocol::WASIP1_IO_CHUNK_CAPACITY).enumerate()
+                                {
+                                    private
+                                        .send::<ResultChunkMsg>(&ResultChunk::new(
+                                            index * protocol::WASIP1_IO_CHUNK_CAPACITY,
+                                            chunk,
+                                        )?)
+                                        .await?;
+                                }
                                 protocol::FdClosedRet(protocol::FdClosed::new_with_errno(
                                     request.0.fd(),
                                     28,
                                 ))
                             }
-                            _ => {
-                                return Err(crate::shell::ShellError::message(
-                                    "unexpected service completion",
-                                ));
-                            }
                         }
                     } else {
-                        endpoint.send::<protocol::FdCloseReqMsg>(&request).await?;
-                        endpoint.recv::<protocol::FdCloseRetMsg>().await?
+                        closed.completion
                     };
                     pending.complete(WasiImportCompletion::FdClose(completion))?;
                 }
                 WasiImportRequest::ClockResGet(request) => {
-                    endpoint
+                    private
                         .send::<protocol::ClockResGetReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::ClockResGetRetMsg>().await?;
+                    let completion = private.recv::<protocol::ClockResGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::ClockResGet(completion))?;
                 }
                 WasiImportRequest::ClockTimeGet(request) => {
-                    endpoint
+                    private
                         .send::<protocol::ClockTimeGetReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::ClockTimeGetRetMsg>().await?;
+                    let completion = private.recv::<protocol::ClockTimeGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::ClockTimeGet(completion))?;
                 }
                 WasiImportRequest::PollOneoff(request) => {
-                    endpoint
-                        .send::<protocol::PollOneoffReqMsg>(&request)
-                        .await?;
-                    let completion = endpoint.recv::<protocol::PollOneoffRetMsg>().await?;
+                    private.send::<protocol::PollOneoffReqMsg>(&request).await?;
+                    let completion = private.recv::<protocol::PollOneoffRetMsg>().await?;
                     pending.complete(WasiImportCompletion::PollOneoff(completion))?;
                 }
                 WasiImportRequest::RandomGet(request) => {
-                    endpoint.send::<protocol::RandomGetReqMsg>(&request).await?;
-                    let completion = endpoint.recv::<protocol::RandomGetRetMsg>().await?;
+                    private.send::<protocol::RandomGetReqMsg>(&request).await?;
+                    let completion = private.recv::<protocol::RandomGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::RandomGet(completion))?;
                 }
             },
             WasiBoundaryStep::MemoryGrowPending(pending) => {
-                endpoint
+                private
                     .send::<protocol::MemoryGrowReqMsg>(&pending.request())
                     .await?;
-                let response = endpoint.recv::<protocol::MemoryGrowRetMsg>().await?;
+                let response = private.recv::<protocol::MemoryGrowRetMsg>().await?;
                 pending.complete(response)?;
             }
             WasiBoundaryStep::BudgetExpired(_) => {
@@ -575,171 +659,177 @@ pub async fn run<const ROLE: u8>(
         match guest.resume_wasi_boundary(protocol::BudgetRun::new(fuel_id, 0, 100_000))? {
             WasiBoundaryStep::ImportPending(pending) => match pending.request()? {
                 WasiImportRequest::FdWrite(request) => {
-                    endpoint.send::<protocol::FdWriteReqMsg>(&request).await?;
-                    let completion = endpoint.recv::<protocol::FdWriteRetMsg>().await?;
+                    private.send::<protocol::FdWriteReqMsg>(&request).await?;
+                    let completion = private.recv::<protocol::FdWriteRetMsg>().await?;
                     pending.complete(WasiImportCompletion::FdWrite(completion))?;
                 }
                 WasiImportRequest::FdWriteObject(request) => {
-                    endpoint.recv::<TestRequestReady>().await?;
-                    endpoint.send::<TestWrite>(&request).await?;
-                    let completion = endpoint.recv::<TestWritten>().await?;
+                    private
+                        .send::<protocol::FdWriteObjectReqMsg>(&request)
+                        .await?;
+                    let completion = private.recv::<protocol::FdWriteObjectRetMsg>().await?;
                     pending.complete(WasiImportCompletion::FdWriteObject(completion))?;
                 }
                 WasiImportRequest::FdRead(request) => {
-                    endpoint.send::<protocol::FdReadReqMsg>(&request).await?;
-                    let completion = endpoint.recv::<protocol::FdReadRetMsg>().await?;
+                    private.send::<protocol::FdReadReqMsg>(&request).await?;
+                    let completion = private.recv::<protocol::FdReadRetMsg>().await?;
                     pending.complete(WasiImportCompletion::FdRead(completion))?;
                 }
                 WasiImportRequest::FdReaddir(request) => {
-                    endpoint.send::<protocol::FdReaddirReqMsg>(&request).await?;
-                    let completion = endpoint.recv::<protocol::FdReaddirRetMsg>().await?;
+                    private.send::<protocol::FdReaddirReqMsg>(&request).await?;
+                    let completion = private.recv::<protocol::FdReaddirRetMsg>().await?;
                     pending.complete(WasiImportCompletion::FdReaddir(completion))?;
                 }
                 WasiImportRequest::PathOpen(request) => {
-                    let path = request
-                        .0
-                        .path()
-                        .strip_prefix(b"/")
-                        .unwrap_or(request.0.path());
-                    let completion = if path.starts_with(SERVICE_PREFIX) && path != RESULT_PATH {
-                        endpoint.recv::<TestRequestReady>().await?;
-                        endpoint.send::<TestOpen>(&request).await?;
-                        endpoint.recv::<TestOpened>().await?
-                    } else {
-                        endpoint.send::<protocol::PathOpenReqMsg>(&request).await?;
-                        endpoint.recv::<protocol::PathOpenRetMsg>().await?
-                    };
+                    private.send::<protocol::PathOpenReqMsg>(&request).await?;
+                    let completion = private.recv::<protocol::PathOpenRetMsg>().await?;
                     pending.complete(WasiImportCompletion::PathOpen(completion))?;
                 }
                 WasiImportRequest::FdPrestatGet(request) => {
-                    endpoint
+                    private
                         .send::<protocol::FdPrestatGetReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::FdPrestatGetRetMsg>().await?;
+                    let completion = private.recv::<protocol::FdPrestatGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::FdPrestatGet(completion))?;
                 }
                 WasiImportRequest::FdPrestatDirName(request) => {
-                    endpoint
+                    private
                         .send::<protocol::FdPrestatDirNameReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::FdPrestatDirNameRetMsg>().await?;
+                    let completion = private.recv::<protocol::FdPrestatDirNameRetMsg>().await?;
                     pending.complete(WasiImportCompletion::FdPrestatDirName(completion))?;
                 }
                 WasiImportRequest::FdFilestatGet(request) => {
-                    endpoint
+                    private
                         .send::<protocol::FdFilestatGetReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::FdFilestatGetRetMsg>().await?;
+                    let completion = private.recv::<protocol::FdFilestatGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::FdFilestatGet(completion))?;
                 }
                 WasiImportRequest::ArgsSizesGet(request) => {
-                    endpoint
+                    private
                         .send::<protocol::ArgsSizesGetReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::ArgsSizesGetRetMsg>().await?;
+                    let completion = private.recv::<protocol::ArgsSizesGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::ArgsSizesGet(completion))?;
                 }
                 WasiImportRequest::ArgsGet(request) => {
-                    endpoint.send::<protocol::ArgsGetReqMsg>(&request).await?;
-                    let completion = endpoint.recv::<protocol::ArgsGetRetMsg>().await?;
+                    private.send::<protocol::ArgsGetReqMsg>(&request).await?;
+                    let completion = private.recv::<protocol::ArgsGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::ArgsGet(completion))?;
                 }
                 WasiImportRequest::EnvironSizesGet(request) => {
-                    endpoint
+                    private
                         .send::<protocol::EnvironSizesGetReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::EnvironSizesGetRetMsg>().await?;
+                    let completion = private.recv::<protocol::EnvironSizesGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::EnvironSizesGet(completion))?;
                 }
                 WasiImportRequest::EnvironGet(request) => {
-                    endpoint
-                        .send::<protocol::EnvironGetReqMsg>(&request)
-                        .await?;
-                    let completion = endpoint.recv::<protocol::EnvironGetRetMsg>().await?;
+                    private.send::<protocol::EnvironGetReqMsg>(&request).await?;
+                    let completion = private.recv::<protocol::EnvironGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::EnvironGet(completion))?;
                 }
                 WasiImportRequest::FdFdstatGet(request) => {
-                    endpoint
+                    private
                         .send::<protocol::FdFdstatGetReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::FdFdstatGetRetMsg>().await?;
+                    let completion = private.recv::<protocol::FdFdstatGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::FdFdstatGet(completion))?;
                 }
                 WasiImportRequest::PathFilestatGet(request) => {
-                    endpoint
+                    private
                         .send::<protocol::PathFilestatGetReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::PathFilestatGetRetMsg>().await?;
+                    let completion = private.recv::<protocol::PathFilestatGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::PathFilestatGet(completion))?;
                 }
                 WasiImportRequest::FdClose(request) => {
+                    private.send::<protocol::FdCloseReqMsg>(&request).await?;
+                    let closed = private.recv::<ClosedFileMsg>().await?;
+
                     let completion = if request.0.fd() == SERVICE_FD {
-                        endpoint.recv::<TestRequestReady>().await?;
-                        endpoint.send::<TestCommit>(&request).await?;
-                        let branch = endpoint.offer().await?;
-                        match branch.label() {
-                            180 => {
-                                branch.recv::<TestAdmitted>().await?;
-                                let bytes = endpoint.recv::<TestCompleted<'_>>().await?.to_vec();
-                                endpoint.recv::<TestServiceDone>().await?;
-                                reply_bytes.replace(bytes);
+                        let arguments = closed
+                            .arguments(
+                                Close::<TASK, SUBJECT, TEST>::PATH,
+                                Close::<TASK, SUBJECT, TEST>::KEY,
+                            )
+                            .and_then(|arguments| {
+                                Close::<TASK, SUBJECT, TEST>::new(request, arguments)
+                            });
+                        match arguments {
+                            Ok(arguments) => {
+                                task.send::<TestRequest<TASK, SUBJECT>>(&arguments).await?;
+                                let bytes = task.recv::<TestCompleted<'_>>().await?.to_vec();
+                                for (index, chunk) in
+                                    bytes.chunks(protocol::WASIP1_IO_CHUNK_CAPACITY).enumerate()
+                                {
+                                    private
+                                        .send::<ResultChunkMsg>(&ResultChunk::new(
+                                            index * protocol::WASIP1_IO_CHUNK_CAPACITY,
+                                            chunk,
+                                        )?)
+                                        .await?;
+                                }
                                 pending.complete(WasiImportCompletion::FdClose(
                                     protocol::FdClosedRet(protocol::FdClosed::new(request.0.fd())),
                                 ))?;
                                 break;
                             }
-                            181 => {
-                                reply_bytes
-                                    .replace(branch.recv::<TestRejected<'_>>().await?.to_vec());
+                            Err(error) => {
+                                let bytes = serde_json::to_vec(&serde_json::json!({"status":"invalid_arguments","error":error.to_string()}))
+                .map_err(|error| crate::shell::ShellError::message(error.to_string()))?;
+                                for (index, chunk) in
+                                    bytes.chunks(protocol::WASIP1_IO_CHUNK_CAPACITY).enumerate()
+                                {
+                                    private
+                                        .send::<ResultChunkMsg>(&ResultChunk::new(
+                                            index * protocol::WASIP1_IO_CHUNK_CAPACITY,
+                                            chunk,
+                                        )?)
+                                        .await?;
+                                }
                                 protocol::FdClosedRet(protocol::FdClosed::new_with_errno(
                                     request.0.fd(),
                                     28,
                                 ))
                             }
-                            _ => {
-                                return Err(crate::shell::ShellError::message(
-                                    "unexpected service completion",
-                                ));
-                            }
                         }
                     } else {
-                        endpoint.send::<protocol::FdCloseReqMsg>(&request).await?;
-                        endpoint.recv::<protocol::FdCloseRetMsg>().await?
+                        closed.completion
                     };
                     pending.complete(WasiImportCompletion::FdClose(completion))?;
                 }
                 WasiImportRequest::ClockResGet(request) => {
-                    endpoint
+                    private
                         .send::<protocol::ClockResGetReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::ClockResGetRetMsg>().await?;
+                    let completion = private.recv::<protocol::ClockResGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::ClockResGet(completion))?;
                 }
                 WasiImportRequest::ClockTimeGet(request) => {
-                    endpoint
+                    private
                         .send::<protocol::ClockTimeGetReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::ClockTimeGetRetMsg>().await?;
+                    let completion = private.recv::<protocol::ClockTimeGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::ClockTimeGet(completion))?;
                 }
                 WasiImportRequest::PollOneoff(request) => {
-                    endpoint
-                        .send::<protocol::PollOneoffReqMsg>(&request)
-                        .await?;
-                    let completion = endpoint.recv::<protocol::PollOneoffRetMsg>().await?;
+                    private.send::<protocol::PollOneoffReqMsg>(&request).await?;
+                    let completion = private.recv::<protocol::PollOneoffRetMsg>().await?;
                     pending.complete(WasiImportCompletion::PollOneoff(completion))?;
                 }
                 WasiImportRequest::RandomGet(request) => {
-                    endpoint.send::<protocol::RandomGetReqMsg>(&request).await?;
-                    let completion = endpoint.recv::<protocol::RandomGetRetMsg>().await?;
+                    private.send::<protocol::RandomGetReqMsg>(&request).await?;
+                    let completion = private.recv::<protocol::RandomGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::RandomGet(completion))?;
                 }
             },
             WasiBoundaryStep::MemoryGrowPending(pending) => {
-                endpoint
+                private
                     .send::<protocol::MemoryGrowReqMsg>(&pending.request())
                     .await?;
-                let response = endpoint.recv::<protocol::MemoryGrowRetMsg>().await?;
+                let response = private.recv::<protocol::MemoryGrowRetMsg>().await?;
                 pending.complete(response)?;
             }
             WasiBoundaryStep::BudgetExpired(_) => {
@@ -760,154 +850,143 @@ pub async fn run<const ROLE: u8>(
         match guest.resume_wasi_boundary(protocol::BudgetRun::new(fuel_id, 0, 100_000))? {
             WasiBoundaryStep::ImportPending(pending) => match pending.request()? {
                 WasiImportRequest::FdWrite(request) => {
-                    endpoint.send::<protocol::FdWriteReqMsg>(&request).await?;
-                    let completion = endpoint.recv::<protocol::FdWriteRetMsg>().await?;
+                    private.send::<protocol::FdWriteReqMsg>(&request).await?;
+                    let completion = private.recv::<protocol::FdWriteRetMsg>().await?;
                     pending.complete(WasiImportCompletion::FdWrite(completion))?;
                 }
                 WasiImportRequest::FdWriteObject(request) => {
-                    endpoint.recv::<ClosedRequestReady>().await?;
-                    endpoint.send::<ClosedWrite>(&request).await?;
-                    let completion = endpoint.recv::<ClosedWritten>().await?;
+                    private
+                        .send::<protocol::FdWriteObjectReqMsg>(&request)
+                        .await?;
+                    let completion = private.recv::<protocol::FdWriteObjectRetMsg>().await?;
                     pending.complete(WasiImportCompletion::FdWriteObject(completion))?;
                 }
                 WasiImportRequest::FdRead(request) => {
-                    endpoint.send::<protocol::FdReadReqMsg>(&request).await?;
-                    let completion = endpoint.recv::<protocol::FdReadRetMsg>().await?;
+                    private.send::<protocol::FdReadReqMsg>(&request).await?;
+                    let completion = private.recv::<protocol::FdReadRetMsg>().await?;
                     pending.complete(WasiImportCompletion::FdRead(completion))?;
                 }
                 WasiImportRequest::FdReaddir(request) => {
-                    endpoint.send::<protocol::FdReaddirReqMsg>(&request).await?;
-                    let completion = endpoint.recv::<protocol::FdReaddirRetMsg>().await?;
+                    private.send::<protocol::FdReaddirReqMsg>(&request).await?;
+                    let completion = private.recv::<protocol::FdReaddirRetMsg>().await?;
                     pending.complete(WasiImportCompletion::FdReaddir(completion))?;
                 }
                 WasiImportRequest::PathOpen(request) => {
-                    let path = request
-                        .0
-                        .path()
-                        .strip_prefix(b"/")
-                        .unwrap_or(request.0.path());
-                    let completion = if path.starts_with(SERVICE_PREFIX) && path != RESULT_PATH {
-                        endpoint.recv::<ClosedRequestReady>().await?;
-                        endpoint.send::<ClosedOpen>(&request).await?;
-                        endpoint.recv::<ClosedOpened>().await?
-                    } else {
-                        endpoint.send::<protocol::PathOpenReqMsg>(&request).await?;
-                        endpoint.recv::<protocol::PathOpenRetMsg>().await?
-                    };
+                    private.send::<protocol::PathOpenReqMsg>(&request).await?;
+                    let completion = private.recv::<protocol::PathOpenRetMsg>().await?;
                     pending.complete(WasiImportCompletion::PathOpen(completion))?;
                 }
                 WasiImportRequest::FdPrestatGet(request) => {
-                    endpoint
+                    private
                         .send::<protocol::FdPrestatGetReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::FdPrestatGetRetMsg>().await?;
+                    let completion = private.recv::<protocol::FdPrestatGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::FdPrestatGet(completion))?;
                 }
                 WasiImportRequest::FdPrestatDirName(request) => {
-                    endpoint
+                    private
                         .send::<protocol::FdPrestatDirNameReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::FdPrestatDirNameRetMsg>().await?;
+                    let completion = private.recv::<protocol::FdPrestatDirNameRetMsg>().await?;
                     pending.complete(WasiImportCompletion::FdPrestatDirName(completion))?;
                 }
                 WasiImportRequest::FdFilestatGet(request) => {
-                    endpoint
+                    private
                         .send::<protocol::FdFilestatGetReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::FdFilestatGetRetMsg>().await?;
+                    let completion = private.recv::<protocol::FdFilestatGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::FdFilestatGet(completion))?;
                 }
                 WasiImportRequest::ArgsSizesGet(request) => {
-                    endpoint
+                    private
                         .send::<protocol::ArgsSizesGetReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::ArgsSizesGetRetMsg>().await?;
+                    let completion = private.recv::<protocol::ArgsSizesGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::ArgsSizesGet(completion))?;
                 }
                 WasiImportRequest::ArgsGet(request) => {
-                    endpoint.send::<protocol::ArgsGetReqMsg>(&request).await?;
-                    let completion = endpoint.recv::<protocol::ArgsGetRetMsg>().await?;
+                    private.send::<protocol::ArgsGetReqMsg>(&request).await?;
+                    let completion = private.recv::<protocol::ArgsGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::ArgsGet(completion))?;
                 }
                 WasiImportRequest::EnvironSizesGet(request) => {
-                    endpoint
+                    private
                         .send::<protocol::EnvironSizesGetReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::EnvironSizesGetRetMsg>().await?;
+                    let completion = private.recv::<protocol::EnvironSizesGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::EnvironSizesGet(completion))?;
                 }
                 WasiImportRequest::EnvironGet(request) => {
-                    endpoint
-                        .send::<protocol::EnvironGetReqMsg>(&request)
-                        .await?;
-                    let completion = endpoint.recv::<protocol::EnvironGetRetMsg>().await?;
+                    private.send::<protocol::EnvironGetReqMsg>(&request).await?;
+                    let completion = private.recv::<protocol::EnvironGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::EnvironGet(completion))?;
                 }
                 WasiImportRequest::FdFdstatGet(request) => {
-                    endpoint
+                    private
                         .send::<protocol::FdFdstatGetReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::FdFdstatGetRetMsg>().await?;
+                    let completion = private.recv::<protocol::FdFdstatGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::FdFdstatGet(completion))?;
                 }
                 WasiImportRequest::PathFilestatGet(request) => {
-                    endpoint
+                    private
                         .send::<protocol::PathFilestatGetReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::PathFilestatGetRetMsg>().await?;
+                    let completion = private.recv::<protocol::PathFilestatGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::PathFilestatGet(completion))?;
                 }
                 WasiImportRequest::FdClose(request) => {
+                    private.send::<protocol::FdCloseReqMsg>(&request).await?;
+                    let closed = private.recv::<ClosedFileMsg>().await?;
+
                     let completion = if request.0.fd() == SERVICE_FD {
-                        endpoint.recv::<ClosedRequestReady>().await?;
-                        endpoint.send::<ClosedCommit>(&request).await?;
-                        let branch = endpoint.offer().await?;
-                        match branch.label() {
-                            209 => branch.recv::<ClosedUnavailable>().await?,
-                            _ => {
-                                return Err(crate::shell::ShellError::message(
-                                    "unexpected service completion",
-                                ));
-                            }
+                        let bytes = serde_json::to_vec(&serde_json::json!({"status":"operation_not_available","error":"task has no further shared operation"})).map_err(|error|crate::shell::ShellError::message(error.to_string()))?;
+                        for (index, chunk) in
+                            bytes.chunks(protocol::WASIP1_IO_CHUNK_CAPACITY).enumerate()
+                        {
+                            private
+                                .send::<ResultChunkMsg>(&ResultChunk::new(
+                                    index * protocol::WASIP1_IO_CHUNK_CAPACITY,
+                                    chunk,
+                                )?)
+                                .await?;
                         }
+                        protocol::FdClosedRet(protocol::FdClosed::new_with_errno(request.0.fd(), 8))
                     } else {
-                        endpoint.send::<protocol::FdCloseReqMsg>(&request).await?;
-                        endpoint.recv::<protocol::FdCloseRetMsg>().await?
+                        closed.completion
                     };
                     pending.complete(WasiImportCompletion::FdClose(completion))?;
                 }
                 WasiImportRequest::ClockResGet(request) => {
-                    endpoint
+                    private
                         .send::<protocol::ClockResGetReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::ClockResGetRetMsg>().await?;
+                    let completion = private.recv::<protocol::ClockResGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::ClockResGet(completion))?;
                 }
                 WasiImportRequest::ClockTimeGet(request) => {
-                    endpoint
+                    private
                         .send::<protocol::ClockTimeGetReqMsg>(&request)
                         .await?;
-                    let completion = endpoint.recv::<protocol::ClockTimeGetRetMsg>().await?;
+                    let completion = private.recv::<protocol::ClockTimeGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::ClockTimeGet(completion))?;
                 }
                 WasiImportRequest::PollOneoff(request) => {
-                    endpoint
-                        .send::<protocol::PollOneoffReqMsg>(&request)
-                        .await?;
-                    let completion = endpoint.recv::<protocol::PollOneoffRetMsg>().await?;
+                    private.send::<protocol::PollOneoffReqMsg>(&request).await?;
+                    let completion = private.recv::<protocol::PollOneoffRetMsg>().await?;
                     pending.complete(WasiImportCompletion::PollOneoff(completion))?;
                 }
                 WasiImportRequest::RandomGet(request) => {
-                    endpoint.send::<protocol::RandomGetReqMsg>(&request).await?;
-                    let completion = endpoint.recv::<protocol::RandomGetRetMsg>().await?;
+                    private.send::<protocol::RandomGetReqMsg>(&request).await?;
+                    let completion = private.recv::<protocol::RandomGetRetMsg>().await?;
                     pending.complete(WasiImportCompletion::RandomGet(completion))?;
                 }
             },
             WasiBoundaryStep::MemoryGrowPending(pending) => {
-                endpoint
+                private
                     .send::<protocol::MemoryGrowReqMsg>(&pending.request())
                     .await?;
-                let response = endpoint.recv::<protocol::MemoryGrowRetMsg>().await?;
+                let response = private.recv::<protocol::MemoryGrowRetMsg>().await?;
                 pending.complete(response)?;
             }
             WasiBoundaryStep::BudgetExpired(_) => {
@@ -916,9 +995,8 @@ pub async fn run<const ROLE: u8>(
             }
             WasiBoundaryStep::Exit(exit) => {
                 let status = exit.status() as i32;
-                endpoint.recv::<ClosedRequestReady>().await?;
-                endpoint.send::<ServiceExit>(&status).await?;
-                endpoint.send::<Exit>(&status).await?;
+                task.send::<ServiceExit>(&status).await?;
+                private.send::<Exit>(&status).await?;
                 return Ok(status);
             }
         }

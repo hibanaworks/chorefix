@@ -2,6 +2,8 @@
 pub mod global;
 mod imp;
 mod localside;
+#[cfg(test)]
+mod tests;
 use crate::{
     imp::transport::InMemoryTransport,
     shell::{
@@ -15,8 +17,7 @@ use crate::{
     },
 };
 use hibana::runtime::{SessionKitStorage, ids::SessionId, resolver::ResolverRef};
-use hibana_wasip1_runtime::{DEFAULT_GUEST_MEMORY_BYTES, GuestMemory, HibanaWasiGuestStorage};
-use std::{cell::RefCell, rc::Rc};
+use hibana_wasip1_runtime::{GuestMemory, HibanaWasiGuestStorage};
 async fn run_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 3]) -> ShellResult<()> {
     use global::*;
     let p = programs();
@@ -25,9 +26,9 @@ async fn run_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 3]) -> Shell
     let tc = Validation::new();
     let result = super::imp::TestInput::default();
     let mut slab = vec![0; 2 * 1024 * 1024];
-    let mut storage = SessionKitStorage::<InMemoryTransport>::uninit();
+    let mut storage = SessionKitStorage::<&InMemoryTransport>::uninit();
     let kit = storage.init();
-    let rv = kit.rendezvous(&mut slab, bus.transport.clone())?;
+    let rv = kit.rendezvous(&mut slab, &bus.transport)?;
     rv.set_resolver(
         &p.admin,
         ResolverRef::<CHECK_ADMIN>::decision_state(&ac, Validation::decide),
@@ -54,6 +55,8 @@ async fn run_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 3]) -> Shell
     let mut tester = rv.enter(session, &p.tester)?;
     let mut database = rv.enter(session, &p.database)?;
     let mut test_env = rv.enter(session, &p.test_env)?;
+    let database_resource = rv.enter(session, &p.database_resource)?;
+    let test_resource = rv.enter(session, &p.test_resource)?;
     let mut admin_vm = rv.enter(session, &p.admin_vm)?;
     let mut backend_vm = rv.enter(session, &p.backend_vm)?;
     let mut tester_vm = rv.enter(session, &p.tester_vm)?;
@@ -65,19 +68,14 @@ async fn run_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 3]) -> Shell
     let mut admin_outcome_vm = rv.enter(session, &p.admin_outcome_vm)?;
     let mut backend_outcome_vm = rv.enter(session, &p.backend_outcome_vm)?;
     let [bterm, aterm, tterm] = terminals;
-    let abytes = Rc::new(RefCell::new(Vec::new()));
-    let bbytes = Rc::new(RefCell::new(Vec::new()));
-    let tbytes = Rc::new(RefCell::new(Vec::new()));
-    let ar = Rc::new(RefCell::new(Vec::new()));
-    let br = Rc::new(RefCell::new(Vec::new()));
-    let mut afile = imp::OutcomeFile::new(ar.clone());
-    let mut bfile = imp::OutcomeFile::new(br.clone());
-    let mut afs = PrivateFs::new(aterm, bus, abytes.clone());
-    let mut bfs = PrivateFs::new(bterm, bus, bbytes.clone());
-    let mut tfs = PrivateFs::new(tterm, bus, tbytes.clone());
-    let mut amemory = vec![0; 16 * DEFAULT_GUEST_MEMORY_BYTES];
-    let mut bmemory = vec![0; 16 * DEFAULT_GUEST_MEMORY_BYTES];
-    let mut tmemory = vec![0; 16 * DEFAULT_GUEST_MEMORY_BYTES];
+    let mut afile = imp::OutcomeFile::new();
+    let mut bfile = imp::OutcomeFile::new();
+    let mut afs = PrivateFs::new(aterm, bus);
+    let mut bfs = PrivateFs::new(bterm, bus);
+    let mut tfs = PrivateFs::new(tterm, bus);
+    let mut amemory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
+    let mut bmemory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
+    let mut tmemory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut astore = HibanaWasiGuestStorage::uninit();
     let mut bstore = HibanaWasiGuestStorage::uninit();
     let mut tstore = HibanaWasiGuestStorage::uninit();
@@ -88,14 +86,14 @@ async fn run_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 3]) -> Shell
         localside::admin::run(&mut admin, bus, &ac),
         localside::backend::run(&mut backend, bus, &bc),
         localside::tester::run(&mut tester, bus, &tc, &result),
-        localside::resources::run(&mut database),
-        localside::resources::run(&mut test_env),
+        localside::resources::run(&mut database, database_resource),
+        localside::resources::run(&mut test_env, test_resource),
         localside::outcome::admin::admin(&mut admin_outcome, &mut afile),
         localside::outcome::backend::backend(&mut backend_outcome, &mut bfile),
         async {
             let (vm, io) = tokio::try_join!(
-                localside::wasi::recipient(aguest, &mut admin_vm, &mut admin_outcome_vm, abytes),
-                localside::private_io::run(&mut admin_io, &mut afs, &ar)
+                localside::wasi::admin(aguest, &mut admin_vm, &mut admin_outcome_vm),
+                localside::private_io::run(&mut admin_io, &mut afs)
             )?;
             if vm != io {
                 return Err(ShellError::message("admin guest/IO status differs"));
@@ -107,13 +105,8 @@ async fn run_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 3]) -> Shell
         },
         async {
             let (vm, io) = tokio::try_join!(
-                localside::wasi::recipient(
-                    bguest,
-                    &mut backend_vm,
-                    &mut backend_outcome_vm,
-                    bbytes
-                ),
-                localside::private_io::run(&mut backend_io, &mut bfs, &br)
+                localside::wasi::backend(bguest, &mut backend_vm, &mut backend_outcome_vm),
+                localside::private_io::run(&mut backend_io, &mut bfs)
             )?;
             if vm != io {
                 return Err(ShellError::message("backend guest/IO status differs"));
@@ -125,7 +118,7 @@ async fn run_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 3]) -> Shell
         },
         async {
             let (vm, io) = tokio::try_join!(
-                localside::wasi::tester(tguest, &mut tester_vm, tbytes),
+                localside::wasi::tester(tguest, &mut tester_vm),
                 private_io::run(&mut tester_io, &mut tfs)
             )?;
             if vm != io {
@@ -140,19 +133,30 @@ async fn run_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 3]) -> Shell
     Ok(())
 }
 pub async fn run_stdio(module: &[u8]) -> ShellResult<()> {
-    let (bus, mut reader, terminals) = Bus::open(["BACKEND_DEV", "DB_ADMIN", "TESTER"]);
+    let session = SessionId::new(28);
+    let (bus, mut reader, terminals) = Bus::open(
+        ["BACKEND_DEV", "DB_ADMIN", "TESTER"],
+        [
+            (session, global::DATABASE_RESOURCE),
+            (session, global::TEST_RESOURCE),
+        ],
+    );
     let result = tokio::select! {r=run_guests(module,&bus,terminals)=>r,r=reader.run(&bus)=>r};
     match &result {
         Ok(()) => {
-            bus.emit(serde_json::json!({"type":"run_result","status":"complete"}))
+            reader
+                .emit(
+                    &bus,
+                    serde_json::json!({"type":"run_result","status":"complete"}),
+                )
                 .await?
         }
-        Err(e) => {
-            bus.emit(
+        Err(e) => reader
+            .emit(
+                &bus,
                 serde_json::json!({"type":"run_result","status":"failed","error":e.to_string()}),
             )
-            .await?
-        }
+            .await?,
     }
     result
 }

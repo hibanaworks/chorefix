@@ -1,6 +1,6 @@
 //! Every service request originates at the WASI Endpoint in this global.
 use hibana::{
-    g,
+    Endpoint, g,
     runtime::program::{Projectable, RoleProgram, project},
 };
 use hibana_wasip1_runtime::protocol;
@@ -11,8 +11,10 @@ pub const DEPLOY_WASI: u8 = 2;
 pub const DEVELOPER: u8 = 3;
 pub const TESTER: u8 = 4;
 pub const DEPLOYER: u8 = 5;
-pub const BUILD_SERVER: u8 = 6;
-pub const DEPLOY_ENV: u8 = 7;
+pub const BUILD_OWNER: u8 = 6;
+pub const BUILD_SERVER: u8 = 11;
+pub const DEPLOY_OWNER: u8 = 7;
+pub const DEPLOY_ENV: u8 = 12;
 pub const DEV_IO: u8 = 8;
 pub const TEST_IO: u8 = 9;
 pub const DEPLOY_IO: u8 = 10;
@@ -25,18 +27,20 @@ pub const RESULT_PATH: &[u8] = b"service/result";
 
 pub type Open = g::Msg<3, protocol::PathOpenReq>;
 pub type Opened = g::Msg<4, protocol::PathOpenedRet>;
-pub type Write = g::Msg<5, protocol::FdWriteReq>;
+pub type Write = g::Msg<5, protocol::FdWriteObjectReq>;
 pub type Written = g::Msg<6, protocol::FdWriteDoneRet>;
 pub type Commit = g::Msg<7, protocol::FdCloseReq>;
-pub type Committed<'a> = g::Msg<8, &'a [u8]>;
+pub type Admitted<'a> = g::Msg<8, &'a [u8]>;
 pub type Rejected<'a> = g::Msg<9, &'a [u8]>;
-pub type Acquire = g::Msg<10, ()>;
-pub type Granted = g::Msg<11, ()>;
-pub type Materialize = g::Msg<12, ()>;
-pub type Return = g::Msg<13, ()>;
-pub type Returned = g::Msg<14, ()>;
+pub type Loan<'r, const RESOURCE: u8> = g::Msg<10, Endpoint<'r, RESOURCE>>;
+pub type Validate = g::Msg<12, ()>;
+pub type CompileRequest = g::Msg<30, super::imp::Arguments<1>>;
+pub type CompileResult<'a> = g::Msg<31, &'a [u8]>;
+pub type TestRequest = g::Msg<32, super::imp::Arguments<2>>;
+pub type TestResult<'a> = g::Msg<33, &'a [u8]>;
+pub type DeployRequest = g::Msg<34, super::imp::Arguments<3>>;
+pub type DeployResult<'a> = g::Msg<35, &'a [u8]>;
 pub type Unavailable = g::Msg<16, protocol::FdClosedRet>;
-pub type ServiceDone = g::Msg<15, ()>;
 pub type ServeRequest = g::Msg<80, ()>;
 pub type RejectRequest = g::Msg<81, ()>;
 pub type RequestReady = g::Msg<82, ()>;
@@ -53,16 +57,17 @@ pub struct Programs {
     pub developer: RoleProgram<DEVELOPER>,
     pub tester: RoleProgram<TESTER>,
     pub deployer: RoleProgram<DEPLOYER>,
+    pub build_owner: RoleProgram<BUILD_OWNER>,
     pub build_server: RoleProgram<BUILD_SERVER>,
+    pub deploy_owner: RoleProgram<DEPLOY_OWNER>,
     pub deploy_env: RoleProgram<DEPLOY_ENV>,
     pub dev_io: RoleProgram<DEV_IO>,
     pub test_io: RoleProgram<TEST_IO>,
     pub deploy_io: RoleProgram<DEPLOY_IO>,
 }
 
-// The entire request, resource loan, materialization and reply are protocol steps.
-fn service<const VM: u8, const OWNER: u8, const RESOURCE: u8, const CHECK: u16>() -> impl Projectable
-{
+// The owner validates the received WASI request before handing it back to the guest.
+fn service<const VM: u8, const OWNER: u8, const CHECK: u16>() -> impl Projectable {
     let requests = g::seq(
         g::send::<OWNER, OWNER, ServeRequest>(),
         g::seq(
@@ -78,8 +83,8 @@ fn service<const VM: u8, const OWNER: u8, const RESOURCE: u8, const CHECK: u16>(
                         g::send::<VM, OWNER, Commit>(),
                         g::route(
                             g::seq(
-                                g::send::<OWNER, OWNER, Materialize>(),
-                                g::send::<OWNER, VM, Committed<'static>>(),
+                                g::send::<OWNER, OWNER, Validate>(),
+                                g::send::<OWNER, VM, Admitted<'static>>(),
                             ),
                             g::send::<OWNER, VM, Rejected<'static>>(),
                         )
@@ -90,25 +95,7 @@ fn service<const VM: u8, const OWNER: u8, const RESOURCE: u8, const CHECK: u16>(
         ),
     )
     .roll();
-    g::seq(
-        g::send::<OWNER, RESOURCE, Acquire>(),
-        g::seq(
-            g::send::<RESOURCE, OWNER, Granted>(),
-            g::seq(
-                g::send::<OWNER, VM, Opened>(),
-                g::seq(
-                    requests,
-                    g::seq(
-                        g::send::<OWNER, RESOURCE, Return>(),
-                        g::seq(
-                            g::send::<RESOURCE, OWNER, Returned>(),
-                            g::send::<OWNER, VM, ServiceDone>(),
-                        ),
-                    ),
-                ),
-            ),
-        ),
-    )
+    g::seq(g::send::<OWNER, VM, Opened>(), requests)
 }
 
 // After the admitted operation, further service requests get an explicit error.
@@ -144,7 +131,19 @@ pub fn programs() -> Programs {
         g::seq(
             g::send::<DEV_WASI, DEVELOPER, Open>(),
             g::seq(
-                service::<DEV_WASI, DEVELOPER, BUILD_SERVER, COMPILE_CLOSE>(),
+                g::seq(
+                    service::<DEV_WASI, DEVELOPER, COMPILE_CLOSE>(),
+                    g::seq(
+                        g::send::<BUILD_OWNER, DEV_WASI, Loan<'static, BUILD_SERVER>>(),
+                        g::seq(
+                            g::send::<BUILD_SERVER, DEVELOPER, CompileRequest>(),
+                            g::seq(
+                                g::send::<DEVELOPER, BUILD_SERVER, CompileResult<'static>>(),
+                                g::send::<DEV_WASI, BUILD_OWNER, Loan<'static, BUILD_SERVER>>(),
+                            ),
+                        ),
+                    ),
+                ),
                 g::send::<DEVELOPER, TESTER, BuildComplete>(),
             ),
         ),
@@ -157,7 +156,19 @@ pub fn programs() -> Programs {
         ),
     );
     let test = g::seq(
-        service::<TEST_WASI, TESTER, BUILD_SERVER, TEST_CLOSE>(),
+        g::seq(
+            service::<TEST_WASI, TESTER, TEST_CLOSE>(),
+            g::seq(
+                g::send::<BUILD_OWNER, TEST_WASI, Loan<'static, BUILD_SERVER>>(),
+                g::seq(
+                    g::send::<BUILD_SERVER, TESTER, TestRequest>(),
+                    g::seq(
+                        g::send::<TESTER, BUILD_SERVER, TestResult<'static>>(),
+                        g::send::<TEST_WASI, BUILD_OWNER, Loan<'static, BUILD_SERVER>>(),
+                    ),
+                ),
+            ),
+        ),
         g::send::<TESTER, DEPLOYER, TestsPassed>(),
     );
     let test_and_deploy_request = g::par(
@@ -178,7 +189,23 @@ pub fn programs() -> Programs {
                 g::par(
                     closed_service::<TEST_WASI, TESTER>(),
                     g::seq(
-                        service::<DEPLOY_WASI, DEPLOYER, DEPLOY_ENV, DEPLOY_CLOSE>(),
+                        g::seq(
+                            service::<DEPLOY_WASI, DEPLOYER, DEPLOY_CLOSE>(),
+                            g::seq(
+                                g::send::<DEPLOY_OWNER, DEPLOY_WASI, Loan<'static, DEPLOY_ENV>>(),
+                                g::seq(
+                                    g::send::<DEPLOY_ENV, DEPLOYER, DeployRequest>(),
+                                    g::seq(
+                                        g::send::<DEPLOYER, DEPLOY_ENV, DeployResult<'static>>(),
+                                        g::send::<
+                                            DEPLOY_WASI,
+                                            DEPLOY_OWNER,
+                                            Loan<'static, DEPLOY_ENV>,
+                                        >(),
+                                    ),
+                                ),
+                            ),
+                        ),
                         g::par(
                             closed_service::<DEPLOY_WASI, DEPLOYER>(),
                             g::par(
@@ -206,7 +233,9 @@ pub fn programs() -> Programs {
         developer: project(&protocol),
         tester: project(&protocol),
         deployer: project(&protocol),
+        build_owner: project(&protocol),
         build_server: project(&protocol),
+        deploy_owner: project(&protocol),
         deploy_env: project(&protocol),
         dev_io: project(&protocol),
         test_io: project(&protocol),

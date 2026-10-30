@@ -1,11 +1,8 @@
 //! The four literal protocol lifetimes are visible here. No phase variable.
 use super::super::global::*;
-use crate::{
-    shell::{
-        ShellError, ShellResult,
-        imp::service::{Domain, File, Validation},
-    },
-    tasks::writing::global::SectionMessages,
+use crate::shell::{
+    ShellError, ShellResult,
+    imp::service::{Domain, File, Validation},
 };
 use hibana::Endpoint;
 use hibana_wasip1_runtime::protocol;
@@ -19,11 +16,10 @@ pub(crate) struct Assignment {
     pub sections: [&'static str; 2],
 }
 
-pub(crate) async fn run<const ROLE: u8, F: SectionMessages, S: SectionMessages, D: Domain>(
+pub(crate) async fn run<const ROLE: u8, const FIRST: u8, const SECOND: u8>(
     endpoint: &mut Endpoint<'_, ROLE>,
-    domain: &D,
-    validation: &Validation,
-    assignment: &Assignment,
+    domain: &impl Domain,
+    (validation, assignment): (&Validation, &Assignment),
 ) -> ShellResult<()> {
     // read_literature: the Endpoint admits this lifetime, including reconsideration.
     let mut file = File::new(b"service/read_literature", SERVICE_FD);
@@ -34,15 +30,17 @@ pub(crate) async fn run<const ROLE: u8, F: SectionMessages, S: SectionMessages, 
         match branch.label() {
             100 => {
                 let request = branch.recv::<ReadOpen>().await?;
-                endpoint.send::<ReadOpened>(&file.open(request)).await?;
+                let response = file.open(request);
+                endpoint.send::<ReadOpened>(&response).await?;
             }
             102 => {
                 let request = branch.recv::<ReadWrite>().await?;
-                endpoint.send::<ReadWritten>(&file.write(request)).await?;
+                let response = file.write(request);
+                endpoint.send::<ReadWritten>(&response).await?;
             }
             104 => {
                 let request = branch.recv::<ReadCommit>().await?;
-                validation.record(file.arguments(request.0, "topic").and_then(|arguments| {
+                validation.record(file.arguments(request, "topic").and_then(|arguments| {
                     if arguments["topic"] == assignment.topic {
                         Ok(arguments)
                     } else {
@@ -83,10 +81,8 @@ pub(crate) async fn run<const ROLE: u8, F: SectionMessages, S: SectionMessages, 
     }
     let bytes =
         serde_json::to_vec(&result).map_err(|error| ShellError::message(error.to_string()))?;
-    endpoint
-        .send::<ReadCompleted<'_>>(&bytes.as_slice())
-        .await?;
-    endpoint.send::<ReadServiceDone>(&()).await?;
+    let response = bytes.as_slice();
+    endpoint.send::<ReadCompleted<'_>>(&response).await?;
 
     // draft_content: the Endpoint admits this lifetime, including reconsideration.
     let mut file = File::new(b"service/draft_content", SERVICE_FD);
@@ -97,25 +93,28 @@ pub(crate) async fn run<const ROLE: u8, F: SectionMessages, S: SectionMessages, 
         match branch.label() {
             125 => {
                 let request = branch.recv::<DraftOpen>().await?;
-                endpoint.send::<DraftOpened>(&file.open(request)).await?;
+                let response = file.open(request);
+                endpoint.send::<DraftOpened>(&response).await?;
             }
             127 => {
                 let request = branch.recv::<DraftWrite>().await?;
-                endpoint.send::<DraftWritten>(&file.write(request)).await?;
+                let response = file.write(request);
+                endpoint.send::<DraftWritten>(&response).await?;
             }
             129 => {
                 let request = branch.recv::<DraftCommit>().await?;
-                validation.record(file.arguments(request.0, "section_name").and_then(
-                    |arguments| {
-                        if arguments["section_name"] == assignment.section {
-                            Ok(arguments)
-                        } else {
-                            Err(ShellError::message(
-                                "arguments name a different task object",
-                            ))
-                        }
-                    },
-                ));
+                validation.record(
+                    file.arguments(request, "section_name")
+                        .and_then(|arguments| {
+                            if arguments["section_name"] == assignment.section {
+                                Ok(arguments)
+                            } else {
+                                Err(ShellError::message(
+                                    "arguments name a different task object",
+                                ))
+                            }
+                        }),
+                );
                 let decision = endpoint.offer().await?;
                 match decision.label() {
                     136 => {
@@ -150,10 +149,8 @@ pub(crate) async fn run<const ROLE: u8, F: SectionMessages, S: SectionMessages, 
     }
     let bytes =
         serde_json::to_vec(&result).map_err(|error| ShellError::message(error.to_string()))?;
-    endpoint
-        .send::<DraftCompleted<'_>>(&bytes.as_slice())
-        .await?;
-    endpoint.send::<DraftServiceDone>(&()).await?;
+    let response = bytes.as_slice();
+    endpoint.send::<DraftCompleted<'_>>(&response).await?;
 
     // write_to_document: the Endpoint admits this lifetime, including reconsideration.
     let mut file = File::new(b"service/write_to_document", SERVICE_FD);
@@ -164,15 +161,17 @@ pub(crate) async fn run<const ROLE: u8, F: SectionMessages, S: SectionMessages, 
         match branch.label() {
             150 => {
                 let request = branch.recv::<WriteOpen>().await?;
-                endpoint.send::<WriteOpened>(&file.open(request)).await?;
+                let response = file.open(request);
+                endpoint.send::<WriteOpened>(&response).await?;
             }
             152 => {
                 let request = branch.recv::<WriteWrite>().await?;
-                endpoint.send::<WriteWritten>(&file.write(request)).await?;
+                let response = file.write(request);
+                endpoint.send::<WriteWritten>(&response).await?;
             }
             154 => {
                 let request = branch.recv::<WriteCommit>().await?;
-                validation.record(file.arguments(request.0, "sections").and_then(|arguments| {
+                validation.record(file.arguments(request, "sections").and_then(|arguments| {
                     let actual: Vec<_> = arguments["sections"]
                         .as_str()
                         .unwrap()
@@ -196,7 +195,14 @@ pub(crate) async fn run<const ROLE: u8, F: SectionMessages, S: SectionMessages, 
                 match decision.label() {
                     161 => {
                         decision.recv::<WriteValidate>().await?;
-                        endpoint.send::<WriteAdmitted>(&()).await?;
+                        let arguments =
+                            super::super::imp::WriteArguments::from_value(validation.take()?)?;
+                        let mut bytes = vec![0; file.bytes.len()];
+                        let count =
+                            hibana::runtime::wire::WireEncode::encode_into(&arguments, &mut bytes)
+                                .map_err(|error| ShellError::message(format!("{error:?}")))?;
+                        let payload = &bytes[..count];
+                        endpoint.send::<WriteAdmitted<'_>>(&payload).await?;
                         break;
                     }
                     156 => {
@@ -214,15 +220,20 @@ pub(crate) async fn run<const ROLE: u8, F: SectionMessages, S: SectionMessages, 
             _ => return Err(ShellError::message("unexpected write_to_document request")),
         }
     }
-    endpoint.recv::<F::Available>().await?;
-    endpoint.recv::<S::Available>().await?;
-    endpoint.send::<F::Acquire>(&()).await?;
-    endpoint.send::<S::Acquire>(&()).await?;
-    endpoint.recv::<F::Granted>().await?;
-    endpoint.recv::<S::Granted>().await?;
-    endpoint.send::<WriteEffect>(&()).await?;
+    let (first, second) = {
+        let [mut first, mut second] = endpoint.par()?;
+        tokio::try_join!(
+            first.recv::<SectionRequest<FIRST>>(),
+            second.recv::<SectionRequest<SECOND>>()
+        )?
+    };
+    if first != second {
+        return Err(ShellError::message(
+            "section requests contain different arguments",
+        ));
+    }
     let result = domain
-        .execute(assignment.agent, "write_to_document", validation.take()?)
+        .execute(assignment.agent, "write_to_document", first.into_value())
         .await
         .map_err(ShellError::message)?;
     if result["success"] != true {
@@ -230,16 +241,16 @@ pub(crate) async fn run<const ROLE: u8, F: SectionMessages, S: SectionMessages, 
             "domain write_to_document failed: {result}"
         )));
     }
-    endpoint.send::<S::Return>(&()).await?;
-    endpoint.send::<F::Return>(&()).await?;
-    endpoint.recv::<S::Returned>().await?;
-    endpoint.recv::<F::Returned>().await?;
     let bytes =
         serde_json::to_vec(&result).map_err(|error| ShellError::message(error.to_string()))?;
-    endpoint
-        .send::<WriteCompleted<'_>>(&bytes.as_slice())
-        .await?;
-    endpoint.send::<WriteServiceDone>(&()).await?;
+    {
+        let [mut first, mut second] = endpoint.par()?;
+        let payload = bytes.as_slice();
+        tokio::try_join!(
+            first.send::<SectionWritten<'_, FIRST>>(&payload),
+            second.send::<SectionWritten<'_, SECOND>>(&payload)
+        )?;
+    }
 
     // review_own_work: the Endpoint admits this lifetime, including reconsideration.
     let mut file = File::new(b"service/review_own_work", SERVICE_FD);
@@ -250,25 +261,28 @@ pub(crate) async fn run<const ROLE: u8, F: SectionMessages, S: SectionMessages, 
         match branch.label() {
             175 => {
                 let request = branch.recv::<ReviewOpen>().await?;
-                endpoint.send::<ReviewOpened>(&file.open(request)).await?;
+                let response = file.open(request);
+                endpoint.send::<ReviewOpened>(&response).await?;
             }
             177 => {
                 let request = branch.recv::<ReviewWrite>().await?;
-                endpoint.send::<ReviewWritten>(&file.write(request)).await?;
+                let response = file.write(request);
+                endpoint.send::<ReviewWritten>(&response).await?;
             }
             179 => {
                 let request = branch.recv::<ReviewCommit>().await?;
-                validation.record(file.arguments(request.0, "section_name").and_then(
-                    |arguments| {
-                        if arguments["section_name"] == assignment.section {
-                            Ok(arguments)
-                        } else {
-                            Err(ShellError::message(
-                                "arguments name a different task object",
-                            ))
-                        }
-                    },
-                ));
+                validation.record(
+                    file.arguments(request, "section_name")
+                        .and_then(|arguments| {
+                            if arguments["section_name"] == assignment.section {
+                                Ok(arguments)
+                            } else {
+                                Err(ShellError::message(
+                                    "arguments name a different task object",
+                                ))
+                            }
+                        }),
+                );
                 let decision = endpoint.offer().await?;
                 match decision.label() {
                     186 => {
@@ -298,10 +312,8 @@ pub(crate) async fn run<const ROLE: u8, F: SectionMessages, S: SectionMessages, 
         .map_err(ShellError::message)?;
     let bytes =
         serde_json::to_vec(&result).map_err(|error| ShellError::message(error.to_string()))?;
-    endpoint
-        .send::<ReviewCompleted<'_>>(&bytes.as_slice())
-        .await?;
-    endpoint.send::<ReviewServiceDone>(&()).await?;
+    let response = bytes.as_slice();
+    endpoint.send::<ReviewCompleted<'_>>(&response).await?;
 
     // Review is terminal even when its domain verdict is false.
     loop {
@@ -311,25 +323,29 @@ pub(crate) async fn run<const ROLE: u8, F: SectionMessages, S: SectionMessages, 
         match branch.label() {
             200 => {
                 branch.recv::<ClosedOpen>().await?;
-                endpoint
-                    .send::<ClosedOpened>(&protocol::PathOpenedRet(protocol::PathOpened::new(0, 8)))
-                    .await?;
+                let response = protocol::PathOpenedRet(protocol::PathOpened::new(0, 8));
+                endpoint.send::<ClosedOpened>(&response).await?;
             }
             202 => {
                 let request = branch.recv::<ClosedWrite>().await?;
-                endpoint
-                    .send::<ClosedWritten>(&protocol::FdWriteDoneRet(
-                        protocol::FdWriteDone::new_with_errno(request.0.fd(), 0, 8),
-                    ))
-                    .await?;
+                let response = protocol::FdWriteDoneRet(protocol::FdWriteDone::new_with_errno(
+                    hibana_wasip1_runtime::choreofs::ChoreoFsRequest::request(&request)
+                        .0
+                        .fd(),
+                    0,
+                    8,
+                ));
+                endpoint.send::<ClosedWritten>(&response).await?;
             }
             204 => {
                 let request = branch.recv::<ClosedCommit>().await?;
-                endpoint
-                    .send::<ClosedUnavailable>(&protocol::FdClosedRet(
-                        protocol::FdClosed::new_with_errno(request.0.fd(), 8),
-                    ))
-                    .await?;
+                let response = protocol::FdClosedRet(protocol::FdClosed::new_with_errno(
+                    hibana_wasip1_runtime::choreofs::ChoreoFsRequest::request(&request)
+                        .0
+                        .fd(),
+                    8,
+                ));
+                endpoint.send::<ClosedUnavailable>(&response).await?;
             }
             241 => {
                 let status = branch.recv::<ServiceExit>().await?;

@@ -12,10 +12,11 @@ pub async fn run_2e<Work: Domain>(domain: &Work) -> Result<(), RunError<String>>
     use global::{roles2e::*, *};
     let programs = project_2e();
     let mut slab = vec![0; 192 * 1024];
-    let mut storage = SessionKitStorage::<InMemoryTransport>::uninit();
+    let transport_storage = InMemoryTransport::new([]);
+    let mut storage = SessionKitStorage::<&InMemoryTransport>::uninit();
     let kit = storage.init();
     let rendezvous = kit
-        .rendezvous(&mut slab, InMemoryTransport::new())
+        .rendezvous(&mut slab, &transport_storage)
         .map_err(RunError::Attach)?;
     let session = SessionId::new(1);
     let mut a = rendezvous
@@ -52,10 +53,11 @@ pub async fn run_2m<Work: Domain>(domain: &Work) -> Result<(), RunError<String>>
     use global::{roles2m::*, *};
     let programs = project_2m();
     let mut slab = vec![0; 192 * 1024];
-    let mut storage = SessionKitStorage::<InMemoryTransport>::uninit();
+    let transport_storage = InMemoryTransport::new([]);
+    let mut storage = SessionKitStorage::<&InMemoryTransport>::uninit();
     let kit = storage.init();
     let rendezvous = kit
-        .rendezvous(&mut slab, InMemoryTransport::new())
+        .rendezvous(&mut slab, &transport_storage)
         .map_err(RunError::Attach)?;
     let session = SessionId::new(1);
     let mut a = rendezvous
@@ -108,10 +110,11 @@ pub async fn run_2h<Work: Domain>(domain: &Work) -> Result<(), RunError<String>>
     use global::{roles2h::*, *};
     let programs = project_2h();
     let mut slab = vec![0; 192 * 1024];
-    let mut storage = SessionKitStorage::<InMemoryTransport>::uninit();
+    let transport_storage = InMemoryTransport::new([]);
+    let mut storage = SessionKitStorage::<&InMemoryTransport>::uninit();
     let kit = storage.init();
     let rendezvous = kit
-        .rendezvous(&mut slab, InMemoryTransport::new())
+        .rendezvous(&mut slab, &transport_storage)
         .map_err(RunError::Attach)?;
     let session = SessionId::new(1);
     let mut a = rendezvous

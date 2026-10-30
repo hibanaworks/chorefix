@@ -1,5 +1,6 @@
 //! Projected request/reply connects each WASI role to its service owner.
 pub mod global;
+mod imp;
 pub(crate) mod localside;
 
 use crate::{
@@ -18,16 +19,15 @@ async fn run_guests(
         localside::private_io,
     };
     use global::*;
-    use hibana_wasip1_runtime::{DEFAULT_GUEST_MEMORY_BYTES, GuestMemory, HibanaWasiGuestStorage};
-    use std::{cell::RefCell, rc::Rc};
+    use hibana_wasip1_runtime::{GuestMemory, HibanaWasiGuestStorage};
     let programs = programs();
     let compile = Validation::new();
     let test = Validation::new();
     let deploy = Validation::new();
     let mut slab = vec![0; 1024 * 1024];
-    let mut storage = SessionKitStorage::<InMemoryTransport>::uninit();
+    let mut storage = SessionKitStorage::<&InMemoryTransport>::uninit();
     let kit = storage.init();
-    let rv = kit.rendezvous(&mut slab, bus.transport.clone())?;
+    let rv = kit.rendezvous(&mut slab, &bus.transport)?;
     rv.set_resolver(
         &programs.developer,
         ResolverRef::<COMPILE_CLOSE>::decision_state(&compile, Validation::decide),
@@ -50,21 +50,20 @@ async fn run_guests(
     let mut developer = rv.enter(session, &programs.developer)?;
     let mut tester = rv.enter(session, &programs.tester)?;
     let mut deployer = rv.enter(session, &programs.deployer)?;
-    let mut build = rv.enter(session, &programs.build_server)?;
-    let mut env = rv.enter(session, &programs.deploy_env)?;
+    let mut build_owner = rv.enter(session, &programs.build_owner)?;
+    let mut deploy_owner = rv.enter(session, &programs.deploy_owner)?;
+    let build = rv.enter(session, &programs.build_server)?;
+    let env = rv.enter(session, &programs.deploy_env)?;
     let mut aio = rv.enter(session, &programs.dev_io)?;
     let mut bio = rv.enter(session, &programs.test_io)?;
     let mut cio = rv.enter(session, &programs.deploy_io)?;
     let [aterm, bterm, cterm] = terminals;
-    let abytes = Rc::new(RefCell::new(Vec::new()));
-    let bbytes = Rc::new(RefCell::new(Vec::new()));
-    let cbytes = Rc::new(RefCell::new(Vec::new()));
-    let mut afs = PrivateFs::new(aterm, bus, abytes.clone());
-    let mut bfs = PrivateFs::new(bterm, bus, bbytes.clone());
-    let mut cfs = PrivateFs::new(cterm, bus, cbytes.clone());
-    let mut amemory = vec![0; 16 * DEFAULT_GUEST_MEMORY_BYTES];
-    let mut bmemory = vec![0; 16 * DEFAULT_GUEST_MEMORY_BYTES];
-    let mut cmemory = vec![0; 16 * DEFAULT_GUEST_MEMORY_BYTES];
+    let mut afs = PrivateFs::new(aterm, bus);
+    let mut bfs = PrivateFs::new(bterm, bus);
+    let mut cfs = PrivateFs::new(cterm, bus);
+    let mut amemory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
+    let mut bmemory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
+    let mut cmemory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut astore = HibanaWasiGuestStorage::uninit();
     let mut bstore = HibanaWasiGuestStorage::uninit();
     let mut cstore = HibanaWasiGuestStorage::uninit();
@@ -75,11 +74,11 @@ async fn run_guests(
         localside::developer::run(&mut developer, bus, &compile),
         localside::tester::run(&mut tester, bus, &test),
         localside::deployer::run(&mut deployer, bus, &deploy),
-        localside::infrastructure::build_server(&mut build),
-        localside::infrastructure::deploy_env(&mut env),
+        localside::infrastructure::build_server(&mut build_owner, build),
+        localside::infrastructure::deploy_env(&mut deploy_owner, env),
         async {
             let (vm, io) = tokio::try_join!(
-                localside::wasi::run(aguest, &mut avm, abytes),
+                localside::wasi::developer(aguest, &mut avm),
                 private_io::run(&mut aio, &mut afs)
             )?;
             if vm != io {
@@ -92,7 +91,7 @@ async fn run_guests(
         },
         async {
             let (vm, io) = tokio::try_join!(
-                localside::wasi::run(bguest, &mut bvm, bbytes),
+                localside::wasi::tester(bguest, &mut bvm),
                 private_io::run(&mut bio, &mut bfs)
             )?;
             if vm != io {
@@ -105,7 +104,7 @@ async fn run_guests(
         },
         async {
             let (vm, io) = tokio::try_join!(
-                localside::wasi::run(cguest, &mut cvm, cbytes),
+                localside::wasi::deployer(cguest, &mut cvm),
                 private_io::run(&mut cio, &mut cfs)
             )?;
             if vm != io {
@@ -121,15 +120,20 @@ async fn run_guests(
 }
 
 pub async fn run_stdio(module: &[u8]) -> ShellResult<()> {
-    let (bus, mut reader, terminals) =
-        crate::shell::imp::bus::Bus::open(["DEVELOPER", "TESTER", "DEPLOYER"]);
+    let (bus, mut reader, terminals) = crate::shell::imp::bus::Bus::open(
+        ["DEVELOPER", "TESTER", "DEPLOYER"],
+        [
+            (SessionId::new(16), global::BUILD_SERVER),
+            (SessionId::new(16), global::DEPLOY_ENV),
+        ],
+    );
     let result = tokio::select! {
         result = run_guests(module, &bus, terminals) => result,
         result = reader.run(&bus) => result,
     };
     match &result {
-        Ok(()) => bus.emit(serde_json::json!({"type":"run_result", "status":"complete"})).await?,
-        Err(error) => bus.emit(serde_json::json!({"type":"run_result", "status":"failed", "error":error.to_string()})).await?,
+        Ok(()) => reader.emit(&bus,serde_json::json!({"type":"run_result", "status":"complete"})).await?,
+        Err(error) => reader.emit(&bus,serde_json::json!({"type":"run_result", "status":"failed", "error":error.to_string()})).await?,
     }
     result
 }

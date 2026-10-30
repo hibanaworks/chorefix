@@ -18,46 +18,190 @@
   "hibana_procedure": [
     "Global choreography is the only coordination authority",
     "Independent work and resource requests execute in parallel",
-    "Both resource grants precede the constrained effect",
+    "Every required resource Endpoint carries the actual request before the constrained effect, and carries the actual result before it returns",
     "Resources are returned before unrelated review or private computation",
     "Routes, resolvers and repetition express actual choices and reconsideration",
     "No second progress state, permission table or wrapper hiding Endpoint operations"
   ],
   "baseline_policy": "Keep comparison implementations and original input files unchanged",
+  "compiler_toolchain": {
+    "version": "1.8.0",
+    "sha256": "237332bdcc79a35c7d26efa7b82c77c85c2744591c5598673a8a45085ff2a4fb",
+    "declared_by": "tracefix@36b4bd108fcd74f7efb17613aebbe3fdf55499a9:scripts/download_tla2tools.sh",
+    "path_in_each_source": "lib/tla2tools.jar",
+    "qualification": "Require the declared digest before qualifying a newly generated comparison protocol; the current contents of a mutable release URL are not sufficient",
+    "on_mismatch": "Reject qualification and preserve the artifact and existing verification records; do not silently replace the checksum or count the mismatch as a baseline task failure"
+  },
+  "baseline_input_qualification": {
+    "scope": "Derived protocol workspaces require domain-interface fidelity review as well as formal checking; they are not original benchmark inputs",
+    "rejected_candidates": [
+      {
+        "task": "2E",
+        "workspace": "output/baseline-design/paper-design-001/2E",
+        "translated_tla_sha256": "36e82d0700a2f3cedd73c82d38a1fcc62c90e35f4bfa6d357af81e194dd2a2e1",
+        "reason": "The generated workflow holds one section lock per write, but the unchanged simulator uses both assigned sections for every write. Two writes allowed by that workflow conflict on METHODS_SECTION",
+        "observed_condition": "Scripted prefix using the unchanged topology monitor, state tracker and original simulator; zero model calls",
+        "evidence": "output/preparation/baseline-input-review-20261021/effect-counterexample.json",
+        "action": "Regenerate the derived protocol with the pinned original pipeline before scoring; preserve the comparator source, task identity, participants and physical resource requirements",
+        "interpretation": "This rejects an earlier generated input, not the TraceFix runtime or the original research results. It is not evidence of a Hibana performance advantage"
+      }
+    ]
+  },
+  "baseline_runtimes": {
+    "topology_monitored": {
+      "source": "tracefix-paper",
+      "revision": "87b01a2c0ae53c5045c9ce3d43cd0235b1831275",
+      "module": "runtime_B",
+      "description": "Agents call structured coordination tools; the topology monitor checks their use against the original IR"
+    },
+    "mediator_enforced": {
+      "source": "tracefix-paper",
+      "revision": "87b01a2c0ae53c5045c9ce3d43cd0235b1831275",
+      "module": "runtime_A",
+      "description": "The original engine executes coordination transitions and calls the model for business operations and decisions"
+    },
+    "prompt_only": {
+      "source": "tracefix-paper",
+      "revision": "87b01a2c0ae53c5045c9ce3d43cd0235b1831275",
+      "module": "runtime_base_2",
+      "description": "Null Monitor baseline: structured locks, channels and counters with generic topology hints, without protocol enforcement or PlusCal-derived step instructions",
+      "identity_note": "Keep the recorded prompt_only run IDs; reports must describe this condition as the Null Monitor baseline"
+    },
+    "chat_only": {
+      "source": "tracefix-paper",
+      "revision": "87b01a2c0ae53c5045c9ce3d43cd0235b1831275",
+      "module": "runtime_base_1",
+      "description": "Agents coordinate through broadcast chat without structured locks, channels or protocol enforcement"
+    },
+    "latest_tracefix_monitored": {
+      "source": "tracefix",
+      "revision": "36b4bd108fcd74f7efb17613aebbe3fdf55499a9",
+      "module": "tracefix.runtime.monitoring",
+      "description": "The pinned latest monitoring runtime, with its own original prompts, coordination tools and monitor"
+    }
+  },
+  "participant_api": {
+    "model": "gpt-6-luna",
+    "reasoning_effort": "xhigh",
+    "required_endpoint": "codex_app_server",
+    "authentication": "chatgpt",
+    "paid_api_calls": false,
+    "original_client_sdk": {
+      "distribution": "openai",
+      "version": "3.35.1"
+    },
+    "official_model_specification": "https://developers.openai.com/api/docs/models/gpt-6-luna",
+    "compatibility": "Use the existing ChatGPT subscription through Codex App Server. The unchanged baseline clients use Chat Completions and do not request xhigh. Their subscription connection must preserve the original calls and explicitly check the selected model and effort before scoring",
+    "integration_requirement": "Adapt the model API outside the vendored runtimes while preserving their prompts, messages, tool schemas, call/result ordering and execution engines. Record transport differences and verify the requested and returned model, effort and inclusive token usage before scored runs",
+    "history": "Use the client-visible text and function-call history supplied with each request, as in the pinned original generator's native Responses conversion. Preserve its JSON serialization, compression and trimming. Do not add cross-request opaque reasoning state. Apply the same policy to the Hibana condition before scoring",
+    "generator_settings": "Select --model gpt-6-luna --reasoning-effort xhigh and the published --no-summarize option. Original truncation-based context compression remains active; the default summarizer uses a different model",
+    "qualification": "Three-participant Dining 9E and seven-participant Codebase 1H pilots completed through real WASI guests with ChatGPT authentication, matching gpt-6-luna and xhigh, persisted raw events and inclusive usage. The seven-participant trial uses independent conversations on one App Server connection with concurrent tool replies. These pilots are unscored and do not qualify matched history handling for scored comparisons. Local Rust fixtures cover all five unchanged comparison clients and both original generator clients after real context compression, plus both JSON clients: 16 HTTP requests. Their live subscription connection, matched history policy, full-task qualification and scored runs remain pending"
+  },
   "checklist_policy": "Classify original items as problem constraints, hazards or procedural choices; record procedural departures instead of silently claiming identical control flow",
   "coding_departure": {
-    "tasks": ["1E", "1M"],
+    "tasks": [
+      "1E",
+      "1M"
+    ],
     "original_items": "RA1 through RA3 or RA5 respectively describe sequential acquisition",
-    "hibana_execution": "Send both independent module Acquire requests before waiting for either grant; send both Return requests before waiting for either acknowledgement",
-    "preserved": ["Original developers, assigned features and module pairs", "Design and implementation before acquisition", "Exclusive module ownership during commit", "Both grants before commit", "Return before local tests", "Terminal test outcome, including failure"],
+    "hibana_execution": "The guest receives both actual module Endpoints in parallel, sends the actual commit arguments through each, receives both actual results, then returns both Endpoints in parallel before testing",
+    "preserved": [
+      "Original developers, assigned features and module pairs",
+      "Design and implementation before acquisition",
+      "Exclusive module ownership during commit",
+      "Both grants before commit",
+      "Return before local tests",
+      "Terminal test outcome, including failure"
+    ],
     "interface": "The projected owner supplies agent_id. Feature strings must name the assigned feature; module strings must contain exactly the assigned pair. Pair order and comma spacing do not matter. Unlike the unchanged simulator's permissive argument matching, malformed or wrong-target requests are returned before any effect",
     "parallelism": "All guests, private computation and preparation progress independently; disjoint commits run concurrently. A delayed local test must not hold shared modules or block another developer's commit",
     "scope": "1H requires its own result-driven reconsideration path and is not qualified by these terminal 1E/1M protocols",
     "qualification": "Requires persisted direct-WASI evidence and task fidelity review before scored comparisons"
   },
+  "coding_reconsideration": {
+    "tasks": [
+      "1H"
+    ],
+    "preserved": [
+      "Original seven developers, assigned features and module pairs",
+      "Design before implementation",
+      "Both actual module Endpoints held during commit",
+      "Original implementation, commit and test effects",
+      "Failed tests lead to reconsideration and another implementation attempt",
+      "All developers eventually pass their tests for domain completion"
+    ],
+    "hibana_execution": "Each guest receives both module Endpoints in parallel, commits through both, receives both actual replies and returns both Endpoints before testing. A result-driven route informs the guest and both module owners. A failed result leads to another implementation, commit and test through roll. The successful branch contains guest completion. Disjoint commits and private work execute concurrently",
+    "procedural_change": "Module owners may serve another assigned developer only after receiving the current developer's successful test result. Modules themselves are returned before tests. The global groups disjoint developers without an application lock, owner table or progress flag",
+    "unscored_recovery_preflight": "Scripted actual-WASI trials cover the original scenario depths 0, 1 and 2, an extra FailureSpec control with two failed tests, and original normal delays. The seven-model pilot uses the original depth 2 without extra failures or barriers. These are unscored trials. Scored runs must use only the original matched scenario settings",
+    "concurrency_revision_under_validation": "Initial attempts return shared Endpoints before observing test outcomes. Module owners then offer actual result branches; failure leads to another loan and success leaves the other developer active. This source is not yet qualified: a core receive-lane crossing defect was reproduced and fixed locally; native Endpoint qualification passes, while actual WASI and model qualification for this revised global remain pending. Earlier pilot results refer to their frozen pre-revision source. Direct original-simulator calls confirm disjoint commits and test/commit overlap without violations, and detect overlapping commits to the same database. The simulator remains unchanged.",
+    "qualification": "Native and real-WASI/wash trials pass for seven developers. The unchanged simulator's depth 2 produces two failed tests per developer before success. The scripted original-delay case reaches three disjoint commits in parallel. Five persisted WASI cases pass the delegation audit and reject ten altered records each. A separate seven-Luna-xhigh trial at original depth 2 completes through actual WASI/wash, with no extra failures or barriers, no resource violations, 42 actual Endpoint requests and returns, and two overlapping disjoint commits. Its independent audit passes and rejects ten altered records. These trials are unscored; full-task acceptance and matched scored comparisons remain pending"
+  },
   "writing_departure": {
-    "tasks": ["2E", "2M", "2H"],
+    "tasks": [
+      "2E",
+      "2M",
+      "2H"
+    ],
     "original_items": "RA1 through RA3, RA5 or RA7 respectively describe sequential acquisition",
-    "hibana_execution": "Send both independent Acquire requests before waiting for either grant",
-    "preserved": ["Read and draft precede acquisition", "Exclusive section ownership", "Both grants before write", "Terminal review outcome"],
-    "qualification": "Requires persisted direct-WASI evidence and task fidelity review; not yet an accepted scored port"
+    "hibana_execution": "After the actual WASI write arguments are validated, the guest receives both assigned section Endpoints in parallel. It sends the same actual write arguments through both Endpoints, receives the original simulator result through both and returns both Endpoints before review. The effect service receives both resource requests before executing the write. Independent preparations, disjoint writes and reviews run concurrently, with ownership and dependencies expressed only in the global",
+    "preserved": [
+      "Read and draft precede acquisition",
+      "Exclusive section ownership",
+      "Both actual section Endpoints held during write",
+      "Both actual resource replies delivered before return",
+      "Terminal review outcome, including failure"
+    ],
+    "procedure": "The global groups disjoint resource pairs into parallel waves. It permits each participant's preparation and post-return review to progress independently. This replaces the original sequential acquisition checklist; it does not introduce a lock table, task flags or a second progress cursor",
+    "interface": "Topic, section name and resource pair must match the original assignment. Either order of the two section names and ordinary surrounding whitespace are accepted. Malformed, duplicate, wrong-target and out-of-order operations do not reach the original effect. The projected service supplies agent_id",
+    "qualification": "Fifteen actual-WASI trials cover 3/5/7 participants, each original depth 0/1/2, explicit terminal review failure and original normal delays. All preserve original outcomes, have zero resource violations and pass the section Endpoint audit; fourteen record mutants per trial are rejected. Original-delay scripted cases observe one, two and three simultaneous disjoint writes respectively. Separate 3/5/7-Luna-xhigh actual-WASI trials complete through the existing ChatGPT subscription with matching model/effort, recorded inclusive usage, original completion, zero violations and six/ten/fourteen actual resource requests and returns. Observed simultaneous writes in those model trials are one/one/three. These are unscored qualifications; full-task acceptance and matched comparisons remain pending"
+  },
+  "review_procedure": {
+    "tasks": ["6E"],
+    "preserved": [
+      "Original two developers, reviewer and single physical repository",
+      "Implementation before its actual code review",
+      "Approval of that feature before merge",
+      "Exclusive repository ownership during implementation and merge",
+      "Rejected reviews permit revision and another review",
+      "Original simulator effects, results and scoring"
+    ],
+    "procedure": "The global is constructed from actual business requests, delegated repository operations, results and returns. The reviewer's validated request selects the first target and can select the other target after a failed review. Independent implementation and review, and merge and review, are projected parallel fragments driven with try_join. Approval-dependent merges and successful termination occur inside the successful result branches; failed results leave routes to revision and review. File operations do not complete a business phase",
+    "ownership": "The repository service owns the sole initial repository Endpoint and receives the actual loan request. The guest receives that Endpoint by move, sends its actual implementation or merge arguments through it, receives the original simulator result and returns the same Endpoint. The service checks those arguments before executing the effect. Developer intermediary roles and review-only auxiliary views have been removed. Actual review requests and results carry branch knowledge to the affected participants; there is no application owner table or progress flag",
+    "interface": "Every WASI syscall, including private file operations, runs through the private I/O choreography and ChoreoFS. Feature and branch arguments must match the participant. Invalid arguments and unavailable requests return shell errors before any repository effect, without advancing the business operation. Guest computation and private file operations remain independent",
+    "qualification": "The full crate builds and Clippy passes with a local core patch. Twelve real-WASI Rust shell trials cover original depths 0/1/2, either first review target and finish-first or alternating review schedules. Every original score completes with zero resource violations; early merge, invalid arguments and duplicate completed requests have no effect. These trials make no model calls. Resource-record auditing, observed effect overlap, actual-model trials and qualification of the recorded Git dependencies remain required before scoring"
   },
   "dining_procedure": {
-    "tasks": ["9E", "9M", "9H"],
-    "preserved": ["Original philosophers and adjacent physical forks", "Both forks held during eat", "Both returned after eat and before finish", "All participants complete the original think and eat steps"],
-    "hibana_execution": "Request both independent forks before waiting for either grant; preserve independent thinking and disjoint eating through one projected global",
+    "tasks": [
+      "9E",
+      "9M",
+      "9H"
+    ],
+    "preserved": [
+      "Original philosophers and adjacent physical forks",
+      "Both forks held during eat",
+      "Both returned after eat and before finish",
+      "All participants complete the original think and eat steps"
+    ],
+    "hibana_execution": "The WASI participant receives both actual fork Endpoints through par, sends the actual eat request through each, receives the actual result on both, and returns both Endpoints. One global orders ownership and effects while retaining independent thinking and disjoint eating",
     "caller_binding": "The projected owner supplies the original agent_id. The philosopher string remains ordinary input and does not select a participant, matching the original simulator",
     "scope": "The default simulator has one think and one eat step per philosopher; this finite protocol admits each once and rejects subsequent shared operations",
     "liveness_limit": "Completion still requires each model to do its work and the executor/transport to progress; the qualification runs do not prove termination for an uncooperative model",
-    "qualification": "Deterministic actual-WASI 3/5/7 person trials pass, with observed disjoint eating 1/2/3; accepted full-task and scored comparisons remain pending"
+    "qualification": "Deterministic actual-Endpoint WASI trials pass for 3/5/7 participants, with original simulator completion, no unsafe effects, matching requests and returns and independent work. A separate three-participant Luna xhigh actual-WASI pilot passes with raw model events and usage. Full-task acceptance, matched-history comparison qualification and scored runs remain pending"
   },
   "api_procedure": {
-    "tasks": ["8E"],
-    "preserved": ["Original three participants and their assigned operations", "Database lease during migration and test-environment lease during integration test", "Migration completion before backend effect and backend completion before test effect", "Actual pass or fail result delivered to both developers"],
-    "hibana_execution": "WASI requests, service owners, physical resources and result-file endpoints share one global. A result-file open and the result notification are independent inputs in par. The owner replies only after receiving both; subsequent reads use that projected result endpoint",
+    "tasks": [
+      "8E"
+    ],
+    "preserved": [
+      "Original three participants and their assigned operations",
+      "Database lease during migration and test-environment lease during integration test",
+      "Migration completion before backend effect and backend completion before test effect",
+      "Actual pass or fail result delivered to both developers"
+    ],
+    "hibana_execution": "The WASI participant receives the database or test-environment Endpoint, sends the validated original arguments through it, receives the actual simulator result through it, and returns it. Service owners execute only after that request is received. Grant and return unit messages are removed. WASI requests, resource transfers, service effects and result-file I/O share one global. A result-file open and the result notification are independent inputs in par; metadata remains available while those inputs are pending",
     "read_boundary": "Each developer must read /service/outcome before guest completion. Private files remain independent. A successful pathname lookup alone does not authorize reading a test result",
     "source_conflict": "Checklist O2 asks for revisions, while the unchanged task description and simulator specify terminal test failure. Preserve terminal failure and record the conflict; do not report protocol completion as domain success",
-    "qualification": "Requires actual-WASI evidence for all three failure depths, live Luna trials and a resolved full-task acceptance review before scored comparisons"
+    "qualification": "Actual-WASI trials pass at original depths 0/1/2 with two resource Endpoint requests and returns, matching original results and fourteen rejected record mutations per trial. Separate three-Luna-xhigh subscription trials pass at depth 0 and preserve terminal original failure at depth 2, with both developers receiving the actual result and no unsafe effects. A standalone verifier agrees with the built-in verifier for all five records. These are unscored qualifications; full-task acceptance and matched comparisons remain pending"
   },
   "report_separately": [
     "Domain task completion and actual unsafe effects",
@@ -66,5 +210,18 @@
     "Inclusive tokens and elapsed time including waiting and failed attempts",
     "Observed parallel requests and disjoint work, not declared par nodes alone",
     "Shell and service interface differences and implementation maintenance costs"
-  ]
+  ],
+  "cicd_procedure": {
+    "tasks": [
+      "16E"
+    ],
+    "preserved": [
+      "Original three participants, build server and deployment environment",
+      "Compile/unit-test before integration test, then deployment/smoke test",
+      "Build-complete, tests-passed and both deployment-complete notifications",
+      "Original no-retry outcomes and unchanged failure profiles"
+    ],
+    "hibana_execution": "After validation of the actual WASI file close, the guest receives the infrastructure Endpoint, sends its actual argument data through it, receives the actual simulator result and returns the same Endpoint. The build server returns to its owner before it is lent to the tester. Private shell work does not hold infrastructure. Both final notifications run concurrently through par. Global and direct localside operations own all permissions and progress; no unit grants or parallel owner table remain",
+    "qualification": "Native Endpoint tests and actual-WASI original depths 0/1/2 pass with three actual requests and returns, original completion and zero violations. Fourteen record mutants per case, including overlapping loans and consistently altered resource frames, are rejected. A guest exiting before its work is rejected before any original effect. Three Luna xhigh participants through the existing ChatGPT subscription also complete the actual-WASI task with original completion, zero violations, verified model/effort and inclusive usage. A separate process running the same auditor agrees and rejects fourteen model-record mutants. These are unscored qualifications; full-task acceptance and matched comparisons remain pending"
+  }
 }

@@ -10,7 +10,7 @@ __pycache__/
 .env
 *.key
 
-/guests/shell/target/
 /guests/bash/target/
 /vendor/rust-bash/
 /tools/runner/target/
+/tools/inputs/target/

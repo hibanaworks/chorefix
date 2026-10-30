@@ -1,9 +1,29 @@
+#[cfg(test)]
+mod api_audit;
+#[cfg(test)]
+mod api_boundary;
 mod audit;
+mod cicd_audit;
+#[cfg(test)]
+mod cicd_boundary;
+mod codebase_audit;
+#[cfg(test)]
+mod codebase_boundary;
+#[cfg(test)]
+mod completion_api;
 mod evidence;
 mod model;
+#[cfg(test)]
+mod model_boundary;
+mod oracle;
 mod process;
+#[cfg(test)]
+mod review_boundary;
 mod snapshot;
 mod wire;
+mod writing_audit;
+#[cfg(test)]
+mod writing_boundary;
 
 use evidence::{Result, Trace, save};
 use serde_json::{Value, json};
@@ -32,15 +52,23 @@ fn prompt(source: &Path, task: &str, actor: &Value) -> Result<String> {
                 .is_some_and(|a| a.contains(&json!(agent)))
         })
         .collect();
-    let dining = task.starts_with('9');
-    let coding = task.starts_with('1');
+    let family = task.trim_end_matches(['E', 'M', 'H']).parse::<u8>()?;
+    let dining = family == 9;
+    let coding = family == 1;
     let api = task == "8E";
+    let cicd = task == "16E";
+    let review = task == "6E";
+    if !(dining || coding || api || cicd || review || family == 2) {
+        return Err(format!("task {task} has no model prompt implementation").into());
+    }
     let data = if dining {
         json!({"participant":agent,"resources":actor["forks"],"philosopher":agent})
     } else if coding {
         json!({"participant":agent,"resources":actor["modules"],
         "feature_name":actor["calls"][0]["arguments"]["feature_name"]})
-    } else if api {
+    } else if review {
+        json!({"participant":agent,"resources":actor["resources"],"assignments":actor["calls"]})
+    } else if api || cicd {
         json!({"participant":agent,"resources":actor["resources"],
         "arguments":actor["calls"][0]["arguments"]})
     } else {
@@ -48,7 +76,22 @@ fn prompt(source: &Path, task: &str, actor: &Value) -> Result<String> {
         "topic":actor["calls"][0]["arguments"]["topic"],
         "section_name":actor["calls"][1]["arguments"]["section_name"]})
     };
-    let objects = if dining {
+    let objects = if review {
+        match agent {
+            "DEVELOPER_A" | "DEVELOPER_B" => "/service/implement_feature and /service/merge_code",
+            "REVIEWER" => {
+                "/service/code_review/<pr_id>, using an assigned pr_id as the final path component"
+            }
+            _ => return Err("unknown review participant".into()),
+        }
+    } else if cicd {
+        match agent {
+            "DEVELOPER" => "/service/compile_and_test",
+            "TESTER" => "/service/run_integration_tests",
+            "DEPLOYER" => "/service/deploy_application",
+            _ => return Err("unknown CI/CD participant".into()),
+        }
+    } else if dining {
         "/service/think and /service/eat"
     } else if coding {
         "/service/design_feature, /service/implement_code, /service/commit_changes and /service/run_local_tests"
@@ -62,14 +105,20 @@ fn prompt(source: &Path, task: &str, actor: &Value) -> Result<String> {
     } else {
         "/service/read_literature, /service/draft_content, /service/write_to_document and /service/review_own_work"
     };
-    let coordination = if dining {
-        "Hibana carries both independent fork requests in parallel and waits for both grants before eating. You do not call acquire/release tools. Your operations always apply to your participant. The philosopher string is passed to the original simulator. Both effects run once, then finish."
+    let coordination = if review {
+        "Hibana delegates the repository Endpoint during implementation and merging; each actual request and result travels through it before it returns. Code review does not hold the repository. You do not call resource acquisition, release or notification tools. A developer's implementation response includes the actual review under coordination.code_review. If review fails, reconsider and implement again; merge your assigned branch after approval. The reviewer may choose either assigned feature first, review that feature until it passes, then review the other. Reviewing one feature can overlap independent work on the other feature. Read every actual result and finish after your own assigned work is complete."
+    } else if cicd {
+        "Hibana passes the build-server or deployment-environment Endpoint to your WASI participant. Your actual request and result travel through that Endpoint before it returns. The developer's build precedes integration testing, which precedes deployment. Hibana sends build-complete, tests-passed and both deployment-complete notifications. You do not call acquire/release or notification tools. Read your actual result, then finish. This original task has no retry loop or injected domain failures."
+    } else if dining {
+        "Hibana passes both fork endpoints to your guest. Eating requires the requests sent through both endpoints, and both endpoints return afterwards. You do not call acquire/release tools. Your operations always apply to your participant. The philosopher string is passed to the original simulator. Both effects run once, then finish."
+    } else if task == "1H" {
+        "Hibana passes both module endpoints to your guest. Committing requires requests through both endpoints. You do not call acquire/release tools. This replaces the original sequential acquisition procedure. The feature and module pair must match your assignment. Module endpoints return before testing so that independent developers can continue. Read each actual test result. If it fails, reconsider your implementation, then implement, commit and test again. Finish after your tests pass."
     } else if coding {
-        "Hibana carries both independent module requests in parallel and waits for both grants before committing. You do not call acquire/release tools. This deliberately replaces the original sequential acquisition procedure. The feature and module pair must match your assignment. For this task the test outcome is terminal, including failure. Do not add retries. Modules are returned before testing so that another developer can commit while your test runs."
+        "Hibana passes both module endpoints to your guest. Committing requires the requests sent through both endpoints. You do not call acquire/release tools. This replaces the original sequential acquisition procedure. The feature and module pair must match your assignment. For this task the test outcome is terminal, including failure. Do not add retries. Module endpoints are returned before testing so that another developer can commit while your test runs."
     } else if api {
-        "Hibana carries the database migration, backend update and integration test dependencies. You do not call acquire/release or notification tools. Use your assigned arguments. DB_ADMIN and BACKEND_DEV must also read the read-only /service/outcome object, which contains the original test result. That read may wait until the test finishes while other participants continue. A failed integration test is terminal in the task description and simulator. Report its actual result and finish, without adding a revision or retry."
+        "Hibana passes the database or test-environment Endpoint to the WASI participant. The request and actual result travel through that Endpoint before it returns. Migration completion precedes backend work, and backend completion precedes integration testing. You do not call acquire/release or notification tools. Use your assigned arguments. DB_ADMIN and BACKEND_DEV must also read the read-only /service/outcome object, which contains the original test result. That read may wait until the test finishes while other participants continue. A failed integration test is terminal in the task description and simulator. Report its actual result and finish, without adding a revision or retry."
     } else {
-        "Hibana carries both independent resource acquisitions in parallel and waits for both grants before the write. You do not call acquire/release tools. This deliberately replaces the original sequential acquisition procedure. The target must match your assigned topic, section or pair of resource names. The review result is terminal, so do not add retries to a failed review."
+        "Hibana passes both section Endpoints to your WASI guest in parallel. Your actual write request travels through both Endpoints; the actual result comes back through both before they return. You do not call acquire/release tools. This deliberately replaces the original sequential acquisition procedure. The target must match your assigned topic, section or pair of resource names. The review result is terminal, so do not add retries to a failed review."
     };
     Ok(format!(
         r#"You are {agent}. Carry out your work in the original task below.
@@ -84,8 +133,8 @@ filesystem or native process execution. Use help to see shell commands and
 syntax. You may use variables, conditions, loops, pipes, redirection, expr,
 private files and saved scripts. Choose your own commands and calculations.
 Private /work files have names you choose, with eight slots of 8192 bytes.
-A script has at most 4096 UTF-8 bytes. Each guest starts with 64 KiB and may
-request memory growth through the protocol up to 1 MiB of supplied backing.
+A script has at most 4096 UTF-8 bytes. Each participant has its own persistent
+guest and private files.
 
 Your writable domain objects are {objects}.
 Write the matching operation's JSON argument object and close it to request
@@ -121,8 +170,7 @@ async fn run(task: &str, depth: u8, output: &Path) -> Result<Value> {
         .ok_or("tool budget")?;
     let trace = Arc::new(Trace::create(&output.join("events.jsonl"))?);
     let started = Instant::now();
-    let (simulator, fixture, simulator_loop) =
-        process::simulator(task, depth, output, trace.clone()).await?;
+    let (simulator, fixture) = process::simulator(task, depth, output, trace.clone()).await?;
     let (guest, guest_loop) = process::guest(
         &output.join("runtime").canonicalize()?,
         &output.join("wash.wasm").canonicalize()?,
@@ -133,48 +181,53 @@ async fn run(task: &str, depth: u8, output: &Path) -> Result<Value> {
     )?;
     let mut jobs = JoinSet::new();
     jobs.spawn(async move {
-        simulator_loop
-            .await
-            .map(|()| json!({"kind":"simulator_transport","status":"complete"}))
-    });
-    jobs.spawn(async move {
         guest_loop
             .await
             .map(|value| json!({"kind":"guest_runtime","result":value}))
     });
+    let mut people = Vec::new();
     for actor in fixture["fixtures"].as_array().ok_or("actor fixtures")? {
         let agent = actor["agent"].as_str().ok_or("actor name")?.to_owned();
         let instructions = prompt(Path::new("."), task, actor)?;
         fs::write(output.join(format!("{agent}-prompt.txt")), &instructions)?;
-        let directory = output.join(&agent);
-        let guest = guest.clone();
-        jobs.spawn(async move {
-            let name = agent.clone();
-            model::run(
-                &agent,
-                &instructions,
-                &directory,
-                Duration::from_secs(seconds),
-                budget,
-                move |command| {
-                    let guest = guest.clone();
-                    let name = name.clone();
-                    async move { guest.command(&name, command).await }
-                },
-            )
-            .await
-            .map(|value| json!({"kind":"model_participant","result":value}))
+        people.push(model::Participant {
+            output: output.join(&agent),
+            agent,
+            instructions,
         });
     }
-    drop(guest);
+    jobs.spawn(async move {
+        model::run(
+            people,
+            model::Limits {
+                timeout: Duration::from_secs(seconds),
+                tool_calls: budget,
+            },
+            move |agent, command| {
+                let guest = guest.clone();
+                async move { guest.command(&agent, command).await }
+            },
+        )
+        .await
+        .map(|results| json!({"kind":"model_participants","results":results}))
+    });
     let mut outcomes = Vec::new();
     let finished = tokio::time::timeout(Duration::from_secs(seconds + 20), async {
         while let Some(result) = jobs.join_next().await {
-            outcomes.push(match result {
-                Ok(Ok(value)) => value,
-                Ok(Err(error)) => json!({"status":"harness_error","error":error.to_string()}),
-                Err(error) => json!({"status":"harness_error","error":error.to_string()}),
-            });
+            match result {
+                Ok(Ok(value)) if value["kind"] == "model_participants" => {
+                    for participant in value["results"].as_array().ok_or("model results")? {
+                        outcomes.push(json!({"kind":"model_participant","result":participant}));
+                    }
+                }
+                Ok(Ok(value)) => outcomes.push(value),
+                Ok(Err(error)) => {
+                    outcomes.push(json!({"status":"harness_error","error":error.to_string()}))
+                }
+                Err(error) => {
+                    outcomes.push(json!({"status":"harness_error","error":error.to_string()}))
+                }
+            }
             save(&output.join("outcomes.json"), &json!(outcomes))?;
         }
         Ok::<_, Box<dyn std::error::Error + Send + Sync>>(())
@@ -198,6 +251,24 @@ async fn run(task: &str, depth: u8, output: &Path) -> Result<Value> {
 async fn main() -> Result<()> {
     let args: Vec<_> = std::env::args().skip(1).collect();
     match args.as_slice() {
+        [mode, events] if mode == "--audit-writing" => println!("{}", serde_json::to_string_pretty(&writing_audit::audit(Path::new(events))?)?),
+        [mode, events, output] if mode == "--check-writing-mutants" => println!("{}", serde_json::to_string_pretty(&writing_audit::check_mutants(Path::new(events), Path::new(output))?)?),
+        [mode, events] if mode == "--audit-cicd" => println!(
+            "{}",
+            serde_json::to_string_pretty(&cicd_audit::audit(Path::new(events))?)?
+        ),
+        [mode, events, output] if mode == "--check-cicd-mutants" => println!(
+            "{}",
+            serde_json::to_string_pretty(&cicd_audit::check_mutants(Path::new(events), Path::new(output))?)?
+        ),
+        [mode, events] if mode == "--audit" => println!(
+            "{}",
+            serde_json::to_string_pretty(&codebase_audit::audit(Path::new(events))?)?
+        ),
+        [mode, events, output] if mode == "--check-protocol-mutants" => println!(
+            "{}",
+            serde_json::to_string_pretty(&codebase_audit::check_mutants(Path::new(events), Path::new(output))?)?
+        ),
         [mode, input, output, verifier] if mode == "--check-mutants" => println!(
             "{}",
             serde_json::to_string_pretty(&audit::check_mutants(
@@ -226,7 +297,7 @@ async fn main() -> Result<()> {
             };
             println!("{}", serde_json::to_string(&result)?);
         }
-        _ => return Err("usage: choreofix-experiments 1E|1M|2E|2M|2H|8E|9E|9M|9H DEPTH OUTPUT | --audit RUN VERIFIER | --check-mutants RUN NEW_OUTPUT VERIFIER".into()),
+        _ => return Err("usage: choreofix-experiments 1E|1M|2E|2M|2H|8E|9E|9M|9H DEPTH OUTPUT | --audit-cicd EVENTS | --check-cicd-mutants EVENTS NEW_OUTPUT | --audit EVENTS | --check-protocol-mutants EVENTS NEW_OUTPUT | --audit RUN VERIFIER | --check-mutants RUN NEW_OUTPUT VERIFIER".into()),
     }
     Ok(())
 }

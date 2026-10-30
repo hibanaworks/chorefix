@@ -7,9 +7,16 @@ publish = false
 license = "MIT OR Apache-2.0"
 
 [dependencies]
+choreofix-inputs = { path = "../inputs" }
+pyo3 = { version = "=0.30.1", default-features = false }
 serde_json = "=1.0.154"
 sha2 = "=0.10.9"
-tokio = { version = "=1.53.3", features = ["rt", "macros", "process", "io-util", "sync", "time"] }
+tokio = { version = "=1.53.3", features = ["rt", "macros", "process", "io-util", "sync", "time", "net"] }
+
+[dev-dependencies]
+http-body-util = { version = "=0.1.5", default-features = false }
+hyper = { version = "=1.12.0", default-features = false, features = ["server", "http1"] }
+hyper-util = { version = "=0.1.21", default-features = false, features = ["tokio"] }
 
 [lints.rust]
 unsafe_code = "forbid"

@@ -11,11 +11,11 @@ pub async fn run_3e<D: Domain>(domain: &D) -> Result<Vec<serde_json::Value>, Run
     let review_a = ReviewInput::default();
     let review_b = ReviewInput::default();
     let mut slab = vec![0; 256 * 1024];
-    let mut storage = SessionKitStorage::<InMemoryTransport>::uninit();
+    let carrier = InMemoryTransport::new([]);
+    let mut storage = SessionKitStorage::<&InMemoryTransport>::uninit();
     let kit = storage.init();
-    let carrier = InMemoryTransport::new();
     let rv = kit
-        .rendezvous(&mut slab, carrier.clone())
+        .rendezvous(&mut slab, &carrier)
         .map_err(RunError::Attach)?;
     rv.set_resolver(
         &p.editor,

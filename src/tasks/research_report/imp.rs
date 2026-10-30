@@ -1,6 +1,6 @@
 use hibana::runtime::resolver::{DecisionArm, ResolverError};
 use serde_json::Value;
-use std::cell::RefCell;
+use std::cell::Cell;
 
 /// The actual requested tool and, for review, its requested section.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -26,23 +26,21 @@ pub trait Domain {
     ) -> impl Future<Output = Result<Value, String>>;
 }
 #[derive(Default)]
-pub(crate) struct ReviewInput(RefCell<Option<Value>>);
+pub(crate) struct ReviewInput(Cell<Option<Value>>);
 impl ReviewInput {
     pub(crate) fn record(&self, result: Value) {
         self.0.replace(Some(result));
     }
 }
 pub(crate) fn decide(input: &ReviewInput) -> Result<DecisionArm, ResolverError> {
-    match input
-        .0
-        .borrow()
-        .as_ref()
-        .and_then(|r| r["success"].as_bool())
-    {
+    let result = input.0.take();
+    let decision = match result.as_ref().and_then(|r| r["success"].as_bool()) {
         Some(true) => Ok(DecisionArm::Left),
         Some(false) => Ok(DecisionArm::Right),
         None => Err(ResolverError::reject()),
-    }
+    };
+    input.0.set(result);
+    decision
 }
 pub(crate) fn succeeded(result: &Value) -> Result<(), crate::RunError<String>> {
     match result["success"].as_bool() {

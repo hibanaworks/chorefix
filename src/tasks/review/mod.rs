@@ -31,10 +31,11 @@ pub async fn run_6e<D: Domain>(domain: &D) -> Result<(), RunError<String>> {
     let input_a = ReviewInput::default();
     let input_b = ReviewInput::default();
     let mut slab = vec![0; 128 * 1024];
-    let mut storage = SessionKitStorage::<InMemoryTransport>::uninit();
+    let transport_storage = InMemoryTransport::new([]);
+    let mut storage = SessionKitStorage::<&InMemoryTransport>::uninit();
     let kit = storage.init();
     let rendezvous = kit
-        .rendezvous(&mut slab, InMemoryTransport::new())
+        .rendezvous(&mut slab, &transport_storage)
         .map_err(RunError::Attach)?;
     rendezvous
         .set_resolver(

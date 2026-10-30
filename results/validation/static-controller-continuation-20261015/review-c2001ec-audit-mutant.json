@@ -1,6 +1,0 @@
-{
-  "mutation": "remove last recorded domain_end from depth2",
-  "expected": "rejected incomplete domain RPC",
-  "returncode": 1,
-  "status": "passed"
-}

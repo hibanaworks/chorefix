@@ -4,7 +4,6 @@ use crate::{
 };
 use serde_json::{Map, Value, json};
 use std::{
-    collections::BTreeSet,
     fs,
     path::{Path, PathBuf},
     process::Command,
@@ -22,71 +21,6 @@ fn files(path: &Path, result: &mut Vec<PathBuf>) -> Result<()> {
         } else if entry.file_type()?.is_file() {
             result.push(entry.path());
         }
-    }
-    Ok(())
-}
-
-pub fn verify_upstream(source: &Path) -> Result<()> {
-    let manifest: Value =
-        serde_json::from_slice(&fs::read(source.join("benchmark/upstream-manifest.json"))?)?;
-    let tasks = manifest["tasks"].as_array().ok_or("upstream tasks")?;
-    if tasks.len() != 48 {
-        return Err("upstream task set changed".into());
-    }
-    let mut expected = BTreeSet::new();
-    for mapping in tasks
-        .iter()
-        .map(|v| &v["files"])
-        .chain(std::iter::once(&manifest["simulator_files"]))
-    {
-        for (relative, hash) in mapping.as_object().ok_or("upstream file hashes")? {
-            let path = source.join("vendor/tracefix").join(relative);
-            if json!(digest(&path)?) != *hash {
-                return Err(format!("upstream bytes differ: {relative}").into());
-            }
-            expected.insert(path);
-        }
-    }
-    let mut actual = Vec::new();
-    let mut ids = BTreeSet::new();
-    for task in tasks {
-        let id = task["id"].as_str().ok_or("upstream task id")?;
-        ids.insert(id.to_owned());
-        for directory in ["descriptions", "environments"] {
-            files(
-                &source
-                    .join("vendor/tracefix/benchmark")
-                    .join(directory)
-                    .join(id),
-                &mut actual,
-            )?;
-        }
-    }
-    let actual_ids: BTreeSet<_> =
-        fs::read_dir(source.join("vendor/tracefix/benchmark/descriptions"))?
-            .filter_map(|e| match e {
-                Ok(e) if e.path().is_dir() => {
-                    Some(Ok(e.file_name().to_string_lossy().into_owned()))
-                }
-                Ok(_) => None,
-                Err(e) => Some(Err(e)),
-            })
-            .collect::<std::io::Result<_>>()?;
-    if ids != actual_ids {
-        return Err("upstream task directories changed".into());
-    }
-    files(&source.join("vendor/tracefix/benchmark/tools"), &mut actual)?;
-    // The upstream manifest inventories every description/environment input and
-    // every Python simulator file; package documentation is outside that scope.
-    let actual: BTreeSet<_> = actual
-        .into_iter()
-        .filter(|p| {
-            !p.starts_with(source.join("vendor/tracefix/benchmark/tools"))
-                || p.extension().is_some_and(|e| e == "py")
-        })
-        .collect();
-    if actual != expected {
-        return Err("upstream file set changed".into());
     }
     Ok(())
 }
@@ -154,7 +88,7 @@ pub fn qualification(source: &Path, task: &str) -> Result<Value> {
 }
 
 pub fn freeze(task: &str, output: &Path) -> Result<Value> {
-    verify_upstream(Path::new("."))?;
+    choreofix_inputs::verify_benchmark(Path::new("."))?;
     let qualification = qualification(Path::new("."), task)?;
     let case = &qualification["cases"][task];
     let runtime = case["runtime_path"].as_str().ok_or("runtime path")?;
@@ -170,6 +104,7 @@ pub fn freeze(task: &str, output: &Path) -> Result<Value> {
     for directory in [
         "src",
         "tools/runner",
+        "tools/inputs",
         "vendor/hibana-wash/src",
         "vendor/tracefix/benchmark",
     ] {
@@ -184,7 +119,6 @@ pub fn freeze(task: &str, output: &Path) -> Result<Value> {
             "requirements.lock",
             "AGENTS.md",
             "plan.md",
-            "tools/original_simulator.py",
             "benchmark/upstream-manifest.json",
             "benchmark/experiment-contract.json",
             "vendor/hibana-wash/Cargo.toml",
@@ -237,8 +171,9 @@ pub fn freeze(task: &str, output: &Path) -> Result<Value> {
         "runtime_source_revision":qualification["source_revision"],
         "qualification_sha256":digest(Path::new(QUALIFICATION))?,
         "wash":command("git", &["-C","vendor/hibana-wash","rev-parse","HEAD"])?,
-        "compiler":command("rustc", &["+1.95.0","-Vv"])?,
-        "python":command(".venv/bin/python", &["-VV"])?,
+        "host_toolchain":command("rustc", &["+stable","-Vv"])?,
+        "runtime_build_toolchain":qualification["compiler"],
+        "upstream_interpreter":crate::oracle::interpreter_identity()?,
         "model_client":command(model::CLI, &["--version"])?,
         "model_client_sha256":digest(Path::new(model::CLI))?,
         "binaries":binaries,
@@ -250,22 +185,8 @@ pub fn freeze(task: &str, output: &Path) -> Result<Value> {
     }
     fs::write(
         output.join("dependency-tree.txt"),
-        command("cargo", &["+1.95.0", "tree", "--locked", "-i", "hibana"])?,
+        command("cargo", &["+stable", "tree", "--locked", "-i", "hibana"])?,
     )?;
     save(&output.join("versions.json"), &versions)?;
     Ok(versions)
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn original_manifest_scope_matches_all_48_task_directories_and_simulators() {
-        super::verify_upstream(
-            &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("../..")
-                .canonicalize()
-                .unwrap(),
-        )
-        .unwrap();
-    }
 }

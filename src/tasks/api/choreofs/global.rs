@@ -1,6 +1,6 @@
 //! Task 8E: actual WASI requests, physical resources and result-file reads.
 use hibana::{
-    g,
+    Endpoint, g,
     runtime::program::{Projectable, RoleProgram, project},
 };
 use hibana_wasip1_runtime::protocol;
@@ -19,6 +19,8 @@ pub const ADMIN_OUTCOME: u8 = 11;
 pub const BACKEND_OUTCOME: u8 = 12;
 pub const ADMIN_OUTCOME_VM: u8 = 13;
 pub const BACKEND_OUTCOME_VM: u8 = 14;
+pub const DATABASE_RESOURCE: u8 = 15;
+pub const TEST_RESOURCE: u8 = 16;
 pub const CHECK_ADMIN: u16 = 680;
 pub const CHECK_BACKEND: u16 = 681;
 pub const CHECK_TESTER: u16 = 682;
@@ -30,10 +32,10 @@ pub const OUTCOME_PATH: &[u8] = b"service/outcome";
 pub const OUTCOME_FD: u8 = 16;
 pub type Open = g::Msg<100, protocol::PathOpenReq>;
 pub type Opened = g::Msg<101, protocol::PathOpenedRet>;
-pub type Write = g::Msg<102, protocol::FdWriteReq>;
+pub type Write = g::Msg<102, protocol::FdWriteObjectReq>;
 pub type Written = g::Msg<103, protocol::FdWriteDoneRet>;
 pub type Commit = g::Msg<104, protocol::FdCloseReq>;
-pub type Admitted = g::Msg<105, ()>;
+pub type Admitted<'a> = g::Msg<105, &'a [u8]>;
 pub type Rejected<'a> = g::Msg<106, &'a [u8]>;
 pub type ResultBytes<'a> = g::Msg<107, &'a [u8]>;
 pub type Unavailable = g::Msg<109, protocol::FdClosedRet>;
@@ -43,10 +45,11 @@ pub type Request = g::Msg<112, ()>;
 pub type RejectRequest = g::Msg<113, ()>;
 pub type Effect = g::Msg<115, ()>;
 pub type ServiceExit = g::Msg<241, i32>;
-pub type Acquire = g::Msg<10, ()>;
-pub type Granted = g::Msg<11, ()>;
-pub type Return = g::Msg<12, ()>;
-pub type Returned = g::Msg<13, ()>;
+pub type Loan<'r, const RESOURCE: u8> = g::Msg<10, Endpoint<'r, RESOURCE>>;
+pub type MigrationRequest = g::Msg<20, super::imp::ApiArguments<{ super::imp::MIGRATE }>>;
+pub type MigrationCompleted<'a> = g::Msg<21, &'a [u8]>;
+pub type TestRequest = g::Msg<22, super::imp::ApiArguments<{ super::imp::TEST }>>;
+pub type TestCompleted<'a> = g::Msg<23, &'a [u8]>;
 pub type MigrationDone = g::Msg<40, ()>;
 pub type BackendReady = g::Msg<41, ()>;
 pub type PassedAdmin<'a> = g::Msg<50, &'a [u8]>;
@@ -63,6 +66,8 @@ pub type OutcomeFileStat = g::Msg<156, protocol::FdFilestatGetReq>;
 pub type OutcomeFileStatDone = g::Msg<157, protocol::FdFilestatRet>;
 pub type OutcomeClose = g::Msg<158, protocol::FdCloseReq>;
 pub type OutcomeClosed = g::Msg<159, protocol::FdClosedRet>;
+pub type OutcomePathStat = g::Msg<160, protocol::PathFilestatGetReq>;
+pub type OutcomePathStatDone = g::Msg<161, protocol::PathFilestatRet>;
 pub type OutcomeExit = g::Msg<242, i32>;
 fn requests<const VM: u8, const OWNER: u8, const CHECK: u16>() -> impl Projectable {
     g::seq(
@@ -81,7 +86,7 @@ fn requests<const VM: u8, const OWNER: u8, const CHECK: u16>() -> impl Projectab
                         g::route(
                             g::seq(
                                 g::send::<OWNER, OWNER, Validate>(),
-                                g::send::<OWNER, VM, Admitted>(),
+                                g::send::<OWNER, VM, Admitted<'static>>(),
                             ),
                             g::send::<OWNER, VM, Rejected<'static>>(),
                         )
@@ -142,12 +147,9 @@ fn outcome_io<const VM: u8, const OWNER: u8>() -> impl Projectable {
                         g::send::<VM, OWNER, OutcomeFileStat>(),
                         g::send::<OWNER, VM, OutcomeFileStatDone>(),
                     ),
-                    g::route(
-                        g::seq(
-                            g::send::<VM, OWNER, OutcomeClose>(),
-                            g::send::<OWNER, VM, OutcomeClosed>(),
-                        ),
-                        g::send::<VM, OWNER, OutcomeExit>(),
+                    g::seq(
+                        g::send::<VM, OWNER, OutcomeClose>(),
+                        g::send::<OWNER, VM, OutcomeClosed>(),
                     ),
                 ),
             ),
@@ -162,6 +164,8 @@ pub struct Programs {
     pub tester: RoleProgram<TESTER>,
     pub database: RoleProgram<DATABASE>,
     pub test_env: RoleProgram<TEST_ENV>,
+    pub database_resource: RoleProgram<DATABASE_RESOURCE>,
+    pub test_resource: RoleProgram<TEST_RESOURCE>,
     pub admin_vm: RoleProgram<ADMIN_VM>,
     pub backend_vm: RoleProgram<BACKEND_VM>,
     pub tester_vm: RoleProgram<TESTER_VM>,
@@ -177,20 +181,14 @@ pub fn programs() -> Programs {
     let migration = g::seq(
         requests::<ADMIN_VM, ADMIN, CHECK_ADMIN>(),
         g::seq(
-            g::send::<ADMIN, DATABASE, Acquire>(),
+            g::send::<DATABASE, ADMIN_VM, Loan<'_, DATABASE_RESOURCE>>(),
             g::seq(
-                g::send::<DATABASE, ADMIN, Granted>(),
+                g::send::<DATABASE_RESOURCE, ADMIN, MigrationRequest>(),
                 g::seq(
-                    g::send::<ADMIN, ADMIN, Effect>(),
+                    g::send::<ADMIN, DATABASE_RESOURCE, MigrationCompleted<'static>>(),
                     g::seq(
-                        g::send::<ADMIN, DATABASE, Return>(),
-                        g::seq(
-                            g::send::<DATABASE, ADMIN, Returned>(),
-                            g::seq(
-                                g::send::<ADMIN, ADMIN_VM, ResultBytes<'static>>(),
-                                g::send::<ADMIN, BACKEND, MigrationDone>(),
-                            ),
-                        ),
+                        g::send::<ADMIN_VM, DATABASE, Loan<'_, DATABASE_RESOURCE>>(),
+                        g::send::<ADMIN, BACKEND, MigrationDone>(),
                     ),
                 ),
             ),
@@ -209,18 +207,12 @@ pub fn programs() -> Programs {
     let test = g::seq(
         requests::<TESTER_VM, TESTER, CHECK_TESTER>(),
         g::seq(
-            g::send::<TESTER, TEST_ENV, Acquire>(),
+            g::send::<TEST_ENV, TESTER_VM, Loan<'_, TEST_RESOURCE>>(),
             g::seq(
-                g::send::<TEST_ENV, TESTER, Granted>(),
+                g::send::<TEST_RESOURCE, TESTER, TestRequest>(),
                 g::seq(
-                    g::send::<TESTER, TESTER, Effect>(),
-                    g::seq(
-                        g::send::<TESTER, TEST_ENV, Return>(),
-                        g::seq(
-                            g::send::<TEST_ENV, TESTER, Returned>(),
-                            g::send::<TESTER, TESTER_VM, ResultBytes<'static>>(),
-                        ),
-                    ),
+                    g::send::<TESTER, TEST_RESOURCE, TestCompleted<'static>>(),
+                    g::send::<TESTER_VM, TEST_ENV, Loan<'_, TEST_RESOURCE>>(),
                 ),
             ),
         ),
@@ -269,13 +261,33 @@ pub fn programs() -> Programs {
             outcome_io::<BACKEND_OUTCOME_VM, BACKEND_OUTCOME>(),
         ),
     );
-    let global = g::par(results, private);
+    let metadata = g::par(
+        g::route(
+            g::seq(
+                g::send::<ADMIN_IO, ADMIN_OUTCOME, OutcomePathStat>(),
+                g::send::<ADMIN_OUTCOME, ADMIN_IO, OutcomePathStatDone>(),
+            ),
+            g::send::<ADMIN_IO, ADMIN_OUTCOME, OutcomeExit>(),
+        )
+        .roll(),
+        g::route(
+            g::seq(
+                g::send::<BACKEND_IO, BACKEND_OUTCOME, OutcomePathStat>(),
+                g::send::<BACKEND_OUTCOME, BACKEND_IO, OutcomePathStatDone>(),
+            ),
+            g::send::<BACKEND_IO, BACKEND_OUTCOME, OutcomeExit>(),
+        )
+        .roll(),
+    );
+    let global = g::par(results, g::par(private, metadata));
     Programs {
         admin: project(&global),
         backend: project(&global),
         tester: project(&global),
         database: project(&global),
         test_env: project(&global),
+        database_resource: project(&global),
+        test_resource: project(&global),
         admin_vm: project(&global),
         backend_vm: project(&global),
         tester_vm: project(&global),

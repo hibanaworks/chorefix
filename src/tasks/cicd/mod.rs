@@ -10,10 +10,11 @@ use hibana::runtime::{SessionKitStorage, ids::SessionId};
 pub async fn run_16e<D: Domain>(domain: &D) -> Result<(), RunError<String>> {
     let programs = global::project_16e();
     let mut slab = vec![0; 32 * 1024];
-    let mut storage = SessionKitStorage::<InMemoryTransport>::uninit();
+    let transport_storage = InMemoryTransport::new([]);
+    let mut storage = SessionKitStorage::<&InMemoryTransport>::uninit();
     let kit = storage.init();
     let rendezvous = kit
-        .rendezvous(&mut slab, InMemoryTransport::new())
+        .rendezvous(&mut slab, &transport_storage)
         .map_err(RunError::Attach)?;
     let session = SessionId::new(1);
     let mut developer = rendezvous

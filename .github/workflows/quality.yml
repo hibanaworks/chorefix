@@ -11,6 +11,8 @@ jobs:
     env:
       CARGO_INCREMENTAL: '0'
       CARGO_BUILD_JOBS: '2'
+      PYTHONHASHSEED: '0'
+      PYO3_PYTHON: ${{ github.workspace }}/.venv/bin/python
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -20,73 +22,89 @@ jobs:
           python-version: '3.14'
       - name: Install Rust and the guest target
         run: |
-          rustup toolchain install 1.95.0 --profile minimal --component clippy --component rustfmt
-          rustup target add --toolchain 1.95.0 wasm32-wasip1
+          rustup toolchain install stable --profile minimal --component clippy --component rustfmt
+          rustup target add --toolchain stable wasm32-wasip1
       - name: Restore the recorded upstream sources
-        run: python tools/bootstrap_upstream.py
+        run: cargo +stable run --locked --manifest-path tools/inputs/Cargo.toml -- restore
       - name: Install the locked Python environment
         run: |
           python -m venv .venv
           .venv/bin/python -m pip install -r requirements.lock
       - name: Check projected task implementations
         run: |
-          cargo +1.95.0 fmt --check
-          cargo +1.95.0 fmt --manifest-path tools/runner/Cargo.toml --check
-          cargo +1.95.0 test --locked --manifest-path tools/runner/Cargo.toml
-          cargo +1.95.0 clippy --locked --manifest-path tools/runner/Cargo.toml --all-targets -- -D warnings
-          cargo +1.95.0 fmt --manifest-path guests/shell/Cargo.toml --check
-          cargo +1.95.0 fmt --manifest-path vendor/hibana-wash/Cargo.toml --check
-          cargo +1.95.0 test --locked --manifest-path vendor/hibana-wash/Cargo.toml --lib
-          cargo +1.95.0 test --locked
-          cargo +1.95.0 clippy --locked --all-targets -- -D warnings
-          cargo +1.95.0 clippy --locked --manifest-path guests/shell/Cargo.toml --target wasm32-wasip1 --release -- -D warnings
-          cargo +1.95.0 clippy --locked --manifest-path vendor/hibana-wash/Cargo.toml --target wasm32-wasip1 --release -- -D warnings
+          cargo +stable fmt --check
+          cargo +stable fmt --manifest-path tools/inputs/Cargo.toml --check
+          cargo +stable test --locked --manifest-path tools/inputs/Cargo.toml
+          cargo +stable clippy --locked --manifest-path tools/inputs/Cargo.toml --all-targets -- -D warnings
+          cargo +stable fmt --manifest-path tools/runner/Cargo.toml --check
+          cargo +stable test --locked --manifest-path tools/runner/Cargo.toml
+          cargo +stable clippy --locked --manifest-path tools/runner/Cargo.toml --all-targets -- -D warnings
+          cargo +stable fmt --manifest-path vendor/hibana-wash/Cargo.toml --check
+          cargo +stable test --locked --manifest-path vendor/hibana-wash/Cargo.toml --lib
+          cargo +stable test --locked
+          cargo +stable clippy --locked --all-targets -- -D warnings
+          cargo +stable clippy --locked --manifest-path vendor/hibana-wash/Cargo.toml --target wasm32-wasip1 --release -- -D warnings
       - name: Check the actual WASI and task effect boundary
         run: |
+          find src tests -type f -name '*.rs' -print0 | sort -z | xargs -0 sha256sum > cicd-source-before.sha256
+          sha256sum Cargo.toml Cargo.lock >> cicd-source-before.sha256
           bash tools/build_shell.sh
+          find src tests -type f -name '*.rs' -print0 | sort -z | xargs -0 sha256sum > cicd-source-after.sha256
+          sha256sum Cargo.toml Cargo.lock >> cicd-source-after.sha256
+          cmp cicd-source-before.sha256 cicd-source-after.sha256
+          jq -n \
+            --arg binary_sha256 "$(sha256sum target/debug/cicd-wasi | cut -d ' ' -f 1)" \
+            --arg source_manifest_sha256 "$(sha256sum cicd-source-after.sha256 | cut -d ' ' -f 1)" \
+            '{binary_sha256:$binary_sha256,source_manifest_sha256:$source_manifest_sha256,source_unchanged:true,scored_benchmark:false}' > cicd-build-receipt.json
+          CHOREOFIX_CICD_WASI_BINARY="$PWD/target/debug/cicd-wasi" \
+            CHOREOFIX_CICD_BUILD_RECEIPT="$PWD/cicd-build-receipt.json" \
+            CHOREOFIX_EVIDENCE_ROOT="$PWD/output/cicd-boundary" \
+            cargo +stable test --locked --manifest-path tools/runner/Cargo.toml cicd_boundary:: -- --ignored --test-threads=1 --nocapture
           for depth in 0 1 2; do
-            cargo +1.95.0 run --locked --bin api-boundary -- "$depth" "api-boundary-depth$depth"
-            cargo +1.95.0 run --locked --bin api-boundary -- --check-mutants "api-boundary-depth$depth/events.jsonl" "api-boundary-depth$depth-mutants"
+            cargo +stable run --locked --bin api-boundary -- "$depth" "api-boundary-depth$depth"
+            cargo +stable run --locked --bin api-boundary -- --check-mutants "api-boundary-depth$depth/events.jsonl" "api-boundary-depth$depth-mutants"
           done
-          cargo +1.95.0 run --locked --bin codebase-boundary -- 1E codebase-boundary-1E
-          cargo +1.95.0 run --locked --bin codebase-boundary -- --check-mutants codebase-boundary-1E/events.jsonl codebase-boundary-1E-mutants
-          cargo +1.95.0 run --locked --bin codebase-boundary -- 1M codebase-boundary-1M
-          cargo +1.95.0 run --locked --bin codebase-boundary -- --check-mutants codebase-boundary-1M/events.jsonl codebase-boundary-1M-mutants
-          cargo +1.95.0 run --locked --bin codebase-boundary -- 1E:terminal-test-failure codebase-boundary-terminal-test-failure
-          cargo +1.95.0 run --locked --bin codebase-boundary -- 1M:terminal-test-failure codebase-boundary-terminal-test-failure-1M
-          cargo +1.95.0 run --locked --bin writing-boundary -- 2E writing-boundary-2E
-          cargo +1.95.0 run --locked --bin writing-boundary -- --check-mutants writing-boundary-2E/events.jsonl writing-boundary-2E-mutants
-          cargo +1.95.0 run --locked --bin writing-boundary -- 2M writing-boundary-2M
-          cargo +1.95.0 run --locked --bin writing-boundary -- --check-mutants writing-boundary-2M/events.jsonl writing-boundary-2M-mutants
-          cargo +1.95.0 run --locked --bin writing-boundary -- 2H writing-boundary-2H
-          cargo +1.95.0 run --locked --bin writing-boundary -- --check-mutants writing-boundary-2H/events.jsonl writing-boundary-2H-mutants
-          cargo +1.95.0 run --locked --bin writing-boundary -- 2E:terminal-review-failure writing-boundary-terminal-review-failure
-          cargo +1.95.0 run --locked --bin philosophers-boundary -- 9E philosophers-boundary-9E
-          cargo +1.95.0 run --locked --bin philosophers-boundary -- --check-mutants philosophers-boundary-9E/events.jsonl philosophers-boundary-9E-mutants
-          cargo +1.95.0 run --locked --bin philosophers-boundary -- 9M philosophers-boundary-9M
-          cargo +1.95.0 run --locked --bin philosophers-boundary -- --check-mutants philosophers-boundary-9M/events.jsonl philosophers-boundary-9M-mutants
-          cargo +1.95.0 run --locked --bin philosophers-boundary -- 9H philosophers-boundary-9H
-          cargo +1.95.0 run --locked --bin philosophers-boundary -- --check-mutants philosophers-boundary-9H/events.jsonl philosophers-boundary-9H-mutants
-          CHOREOFIX_WRITING_RUNTIME="$PWD/target/debug/writing-wasi" cargo +1.95.0 test --locked --manifest-path tools/runner/Cargo.toml original_simulator_overlaps -- --ignored --nocapture
+          cargo +stable run --locked --bin codebase-boundary -- 1E codebase-boundary-1E
+          cargo +stable run --locked --bin codebase-boundary -- --check-mutants codebase-boundary-1E/events.jsonl codebase-boundary-1E-mutants
+          cargo +stable run --locked --bin codebase-boundary -- 1M codebase-boundary-1M
+          cargo +stable run --locked --bin codebase-boundary -- --check-mutants codebase-boundary-1M/events.jsonl codebase-boundary-1M-mutants
+          cargo +stable run --locked --bin codebase-boundary -- 1E:terminal-test-failure codebase-boundary-terminal-test-failure
+          cargo +stable run --locked --bin codebase-boundary -- 1M:terminal-test-failure codebase-boundary-terminal-test-failure-1M
+          jq -n \
+            --arg binary_sha256 "$(sha256sum target/debug/writing-wasi | cut -d ' ' -f 1)" \
+            --arg source_manifest_sha256 "$(sha256sum cicd-source-after.sha256 | cut -d ' ' -f 1)" \
+            '{binary_sha256:$binary_sha256,source_manifest_sha256:$source_manifest_sha256,source_unchanged:true,scored_benchmark:false}' > writing-build-receipt.json
+          CHOREOFIX_WRITING_WASI_BINARY="$PWD/target/debug/writing-wasi" \
+            CHOREOFIX_WRITING_BUILD_RECEIPT="$PWD/writing-build-receipt.json" \
+            CHOREOFIX_EVIDENCE_ROOT="$PWD/output/writing-boundary" \
+            cargo +stable test --locked --manifest-path tools/runner/Cargo.toml writing_boundary:: -- --ignored --test-threads=1 --nocapture
+          cargo +stable run --locked --bin philosophers-boundary -- 9E philosophers-boundary-9E
+          cargo +stable run --locked --bin philosophers-boundary -- --check-mutants philosophers-boundary-9E/events.jsonl philosophers-boundary-9E-mutants
+          cargo +stable run --locked --bin philosophers-boundary -- 9M philosophers-boundary-9M
+          cargo +stable run --locked --bin philosophers-boundary -- --check-mutants philosophers-boundary-9M/events.jsonl philosophers-boundary-9M-mutants
+          cargo +stable run --locked --bin philosophers-boundary -- 9H philosophers-boundary-9H
+          cargo +stable run --locked --bin philosophers-boundary -- --check-mutants philosophers-boundary-9H/events.jsonl philosophers-boundary-9H-mutants
+          CHOREOFIX_WRITING_RUNTIME="$PWD/target/debug/writing-wasi" cargo +stable test --locked --manifest-path tools/runner/Cargo.toml original_simulator_overlaps -- --ignored --nocapture
           .venv/bin/python -m py_compile tools/original_simulator.py tools/run_direct_wasi_preflight.py tools/audit_direct_wasi.py
           PYTHONPATH=. .venv/bin/pytest -q tests
-          .venv/bin/python tools/inventory.py --check
-          .venv/bin/python tools/runtime_inventory.py --check
-          .venv/bin/python tools/matrix.py
-          git diff --exit-code -- benchmark/matrix.jsonl benchmark/latest-matrix.jsonl
+          cargo +stable run --locked --manifest-path tools/inputs/Cargo.toml -- verify
+          cargo +stable run --locked --manifest-path tools/inputs/Cargo.toml -- matrix --check
       - name: Inspect hibana-wash imports and memory
         run: |
-          python vendor/hibana-wash/tools/profile.py vendor/hibana-wash/target/wasm32-wasip1/release/hibana-wash.wasm > wash-profile.json
-          python -c 'import json; p=json.load(open("wash-profile.json")); assert not p["non_wasi_imports"]; assert p["memories"] == [{"flags": 0, "minimum": 1}]'
+          cargo +stable run --locked --manifest-path tools/inputs/Cargo.toml -- wash vendor/hibana-wash/target/wasm32-wasip1/release/hibana-wash.wasm > wash-profile.json
       - name: Retain direct WASI boundary evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: direct-wasi-boundary
           path: |
-            writing-boundary-*/
+            output/writing-boundary/
+            writing-build-receipt.json
             codebase-boundary-*/
             philosophers-boundary-*/
             api-boundary-*/
             output/writing-rust-runner-probe*/
+            output/cicd-boundary/
+            cicd-source-*.sha256
+            cicd-build-receipt.json
           if-no-files-found: ignore

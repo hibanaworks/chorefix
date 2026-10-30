@@ -1,20 +1,15 @@
-//! A physical section has exactly its two projected loans, in global order.
+//! The same section endpoint returns before it is lent to its next writer.
+use super::super::global::Loan;
 use crate::shell::ShellResult;
-use crate::tasks::writing::global::SectionMessages;
 use hibana::Endpoint;
 
-pub(crate) async fn run<const ROLE: u8, M: SectionMessages>(
-    endpoint: &mut Endpoint<'_, ROLE>,
+pub(crate) async fn run<'r, const ROLE: u8, const RESOURCE: u8>(
+    endpoint: &mut Endpoint<'r, ROLE>,
+    resource: Endpoint<'r, RESOURCE>,
 ) -> ShellResult<()> {
-    endpoint.send::<M::Available>(&()).await?;
-    endpoint.recv::<M::Acquire>().await?;
-    endpoint.send::<M::Granted>(&()).await?;
-    endpoint.recv::<M::Return>().await?;
-    endpoint.send::<M::Returned>(&()).await?;
-    endpoint.send::<M::Available>(&()).await?;
-    endpoint.recv::<M::Acquire>().await?;
-    endpoint.send::<M::Granted>(&()).await?;
-    endpoint.recv::<M::Return>().await?;
-    endpoint.send::<M::Returned>(&()).await?;
+    endpoint.send::<Loan<'_, RESOURCE>>(resource).await?;
+    let resource = endpoint.recv::<Loan<'_, RESOURCE>>().await?;
+    endpoint.send::<Loan<'_, RESOURCE>>(resource).await?;
+    let _resource = endpoint.recv::<Loan<'_, RESOURCE>>().await?;
     Ok(())
 }

@@ -1,492 +1,295 @@
-//! Concurrent reconsideration with parallel requests and ordered grants.
+//! One repeated round orders competing loans while independent work overlaps.
 use super::*;
-pub trait Messages {
-    type AcquireSecond: g::Message<Payload = ()>;
+pub const DISPATCH: u8 = 200;
+pub const READY_A: u16 = 300;
+pub const READY_B: u16 = 301;
+pub const READY_C: u16 = 302;
+pub const READY_D: u16 = 303;
+pub const READY_E: u16 = 304;
+pub const READY_F: u16 = 305;
+pub const READY_G: u16 = 306;
+pub const ALL_TESTS: u16 = 206;
+pub type ChooseA = g::Msg<200, ()>;
+pub type ChooseB = g::Msg<201, ()>;
+pub type ChooseC = g::Msg<202, ()>;
+pub type ChooseD = g::Msg<203, ()>;
+pub type ChooseE = g::Msg<204, ()>;
+pub type ChooseF = g::Msg<205, ()>;
+pub type ChooseG = g::Msg<206, ()>;
+pub type LocalLane = g::Msg<208, ()>;
+pub type Complete = g::Msg<209, ()>;
+pub type Aborted = g::Msg<210, ()>;
+pub type SkipA = g::Msg<220, ()>;
+pub type SkipB = g::Msg<221, ()>;
+pub type SkipC = g::Msg<222, ()>;
+pub type SkipD = g::Msg<223, ()>;
+pub type SkipE = g::Msg<224, ()>;
+pub type SkipF = g::Msg<225, ()>;
+pub type SkipG = g::Msg<226, ()>;
+pub type SubmittedA = g::Msg<230, ()>;
+pub type SubmittedB = g::Msg<231, ()>;
+pub type SubmittedC = g::Msg<232, ()>;
+pub type SubmittedD = g::Msg<233, ()>;
+pub type SubmittedE = g::Msg<234, ()>;
+pub type SubmittedF = g::Msg<235, ()>;
+pub type SubmittedG = g::Msg<236, ()>;
+
+pub type FinishA = g::Msg<40, ()>;
+pub type DoneA = g::Msg<50, ()>;
+pub type AbortA = g::Msg<60, ()>;
+pub type FinishB = g::Msg<41, ()>;
+pub type DoneB = g::Msg<51, ()>;
+pub type AbortB = g::Msg<61, ()>;
+pub type FinishC = g::Msg<42, ()>;
+pub type DoneC = g::Msg<52, ()>;
+pub type AbortC = g::Msg<62, ()>;
+pub type FinishD = g::Msg<43, ()>;
+pub type DoneD = g::Msg<53, ()>;
+pub type AbortD = g::Msg<63, ()>;
+pub type FinishE = g::Msg<44, ()>;
+pub type DoneE = g::Msg<54, ()>;
+pub type AbortE = g::Msg<64, ()>;
+pub type FinishF = g::Msg<45, ()>;
+pub type DoneF = g::Msg<55, ()>;
+pub type AbortF = g::Msg<65, ()>;
+pub type FinishG = g::Msg<46, ()>;
+pub type DoneG = g::Msg<56, ()>;
+pub type AbortG = g::Msg<66, ()>;
+// Every potentially competing operation has one message identity.
+pub trait Loan: g::Message<Payload = ()> {
+    type Local: g::Message<Payload = ()>;
+    type AvailableFirst: g::Message<Payload = ()>;
+    type AvailableSecond: g::Message<Payload = ()>;
     type AcquireFirst: g::Message<Payload = ()>;
-    type Handoff: g::Message<Payload = ()>;
-    type SecondReady: g::Message<Payload = ()>;
+    type AcquireSecond: g::Message<Payload = ()>;
     type GrantedFirst: g::Message<Payload = ()>;
-    type ConfirmSecond: g::Message<Payload = ()>;
     type GrantedSecond: g::Message<Payload = ()>;
     type ReturnFirst: g::Message<Payload = ()>;
-    type ReturnedFirst: g::Message<Payload = ()>;
     type ReturnSecond: g::Message<Payload = ()>;
+    type ReturnedFirst: g::Message<Payload = ()>;
     type ReturnedSecond: g::Message<Payload = ()>;
-    type CloseFirst: g::Message<Payload = ()>;
-    type CloseHandoff: g::Message<Payload = ()>;
-    type ClosePrimed: g::Message<Payload = ()>;
-    type CloseFirstRequest: g::Message<Payload = ()>;
-    type CloseSecondRequest: g::Message<Payload = ()>;
-    type ClosedFirst: g::Message<Payload = ()>;
-    type ClosedSecond: g::Message<Payload = ()>;
-    type DoneFirst: g::Message<Payload = ()>;
-    type DoneSecond: g::Message<Payload = ()>;
-    type AbortFirst: g::Message<Payload = ()>;
-    type AbortSecond: g::Message<Payload = ()>;
-    type Finished: g::Message<Payload = ()>;
-    type Aborted: g::Message<Payload = ()>;
 }
-pub mod a {
-    use hibana::g;
-    pub type AcquireSecond = g::Msg<16, ()>;
-    pub type AcquireFirst = g::Msg<17, ()>;
-    pub type Handoff = g::Msg<18, ()>;
-    pub type SecondReady = g::Msg<19, ()>;
-    pub type GrantedFirst = g::Msg<20, ()>;
-    pub type ConfirmSecond = g::Msg<21, ()>;
-    pub type GrantedSecond = g::Msg<22, ()>;
-    pub type ReturnFirst = g::Msg<23, ()>;
-    pub type ReturnedFirst = g::Msg<24, ()>;
-    pub type ReturnSecond = g::Msg<25, ()>;
-    pub type ReturnedSecond = g::Msg<26, ()>;
-    pub type CloseFirst = g::Msg<27, ()>;
-    pub type CloseHandoff = g::Msg<28, ()>;
-    pub type ClosePrimed = g::Msg<29, ()>;
-    pub type CloseFirstRequest = g::Msg<30, ()>;
-    pub type CloseSecondRequest = g::Msg<31, ()>;
-    pub type ClosedFirst = g::Msg<32, ()>;
-    pub type ClosedSecond = g::Msg<33, ()>;
-    pub type DoneFirst = g::Msg<34, ()>;
-    pub type DoneSecond = g::Msg<35, ()>;
-    pub type AbortFirst = g::Msg<36, ()>;
-    pub type AbortSecond = g::Msg<37, ()>;
-    pub type Finished = g::Msg<38, ()>;
-    pub type Aborted = g::Msg<39, ()>;
+impl Loan for ChooseA {
+    type Local = g::Msg<70, ()>;
+    type AvailableFirst = g::Msg<71, ()>;
+    type AvailableSecond = g::Msg<72, ()>;
+    type AcquireFirst = g::Msg<73, ()>;
+    type AcquireSecond = g::Msg<74, ()>;
+    type GrantedFirst = g::Msg<75, ()>;
+    type GrantedSecond = g::Msg<76, ()>;
+    type ReturnFirst = g::Msg<77, ()>;
+    type ReturnSecond = g::Msg<78, ()>;
+    type ReturnedFirst = g::Msg<79, ()>;
+    type ReturnedSecond = g::Msg<80, ()>;
 }
-pub struct LoanA;
-impl Messages for LoanA {
-    type AcquireSecond = a::AcquireSecond;
-    type AcquireFirst = a::AcquireFirst;
-    type Handoff = a::Handoff;
-    type SecondReady = a::SecondReady;
-    type GrantedFirst = a::GrantedFirst;
-    type ConfirmSecond = a::ConfirmSecond;
-    type GrantedSecond = a::GrantedSecond;
-    type ReturnFirst = a::ReturnFirst;
-    type ReturnedFirst = a::ReturnedFirst;
-    type ReturnSecond = a::ReturnSecond;
-    type ReturnedSecond = a::ReturnedSecond;
-    type CloseFirst = a::CloseFirst;
-    type CloseHandoff = a::CloseHandoff;
-    type ClosePrimed = a::ClosePrimed;
-    type CloseFirstRequest = a::CloseFirstRequest;
-    type CloseSecondRequest = a::CloseSecondRequest;
-    type ClosedFirst = a::ClosedFirst;
-    type ClosedSecond = a::ClosedSecond;
-    type DoneFirst = a::DoneFirst;
-    type DoneSecond = a::DoneSecond;
-    type AbortFirst = a::AbortFirst;
-    type AbortSecond = a::AbortSecond;
-    type Finished = a::Finished;
-    type Aborted = a::Aborted;
+impl Loan for ChooseB {
+    type Local = g::Msg<81, ()>;
+    type AvailableFirst = g::Msg<82, ()>;
+    type AvailableSecond = g::Msg<83, ()>;
+    type AcquireFirst = g::Msg<84, ()>;
+    type AcquireSecond = g::Msg<85, ()>;
+    type GrantedFirst = g::Msg<86, ()>;
+    type GrantedSecond = g::Msg<87, ()>;
+    type ReturnFirst = g::Msg<88, ()>;
+    type ReturnSecond = g::Msg<89, ()>;
+    type ReturnedFirst = g::Msg<90, ()>;
+    type ReturnedSecond = g::Msg<91, ()>;
 }
-pub mod b {
-    use hibana::g;
-    pub type AcquireSecond = g::Msg<48, ()>;
-    pub type AcquireFirst = g::Msg<49, ()>;
-    pub type Handoff = g::Msg<50, ()>;
-    pub type SecondReady = g::Msg<51, ()>;
-    pub type GrantedFirst = g::Msg<52, ()>;
-    pub type ConfirmSecond = g::Msg<53, ()>;
-    pub type GrantedSecond = g::Msg<54, ()>;
-    pub type ReturnFirst = g::Msg<55, ()>;
-    pub type ReturnedFirst = g::Msg<56, ()>;
-    pub type ReturnSecond = g::Msg<57, ()>;
-    pub type ReturnedSecond = g::Msg<58, ()>;
-    pub type CloseFirst = g::Msg<59, ()>;
-    pub type CloseHandoff = g::Msg<60, ()>;
-    pub type ClosePrimed = g::Msg<61, ()>;
-    pub type CloseFirstRequest = g::Msg<62, ()>;
-    pub type CloseSecondRequest = g::Msg<63, ()>;
-    pub type ClosedFirst = g::Msg<64, ()>;
-    pub type ClosedSecond = g::Msg<65, ()>;
-    pub type DoneFirst = g::Msg<66, ()>;
-    pub type DoneSecond = g::Msg<67, ()>;
-    pub type AbortFirst = g::Msg<68, ()>;
-    pub type AbortSecond = g::Msg<69, ()>;
-    pub type Finished = g::Msg<70, ()>;
-    pub type Aborted = g::Msg<71, ()>;
+impl Loan for ChooseC {
+    type Local = g::Msg<92, ()>;
+    type AvailableFirst = g::Msg<93, ()>;
+    type AvailableSecond = g::Msg<94, ()>;
+    type AcquireFirst = g::Msg<95, ()>;
+    type AcquireSecond = g::Msg<96, ()>;
+    type GrantedFirst = g::Msg<97, ()>;
+    type GrantedSecond = g::Msg<98, ()>;
+    type ReturnFirst = g::Msg<99, ()>;
+    type ReturnSecond = g::Msg<100, ()>;
+    type ReturnedFirst = g::Msg<101, ()>;
+    type ReturnedSecond = g::Msg<102, ()>;
 }
-pub struct LoanB;
-impl Messages for LoanB {
-    type AcquireSecond = b::AcquireSecond;
-    type AcquireFirst = b::AcquireFirst;
-    type Handoff = b::Handoff;
-    type SecondReady = b::SecondReady;
-    type GrantedFirst = b::GrantedFirst;
-    type ConfirmSecond = b::ConfirmSecond;
-    type GrantedSecond = b::GrantedSecond;
-    type ReturnFirst = b::ReturnFirst;
-    type ReturnedFirst = b::ReturnedFirst;
-    type ReturnSecond = b::ReturnSecond;
-    type ReturnedSecond = b::ReturnedSecond;
-    type CloseFirst = b::CloseFirst;
-    type CloseHandoff = b::CloseHandoff;
-    type ClosePrimed = b::ClosePrimed;
-    type CloseFirstRequest = b::CloseFirstRequest;
-    type CloseSecondRequest = b::CloseSecondRequest;
-    type ClosedFirst = b::ClosedFirst;
-    type ClosedSecond = b::ClosedSecond;
-    type DoneFirst = b::DoneFirst;
-    type DoneSecond = b::DoneSecond;
-    type AbortFirst = b::AbortFirst;
-    type AbortSecond = b::AbortSecond;
-    type Finished = b::Finished;
-    type Aborted = b::Aborted;
+impl Loan for ChooseD {
+    type Local = g::Msg<103, ()>;
+    type AvailableFirst = g::Msg<104, ()>;
+    type AvailableSecond = g::Msg<105, ()>;
+    type AcquireFirst = g::Msg<106, ()>;
+    type AcquireSecond = g::Msg<107, ()>;
+    type GrantedFirst = g::Msg<108, ()>;
+    type GrantedSecond = g::Msg<109, ()>;
+    type ReturnFirst = g::Msg<110, ()>;
+    type ReturnSecond = g::Msg<111, ()>;
+    type ReturnedFirst = g::Msg<112, ()>;
+    type ReturnedSecond = g::Msg<113, ()>;
 }
-pub mod c {
-    use hibana::g;
-    pub type AcquireSecond = g::Msg<80, ()>;
-    pub type AcquireFirst = g::Msg<81, ()>;
-    pub type Handoff = g::Msg<82, ()>;
-    pub type SecondReady = g::Msg<83, ()>;
-    pub type GrantedFirst = g::Msg<84, ()>;
-    pub type ConfirmSecond = g::Msg<85, ()>;
-    pub type GrantedSecond = g::Msg<86, ()>;
-    pub type ReturnFirst = g::Msg<87, ()>;
-    pub type ReturnedFirst = g::Msg<88, ()>;
-    pub type ReturnSecond = g::Msg<89, ()>;
-    pub type ReturnedSecond = g::Msg<90, ()>;
-    pub type CloseFirst = g::Msg<91, ()>;
-    pub type CloseHandoff = g::Msg<92, ()>;
-    pub type ClosePrimed = g::Msg<93, ()>;
-    pub type CloseFirstRequest = g::Msg<94, ()>;
-    pub type CloseSecondRequest = g::Msg<95, ()>;
-    pub type ClosedFirst = g::Msg<96, ()>;
-    pub type ClosedSecond = g::Msg<97, ()>;
-    pub type DoneFirst = g::Msg<98, ()>;
-    pub type DoneSecond = g::Msg<99, ()>;
-    pub type AbortFirst = g::Msg<100, ()>;
-    pub type AbortSecond = g::Msg<101, ()>;
-    pub type Finished = g::Msg<102, ()>;
-    pub type Aborted = g::Msg<103, ()>;
+impl Loan for ChooseE {
+    type Local = g::Msg<114, ()>;
+    type AvailableFirst = g::Msg<115, ()>;
+    type AvailableSecond = g::Msg<116, ()>;
+    type AcquireFirst = g::Msg<117, ()>;
+    type AcquireSecond = g::Msg<118, ()>;
+    type GrantedFirst = g::Msg<119, ()>;
+    type GrantedSecond = g::Msg<120, ()>;
+    type ReturnFirst = g::Msg<121, ()>;
+    type ReturnSecond = g::Msg<122, ()>;
+    type ReturnedFirst = g::Msg<123, ()>;
+    type ReturnedSecond = g::Msg<124, ()>;
 }
-pub struct LoanC;
-impl Messages for LoanC {
-    type AcquireSecond = c::AcquireSecond;
-    type AcquireFirst = c::AcquireFirst;
-    type Handoff = c::Handoff;
-    type SecondReady = c::SecondReady;
-    type GrantedFirst = c::GrantedFirst;
-    type ConfirmSecond = c::ConfirmSecond;
-    type GrantedSecond = c::GrantedSecond;
-    type ReturnFirst = c::ReturnFirst;
-    type ReturnedFirst = c::ReturnedFirst;
-    type ReturnSecond = c::ReturnSecond;
-    type ReturnedSecond = c::ReturnedSecond;
-    type CloseFirst = c::CloseFirst;
-    type CloseHandoff = c::CloseHandoff;
-    type ClosePrimed = c::ClosePrimed;
-    type CloseFirstRequest = c::CloseFirstRequest;
-    type CloseSecondRequest = c::CloseSecondRequest;
-    type ClosedFirst = c::ClosedFirst;
-    type ClosedSecond = c::ClosedSecond;
-    type DoneFirst = c::DoneFirst;
-    type DoneSecond = c::DoneSecond;
-    type AbortFirst = c::AbortFirst;
-    type AbortSecond = c::AbortSecond;
-    type Finished = c::Finished;
-    type Aborted = c::Aborted;
+impl Loan for ChooseF {
+    type Local = g::Msg<125, ()>;
+    type AvailableFirst = g::Msg<126, ()>;
+    type AvailableSecond = g::Msg<127, ()>;
+    type AcquireFirst = g::Msg<128, ()>;
+    type AcquireSecond = g::Msg<129, ()>;
+    type GrantedFirst = g::Msg<130, ()>;
+    type GrantedSecond = g::Msg<131, ()>;
+    type ReturnFirst = g::Msg<132, ()>;
+    type ReturnSecond = g::Msg<133, ()>;
+    type ReturnedFirst = g::Msg<134, ()>;
+    type ReturnedSecond = g::Msg<135, ()>;
 }
-pub mod d {
-    use hibana::g;
-    pub type AcquireSecond = g::Msg<112, ()>;
-    pub type AcquireFirst = g::Msg<113, ()>;
-    pub type Handoff = g::Msg<114, ()>;
-    pub type SecondReady = g::Msg<115, ()>;
-    pub type GrantedFirst = g::Msg<116, ()>;
-    pub type ConfirmSecond = g::Msg<117, ()>;
-    pub type GrantedSecond = g::Msg<118, ()>;
-    pub type ReturnFirst = g::Msg<119, ()>;
-    pub type ReturnedFirst = g::Msg<120, ()>;
-    pub type ReturnSecond = g::Msg<121, ()>;
-    pub type ReturnedSecond = g::Msg<122, ()>;
-    pub type CloseFirst = g::Msg<123, ()>;
-    pub type CloseHandoff = g::Msg<124, ()>;
-    pub type ClosePrimed = g::Msg<125, ()>;
-    pub type CloseFirstRequest = g::Msg<126, ()>;
-    pub type CloseSecondRequest = g::Msg<127, ()>;
-    pub type ClosedFirst = g::Msg<128, ()>;
-    pub type ClosedSecond = g::Msg<129, ()>;
-    pub type DoneFirst = g::Msg<130, ()>;
-    pub type DoneSecond = g::Msg<131, ()>;
-    pub type AbortFirst = g::Msg<132, ()>;
-    pub type AbortSecond = g::Msg<133, ()>;
-    pub type Finished = g::Msg<134, ()>;
-    pub type Aborted = g::Msg<135, ()>;
+impl Loan for ChooseG {
+    type Local = g::Msg<136, ()>;
+    type AvailableFirst = g::Msg<137, ()>;
+    type AvailableSecond = g::Msg<138, ()>;
+    type AcquireFirst = g::Msg<139, ()>;
+    type AcquireSecond = g::Msg<140, ()>;
+    type GrantedFirst = g::Msg<141, ()>;
+    type GrantedSecond = g::Msg<142, ()>;
+    type ReturnFirst = g::Msg<143, ()>;
+    type ReturnSecond = g::Msg<144, ()>;
+    type ReturnedFirst = g::Msg<145, ()>;
+    type ReturnedSecond = g::Msg<146, ()>;
 }
-pub struct LoanD;
-impl Messages for LoanD {
-    type AcquireSecond = d::AcquireSecond;
-    type AcquireFirst = d::AcquireFirst;
-    type Handoff = d::Handoff;
-    type SecondReady = d::SecondReady;
-    type GrantedFirst = d::GrantedFirst;
-    type ConfirmSecond = d::ConfirmSecond;
-    type GrantedSecond = d::GrantedSecond;
-    type ReturnFirst = d::ReturnFirst;
-    type ReturnedFirst = d::ReturnedFirst;
-    type ReturnSecond = d::ReturnSecond;
-    type ReturnedSecond = d::ReturnedSecond;
-    type CloseFirst = d::CloseFirst;
-    type CloseHandoff = d::CloseHandoff;
-    type ClosePrimed = d::ClosePrimed;
-    type CloseFirstRequest = d::CloseFirstRequest;
-    type CloseSecondRequest = d::CloseSecondRequest;
-    type ClosedFirst = d::ClosedFirst;
-    type ClosedSecond = d::ClosedSecond;
-    type DoneFirst = d::DoneFirst;
-    type DoneSecond = d::DoneSecond;
-    type AbortFirst = d::AbortFirst;
-    type AbortSecond = d::AbortSecond;
-    type Finished = d::Finished;
-    type Aborted = d::Aborted;
-}
-pub mod e {
-    use hibana::g;
-    pub type AcquireSecond = g::Msg<144, ()>;
-    pub type AcquireFirst = g::Msg<145, ()>;
-    pub type Handoff = g::Msg<146, ()>;
-    pub type SecondReady = g::Msg<147, ()>;
-    pub type GrantedFirst = g::Msg<148, ()>;
-    pub type ConfirmSecond = g::Msg<149, ()>;
-    pub type GrantedSecond = g::Msg<150, ()>;
-    pub type ReturnFirst = g::Msg<151, ()>;
-    pub type ReturnedFirst = g::Msg<152, ()>;
-    pub type ReturnSecond = g::Msg<153, ()>;
-    pub type ReturnedSecond = g::Msg<154, ()>;
-    pub type CloseFirst = g::Msg<155, ()>;
-    pub type CloseHandoff = g::Msg<156, ()>;
-    pub type ClosePrimed = g::Msg<157, ()>;
-    pub type CloseFirstRequest = g::Msg<158, ()>;
-    pub type CloseSecondRequest = g::Msg<159, ()>;
-    pub type ClosedFirst = g::Msg<160, ()>;
-    pub type ClosedSecond = g::Msg<161, ()>;
-    pub type DoneFirst = g::Msg<162, ()>;
-    pub type DoneSecond = g::Msg<163, ()>;
-    pub type AbortFirst = g::Msg<164, ()>;
-    pub type AbortSecond = g::Msg<165, ()>;
-    pub type Finished = g::Msg<166, ()>;
-    pub type Aborted = g::Msg<167, ()>;
-}
-pub struct LoanE;
-impl Messages for LoanE {
-    type AcquireSecond = e::AcquireSecond;
-    type AcquireFirst = e::AcquireFirst;
-    type Handoff = e::Handoff;
-    type SecondReady = e::SecondReady;
-    type GrantedFirst = e::GrantedFirst;
-    type ConfirmSecond = e::ConfirmSecond;
-    type GrantedSecond = e::GrantedSecond;
-    type ReturnFirst = e::ReturnFirst;
-    type ReturnedFirst = e::ReturnedFirst;
-    type ReturnSecond = e::ReturnSecond;
-    type ReturnedSecond = e::ReturnedSecond;
-    type CloseFirst = e::CloseFirst;
-    type CloseHandoff = e::CloseHandoff;
-    type ClosePrimed = e::ClosePrimed;
-    type CloseFirstRequest = e::CloseFirstRequest;
-    type CloseSecondRequest = e::CloseSecondRequest;
-    type ClosedFirst = e::ClosedFirst;
-    type ClosedSecond = e::ClosedSecond;
-    type DoneFirst = e::DoneFirst;
-    type DoneSecond = e::DoneSecond;
-    type AbortFirst = e::AbortFirst;
-    type AbortSecond = e::AbortSecond;
-    type Finished = e::Finished;
-    type Aborted = e::Aborted;
-}
-pub mod f {
-    use hibana::g;
-    pub type AcquireSecond = g::Msg<176, ()>;
-    pub type AcquireFirst = g::Msg<177, ()>;
-    pub type Handoff = g::Msg<178, ()>;
-    pub type SecondReady = g::Msg<179, ()>;
-    pub type GrantedFirst = g::Msg<180, ()>;
-    pub type ConfirmSecond = g::Msg<181, ()>;
-    pub type GrantedSecond = g::Msg<182, ()>;
-    pub type ReturnFirst = g::Msg<183, ()>;
-    pub type ReturnedFirst = g::Msg<184, ()>;
-    pub type ReturnSecond = g::Msg<185, ()>;
-    pub type ReturnedSecond = g::Msg<186, ()>;
-    pub type CloseFirst = g::Msg<187, ()>;
-    pub type CloseHandoff = g::Msg<188, ()>;
-    pub type ClosePrimed = g::Msg<189, ()>;
-    pub type CloseFirstRequest = g::Msg<190, ()>;
-    pub type CloseSecondRequest = g::Msg<191, ()>;
-    pub type ClosedFirst = g::Msg<192, ()>;
-    pub type ClosedSecond = g::Msg<193, ()>;
-    pub type DoneFirst = g::Msg<194, ()>;
-    pub type DoneSecond = g::Msg<195, ()>;
-    pub type AbortFirst = g::Msg<196, ()>;
-    pub type AbortSecond = g::Msg<197, ()>;
-    pub type Finished = g::Msg<198, ()>;
-    pub type Aborted = g::Msg<199, ()>;
-}
-pub struct LoanF;
-impl Messages for LoanF {
-    type AcquireSecond = f::AcquireSecond;
-    type AcquireFirst = f::AcquireFirst;
-    type Handoff = f::Handoff;
-    type SecondReady = f::SecondReady;
-    type GrantedFirst = f::GrantedFirst;
-    type ConfirmSecond = f::ConfirmSecond;
-    type GrantedSecond = f::GrantedSecond;
-    type ReturnFirst = f::ReturnFirst;
-    type ReturnedFirst = f::ReturnedFirst;
-    type ReturnSecond = f::ReturnSecond;
-    type ReturnedSecond = f::ReturnedSecond;
-    type CloseFirst = f::CloseFirst;
-    type CloseHandoff = f::CloseHandoff;
-    type ClosePrimed = f::ClosePrimed;
-    type CloseFirstRequest = f::CloseFirstRequest;
-    type CloseSecondRequest = f::CloseSecondRequest;
-    type ClosedFirst = f::ClosedFirst;
-    type ClosedSecond = f::ClosedSecond;
-    type DoneFirst = f::DoneFirst;
-    type DoneSecond = f::DoneSecond;
-    type AbortFirst = f::AbortFirst;
-    type AbortSecond = f::AbortSecond;
-    type Finished = f::Finished;
-    type Aborted = f::Aborted;
-}
-pub mod g_messages {
-    use hibana::g;
-    pub type AcquireSecond = g::Msg<208, ()>;
-    pub type AcquireFirst = g::Msg<209, ()>;
-    pub type Handoff = g::Msg<210, ()>;
-    pub type SecondReady = g::Msg<211, ()>;
-    pub type GrantedFirst = g::Msg<212, ()>;
-    pub type ConfirmSecond = g::Msg<213, ()>;
-    pub type GrantedSecond = g::Msg<214, ()>;
-    pub type ReturnFirst = g::Msg<215, ()>;
-    pub type ReturnedFirst = g::Msg<216, ()>;
-    pub type ReturnSecond = g::Msg<217, ()>;
-    pub type ReturnedSecond = g::Msg<218, ()>;
-    pub type CloseFirst = g::Msg<219, ()>;
-    pub type CloseHandoff = g::Msg<220, ()>;
-    pub type ClosePrimed = g::Msg<221, ()>;
-    pub type CloseFirstRequest = g::Msg<222, ()>;
-    pub type CloseSecondRequest = g::Msg<223, ()>;
-    pub type ClosedFirst = g::Msg<224, ()>;
-    pub type ClosedSecond = g::Msg<225, ()>;
-    pub type DoneFirst = g::Msg<226, ()>;
-    pub type DoneSecond = g::Msg<227, ()>;
-    pub type AbortFirst = g::Msg<228, ()>;
-    pub type AbortSecond = g::Msg<229, ()>;
-    pub type Finished = g::Msg<230, ()>;
-    pub type Aborted = g::Msg<231, ()>;
-}
-pub struct LoanG;
-impl Messages for LoanG {
-    type AcquireSecond = g_messages::AcquireSecond;
-    type AcquireFirst = g_messages::AcquireFirst;
-    type Handoff = g_messages::Handoff;
-    type SecondReady = g_messages::SecondReady;
-    type GrantedFirst = g_messages::GrantedFirst;
-    type ConfirmSecond = g_messages::ConfirmSecond;
-    type GrantedSecond = g_messages::GrantedSecond;
-    type ReturnFirst = g_messages::ReturnFirst;
-    type ReturnedFirst = g_messages::ReturnedFirst;
-    type ReturnSecond = g_messages::ReturnSecond;
-    type ReturnedSecond = g_messages::ReturnedSecond;
-    type CloseFirst = g_messages::CloseFirst;
-    type CloseHandoff = g_messages::CloseHandoff;
-    type ClosePrimed = g_messages::ClosePrimed;
-    type CloseFirstRequest = g_messages::CloseFirstRequest;
-    type CloseSecondRequest = g_messages::CloseSecondRequest;
-    type ClosedFirst = g_messages::ClosedFirst;
-    type ClosedSecond = g_messages::ClosedSecond;
-    type DoneFirst = g_messages::DoneFirst;
-    type DoneSecond = g_messages::DoneSecond;
-    type AbortFirst = g_messages::AbortFirst;
-    type AbortSecond = g_messages::AbortSecond;
-    type Finished = g_messages::Finished;
-    type Aborted = g_messages::Aborted;
-}
-
-fn developer<const DEV: u8, const FIRST: u8, const SECOND: u8, const ID: u16, M: Messages>()
--> impl Projectable {
-    let close = g::seq(
-        g::send::<DEV, FIRST, M::CloseFirst>(),
+fn visit<
+    const DEV: u8,
+    const FIRST: u8,
+    const SECOND: u8,
+    const READY: u16,
+    const TEST: u16,
+    Work: Loan,
+    Skip: g::Message<Payload = ()>,
+    Submitted: g::Message<Payload = ()>,
+>() -> impl Projectable {
+    let acquire = g::par(
         g::seq(
-            g::send::<FIRST, SECOND, M::CloseHandoff>(),
+            g::send::<FIRST, DEV, Work::AvailableFirst>(),
             g::seq(
-                g::send::<SECOND, FIRST, M::SecondReady>(),
-                g::send::<FIRST, DEV, M::ClosePrimed>(),
+                g::send::<DEV, FIRST, Work::AcquireFirst>(),
+                g::send::<FIRST, DEV, Work::GrantedFirst>(),
+            ),
+        ),
+        g::seq(
+            g::send::<SECOND, DEV, Work::AvailableSecond>(),
+            g::seq(
+                g::send::<DEV, SECOND, Work::AcquireSecond>(),
+                g::send::<SECOND, DEV, Work::GrantedSecond>(),
             ),
         ),
     );
-    let acquire = g::seq(
-        g::send::<DEV, DEV, Implement>(),
+    let release = g::par(
         g::seq(
-            g::send::<DEV, FIRST, M::AcquireFirst>(),
+            g::send::<DEV, FIRST, Work::ReturnFirst>(),
+            g::send::<FIRST, DEV, Work::ReturnedFirst>(),
+        ),
+        g::seq(
+            g::send::<DEV, SECOND, Work::ReturnSecond>(),
+            g::send::<SECOND, DEV, Work::ReturnedSecond>(),
+        ),
+    );
+    let tested = g::seq(
+        g::send::<DEV, DEV, Test>(),
+        g::route(
+            g::send::<DEV, DEV, Finished>(),
+            g::send::<DEV, DEV, Implement>(),
+        )
+        .resolve::<TEST>(),
+    );
+    let work = g::seq(
+        g::send::<DISPATCH, DEV, Work>(),
+        g::seq(
+            g::send::<DISPATCH, FIRST, Work>(),
             g::seq(
-                g::send::<FIRST, SECOND, M::Handoff>(),
+                g::send::<DISPATCH, SECOND, Work>(),
                 g::seq(
-                    g::send::<SECOND, FIRST, M::SecondReady>(),
-                    g::send::<FIRST, DEV, M::GrantedFirst>(),
+                    g::send::<DEV, DISPATCH, Submitted>(),
+                    g::par(
+                        g::par(
+                            g::send::<DEV, DEV, Work::Local>(),
+                            g::par(
+                                g::send::<FIRST, FIRST, Work::Local>(),
+                                g::send::<SECOND, SECOND, Work::Local>(),
+                            ),
+                        ),
+                        g::seq(
+                            acquire,
+                            g::seq(g::send::<DEV, DEV, Commit>(), g::seq(release, tested)),
+                        ),
+                    ),
                 ),
             ),
         ),
     );
-    // Both requests can be sent before any grant. Only reservation/grant order
-    // follows increasing physical module IDs, so queued intents cannot form a cycle.
-    let inputs = g::par(
-        g::send::<DEV, SECOND, M::AcquireSecond>(),
-        g::route(close, acquire).resolve::<ID>(),
-    );
-    let closed = g::seq(
-        g::par(
-            g::send::<DEV, FIRST, M::CloseFirstRequest>(),
-            g::send::<DEV, SECOND, M::CloseSecondRequest>(),
-        ),
-        g::par(
-            g::send::<FIRST, DEV, M::ClosedFirst>(),
-            g::send::<SECOND, DEV, M::ClosedSecond>(),
+    let skip = g::seq(
+        g::send::<DISPATCH, DEV, Skip>(),
+        g::seq(
+            g::send::<DISPATCH, FIRST, Skip>(),
+            g::send::<DISPATCH, SECOND, Skip>(),
         ),
     );
-    let returns = g::par(
+    g::route(work, skip).resolve::<READY>()
+}
+// The final handshake closes every loan-to-dispatch causal path.
+fn finish<
+    const DEV: u8,
+    const TEST: u16,
+    Finish: g::Message<Payload = ()>,
+    Done: g::Message<Payload = ()>,
+    Abort: g::Message<Payload = ()>,
+>() -> impl Projectable {
+    g::seq(
+        g::send::<DISPATCH, DEV, Finish>(),
+        g::route(
+            g::send::<DEV, DISPATCH, Done>(),
+            g::send::<DEV, DISPATCH, Abort>(),
+        )
+        .resolve::<TEST>(),
+    )
+}
+fn notify<M: g::Message<Payload = ()>>() -> impl Projectable {
+    g::seq(
         g::seq(
-            g::send::<DEV, FIRST, M::ReturnFirst>(),
-            g::send::<FIRST, DEV, M::ReturnedFirst>(),
+            g::seq(g::send::<DISPATCH, A, M>(), g::send::<DISPATCH, B, M>()),
+            g::seq(g::send::<DISPATCH, C, M>(), g::send::<DISPATCH, D, M>()),
         ),
         g::seq(
-            g::send::<DEV, SECOND, M::ReturnSecond>(),
-            g::send::<SECOND, DEV, M::ReturnedSecond>(),
-        ),
-    );
-    let work = g::seq(
-        g::send::<DEV, SECOND, M::ConfirmSecond>(),
-        g::seq(
-            g::send::<SECOND, DEV, M::GrantedSecond>(),
             g::seq(
-                g::send::<DEV, DEV, Commit>(),
-                g::seq(returns, g::send::<DEV, DEV, Test>()),
+                g::send::<DISPATCH, E, M>(),
+                g::seq(g::send::<DISPATCH, F, M>(), g::send::<DISPATCH, G, M>()),
+            ),
+            g::seq(
+                g::seq(
+                    g::seq(
+                        g::send::<DISPATCH, AUTH_MODULE, M>(),
+                        g::send::<DISPATCH, DATABASE_MODULE, M>(),
+                    ),
+                    g::seq(
+                        g::send::<DISPATCH, API_MODULE, M>(),
+                        g::send::<DISPATCH, PAYMENT_MODULE, M>(),
+                    ),
+                ),
+                g::seq(
+                    g::send::<DISPATCH, NOTIFY_MODULE, M>(),
+                    g::seq(
+                        g::send::<DISPATCH, ANALYTICS_MODULE, M>(),
+                        g::send::<DISPATCH, SEARCH_MODULE, M>(),
+                    ),
+                ),
             ),
         ),
-    );
-    let body = g::seq(inputs, g::route(closed, work).resolve::<ID>()).roll();
-    let finish = g::seq(
-        g::par(
-            g::send::<DEV, FIRST, M::DoneFirst>(),
-            g::send::<DEV, SECOND, M::DoneSecond>(),
-        ),
-        g::send::<DEV, DEV, M::Finished>(),
-    );
-    let abort = g::seq(
-        g::par(
-            g::send::<DEV, FIRST, M::AbortFirst>(),
-            g::send::<DEV, SECOND, M::AbortSecond>(),
-        ),
-        g::send::<DEV, DEV, M::Aborted>(),
-    );
-    g::seq(
-        g::send::<DEV, DEV, Design>(),
-        g::seq(body, g::route(finish, abort).resolve::<ID>()),
     )
 }
 pub struct Programs1H {
+    pub dispatch: RoleProgram<DISPATCH>,
     pub a: RoleProgram<A>,
     pub b: RoleProgram<B>,
     pub c: RoleProgram<C>,
@@ -503,28 +306,84 @@ pub struct Programs1H {
     pub search: RoleProgram<SEARCH_MODULE>,
 }
 pub fn project_1h() -> Programs1H {
-    let a = developer::<A, AUTH_MODULE, DATABASE_MODULE, TEST_A, LoanA>();
-    let b = developer::<B, DATABASE_MODULE, API_MODULE, TEST_B, LoanB>();
-    let c = developer::<C, API_MODULE, PAYMENT_MODULE, TEST_C, LoanC>();
-    let d = developer::<D, PAYMENT_MODULE, NOTIFY_MODULE, TEST_D, LoanD>();
-    let e = developer::<E, NOTIFY_MODULE, ANALYTICS_MODULE, TEST_E, LoanE>();
-    let f = developer::<F, ANALYTICS_MODULE, SEARCH_MODULE, TEST_F, LoanF>();
-    let g = developer::<G, AUTH_MODULE, SEARCH_MODULE, TEST_G, LoanG>();
-    let global = g::par(g::par(a, g::par(b, c)), g::par(g::par(d, e), g::par(f, g)));
+    let preparation = g::par(
+        g::par(
+            g::seq(g::send::<A, A, Design>(), g::send::<A, A, Implement>()),
+            g::par(
+                g::seq(g::send::<B, B, Design>(), g::send::<B, B, Implement>()),
+                g::seq(g::send::<C, C, Design>(), g::send::<C, C, Implement>()),
+            ),
+        ),
+        g::par(
+            g::par(
+                g::seq(g::send::<D, D, Design>(), g::send::<D, D, Implement>()),
+                g::seq(g::send::<E, E, Design>(), g::send::<E, E, Implement>()),
+            ),
+            g::par(
+                g::seq(g::send::<F, F, Design>(), g::send::<F, F, Implement>()),
+                g::seq(g::send::<G, G, Design>(), g::send::<G, G, Implement>()),
+            ),
+        ),
+    );
+    let a = visit::<A, AUTH_MODULE, DATABASE_MODULE, READY_A, TEST_A, ChooseA, SkipA, SubmittedA>();
+    let b = visit::<B, DATABASE_MODULE, API_MODULE, READY_B, TEST_B, ChooseB, SkipB, SubmittedB>();
+    let c = visit::<C, API_MODULE, PAYMENT_MODULE, READY_C, TEST_C, ChooseC, SkipC, SubmittedC>();
+    let d =
+        visit::<D, PAYMENT_MODULE, NOTIFY_MODULE, READY_D, TEST_D, ChooseD, SkipD, SubmittedD>();
+    let e =
+        visit::<E, NOTIFY_MODULE, ANALYTICS_MODULE, READY_E, TEST_E, ChooseE, SkipE, SubmittedE>();
+    let f =
+        visit::<F, ANALYTICS_MODULE, SEARCH_MODULE, READY_F, TEST_F, ChooseF, SkipF, SubmittedF>();
+    let g = visit::<G, AUTH_MODULE, SEARCH_MODULE, READY_G, TEST_G, ChooseG, SkipG, SubmittedG>();
+    // Dispatch has one owner and order. It finishes at Submitted, before a
+    // loan or test completes. Disjoint role-local loans can therefore overlap.
+    // One outer roll retains each physical owner's complete loan ordering.
+    let round = g::seq(g::seq(a, g::seq(c, e)), g::seq(g::seq(b, g::seq(d, f)), g));
+    let final_handshakes = g::seq(
+        g::seq(
+            g::seq(
+                g::seq(
+                    g::seq(
+                        g::seq(
+                            finish::<A, TEST_A, FinishA, DoneA, AbortA>(),
+                            finish::<B, TEST_B, FinishB, DoneB, AbortB>(),
+                        ),
+                        finish::<C, TEST_C, FinishC, DoneC, AbortC>(),
+                    ),
+                    finish::<D, TEST_D, FinishD, DoneD, AbortD>(),
+                ),
+                finish::<E, TEST_E, FinishE, DoneE, AbortE>(),
+            ),
+            finish::<F, TEST_F, FinishF, DoneF, AbortF>(),
+        ),
+        finish::<G, TEST_G, FinishG, DoneG, AbortG>(),
+    );
+    let protocol = g::seq(
+        preparation,
+        g::seq(
+            round.roll(),
+            g::route(
+                g::seq(final_handshakes, notify::<Complete>()),
+                notify::<Aborted>(),
+            )
+            .resolve::<ALL_TESTS>(),
+        ),
+    );
     Programs1H {
-        a: project(&global),
-        b: project(&global),
-        c: project(&global),
-        d: project(&global),
-        e: project(&global),
-        f: project(&global),
-        g: project(&global),
-        auth: project(&global),
-        database: project(&global),
-        api: project(&global),
-        payment: project(&global),
-        notify: project(&global),
-        analytics: project(&global),
-        search: project(&global),
+        dispatch: project(&protocol),
+        a: project(&protocol),
+        b: project(&protocol),
+        c: project(&protocol),
+        d: project(&protocol),
+        e: project(&protocol),
+        f: project(&protocol),
+        g: project(&protocol),
+        auth: project(&protocol),
+        database: project(&protocol),
+        api: project(&protocol),
+        payment: project(&protocol),
+        notify: project(&protocol),
+        analytics: project(&protocol),
+        search: project(&protocol),
     }
 }

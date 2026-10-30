@@ -13,10 +13,11 @@ pub async fn run_9e<D: Domain>(domain: &D) -> Result<(), RunError<D::Error>> {
     use global::{A, B, C, FORK_A, FORK_B, FORK_C, ForkA, ForkB, ForkC};
     let programs = global::project_9e();
     let mut slab = [0; 32 * 1024];
-    let mut storage = SessionKitStorage::<InMemoryTransport>::uninit();
+    let transport_storage = InMemoryTransport::new([]);
+    let mut storage = SessionKitStorage::<&InMemoryTransport>::uninit();
     let kit = storage.init();
     let rendezvous = kit
-        .rendezvous(&mut slab, InMemoryTransport::new())
+        .rendezvous(&mut slab, &transport_storage)
         .map_err(RunError::Attach)?;
     let session = SessionId::new(1);
     let mut a = rendezvous
@@ -65,10 +66,11 @@ pub async fn run_9m<D: Domain>(domain: &D) -> Result<(), RunError<D::Error>> {
     use global::{ForkA, ForkB, ForkC, ForkD, ForkE, project_9m, roles9m::*};
     let programs = project_9m();
     let mut slab = [0; 128 * 1024];
-    let mut storage = SessionKitStorage::<InMemoryTransport>::uninit();
+    let transport_storage = InMemoryTransport::new([]);
+    let mut storage = SessionKitStorage::<&InMemoryTransport>::uninit();
     let kit = storage.init();
     let rendezvous = kit
-        .rendezvous(&mut slab, InMemoryTransport::new())
+        .rendezvous(&mut slab, &transport_storage)
         .map_err(RunError::Attach)?;
     let session = SessionId::new(1);
     let mut a = rendezvous
@@ -141,10 +143,11 @@ pub async fn run_9h<D: Domain>(domain: &D) -> Result<(), RunError<D::Error>> {
     use global::{ForkA, ForkB, ForkC, ForkD, ForkE, ForkF, ForkG, project_9h, roles9h::*};
     let programs = project_9h();
     let mut slab = [0; 128 * 1024];
-    let mut storage = SessionKitStorage::<InMemoryTransport>::uninit();
+    let transport_storage = InMemoryTransport::new([]);
+    let mut storage = SessionKitStorage::<&InMemoryTransport>::uninit();
     let kit = storage.init();
     let rendezvous = kit
-        .rendezvous(&mut slab, InMemoryTransport::new())
+        .rendezvous(&mut slab, &transport_storage)
         .map_err(RunError::Attach)?;
     let session = SessionId::new(1);
     let mut a = rendezvous
@@ -270,9 +273,10 @@ mod tests {
     async fn reject_after_thinking<M: hibana::g::Message<Payload = ()>>() {
         let programs = global::project_9e();
         let mut slab = [0; 32 * 1024];
-        let mut storage = SessionKitStorage::<InMemoryTransport>::uninit();
+        let transport_storage = InMemoryTransport::new([]);
+        let mut storage = SessionKitStorage::<&InMemoryTransport>::uninit();
         let kit = storage.init();
-        let rendezvous = kit.rendezvous(&mut slab, InMemoryTransport::new()).unwrap();
+        let rendezvous = kit.rendezvous(&mut slab, &transport_storage).unwrap();
         let mut endpoint = rendezvous.enter(SessionId::new(2), &programs.a).unwrap();
         endpoint.send::<global::Think>(&()).await.unwrap();
         assert!(endpoint.send::<M>(&()).await.is_err());
@@ -302,9 +306,10 @@ mod tests {
             events: RefCell::new(Vec::new()),
         };
         let mut slab = [0; 32 * 1024];
-        let mut storage = SessionKitStorage::<InMemoryTransport>::uninit();
+        let transport_storage = InMemoryTransport::new([]);
+        let mut storage = SessionKitStorage::<&InMemoryTransport>::uninit();
         let kit = storage.init();
-        let rendezvous = kit.rendezvous(&mut slab, InMemoryTransport::new()).unwrap();
+        let rendezvous = kit.rendezvous(&mut slab, &transport_storage).unwrap();
         let session = SessionId::new(3);
         let mut a = rendezvous.enter(session, &programs.a).unwrap();
         let mut b = rendezvous.enter(session, &programs.b).unwrap();

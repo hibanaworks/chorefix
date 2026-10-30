@@ -14,10 +14,9 @@ pub async fn run<D: Domain>(
 ) -> ShellResult<()> {
     endpoint.send::<RequestReady>(&()).await?;
     let request = endpoint.recv::<Open>().await?;
-    endpoint.send::<Acquire>(&()).await?;
-    endpoint.recv::<Granted>().await?;
     let mut file = File::new(b"service/compile_and_test", SERVICE_FD);
-    endpoint.send::<Opened>(&file.open(request)).await?;
+    let response = file.open(request);
+    endpoint.send::<Opened>(&response).await?;
     loop {
         endpoint.send::<ServeRequest>(&()).await?;
         endpoint.send::<RequestReady>(&()).await?;
@@ -25,31 +24,24 @@ pub async fn run<D: Domain>(
         match branch.label() {
             3 => {
                 let request = branch.recv::<Open>().await?;
-                endpoint.send::<Opened>(&file.open(request)).await?;
+                let response = file.open(request);
+                endpoint.send::<Opened>(&response).await?;
             }
             5 => {
                 let request = branch.recv::<Write>().await?;
-                endpoint.send::<Written>(&file.write(request)).await?;
+                let response = file.write(request);
+                endpoint.send::<Written>(&response).await?;
             }
             7 => {
                 let request = branch.recv::<Commit>().await?;
-                compile.record(file.arguments(request.0, "component"));
+                compile.record(file.arguments(request, "component"));
                 let decision = endpoint.offer().await?;
                 match decision.label() {
                     12 => {
-                        decision.recv::<Materialize>().await?;
-                        let result = domain
-                            .execute("DEVELOPER", "compile_and_test", compile.take()?)
-                            .await
-                            .map_err(ShellError::message)?;
-                        let bytes = serde_json::to_vec(&result)
-                            .map_err(|e| ShellError::message(e.to_string()))?;
-                        endpoint.send::<Committed<'_>>(&bytes.as_slice()).await?;
-                        if result["success"] != true {
-                            return Err(ShellError::message(format!(
-                                "domain operation failed: {result}"
-                            )));
-                        }
+                        decision.recv::<Validate>().await?;
+                        let arguments = serde_json::to_vec(&compile.take()?)
+                            .map_err(|error| ShellError::message(error.to_string()))?;
+                        endpoint.send::<Admitted<'_>>(&arguments.as_slice()).await?;
                         break;
                     }
                     9 => {
@@ -65,9 +57,21 @@ pub async fn run<D: Domain>(
             _ => return Err(ShellError::message("unexpected service request")),
         }
     }
-    endpoint.send::<Return>(&()).await?;
-    endpoint.recv::<Returned>().await?;
-    endpoint.send::<ServiceDone>(&()).await?;
+    let arguments = endpoint.recv::<CompileRequest>().await?.into_value();
+    let result = domain
+        .execute("DEVELOPER", "compile_and_test", arguments)
+        .await
+        .map_err(ShellError::message)?;
+    let bytes =
+        serde_json::to_vec(&result).map_err(|error| ShellError::message(error.to_string()))?;
+    endpoint
+        .send::<CompileResult<'_>>(&bytes.as_slice())
+        .await?;
+    if result["success"] != true {
+        return Err(ShellError::message(format!(
+            "domain operation failed: {result}"
+        )));
+    }
     endpoint.send::<BuildComplete>(&()).await?;
     loop {
         endpoint.send::<RejectRequest>(&()).await?;
@@ -76,25 +80,29 @@ pub async fn run<D: Domain>(
         match branch.label() {
             3 => {
                 branch.recv::<Open>().await?;
-                endpoint
-                    .send::<Opened>(&protocol::PathOpenedRet(protocol::PathOpened::new(0, 8)))
-                    .await?;
+                let response = protocol::PathOpenedRet(protocol::PathOpened::new(0, 8));
+                endpoint.send::<Opened>(&response).await?;
             }
             5 => {
                 let request = branch.recv::<Write>().await?;
-                endpoint
-                    .send::<Written>(&protocol::FdWriteDoneRet(
-                        protocol::FdWriteDone::new_with_errno(request.0.fd(), 0, 8),
-                    ))
-                    .await?;
+                let response = protocol::FdWriteDoneRet(protocol::FdWriteDone::new_with_errno(
+                    hibana_wasip1_runtime::choreofs::ChoreoFsRequest::request(&request)
+                        .0
+                        .fd(),
+                    0,
+                    8,
+                ));
+                endpoint.send::<Written>(&response).await?;
             }
             7 => {
                 let request = branch.recv::<Commit>().await?;
-                endpoint
-                    .send::<Unavailable>(&protocol::FdClosedRet(
-                        protocol::FdClosed::new_with_errno(request.0.fd(), 8),
-                    ))
-                    .await?;
+                let response = protocol::FdClosedRet(protocol::FdClosed::new_with_errno(
+                    hibana_wasip1_runtime::choreofs::ChoreoFsRequest::request(&request)
+                        .0
+                        .fd(),
+                    8,
+                ));
+                endpoint.send::<Unavailable>(&response).await?;
             }
             241 => {
                 let status = branch.recv::<ServiceExit>().await?;

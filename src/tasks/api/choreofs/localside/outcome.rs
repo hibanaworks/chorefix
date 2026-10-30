@@ -1,5 +1,8 @@
 pub mod admin {
-    use super::super::super::{global::*, imp::OutcomeFile};
+    use super::super::super::{
+        global::*,
+        imp::{FileReply, OutcomeFile},
+    };
     use crate::shell::{ShellError, ShellResult};
     use hibana::Endpoint;
     use serde_json::Value;
@@ -7,71 +10,154 @@ pub mod admin {
         endpoint: &mut Endpoint<'_, ADMIN_OUTCOME>,
         file: &mut OutcomeFile,
     ) -> ShellResult<()> {
-        let notification = endpoint.offer().await?;
-        let bytes = match notification.label() {
-            50 => {
-                let b = notification.recv::<PassedAdmin<'_>>().await?.to_vec();
-                let r: Value =
-                    serde_json::from_slice(&b).map_err(|e| ShellError::message(e.to_string()))?;
-                if r["success"] != true {
-                    return Err(ShellError::message("pass label differs from test result"));
+        let [mut results, mut metadata] = endpoint.par()?;
+        file.bytes = loop {
+            let received = {
+                let offered = tokio::select! {
+                    branch = results.offer() => Ok(branch),
+                    branch = metadata.offer() => Err(branch),
+                };
+                match offered {
+                    Ok(branch) => {
+                        let branch = branch?;
+                        let bytes = match branch.label() {
+                            50 => {
+                                let bytes = branch.recv::<PassedAdmin<'_>>().await?.to_vec();
+                                let result: Value = serde_json::from_slice(&bytes)
+                                    .map_err(|e| ShellError::message(e.to_string()))?;
+                                if result["success"] != true {
+                                    return Err(ShellError::message(
+                                        "pass label differs from test result",
+                                    ));
+                                }
+                                bytes
+                            }
+                            60 => {
+                                let bytes = branch.recv::<FailedAdmin<'_>>().await?.to_vec();
+                                let result: Value = serde_json::from_slice(&bytes)
+                                    .map_err(|e| ShellError::message(e.to_string()))?;
+                                if result["success"] != false {
+                                    return Err(ShellError::message(
+                                        "fail label differs from test result",
+                                    ));
+                                }
+                                bytes
+                            }
+                            _ => return Err(ShellError::message("unexpected result notification")),
+                        };
+                        Ok(bytes)
+                    }
+                    Err(branch) => {
+                        let branch = branch?;
+                        if branch.label() != 160 {
+                            return Err(ShellError::message(
+                                "guest exited before receiving its result",
+                            ));
+                        }
+                        Err(file.path_stat(branch.recv::<OutcomePathStat>().await?))
+                    }
                 }
-                b
+            };
+            match received {
+                Ok(bytes) => break bytes,
+                Err(response) => metadata.send::<OutcomePathStatDone>(&response).await?,
             }
-            60 => {
-                let b = notification.recv::<FailedAdmin<'_>>().await?.to_vec();
-                let r: Value =
-                    serde_json::from_slice(&b).map_err(|e| ShellError::message(e.to_string()))?;
-                if r["success"] != false {
-                    return Err(ShellError::message("fail label differs from test result"));
-                }
-                b
-            }
-            _ => return Err(ShellError::message("unexpected result notification")),
         };
-        file.bytes.replace(bytes);
-        // The first open cannot be answered until the projected notification arrives.
-        let request = endpoint.recv::<OutcomeOpen>().await?;
-        endpoint.send::<OutcomeOpened>(&file.open(request)?).await?;
+        let opened = loop {
+            let received = {
+                let offered = tokio::select! {
+                    request = results.recv::<OutcomeOpen>() => Ok(request),
+                    branch = metadata.offer() => Err(branch),
+                };
+                match offered {
+                    Ok(request) => Ok(file.open(request?)?),
+                    Err(branch) => {
+                        let branch = branch?;
+                        if branch.label() != 160 {
+                            return Err(ShellError::message(
+                                "guest exited before opening its result",
+                            ));
+                        }
+                        Err(file.path_stat(branch.recv::<OutcomePathStat>().await?))
+                    }
+                }
+            };
+            match received {
+                Ok(response) => break response,
+                Err(response) => metadata.send::<OutcomePathStatDone>(&response).await?,
+            }
+        };
+        results.send::<OutcomeOpened>(&opened).await?;
         loop {
-            let branch = endpoint.offer().await?;
-            match branch.label() {
-                150 => {
-                    let r = branch.recv::<OutcomeOpen>().await?;
-                    endpoint.send::<OutcomeOpened>(&file.open(r)?).await?;
+            let response = {
+                let offered = tokio::select! {
+                    branch = results.offer() => Ok(branch),
+                    branch = metadata.offer() => Err(branch),
+                };
+                match offered {
+                    Ok(branch) => {
+                        let branch = branch?;
+                        match branch.label() {
+                            150 => {
+                                FileReply::Opened(file.open(branch.recv::<OutcomeOpen>().await?)?)
+                            }
+                            152 => FileReply::Read(file.read(branch.recv::<OutcomeRead>().await?)?),
+                            154 => FileReply::Stat(file.stat(branch.recv::<OutcomeStat>().await?)),
+                            156 => FileReply::FileStat(
+                                file.file_stat(branch.recv::<OutcomeFileStat>().await?),
+                            ),
+                            158 => {
+                                FileReply::Closed(file.close(branch.recv::<OutcomeClose>().await?))
+                            }
+                            _ => {
+                                return Err(ShellError::message(
+                                    "unexpected result-file operation",
+                                ));
+                            }
+                        }
+                    }
+                    Err(branch) => {
+                        let branch = branch?;
+                        match branch.label() {
+                            160 => FileReply::PathStat(
+                                file.path_stat(branch.recv::<OutcomePathStat>().await?),
+                            ),
+                            242 => FileReply::Exit(branch.recv::<OutcomeExit>().await?),
+                            _ => {
+                                return Err(ShellError::message(
+                                    "unexpected file metadata operation",
+                                ));
+                            }
+                        }
+                    }
                 }
-                152 => {
-                    let r = branch.recv::<OutcomeRead>().await?;
-                    endpoint.send::<OutcomeReadDone>(&file.read(r)?).await?;
+            };
+            match response {
+                FileReply::Opened(response) => results.send::<OutcomeOpened>(&response).await?,
+                FileReply::Read(response) => results.send::<OutcomeReadDone>(&response).await?,
+                FileReply::Stat(response) => results.send::<OutcomeStatDone>(&response).await?,
+                FileReply::FileStat(response) => {
+                    results.send::<OutcomeFileStatDone>(&response).await?
                 }
-                154 => {
-                    let r = branch.recv::<OutcomeStat>().await?;
-                    endpoint.send::<OutcomeStatDone>(&file.stat(r)).await?;
+                FileReply::Closed(response) => results.send::<OutcomeClosed>(&response).await?,
+                FileReply::PathStat(response) => {
+                    metadata.send::<OutcomePathStatDone>(&response).await?
                 }
-                156 => {
-                    let r = branch.recv::<OutcomeFileStat>().await?;
-                    endpoint
-                        .send::<OutcomeFileStatDone>(&file.file_stat(r))
-                        .await?;
-                }
-                158 => {
-                    let r = branch.recv::<OutcomeClose>().await?;
-                    endpoint.send::<OutcomeClosed>(&file.close(r)).await?;
-                }
-                242 => {
-                    let status = branch.recv::<OutcomeExit>().await?;
+                FileReply::Exit(status) => {
                     if status != 0 {
                         return Err(ShellError::message("result recipient guest failed"));
                     }
                     return Ok(());
                 }
-                _ => return Err(ShellError::message("unexpected result-file operation")),
             }
         }
     }
 }
 pub mod backend {
-    use super::super::super::{global::*, imp::OutcomeFile};
+    use super::super::super::{
+        global::*,
+        imp::{FileReply, OutcomeFile},
+    };
     use crate::shell::{ShellError, ShellResult};
     use hibana::Endpoint;
     use serde_json::Value;
@@ -79,65 +165,145 @@ pub mod backend {
         endpoint: &mut Endpoint<'_, BACKEND_OUTCOME>,
         file: &mut OutcomeFile,
     ) -> ShellResult<()> {
-        let notification = endpoint.offer().await?;
-        let bytes = match notification.label() {
-            51 => {
-                let b = notification.recv::<PassedBackend<'_>>().await?.to_vec();
-                let r: Value =
-                    serde_json::from_slice(&b).map_err(|e| ShellError::message(e.to_string()))?;
-                if r["success"] != true {
-                    return Err(ShellError::message("pass label differs from test result"));
+        let [mut results, mut metadata] = endpoint.par()?;
+        file.bytes = loop {
+            let received = {
+                let offered = tokio::select! {
+                    branch = results.offer() => Ok(branch),
+                    branch = metadata.offer() => Err(branch),
+                };
+                match offered {
+                    Ok(branch) => {
+                        let branch = branch?;
+                        let bytes = match branch.label() {
+                            51 => {
+                                let bytes = branch.recv::<PassedBackend<'_>>().await?.to_vec();
+                                let result: Value = serde_json::from_slice(&bytes)
+                                    .map_err(|e| ShellError::message(e.to_string()))?;
+                                if result["success"] != true {
+                                    return Err(ShellError::message(
+                                        "pass label differs from test result",
+                                    ));
+                                }
+                                bytes
+                            }
+                            61 => {
+                                let bytes = branch.recv::<FailedBackend<'_>>().await?.to_vec();
+                                let result: Value = serde_json::from_slice(&bytes)
+                                    .map_err(|e| ShellError::message(e.to_string()))?;
+                                if result["success"] != false {
+                                    return Err(ShellError::message(
+                                        "fail label differs from test result",
+                                    ));
+                                }
+                                bytes
+                            }
+                            _ => return Err(ShellError::message("unexpected result notification")),
+                        };
+                        Ok(bytes)
+                    }
+                    Err(branch) => {
+                        let branch = branch?;
+                        if branch.label() != 160 {
+                            return Err(ShellError::message(
+                                "guest exited before receiving its result",
+                            ));
+                        }
+                        Err(file.path_stat(branch.recv::<OutcomePathStat>().await?))
+                    }
                 }
-                b
+            };
+            match received {
+                Ok(bytes) => break bytes,
+                Err(response) => metadata.send::<OutcomePathStatDone>(&response).await?,
             }
-            61 => {
-                let b = notification.recv::<FailedBackend<'_>>().await?.to_vec();
-                let r: Value =
-                    serde_json::from_slice(&b).map_err(|e| ShellError::message(e.to_string()))?;
-                if r["success"] != false {
-                    return Err(ShellError::message("fail label differs from test result"));
-                }
-                b
-            }
-            _ => return Err(ShellError::message("unexpected result notification")),
         };
-        file.bytes.replace(bytes);
-        // The first open cannot be answered until the projected notification arrives.
-        let request = endpoint.recv::<OutcomeOpen>().await?;
-        endpoint.send::<OutcomeOpened>(&file.open(request)?).await?;
+        let opened = loop {
+            let received = {
+                let offered = tokio::select! {
+                    request = results.recv::<OutcomeOpen>() => Ok(request),
+                    branch = metadata.offer() => Err(branch),
+                };
+                match offered {
+                    Ok(request) => Ok(file.open(request?)?),
+                    Err(branch) => {
+                        let branch = branch?;
+                        if branch.label() != 160 {
+                            return Err(ShellError::message(
+                                "guest exited before opening its result",
+                            ));
+                        }
+                        Err(file.path_stat(branch.recv::<OutcomePathStat>().await?))
+                    }
+                }
+            };
+            match received {
+                Ok(response) => break response,
+                Err(response) => metadata.send::<OutcomePathStatDone>(&response).await?,
+            }
+        };
+        results.send::<OutcomeOpened>(&opened).await?;
         loop {
-            let branch = endpoint.offer().await?;
-            match branch.label() {
-                150 => {
-                    let r = branch.recv::<OutcomeOpen>().await?;
-                    endpoint.send::<OutcomeOpened>(&file.open(r)?).await?;
+            let response = {
+                let offered = tokio::select! {
+                    branch = results.offer() => Ok(branch),
+                    branch = metadata.offer() => Err(branch),
+                };
+                match offered {
+                    Ok(branch) => {
+                        let branch = branch?;
+                        match branch.label() {
+                            150 => {
+                                FileReply::Opened(file.open(branch.recv::<OutcomeOpen>().await?)?)
+                            }
+                            152 => FileReply::Read(file.read(branch.recv::<OutcomeRead>().await?)?),
+                            154 => FileReply::Stat(file.stat(branch.recv::<OutcomeStat>().await?)),
+                            156 => FileReply::FileStat(
+                                file.file_stat(branch.recv::<OutcomeFileStat>().await?),
+                            ),
+                            158 => {
+                                FileReply::Closed(file.close(branch.recv::<OutcomeClose>().await?))
+                            }
+                            _ => {
+                                return Err(ShellError::message(
+                                    "unexpected result-file operation",
+                                ));
+                            }
+                        }
+                    }
+                    Err(branch) => {
+                        let branch = branch?;
+                        match branch.label() {
+                            160 => FileReply::PathStat(
+                                file.path_stat(branch.recv::<OutcomePathStat>().await?),
+                            ),
+                            242 => FileReply::Exit(branch.recv::<OutcomeExit>().await?),
+                            _ => {
+                                return Err(ShellError::message(
+                                    "unexpected file metadata operation",
+                                ));
+                            }
+                        }
+                    }
                 }
-                152 => {
-                    let r = branch.recv::<OutcomeRead>().await?;
-                    endpoint.send::<OutcomeReadDone>(&file.read(r)?).await?;
+            };
+            match response {
+                FileReply::Opened(response) => results.send::<OutcomeOpened>(&response).await?,
+                FileReply::Read(response) => results.send::<OutcomeReadDone>(&response).await?,
+                FileReply::Stat(response) => results.send::<OutcomeStatDone>(&response).await?,
+                FileReply::FileStat(response) => {
+                    results.send::<OutcomeFileStatDone>(&response).await?
                 }
-                154 => {
-                    let r = branch.recv::<OutcomeStat>().await?;
-                    endpoint.send::<OutcomeStatDone>(&file.stat(r)).await?;
+                FileReply::Closed(response) => results.send::<OutcomeClosed>(&response).await?,
+                FileReply::PathStat(response) => {
+                    metadata.send::<OutcomePathStatDone>(&response).await?
                 }
-                156 => {
-                    let r = branch.recv::<OutcomeFileStat>().await?;
-                    endpoint
-                        .send::<OutcomeFileStatDone>(&file.file_stat(r))
-                        .await?;
-                }
-                158 => {
-                    let r = branch.recv::<OutcomeClose>().await?;
-                    endpoint.send::<OutcomeClosed>(&file.close(r)).await?;
-                }
-                242 => {
-                    let status = branch.recv::<OutcomeExit>().await?;
+                FileReply::Exit(status) => {
                     if status != 0 {
                         return Err(ShellError::message("result recipient guest failed"));
                     }
                     return Ok(());
                 }
-                _ => return Err(ShellError::message("unexpected result-file operation")),
             }
         }
     }

@@ -1,6 +1,0 @@
-[
-  {
-    "exception_type": "pyshark.capture.capture.TSharkCrashException",
-    "analyzer_exit_code": 255
-  }
-]

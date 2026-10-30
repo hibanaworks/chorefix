@@ -1,154 +1,97 @@
-//! service/code_review/notification_feature: actual review outcomes drive rejected revision cycles.
+//! Actual review requests and results for notification_feature.
 use super::super::global::*;
-use crate::shell::{
-    ShellError, ShellResult,
-    imp::service::{Domain, File, Validation},
+use crate::{
+    shell::{ShellError, ShellResult, imp::service::Domain},
+    tasks::review::imp::ReviewInput,
 };
-use crate::tasks::review::imp::ReviewInput;
 use hibana::Endpoint;
-use hibana_wasip1_runtime::protocol;
-use serde_json::json;
 
 pub async fn run<D: Domain>(
     endpoint: &mut Endpoint<'_, REVIEW_B>,
     domain: &D,
-    arguments: &Validation,
-    review_result: &ReviewInput,
+    review: &ReviewInput,
 ) -> ShellResult<()> {
-    let mut file = File::new(b"service/code_review/notification_feature", REVIEW_B_FD);
+    let mut bytes = Vec::new();
     loop {
-        endpoint.send::<BeginReviewVisit>(&()).await?;
-        endpoint.send::<ReviewRequestReadyB>(&()).await?;
-        let request = endpoint.recv::<OpenB>().await?;
-        endpoint.send::<ReviewRequestedB>(&()).await?;
-        endpoint.recv::<Ready>().await?;
-        endpoint.send::<OpenedB>(&file.open(request)).await?;
-        loop {
-            endpoint.send::<ReviewRequest>(&()).await?;
-            endpoint.send::<ReviewRequestReadyB>(&()).await?;
-            let branch = endpoint
-                .offer()
-                .await
-                .map_err(|e| ShellError::message(format!("reviewer_b offer: {e:?}")))?;
-            match branch.label() {
-                43 => {
-                    let request = branch.recv::<OpenB>().await?;
-                    endpoint.send::<OpenedB>(&file.open(request)).await?;
-                }
-                45 => {
-                    let request = branch.recv::<WriteB>().await?;
-                    endpoint.send::<WrittenB>(&file.write(request)).await?;
-                }
-                47 => {
-                    let request = branch.recv::<CommitB>().await?;
-                    arguments.record(file.arguments(request.0, "pr_id").and_then(|value| {
-                        if value["pr_id"] == FEATURE_B {
-                            Ok(value)
-                        } else {
-                            Err(ShellError::message(
-                                "review target differs from this service",
-                            ))
-                        }
-                    }));
-                    let decision = endpoint
-                        .offer()
-                        .await
-                        .map_err(|e| ShellError::message(format!("reviewer_b offer: {e:?}")))?;
-                    match decision.label() {
-                        52 => {
-                            decision.recv::<ValidateB>().await?;
-                            endpoint.send::<AdmittedB>(&()).await?;
-                            break;
-                        }
-                        49 => {
-                            let bytes = serde_json::to_vec(
-                            &json!({"status":"invalid_arguments","error":arguments.rejection()?}),
-                        )
-                        .map_err(|e| ShellError::message(e.to_string()))?;
-                            decision.send::<RejectedB<'_>>(&bytes.as_slice()).await?;
-                        }
-                        _ => {
-                            return Err(ShellError::message("unexpected review argument decision"));
-                        }
-                    }
-                }
-                _ => return Err(ShellError::message("unexpected review request")),
-            }
-        }
-        endpoint.send::<Review>(&()).await?;
-        let result = domain
-            .execute("REVIEWER", "code_review", arguments.take()?)
-            .await
-            .map_err(ShellError::message)?;
-        let bytes = serde_json::to_vec(&result).map_err(|e| ShellError::message(e.to_string()))?;
-        review_result.record(result.clone());
-        let decision = endpoint
-            .offer()
-            .await
-            .map_err(|e| ShellError::message(format!("reviewer_b offer: {e:?}")))?;
-        match decision.label() {
-            182 => {
-                decision.send::<ApproveRepoB>(&()).await?;
-                endpoint.recv::<DecisionRecordedB>().await?;
-                endpoint.send::<Approved<'_>>(&bytes.as_slice()).await?;
-                endpoint.send::<ResultB<'_>>(&bytes.as_slice()).await?;
-                endpoint.send::<ServiceDoneB>(&()).await?;
-                break;
-            }
-            183 => {
-                decision.send::<ReworkRepoB>(&()).await?;
-                endpoint.recv::<DecisionRecordedB>().await?;
-                endpoint.send::<Revise<'_>>(&bytes.as_slice()).await?;
-                endpoint.send::<ResultB<'_>>(&bytes.as_slice()).await?;
-                endpoint.send::<ServiceDoneB>(&()).await?;
-            }
-            _ => return Err(ShellError::message("unexpected review decision")),
-        }
-    }
-    loop {
-        endpoint.send::<RejectRequest>(&()).await?;
-        endpoint.send::<ReviewRequestReadyB>(&()).await?;
-        let branch = endpoint
-            .offer()
-            .await
-            .map_err(|e| ShellError::message(format!("reviewer_b offer: {e:?}")))?;
+        let branch = endpoint.offer().await?;
         match branch.label() {
-            43 => {
-                branch.recv::<OpenB>().await?;
-                endpoint
-                    .send::<OpenedB>(&protocol::PathOpenedRet(protocol::PathOpened::new(0, 8)))
-                    .await?;
+            171 | 177 => {
+                let arguments = match branch.label() {
+                    171 => branch.recv::<ReviewB>().await?,
+                    177 => branch.recv::<ReReviewB>().await?,
+                    _ => unreachable!(),
+                }
+                .into_value();
+                if arguments["pr_id"] != FEATURE_B {
+                    return Err(ShellError::message("review target differs"));
+                }
+                let result = domain
+                    .execute("REVIEWER", "code_review", arguments)
+                    .await
+                    .map_err(ShellError::message)?;
+                bytes =
+                    serde_json::to_vec(&result).map_err(|e| ShellError::message(e.to_string()))?;
+                review.record(result);
             }
-            45 => {
-                let r = branch.recv::<WriteB>().await?;
-                endpoint
-                    .send::<WrittenB>(&protocol::FdWriteDoneRet(
-                        protocol::FdWriteDone::new_with_errno(r.0.fd(), 0, 8),
-                    ))
-                    .await?;
+            40 => {
+                branch.send::<ApprovedB<'_>>(&bytes.as_slice()).await?;
+                endpoint.send::<ApprovedB<'_>>(&bytes.as_slice()).await?;
+                endpoint.send::<ApprovedB<'_>>(&bytes.as_slice()).await?;
+                endpoint.send::<ApprovedB<'_>>(&bytes.as_slice()).await?;
+                endpoint.send::<ApprovedB<'_>>(&bytes.as_slice()).await?;
             }
-            47 => {
-                let r = branch.recv::<CommitB>().await?;
-                endpoint
-                    .send::<UnavailableB>(&protocol::FdClosedRet(
-                        protocol::FdClosed::new_with_errno(r.0.fd(), 8),
-                    ))
-                    .await?;
+            41 => {
+                branch.send::<RejectedB<'_>>(&bytes.as_slice()).await?;
+                endpoint.send::<RejectedB<'_>>(&bytes.as_slice()).await?;
+                endpoint.send::<RejectedB<'_>>(&bytes.as_slice()).await?;
+                endpoint.send::<RejectedB<'_>>(&bytes.as_slice()).await?;
+                endpoint.send::<RejectedB<'_>>(&bytes.as_slice()).await?;
             }
-            242 => {
-                branch.recv::<ExitB>().await?;
-                break;
+            30 => {
+                branch.recv::<ApprovedA<'_>>().await?;
+            }
+            31 => {
+                branch.recv::<RejectedA<'_>>().await?;
+            }
+            80 => {
+                branch.recv::<FirstA>().await?;
+            }
+            81 => {
+                branch.recv::<FirstB>().await?;
+            }
+            82 => {
+                branch.recv::<AgainABeforeB>().await?;
+            }
+            83 => {
+                branch.recv::<BDuringARevision>().await?;
+            }
+            84 => {
+                branch.recv::<BAfterAMerge>().await?;
+            }
+            85 => {
+                branch.recv::<AgainAAfterB>().await?;
+            }
+            86 => {
+                branch.recv::<AgainBBeforeA>().await?;
+            }
+            87 => {
+                branch.recv::<ADuringBRevision>().await?;
+            }
+            88 => {
+                branch.recv::<AAfterBMerge>().await?;
+            }
+            89 => {
+                branch.recv::<AgainBAfterA>().await?;
+            }
+            233 => {
+                branch.recv::<ReviewExitB>().await?;
+                return Ok(());
             }
             label => {
                 return Err(ShellError::message(format!(
-                    "unexpected closed review service request: {label}"
+                    "unexpected review-B operation {label}"
                 )));
             }
         }
     }
-    endpoint.send::<ReviewerClosed>(&()).await?;
-    endpoint.recv::<Merged>().await?;
-    endpoint.send::<ReviewExitAckB>(&()).await?;
-    endpoint.send::<BothMerged>(&()).await?;
-    Ok(())
 }

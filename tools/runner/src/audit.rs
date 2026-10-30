@@ -242,7 +242,7 @@ pub fn run(root: &Path, verifier: &Path) -> Result<Value> {
             return Err(format!("source differs: {name}").into());
         }
     }
-    snapshot::verify_upstream(&root.join("source"))?;
+    choreofix_inputs::verify_benchmark(&root.join("source"))?;
     let qualification =
         snapshot::qualification(&root.join("source"), result["task"].as_str().ok_or("task")?)?;
     let case = &qualification["cases"][result["task"].as_str().ok_or("task")?];
@@ -323,9 +323,10 @@ pub fn run(root: &Path, verifier: &Path) -> Result<Value> {
             return Err("physical resource assignment changed".into());
         }
     }
-    if fixture["model_run"] != true
+    if fixture["adapter"] != "rust_upstream_api"
         || fixture["test_delays"] != json!({})
         || fixture["delay_multiplier"] != 1.0
+        || fixture["failure_overrides"] != json!([])
     {
         return Err("model fixture settings differ".into());
     }
