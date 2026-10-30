@@ -47,7 +47,9 @@ T3の所在はghost stateとして定義し、runtimeへowner表や新しい権�
 初期発行と物理aliasの唯一性、FIFO・非重複配送・保持者からの受信可能性は明示した境界に置く。
 
 `Domain::execute`は通常のhostメソッドである。受信した要求、実引数、必要資源の対応を
-確認する箇所を小さいTCBとして列挙する。WASI import、公開host API、codec、物理bindingからの
+確認する箇所を[効果境界とadapter契約](benchmark/effect-boundaries.md)へ列挙する。
+現在の一覧はWasm移行済み12課題の6familyを対象とし、残る36課題の認定とは区別する。
+WASI import、公開host API、codec、物理bindingからの
 迂回・引数差替え・再送を実効果の直前で試す。任意host Rustの効果を型だけで禁止したとは言わない。
 新しい許可wrapperでEndpointを置き換えない。
 
@@ -252,6 +254,23 @@ effort、usageを確認し、inclusive tokensは360,770だった。実モデル�
 これらはローカルcore修正を選ぶ予備試験である。前版のモデル記録を変更後sourceのモデル認定へ
 流用しない。通常Git pinの認定と現版のモデル接続確認は未完であり、採点済みとは数えない。
 
+効果入口の契約と12課題・6familyの受信処理を[一覧](benchmark/effect-boundaries.md)に整理した。
+6Eの実受信処理を別runtime間で直接動かし、引数のすり替え・対象違いの拒否と、
+正しい要求の実結果の返却を確認した。16Eでは、承認した引数と異なる要求を受け取っても
+実効果を呼んでいた受信側の不足を再現し、3つのCI/CD処理を修正した。文章作成も、
+2つの資源要求の一致だけでなく、承認済み引数との一致を受信側で確認する。
+比較用に残すのは実入力の値であり、進行flagや別の権限表は追加していない。
+
+修正後のnative19件とClippyが通過した。実Wasmは16Eの元障害3条件・作業前の終了拒否と、
+2E/2M/2Hの各5条件、計19条件が通過した。資源違反0件、監査の252変異を拒否し、
+文章作成の終端レビュー失敗3件は元scoreの失敗として保った。通常遅延の独立writeは
+3/5/7人で1/2/3件重なった。完走した18記録を別processの同じauditorでも照合し、
+組み込み監査と一致した。監査アルゴリズムは同じである。
+build前後のアプリ・core・WASI・washのsource hashは一致した。
+buildは306秒、全子孫の最大memoryは1,088,407,040bytesだった。
+これらはローカルcore修正での機構試験で、model呼出し・採点実験は0件である。
+T3/T4の一般的な合成と、通常Git pinでの最終認定は未完である。
+
 1Hの委譲版には、通常のmodule localsideを動かさず、現在のglobalを公開`project`で
 直接駆動する排他試験を追加した。A/Bそれぞれのdesign・implementationを完了し、
 AがDB用Endpointを保持する間はBの受信がPendingとなり、Aの実要求・結果・返却後に
@@ -338,6 +357,8 @@ M3では旧nativeの進行管理・不要な入口・自作Pythonを除去する
 `development/endpoint-delegation`へ公開し、旧検証ログ・sourceコピー・build生成物は追加しない。
 GitHub Actionsの残予算はないため、必要な検査はローカルで実行し、進捗pushは`[skip ci]`を付ける。
 古いbuild・不要cache・未使用の実験成果物は削除し、profilerと論文に必要なraw証拠は保持する。
+ビルド成功後に毎回この整理を行い、置き換えたbinaryや未使用target、一時ログを溜めない。
+現在使う成果物・再利用するcacheと、未解決の反例・検証停止の証拠は残す。圧縮保管へ逃がさない。
 
 完了にはT1–T6と実装の対応、受理した全課題の適合性、未変更比較側の接続認定、
 事前に凍結したA–Gの実験・負例・独立採点・集計、論文と再現artifact、必要な統合gateが必要である。

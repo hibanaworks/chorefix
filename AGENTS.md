@@ -14,6 +14,13 @@ Save budget stops as interrupted verification. Reduce proof formula size or
 split equivalent obligations without reducing the proof domain or safety checks.
 Never raise the budget to make a proof pass.
 
+After every successful build, remove superseded binaries, unused target
+directories, temporary logs and caches. Delete them rather than compressing
+them into archives. Keep the artifacts and cache still used by the current
+work, reusable profilers, necessary raw experiment data and source hashes, and
+evidence for unresolved failures. Do not delete another task's files or an
+active build's storage.
+
 ## Mandatory design constraints
 
 Always prefer a simpler, more coherent design, including breaking changes when

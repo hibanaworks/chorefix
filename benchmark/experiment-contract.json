@@ -16,6 +16,8 @@
     "status": "Research targets recorded before scoring; additional tasks, connections, precision and final source are not yet qualified or frozen",
     "first_technical_gate": "T3/T4: compose unique resource ownership and its remaining protocol with actual effects; define the adapter trust boundary and test old owners, duplicate transfers and argument substitution before scored comparisons",
     "theorem_scope_and_milestones": "plan.md",
+    "effect_boundary_contract_and_inventory": "benchmark/effect-boundaries.md",
+    "effect_boundary_status": "Native production-receiver probes and actual-Wasm mechanism checks cover argument substitution and valid results on a local core patch; general T3/T4 composition, the remaining task ports and normal Git dependency qualification remain pending",
     "new_comparators": {
       "zippergen": {
         "source": "https://github.com/zippergen-io/zippergen",

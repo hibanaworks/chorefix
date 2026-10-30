@@ -154,7 +154,7 @@ pub(crate) async fn run<const ROLE: u8, const FIRST: u8, const SECOND: u8>(
 
     // write_to_document: the Endpoint admits this lifetime, including reconsideration.
     let mut file = File::new(b"service/write_to_document", SERVICE_FD);
-    loop {
+    let admitted = loop {
         endpoint.send::<WriteRequest>(&()).await?;
         endpoint.send::<WriteRequestReady>(&()).await?;
         let branch = endpoint.offer().await?;
@@ -203,7 +203,7 @@ pub(crate) async fn run<const ROLE: u8, const FIRST: u8, const SECOND: u8>(
                                 .map_err(|error| ShellError::message(format!("{error:?}")))?;
                         let payload = &bytes[..count];
                         endpoint.send::<WriteAdmitted<'_>>(&payload).await?;
-                        break;
+                        break arguments;
                     }
                     156 => {
                         let bytes = serde_json::to_vec(
@@ -219,7 +219,7 @@ pub(crate) async fn run<const ROLE: u8, const FIRST: u8, const SECOND: u8>(
             }
             _ => return Err(ShellError::message("unexpected write_to_document request")),
         }
-    }
+    };
     let (first, second) = {
         let [mut first, mut second] = endpoint.par()?;
         tokio::try_join!(
@@ -227,9 +227,9 @@ pub(crate) async fn run<const ROLE: u8, const FIRST: u8, const SECOND: u8>(
             second.recv::<SectionRequest<SECOND>>()
         )?
     };
-    if first != second {
+    if first != second || first != admitted {
         return Err(ShellError::message(
-            "section requests contain different arguments",
+            "section arguments differ from the admitted request",
         ));
     }
     let result = domain

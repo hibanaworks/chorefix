@@ -18,7 +18,7 @@ pub async fn run<D: Domain>(
     let mut file = File::new(b"service/deploy_application", SERVICE_FD);
     let response = file.open(request);
     endpoint.send::<Opened>(&response).await?;
-    loop {
+    let admitted = loop {
         endpoint.send::<ServeRequest>(&()).await?;
         endpoint.send::<RequestReady>(&()).await?;
         let branch = endpoint.offer().await?;
@@ -40,10 +40,11 @@ pub async fn run<D: Domain>(
                 match decision.label() {
                     12 => {
                         decision.recv::<Validate>().await?;
-                        let arguments = serde_json::to_vec(&deploy.take()?)
+                        let admitted = deploy.take()?;
+                        let arguments = serde_json::to_vec(&admitted)
                             .map_err(|error| ShellError::message(error.to_string()))?;
                         endpoint.send::<Admitted<'_>>(&arguments.as_slice()).await?;
-                        break;
+                        break admitted;
                     }
                     9 => {
                         let bytes = serde_json::to_vec(
@@ -57,8 +58,13 @@ pub async fn run<D: Domain>(
             }
             _ => return Err(ShellError::message("unexpected service request")),
         }
-    }
+    };
     let arguments = endpoint.recv::<DeployRequest>().await?.into_value();
+    if arguments != admitted {
+        return Err(ShellError::message(
+            "deployment arguments differ from the admitted request",
+        ));
+    }
     let result = domain
         .execute("DEPLOYER", "deploy_application", arguments)
         .await

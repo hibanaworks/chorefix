@@ -64,6 +64,57 @@ impl Journal {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn replacing_an_admitted_compile_argument_is_rejected_before_the_effect() {
+    let p = programs();
+    let validation = Validation::new();
+    let journal = Journal::default();
+    let session = SessionId::new(1621);
+    let (bus, _reader, _terminals) = Bus::open([], [(session, BUILD_SERVER)]);
+    let mut slab = vec![0; 1024 * 1024];
+    let mut storage = SessionKitStorage::uninit();
+    let rv = storage
+        .init()
+        .rendezvous(&mut slab, &bus.transport)
+        .unwrap();
+    rv.set_resolver(
+        &p.developer,
+        ResolverRef::<COMPILE_CLOSE>::decision_state(&validation, Validation::decide),
+    )
+    .unwrap();
+    let mut developer = rv.enter(session, &p.developer).unwrap();
+    let mut guest = rv.enter(session, &p.dev_wasi).unwrap();
+    let mut owner = rv.enter(session, &p.build_owner).unwrap();
+    let build = rv.enter(session, &p.build_server).unwrap();
+
+    tokio::time::timeout(Duration::from_secs(3), async {
+        tokio::select! {
+            result = localside::developer::run(&mut developer, &journal, &validation) => {
+                assert_eq!(result.unwrap_err().to_string(), "compile arguments differ from the admitted request");
+            }
+            _ = async {
+                assert_eq!(open(&mut guest, b"service/compile_and_test").await, 0);
+                write(&mut guest, json!({"component":"reviewed_candidate"})).await;
+                guest.recv::<RequestReady>().await.unwrap();
+                guest.send::<Commit>(&protocol::FdCloseReq(protocol::FdRequest::new(SERVICE_FD))).await.unwrap();
+                assert_eq!(
+                    serde_json::from_slice::<Value>(guest.recv::<Admitted<'_>>().await.unwrap()).unwrap(),
+                    json!({"component":"reviewed_candidate"})
+                );
+                owner.send::<Loan<'_, BUILD_SERVER>>(build).await.unwrap();
+                let mut build = guest.recv::<Loan<'_, BUILD_SERVER>>().await.unwrap();
+                let substituted = Arguments::<1>::from_bytes(br#"{"component":"unreviewed_candidate"}"#).unwrap();
+                build.send::<CompileRequest>(&substituted).await.unwrap();
+                let response = build.recv::<CompileResult<'_>>().await.unwrap();
+                panic!("substituted argument caused an effect: {:?}; reply: {:?}", journal.events(), response);
+            } => unreachable!(),
+        }
+        assert!(journal.events().is_empty());
+    })
+    .await
+    .expect("argument substitution test stalled");
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn wasi_roles_reach_the_service_owners_only_through_projected_messages() {
     let p = programs();
     let compile = Validation::new();

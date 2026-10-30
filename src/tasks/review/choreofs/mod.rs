@@ -2,6 +2,8 @@
 pub mod global;
 mod imp;
 pub(crate) mod localside;
+#[cfg(test)]
+mod tests;
 use crate::{
     imp::transport::InMemoryTransport,
     shell::{ShellError, ShellResult},
