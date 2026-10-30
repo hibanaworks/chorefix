@@ -87,6 +87,7 @@ fn time(row: &Value) -> Result<f64> {
 }
 fn close_arguments(
     frames: &BTreeMap<u64, Frame>,
+    used: &mut BTreeSet<usize>,
     vm: u64,
     io: u64,
     before: usize,
@@ -115,6 +116,36 @@ fn close_arguments(
         f.direction(vm, io) && f.bytes == [4] && f.received.is_some_and(|at| at < closed.sent)
     }) {
         return Err("close result without projected WASI request".into());
+    }
+    if !used.insert(closed.sent) {
+        return Err("WASI close reused for another effect".into());
+    }
+    Ok(())
+}
+
+fn check_close_pairs(frames: &BTreeMap<u64, Frame>) -> Result<()> {
+    let mut used = BTreeSet::new();
+    for vm in [0, 1, 2] {
+        for reply in frames.values().filter(|f| {
+            f.direction(vm + 8, vm)
+                && f.bytes.first() == Some(&4)
+                && f.bytes.len() >= 4
+                && f.bytes
+                    .get(4..4 + usize::from(f.bytes[3]))
+                    .is_some_and(|path| path.starts_with(b"service/"))
+        }) {
+            let request = frames
+                .values()
+                .filter(|f| f.direction(vm, vm + 8) && f.sent < reply.sent)
+                .max_by_key(|f| f.sent)
+                .ok_or("business close without WASI request")?;
+            if request.bytes != [4]
+                || request.received()? >= reply.sent
+                || !used.insert(request.sent)
+            {
+                return Err("business close request reused or out of order".into());
+            }
+        }
     }
     Ok(())
 }
@@ -290,7 +321,22 @@ fn check(rows: &[Value]) -> Result<Value> {
     {
         return Err("incomplete observed execution".into());
     }
-    let expected = 6 + 2 * fixture["depth"].as_u64().ok_or("depth")? as usize;
+    let depth = fixture["depth"].as_u64().ok_or("depth")? as usize;
+    let overrides = fixture["failure_overrides"]
+        .as_array()
+        .ok_or("failure overrides")?;
+    let mut indices = BTreeSet::new();
+    for failure in overrides {
+        let index = failure[1].as_u64().ok_or("review failure index")? as usize;
+        if failure[0] != "code_review" || !indices.insert(index) {
+            return Err("unsupported review failure override".into());
+        }
+    }
+    let rejections = depth + indices.len();
+    if indices.iter().copied().ne(depth..rejections) {
+        return Err("review overrides must extend the original failure prefix".into());
+    }
+    let expected = 6 + 2 * rejections;
     let score = score.ok_or("missing original score")?;
     if score["complete"] != true || score["violations"] != json!([]) || calls.len() != expected {
         return Err("original completion or call count".into());
@@ -343,11 +389,13 @@ fn check(rows: &[Value]) -> Result<Value> {
         .filter(is_loan)
         .collect();
     loans.sort_by_key(|f| f.sent);
-    if loans.len() != 4 + fixture["depth"].as_u64().unwrap() as usize {
+    if loans.len() != 4 + rejections {
         return Err("repository loan count".into());
     }
     let mut previous_return = 0;
     let mut used = BTreeSet::new();
+    let mut used_closes = BTreeSet::new();
+    check_close_pairs(&frames)?;
     for (number, loan) in loans.iter().enumerate() {
         let vm = loan.identity["target"].as_u64().ok_or("loan target")?;
         let next = loans.get(number + 1).map_or(rows.len(), |f| f.sent);
@@ -411,7 +459,15 @@ fn check(rows: &[Value]) -> Result<Value> {
         } else {
             "service/merge_code"
         };
-        close_arguments(&frames, vm, vm + 8, admitted.sent, path, &arguments)?;
+        close_arguments(
+            &frames,
+            &mut used_closes,
+            vm,
+            vm + 8,
+            admitted.sent,
+            path,
+            &arguments,
+        )?;
         if call.tool()? == "merge_code" {
             let feature = if vm == 0 {
                 "user_authentication"
@@ -464,38 +520,72 @@ fn check(rows: &[Value]) -> Result<Value> {
     }
 
     let mut reviews = 0;
-    for call in calls
+    let mut used_review_requests = BTreeSet::new();
+    let mut used_review_results = BTreeSet::new();
+    let mut review_calls: Vec<_> = calls
         .values()
         .filter(|c| c.tool().is_ok_and(|s| s == "code_review"))
-    {
+        .collect();
+    review_calls.sort_by_key(|c| c.emitted);
+    let mut previous_review = 0;
+    for call in &review_calls {
         let service = if call.target()? == "user_authentication" {
             5
         } else {
             6
         };
+        let previous = review_calls
+            .iter()
+            .filter(|c| c.target().ok() == call.target().ok() && c.emitted < call.emitted)
+            .map(|c| c.result().map(|(at, _)| at))
+            .collect::<Result<Vec<_>>>()?
+            .into_iter()
+            .max()
+            .unwrap_or(0);
         let implementation = calls
             .values()
             .filter(|c| {
                 c.tool().is_ok_and(|s| s == "implement_feature")
                     && c.target().ok() == call.target().ok()
-                    && c.started.is_some_and(|(at, _)| at < call.emitted)
+                    && c.started
+                        .is_some_and(|(at, _)| previous < at && at < call.emitted)
             })
             .max_by_key(|c| c.started.map(|v| v.0))
             .ok_or("review without implementation")?;
         if implementation.ended()?.0 >= call.emitted {
             return Err("review before the latest implementation completed".into());
         }
-        let request = frames
+        let mut submitted: Vec<_> = frames
             .values()
             .filter(|f| {
-                f.direction(2, service)
-                    && f.received.is_some_and(|at| at < call.emitted)
+                f.identity["source"] == 2
+                    && matches!(f.identity["target"].as_u64(), Some(0 | 1 | 5 | 6 | 7))
+                    && previous_review < f.sent
+                    && f.sent < call.emitted
                     && f.value().is_ok_and(|v| v == call.request["arguments"])
             })
-            .max_by_key(|f| f.received)
-            .ok_or("review without projected request")?;
+            .collect();
+        submitted.sort_by_key(|f| f.sent);
+        if submitted.len() != 6 {
+            return Err("review requires five intent deliveries and one distinct request".into());
+        }
+        let mut after = previous_review;
+        for (frame, target) in submitted.iter().zip([7, 5, 6, 0, 1, service]) {
+            if !frame.direction(2, target)
+                || frame.sent <= after
+                || !used_review_requests.insert(frame.sent)
+            {
+                return Err("review intent/request order or reused occurrence".into());
+            }
+            after = frame.sent;
+        }
+        let request = submitted[5];
+        if request.received()? >= call.emitted {
+            return Err("review effect before request receipt".into());
+        }
         close_arguments(
             &frames,
+            &mut used_closes,
             2,
             10,
             request.sent,
@@ -513,17 +603,30 @@ fn check(rows: &[Value]) -> Result<Value> {
             .min()
             .unwrap_or(rows.len());
         let (result_at, result) = call.result()?;
+        previous_review = result_at;
         for target in [0, 1, 2, if service == 5 { 6 } else { 5 }, 7] {
-            one(frames.values().filter(|f| {
+            let reply = one(frames.values().filter(|f| {
                 f.direction(service, target)
                     && f.sent > result_at
                     && f.sent < next
                     && f.value().is_ok_and(|v| v == *result)
             }))?;
+            if !used_review_results.insert(reply.sent) {
+                return Err("review result reused for another effect".into());
+            }
         }
         reviews += 1;
     }
     if used.len() + reviews != calls.len()
+        || frames
+            .values()
+            .filter(|f| {
+                f.identity["source"] == 2
+                    && matches!(f.identity["target"].as_u64(), Some(0 | 1 | 5 | 6 | 7))
+                    && f.bytes.first() == Some(&b'{')
+            })
+            .count()
+            != used_review_requests.len()
         || frames
             .values()
             .filter(|f| f.identity["source"] == 5 || f.identity["source"] == 6)
@@ -566,12 +669,105 @@ pub fn audit(path: &Path) -> Result<Value> {
     Ok(result)
 }
 
+fn review_occurrence_frames(rows: &[Value], repeated: bool) -> Result<(u64, u64, u64)> {
+    let mut seen = BTreeSet::new();
+    let (at, call) = rows
+        .iter()
+        .enumerate()
+        .find(|(_, row)| {
+            let m = &row["message"];
+            row["direction"] == "runtime"
+                && m["type"] == "execute"
+                && m["tool"] == "code_review"
+                && (!repeated || !seen.insert(m["arguments"].to_string()))
+        })
+        .ok_or("matching actual review occurrence")?;
+    let call = &call["message"];
+    let service = if call["arguments"]["pr_id"] == "user_authentication" {
+        5
+    } else {
+        6
+    };
+    let (request_at, request) = rows[..at]
+        .iter()
+        .enumerate()
+        .rev()
+        .find(|(_, row)| {
+            let m = &row["message"];
+            m["type"] == "protocol_frame"
+                && m["action"] == "send"
+                && m["source"] == 2
+                && m["target"] == service
+                && serde_json::from_value::<Vec<u8>>(m["payload"].clone())
+                    .ok()
+                    .and_then(|bytes| serde_json::from_slice::<Value>(&bytes).ok())
+                    .is_some_and(|args| args == call["arguments"])
+        })
+        .ok_or("actual review request frame")?;
+    let closed = rows[..request_at]
+        .iter()
+        .rev()
+        .find(|row| {
+            let m = &row["message"];
+            m["type"] == "protocol_frame"
+                && m["action"] == "receive"
+                && m["source"] == 10
+                && m["target"] == 2
+                && m["payload"][0] == 4
+                && m["payload"][1] == 0
+                && m["payload"][2] == 0
+                && m["payload"][3].as_u64().is_some_and(|n| n > 0)
+        })
+        .ok_or("actual review close frame")?;
+    let result = rows[at..]
+        .iter()
+        .find(|row| {
+            let m = &row["message"];
+            m["type"] == "protocol_frame"
+                && m["action"] == "send"
+                && m["source"] == service
+                && m["target"] == 2
+        })
+        .ok_or("actual review result frame")?;
+    Ok((
+        request["message"]["frame_id"]
+            .as_u64()
+            .ok_or("request ID")?,
+        closed["message"]["frame_id"].as_u64().ok_or("close ID")?,
+        result["message"]["frame_id"].as_u64().ok_or("result ID")?,
+    ))
+}
+
+#[test]
+#[ignore = "requires CHOREOFIX_REVIEW_TRACE from a completed actual-WASI repeated review"]
+fn a_repeated_review_cannot_reuse_an_earlier_request() -> Result<()> {
+    let path = std::env::var_os("CHOREOFIX_REVIEW_TRACE").ok_or("review trace path")?;
+    let mut rows = records(Path::new(&path))?;
+    check(&rows)?;
+    let (id, _, _) = review_occurrence_frames(&rows, true)?;
+    rows.retain(|row| {
+        !(row["message"]["type"] == "protocol_frame" && row["message"]["frame_id"] == id)
+    });
+    if let Some(output) = std::env::var_os("CHOREOFIX_REVIEW_MUTANT_OUTPUT") {
+        let lines = rows
+            .iter()
+            .map(serde_json::to_string)
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        fs::write(output, lines.join("\n") + "\n")?;
+    }
+    assert!(
+        check(&rows).is_err(),
+        "the earlier identical request was reused"
+    );
+    Ok(())
+}
+
 pub fn check_mutants(path: &Path, output: &Path) -> Result<Value> {
     audit(path)?;
     fs::create_dir(output)?;
     let rows = records(path)?;
     let mut verdicts = Vec::new();
-    for kind in [
+    let mut kinds = vec![
         "missing_loan",
         "wrong_resource",
         "missing_admission",
@@ -588,7 +784,21 @@ pub fn check_mutants(path: &Path, output: &Path) -> Result<Value> {
         "missing_wasi_close",
         "missing_exit",
         "false_score",
-    ] {
+        "missing_review_request",
+        "extra_review_request",
+        "missing_review_close",
+        "extra_review_close",
+        "missing_review_result",
+        "extra_review_result",
+    ];
+    if review_occurrence_frames(&rows, true).is_ok() {
+        kinds.extend([
+            "missing_repeated_review_request",
+            "missing_repeated_review_close",
+            "missing_repeated_review_result",
+        ]);
+    }
+    for kind in kinds {
         let mut changed = rows.clone();
         let frame_target = |r: &Value| -> bool {
             let m = &r["message"];
@@ -615,6 +825,53 @@ pub fn check_mutants(path: &Path, output: &Path) -> Result<Value> {
             }
         };
         match kind {
+            "missing_review_request"
+            | "extra_review_request"
+            | "missing_review_close"
+            | "extra_review_close"
+            | "missing_review_result"
+            | "extra_review_result"
+            | "missing_repeated_review_request"
+            | "missing_repeated_review_close"
+            | "missing_repeated_review_result" => {
+                let (request, closed, result) =
+                    review_occurrence_frames(&changed, kind.contains("repeated"))?;
+                let id = if kind.ends_with("request") {
+                    request
+                } else if kind.ends_with("close") {
+                    closed
+                } else {
+                    result
+                };
+                if kind.starts_with("missing") {
+                    changed.retain(|row| {
+                        !(row["message"]["type"] == "protocol_frame"
+                            && row["message"]["frame_id"] == id)
+                    });
+                } else {
+                    let fresh = changed
+                        .iter()
+                        .filter_map(|row| row["message"]["frame_id"].as_u64())
+                        .max()
+                        .ok_or("frame IDs")?
+                        .checked_add(1)
+                        .ok_or("frame ID overflow")?;
+                    changed = changed
+                        .into_iter()
+                        .flat_map(|row| {
+                            let mut copies = vec![row];
+                            if copies[0]["message"]["type"] == "protocol_frame"
+                                && copies[0]["message"]["frame_id"] == id
+                            {
+                                let mut extra = copies[0].clone();
+                                extra["message"]["frame_id"] = json!(fresh);
+                                copies.push(extra);
+                            }
+                            copies
+                        })
+                        .collect();
+                }
+            }
             "missing_wasi_close" => {
                 let at = changed
                     .iter()

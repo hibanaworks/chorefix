@@ -37,6 +37,14 @@ Preserve atomicity and safety; do not weaken checks or tests to simplify a desig
 **No helper/wrapper hiding of localside flow. No separate state machine. No
 task progress flags. No duplicate coordination or completion management.**
 
+Never work around a core, projection or runtime-checking defect by arranging the
+localside differently. Reordering operations, adding notifications or receives,
+special-case branches, serialization, helpers or flags to make a legal global
+work is forbidden. Fix Hibana when a legal global permits or rejects the wrong
+operation. Fix the global when its coordination specification is wrong; write
+the localside directly from that corrected projection. Remove existing
+workarounds at their cause without weakening regression expectations or guarantees.
+
 Do not use `Rc`, `Arc`, `RefCell` or `Mutex` to share application resources,
 file contents or coordination state. Give the data to one participant and send
 requests, results and resource Endpoints through the global protocol. A resolver
