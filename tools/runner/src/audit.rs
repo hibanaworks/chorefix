@@ -31,6 +31,25 @@ fn unique<'a>(rows: &'a [Value], direction: &str, method: &str) -> Result<&'a Va
     }
     Ok(values[0])
 }
+
+fn reply<'a>(rows: &'a [Value], request: &Value) -> Result<&'a Value> {
+    let id = &request["message"]["id"];
+    if id.is_null() {
+        return Err("RPC request has no ID".into());
+    }
+    let replies: Vec<_> = rows
+        .iter()
+        .filter(|row| {
+            row["direction"] == "receive"
+                && row["message"]["id"] == *id
+                && row["message"].get("method").is_none()
+        })
+        .collect();
+    if replies.len() != 1 {
+        return Err("expected one reply to the recorded RPC request".into());
+    }
+    Ok(&replies[0]["message"]["result"])
+}
 fn tokens(value: &Value) -> Result<u64> {
     let input = value["inputTokens"].as_u64().ok_or("input tokens")?;
     let output = value["outputTokens"].as_u64().ok_or("output tokens")?;
@@ -55,7 +74,8 @@ fn participant(root: &Path, agent: &str, runtime: &[Value]) -> Result<Value> {
         return Err("failed or altered participant report".into());
     }
     let rows = records(&directory.join("events.jsonl"))?;
-    let thread = &unique(&rows, "send", "thread/start")?["message"]["params"];
+    let thread_request = unique(&rows, "send", "thread/start")?;
+    let thread = &thread_request["message"]["params"];
     let instructions = fs::read_to_string(root.join(format!("{agent}-prompt.txt")))?;
     if thread["model"] != model::MODEL
         || thread["allowProviderModelFallback"] != false
@@ -72,18 +92,8 @@ fn participant(root: &Path, agent: &str, runtime: &[Value]) -> Result<Value> {
     {
         return Err("model request settings or prompt differ".into());
     }
-    let metadata: Vec<_> = rows
-        .iter()
-        .filter(|v| {
-            v["direction"] == "receive"
-                && v["message"]["id"] == 2
-                && v["message"].get("method").is_none()
-        })
-        .collect();
-    if metadata.len() != 1
-        || metadata[0]["message"]["result"]["model"] != model::MODEL
-        || metadata[0]["message"]["result"]["reasoningEffort"] != model::EFFORT
-    {
+    let metadata = reply(&rows, thread_request)?;
+    if metadata["model"] != model::MODEL || metadata["reasoningEffort"] != model::EFFORT {
         return Err("actual model/effort not proven".into());
     }
     let turn = unique(&rows, "send", "turn/start")?;
@@ -214,9 +224,10 @@ fn participant(root: &Path, agent: &str, runtime: &[Value]) -> Result<Value> {
     )
 }
 
-pub fn run(root: &Path, verifier: &Path) -> Result<Value> {
+pub fn run(root: &Path) -> Result<Value> {
     let result = load(&root.join("result.json"))?;
     let versions = load(&root.join("versions.json"))?;
+    let task = result["task"].as_str().ok_or("task")?;
     if result["versions"] != versions
         || !result["error"].is_null()
         || result["scored_benchmark"] != false
@@ -224,7 +235,16 @@ pub fn run(root: &Path, verifier: &Path) -> Result<Value> {
     {
         return Err("failed or altered case result".into());
     }
-    for (name, hash) in versions["binaries"].as_object().ok_or("binary hashes")? {
+    let binaries = versions["binaries"].as_object().ok_or("binary hashes")?;
+    let mut required = vec!["runtime", "wash.wasm", "runner"];
+    if matches!(task, "9E" | "9M" | "9H") {
+        required.push("protocol-audit");
+    }
+    if binaries.len() != required.len() || required.iter().any(|name| !binaries.contains_key(*name))
+    {
+        return Err("missing or unexpected executable in the evidence bundle".into());
+    }
+    for (name, hash) in binaries {
         if name.contains('/') || json!(digest(&root.join(name))?) != *hash {
             return Err("binary differs".into());
         }
@@ -243,32 +263,28 @@ pub fn run(root: &Path, verifier: &Path) -> Result<Value> {
         }
     }
     choreofix_inputs::verify_benchmark(&root.join("source"))?;
-    let qualification =
-        snapshot::qualification(&root.join("source"), result["task"].as_str().ok_or("task")?)?;
-    let case = &qualification["cases"][result["task"].as_str().ok_or("task")?];
-    if versions["format_version"] != 2
-        || versions["binaries"]["runtime"] != case["runtime_sha256"]
-        || versions["binaries"]["wash.wasm"] != qualification["wash_sha256"]
-        || versions["runtime_source_revision"] != qualification["source_revision"]
-        || versions["qualification_sha256"]
-            != digest(&root.join("source").join(snapshot::QUALIFICATION))?
+    let receipt = load(&root.join("build-receipt.json"))?;
+    let original = load(&root.join("input-build-receipt.json"))?;
+    let input_hash = digest(&root.join("input-build-receipt.json"))?;
+    let source_hash = digest(&root.join("build-source.sha256"))?;
+    let mut normalized = original.clone();
+    normalized["source_manifest"] = json!("build-source.sha256");
+    normalized["input_receipt_sha256"] = json!(input_hash);
+    if versions["format_version"] != 3
+        || versions["runtime_build_receipt"] != receipt
+        || versions["build_receipt_sha256"] != digest(&root.join("build-receipt.json"))?
+        || versions["input_build_receipt_sha256"] != input_hash
+        || versions["runtime_source_manifest_sha256"] != source_hash
+        || original["source_manifest_sha256"] != source_hash
+        || original["source_unchanged"] != true
+        || versions["binaries"]["runtime"] != original["binary_sha256"]
+        || receipt != normalized
     {
-        return Err("unqualified execution artifacts".into());
+        return Err("runtime, source or build receipt differs".into());
     }
-    let revision = versions["consumer"].as_str().ok_or("consumer revision")?;
-    if revision.len() != 40 || !revision.bytes().all(|b| b.is_ascii_hexdigit()) {
-        return Err("invalid consumer commit".into());
-    }
-    let pinned = Command::new("git")
-        .args(["show", &format!("{revision}:{}", snapshot::QUALIFICATION)])
-        .output()?;
-    if !pinned.status.success() || serde_json::from_slice::<Value>(&pinned.stdout)? != qualification
-    {
-        return Err("qualification differs from the execution commit".into());
-    }
+    snapshot::runtime_sources(&root.join("source"), &root.join("build-source.sha256"))?;
     let rows = records(&root.join("events.jsonl"))?;
     let fixture = &rows.first().ok_or("no runtime evidence")?["message"];
-    let task = result["task"].as_str().ok_or("task")?;
     let metadata = load(
         &root
             .join("source/vendor/tracefix/benchmark/descriptions")
@@ -293,9 +309,9 @@ pub fn run(root: &Path, verifier: &Path) -> Result<Value> {
     for actor in fixture["fixtures"].as_array().ok_or("fixture actors")? {
         let field = if task.starts_with('9') {
             "forks"
-        } else if task.starts_with('1') {
+        } else if matches!(task, "1E" | "1M" | "1H") {
             "modules"
-        } else if task == "8E" {
+        } else if matches!(task, "6E" | "8E" | "16E") {
             "resources"
         } else {
             "sections"
@@ -306,7 +322,7 @@ pub fn run(root: &Path, verifier: &Path) -> Result<Value> {
             .iter()
             .map(|v| v.as_str().ok_or("resource name"))
             .collect::<std::result::Result<_, _>>()?;
-        let expected = if task == "8E" {
+        let expected = if matches!(task, "6E" | "8E" | "16E") {
             &metadata["tool_resource_map"][actor["calls"][0]["tool"].as_str().ok_or("tool")?]
         } else {
             &metadata["agent_resources"][actor["agent"].as_str().ok_or("actor")?]
@@ -319,7 +335,7 @@ pub fn run(root: &Path, verifier: &Path) -> Result<Value> {
             .collect::<std::result::Result<_, _>>()?;
         actual.sort();
         expected.sort();
-        if (task != "8E" && actual.len() != 2) || actual != expected {
+        if actual != expected {
             return Err("physical resource assignment changed".into());
         }
     }
@@ -372,46 +388,66 @@ pub fn run(root: &Path, verifier: &Path) -> Result<Value> {
         active += change;
         maximum = maximum.max(active);
     }
-    if maximum != participants.len() as i32 {
-        return Err("model turns did not overlap".into());
+    let protocol = match task {
+        "1E" | "1M" | "1H" => crate::codebase_audit::audit(&root.join("events.jsonl"))?,
+        "2E" | "2M" | "2H" => crate::writing_audit::audit(&root.join("events.jsonl"))?,
+        "6E" => crate::review_audit::audit(&root.join("events.jsonl"))?,
+        "8E" => crate::api_audit::audit(&root.join("events.jsonl"))?,
+        "16E" => crate::cicd_audit::audit(&root.join("events.jsonl"))?,
+        "9E" | "9M" | "9H" => {
+            let protocol = Command::new(root.join("protocol-audit").canonicalize()?)
+                .arg("--audit")
+                .arg(root.join("events.jsonl"))
+                .output()?;
+            if !protocol.status.success() {
+                return Err(format!(
+                    "protocol audit: {}",
+                    String::from_utf8_lossy(&protocol.stderr)
+                )
+                .into());
+            }
+            serde_json::from_slice(&protocol.stdout)?
+        }
+        _ => return Err("task has no delegated WASI implementation".into()),
+    };
+    let runtime = result["outcomes"]
+        .as_array()
+        .ok_or("run outcomes")?
+        .iter()
+        .filter(|o| o["kind"] == "guest_runtime")
+        .collect::<Vec<_>>();
+    if runtime.len() != 1 {
+        return Err("expected one actual guest runtime outcome".into());
     }
-    if json!(digest(verifier)?) != case["protocol_verifier_sha256"] {
-        return Err("protocol verifier differs from the qualified build".into());
-    }
-    let protocol = Command::new(verifier.canonicalize()?)
-        .arg("--audit")
-        .arg(root.join("events.jsonl"))
-        .output()?;
-    if !protocol.status.success() {
-        return Err(format!(
-            "protocol audit: {}",
-            String::from_utf8_lossy(&protocol.stderr)
-        )
-        .into());
-    }
-    let protocol: Value = serde_json::from_slice(&protocol.stdout)?;
+    let runtime = &runtime[0]["result"];
     if protocol["status"] != "passed"
         || protocol["task"] != fixture["task"]
-        || protocol["participants"] != participants.len()
-        || protocol["simulator_complete"] != (task != "8E" || fixture["depth"] == 0)
+        || protocol["simulator_complete"] != runtime["score"]["complete"]
+        || runtime["score"]["complete"].as_bool().is_none()
         || protocol["violations"] != 0
+        || runtime["score"]["violations"] != json!([])
+        || runtime["protocol"]["status"] != "complete"
+        || runtime["runtime_exit_code"] != 0
+        || runtime["backend_errors"] != json!([])
     {
-        return Err("protocol verification did not pass the measured task".into());
+        return Err("protocol verification differs from the actual task outcome".into());
     }
     let total: u64 = participants
         .iter()
-        .map(|v| v["inclusive_tokens"].as_u64().unwrap())
-        .sum();
+        .try_fold(0u64, |total, v| {
+            total.checked_add(v["inclusive_tokens"].as_u64()?)
+        })
+        .ok_or("inclusive usage overflow or missing usage")?;
     Ok(
         json!({"status":"passed","task":fixture["task"],"kind":"unscored_direct_wasi_model_preflight",
         "scored_benchmark":false,"participants":participants,"participant_turns":participants.len(),"max_simultaneous_model_turns":maximum,
         "inclusive_tokens":total,"protocol":protocol,"events_sha256":result["events_sha256"],
-        "protocol_verifier_sha256":digest(verifier)?,"model_verifier_sha256":digest(&std::env::current_exe()?)?}),
+        "protocol_verifier_sha256":versions["binaries"]["protocol-audit"],"model_verifier_sha256":digest(&std::env::current_exe()?)?}),
     )
 }
 
-pub fn check_mutants(root: &Path, output: &Path, verifier: &Path) -> Result<Value> {
-    run(root, verifier)?;
+pub fn check_mutants(root: &Path, output: &Path) -> Result<Value> {
+    run(root)?;
     fs::create_dir(output)?;
     if output.canonicalize()?.starts_with(root.canonicalize()?) {
         return Err("mutant output must be outside original evidence".into());
@@ -442,6 +478,7 @@ pub fn check_mutants(root: &Path, output: &Path, verifier: &Path) -> Result<Valu
         "false_simulator_score",
         "changed_upstream_source",
         "unqualified_runtime",
+        "missing_guest_artifact",
         "wrong_participant_set",
     ] {
         let case = output.join(kind);
@@ -454,14 +491,16 @@ pub fn check_mutants(root: &Path, output: &Path, verifier: &Path) -> Result<Valu
             "forged_model" => {
                 participant["requested_model"] = json!("other");
                 participant["returned_model"] = json!("other");
+                let thread_id = unique(&rows, "send", "thread/start")?["message"]["id"].clone();
                 for row in &mut rows {
+                    let received = row["direction"] == "receive";
                     let message = &mut row["message"];
                     if ["thread/start", "turn/start"]
                         .contains(&message["method"].as_str().unwrap_or(""))
                     {
                         message["params"]["model"] = json!("other");
                     }
-                    if message["id"] == 2 && message.get("method").is_none() {
+                    if received && message["id"] == thread_id && message.get("method").is_none() {
                         message["result"]["model"] = json!("other");
                     }
                 }
@@ -534,6 +573,16 @@ pub fn check_mutants(root: &Path, output: &Path, verifier: &Path) -> Result<Valu
                 crate::evidence::save(&case.join("versions.json"), &versions)?;
                 result["versions"] = versions;
             }
+            "missing_guest_artifact" => {
+                fs::remove_file(case.join("wash.wasm"))?;
+                let mut versions = load(&case.join("versions.json"))?;
+                versions["binaries"]
+                    .as_object_mut()
+                    .ok_or("binary hashes")?
+                    .remove("wash.wasm");
+                crate::evidence::save(&case.join("versions.json"), &versions)?;
+                result["versions"] = versions;
+            }
             "wrong_participant_set" => {
                 let mut runtime = records(&case.join("events.jsonl"))?;
                 runtime[0]["message"]["fixtures"]
@@ -555,15 +604,45 @@ pub fn check_mutants(root: &Path, output: &Path, verifier: &Path) -> Result<Valu
         participant["raw_events_sha256"] = json!(digest(&events)?);
         crate::evidence::save(&case.join(agent).join("participant.json"), &participant)?;
         crate::evidence::save(&case.join("result.json"), &result)?;
-        let error = run(&case, verifier)
+        let error = run(&case)
             .expect_err("altered evidence passed independent audit")
             .to_string();
         checked.push(json!({"mutation":kind,"status":"rejected","reason":error,"outer_hashes_recomputed":true}));
     }
     let report = json!({"status":"passed","checked":checked,
         "model_verifier_sha256":digest(&std::env::current_exe()?)?,
-        "protocol_verifier_sha256":digest(verifier)?,
         "original_events_sha256":digest(&root.join("events.jsonl"))?});
     crate::evidence::save(&output.join("report.json"), &report)?;
     Ok(report)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn each_participant_uses_the_reply_to_its_own_thread_request() {
+        let mut rows = Vec::new();
+        for id in [2, 3, 4] {
+            rows.push(
+                json!({"direction":"receive","message":{"id":id,"result":{"participant":id}}}),
+            );
+        }
+        for id in [2, 3, 4] {
+            let request = json!({"direction":"send","message":{"id":id,"method":"thread/start"}});
+            assert_eq!(reply(&rows, &request).unwrap()["participant"], id);
+            let mut missing = rows.clone();
+            missing.retain(|row| row["message"]["id"] != id);
+            missing
+                .push(json!({"direction":"send","message":{"id":id,"result":{"participant":id}}}));
+            missing.push(json!({"direction":"receive","message":{"id":id,"method":"notification","result":{"participant":id}}}));
+            assert!(reply(&missing, &request).is_err());
+            let mut duplicate = rows.clone();
+            duplicate.push(
+                json!({"direction":"receive","message":{"id":id,"result":{"participant":id}}}),
+            );
+            assert!(reply(&duplicate, &request).is_err());
+        }
+        assert!(reply(&rows, &json!({"message":{"method":"thread/start"}})).is_err());
+    }
 }

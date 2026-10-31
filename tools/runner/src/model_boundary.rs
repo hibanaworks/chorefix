@@ -1,16 +1,14 @@
 //! Live connection qualification with original inputs and actual WASI guests.
 use crate::{
-    evidence::{Result, Trace, archive_build_receipt, digest, save},
-    model, oracle, process,
+    evidence::{Result, save},
+    model,
 };
 use serde_json::{Value, json};
 use std::{
     fs,
     path::{Path, PathBuf},
-    process::Stdio,
-    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+    time::{SystemTime, UNIX_EPOCH},
 };
-use tokio::{process::Command, task::JoinSet};
 
 #[tokio::test(flavor = "current_thread")]
 #[ignore = "uses three Luna xhigh participants through the existing ChatGPT subscription and actual WASI guests"]
@@ -97,146 +95,25 @@ async fn subscription_case(task: &str, depth: u8) -> Result<()> {
         "subscription-{task}-{}",
         SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos()
     ));
-    fs::create_dir_all(&directory).map_err(|error| {
-        format!(
-            "create experiment evidence {}: {error}",
-            directory.display()
-        )
-    })?;
-    let (runtime_variable, participant_count) = match task {
-        "9E" => ("CHOREOFIX_PHILOSOPHERS_WASI_BINARY", 3),
-        "9M" => ("CHOREOFIX_PHILOSOPHERS_WASI_BINARY", 5),
-        "9H" => ("CHOREOFIX_PHILOSOPHERS_WASI_BINARY", 7),
-        "1H" => ("CHOREOFIX_CODEBASE_WASI_BINARY", 7),
-        "8E" => ("CHOREOFIX_API_WASI_BINARY", 3),
-        "16E" => ("CHOREOFIX_CICD_WASI_BINARY", 3),
-        "6E" => ("CHOREOFIX_REVIEW_WASI_BINARY", 3),
-        "2E" => ("CHOREOFIX_WRITING_WASI_BINARY", 3),
-        "2M" => ("CHOREOFIX_WRITING_WASI_BINARY", 5),
-        "2H" => ("CHOREOFIX_WRITING_WASI_BINARY", 7),
-        _ => return Err("unqualified model preflight task".into()),
-    };
-    let runtime = PathBuf::from(std::env::var_os(runtime_variable).ok_or(runtime_variable)?);
-    let verifier = if matches!(task, "9E" | "9M" | "9H") {
-        Some(PathBuf::from(
-            std::env::var_os("CHOREOFIX_PHILOSOPHERS_VERIFIER_BINARY")
-                .ok_or("CHOREOFIX_PHILOSOPHERS_VERIFIER_BINARY is required")?,
-        ))
-    } else {
-        None
-    };
-    let verifier_sha256 = verifier.as_deref().map(digest).transpose()?;
-    let receipt_variable = match task {
-        "1H" => "CHOREOFIX_CODEBASE_BUILD_RECEIPT",
-        "8E" => "CHOREOFIX_API_BUILD_RECEIPT",
-        "16E" => "CHOREOFIX_CICD_BUILD_RECEIPT",
-        "6E" => "CHOREOFIX_REVIEW_BUILD_RECEIPT",
-        "2E" | "2M" | "2H" => "CHOREOFIX_WRITING_BUILD_RECEIPT",
-        "9E" | "9M" | "9H" => "CHOREOFIX_PHILOSOPHERS_BUILD_RECEIPT",
-        _ => return Err("missing runtime build receipt selection".into()),
-    };
-    let receipt_path = PathBuf::from(std::env::var_os(receipt_variable).ok_or(receipt_variable)?);
-    let build_receipt = archive_build_receipt(&runtime, &receipt_path, &directory)?;
-    let module = Path::new("vendor/hibana-wash/target/wasm32-wasip1/release/hibana-wash.wasm");
-    let config: Value = serde_json::from_slice(&fs::read("experiment.json")?)?;
-    let seconds = config["run_timeout_seconds"]
-        .as_u64()
-        .ok_or("run timeout")?;
-    let limit = config["participant_tool_call_limit"]
-        .as_u64()
-        .ok_or("tool limit")?;
-    let trace = Trace::create(&directory.join("events.jsonl"))?;
-    let (simulator, fixture) = oracle::Simulator::new(task, depth, 1.0, trace.clone(), &[])?;
-    let audit_source = match task {
-        "16E" => "tools/runner/src/cicd_audit.rs",
-        "6E" => "tools/runner/src/review_audit.rs",
-        "2E" | "2M" | "2H" => "tools/runner/src/writing_audit.rs",
-        "8E" => "tools/runner/src/api_audit.rs",
-        "1H" => "tools/runner/src/codebase_audit.rs",
-        "9E" | "9M" | "9H" => "src/bin/philosophers-boundary/audit.rs",
-        _ => return Err("missing protocol audit source".into()),
-    };
-    save(
-        &directory.join("case.json"),
-        &json!({"task":task,"depth":depth,"seed":0,"kind":"subscription_connection_actual_wasi_preflight","scored_benchmark":false,
-        "authentication":"chatgpt","model":model::MODEL,"effort":model::EFFORT,"external_failure_specs":[],"test_barriers":"none","domain_delay_multiplier":1.0,
-        "runtime_sha256":digest(&runtime)?,"wash_sha256":digest(module)?,"verifier_sha256":verifier_sha256,"runtime_build_receipt":build_receipt,"root_lock_sha256":digest(Path::new("Cargo.lock"))?,
-        "model_source_sha256":digest(Path::new("tools/runner/src/model.rs"))?,"prompt_source_sha256":digest(Path::new("tools/runner/src/main.rs"))?,
-        "audit_source_sha256":digest(Path::new(audit_source))?,
-        "runner_sha256":digest(&std::env::current_exe()?)?,"runner_lock_sha256":digest(Path::new("tools/runner/Cargo.lock"))?,
-        "interpreter":oracle::interpreter_identity()?}),
-    )?;
-    save(&directory.join("simulator-fixture.json"), &fixture)?;
-    let (guest, runtime_loop) =
-        process::guest(&runtime, module, task, &directory, trace, simulator)?;
-    let started = Instant::now();
-    let mut jobs = JoinSet::new();
-    jobs.spawn(async move {
-        runtime_loop
-            .await
-            .map(|result| json!({"kind":"runtime","result":result}))
-    });
-    let mut people = Vec::new();
-    for actor in fixture["fixtures"]
-        .as_array()
-        .ok_or("original participants")?
-    {
-        let agent = actor["agent"].as_str().ok_or("agent")?.to_owned();
-        let instructions = crate::prompt(Path::new("."), task, actor)?;
-        fs::write(directory.join(format!("{agent}-prompt.txt")), &instructions)?;
-        people.push(model::Participant {
-            output: directory.join(&agent),
-            agent,
-            instructions,
-        });
-    }
-    jobs.spawn(async move {
-        model::run(
-            people,
-            model::Limits {
-                timeout: Duration::from_secs(seconds),
-                tool_calls: limit,
-            },
-            move |agent, command| {
-                let guest = guest.clone();
-                async move { guest.command(&agent, command).await }
-            },
-        )
-        .await
-        .map(|results| json!({"kind":"participants","results":results}))
-    });
-    let mut outcomes = Vec::new();
-    let completed = tokio::time::timeout(Duration::from_secs(seconds + 20), async {
-        while let Some(value) = jobs.join_next().await {
-            match value {
-                Ok(Ok(value)) if value["kind"] == "participants" => {
-                    for participant in value["results"].as_array().ok_or("model results")? {
-                        outcomes.push(json!({"kind":"participant","result":participant}));
-                    }
-                }
-                Ok(Ok(value)) => outcomes.push(value),
-                Ok(Err(error)) => {
-                    outcomes.push(json!({"kind":"harness_error","error":error.to_string()}))
-                }
-                Err(error) => {
-                    outcomes.push(json!({"kind":"harness_error","error":error.to_string()}))
-                }
-            }
-            save(&directory.join("outcomes.json"), &json!(outcomes))?;
-        }
-        Ok::<_, Box<dyn std::error::Error + Send + Sync>>(())
-    })
-    .await;
-    jobs.abort_all();
-    while jobs.join_next().await.is_some() {}
-    let result = json!({"kind":"subscription_connection_actual_wasi_preflight","task":task,"depth":depth,"scored_benchmark":false,
-        "elapsed_seconds":started.elapsed().as_secs_f64(),"completed_within_timeout":completed.is_ok(),"outcomes":outcomes,"events_sha256":digest(&directory.join("events.jsonl"))?});
-    save(&directory.join("result.json"), &result)?;
+    let result = crate::run(task, depth, &directory).await?;
     println!("{}", directory.display());
-    completed??;
+    if !result["error"].is_null() {
+        return Err("model run failed; see the preserved outcomes".into());
+    }
+    let outcomes = result["outcomes"].as_array().ok_or("run outcomes")?;
+    let metadata: Value = serde_json::from_slice(&fs::read(
+        directory
+            .join("source/vendor/tracefix/benchmark/descriptions")
+            .join(task)
+            .join("metadata.json"),
+    )?)?;
+    let participant_count = metadata["agents"]
+        .as_array()
+        .ok_or("original participant set")?
+        .len();
     let participants: Vec<_> = outcomes
         .iter()
-        .filter(|o| o["kind"] == "participant")
+        .filter(|o| o["kind"] == "model_participant")
         .collect();
     if participants.len() != participant_count
         || outcomes.len() != participant_count + 1
@@ -253,7 +130,7 @@ async fn subscription_case(task: &str, depth: u8) -> Result<()> {
     }
     let runtime = outcomes
         .iter()
-        .find(|o| o["kind"] == "runtime")
+        .find(|o| o["kind"] == "guest_runtime")
         .ok_or("runtime outcome")?;
     let expected_complete = task != "8E" || depth == 0;
     if runtime["result"]["score"]["complete"] != expected_complete
@@ -264,32 +141,9 @@ async fn subscription_case(task: &str, depth: u8) -> Result<()> {
     {
         return Err("actual WASI model task did not complete; see the preserved outcomes".into());
     }
-    let audit = if task == "16E" {
-        crate::cicd_audit::audit(&directory.join("events.jsonl"))?
-    } else if task == "6E" {
-        crate::review_audit::audit(&directory.join("events.jsonl"))?
-    } else if matches!(task, "2E" | "2M" | "2H") {
-        crate::writing_audit::audit(&directory.join("events.jsonl"))?
-    } else if task == "8E" {
-        crate::api_audit::audit(&directory.join("events.jsonl"))?
-    } else if task == "1H" {
-        crate::codebase_audit::audit(&directory.join("events.jsonl"))?
-    } else {
-        let verifier = verifier.ok_or("missing dining verifier")?;
-        let audit = Command::new(verifier)
-            .arg("--audit")
-            .arg(directory.join("events.jsonl"))
-            .stdout(Stdio::piped())
-            .stderr(fs::File::create_new(directory.join("audit.stderr"))?)
-            .output()
-            .await?;
-        fs::write(directory.join("audit.json"), &audit.stdout)?;
-        if !audit.status.success() {
-            return Err("model trace failed delegation audit".into());
-        }
-        serde_json::from_slice(&audit.stdout)?
-    };
-    save(&directory.join("audit.json"), &audit)?;
+    let audited = crate::audit::run(&directory)?;
+    save(&directory.join("audit.json"), &audited)?;
+    let audit = &audited["protocol"];
     if audit["status"] != "passed"
         || (task == "6E"
             && (audit["actual_resource_endpoint_requests"] != 4 + u64::from(depth)

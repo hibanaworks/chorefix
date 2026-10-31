@@ -1,11 +1,12 @@
 use crate::{
-    evidence::{Result, digest, save},
+    evidence::{Result, archive_build_receipt, digest, save},
     model,
 };
 use serde_json::{Map, Value, json};
 use std::{
+    collections::BTreeMap,
     fs,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
     process::Command,
 };
 
@@ -37,69 +38,65 @@ fn command(program: &str, arguments: &[&str]) -> Result<String> {
     Ok(String::from_utf8(result.stdout)?.trim().to_owned())
 }
 
-pub const QUALIFICATION: &str = "results/qualified-direct-wasi-build.json";
-
-/// Build evidence selects the measured executable before a run. This has no
-/// access to a guest or any task transition.
-pub fn qualification(source: &Path, task: &str) -> Result<Value> {
-    let record: Value = serde_json::from_slice(&fs::read(source.join(QUALIFICATION))?)?;
-    let case = &record["cases"][task];
-    if record["format_version"] != 1 || case.is_null() {
-        return Err("missing task build qualification".into());
-    }
-    let revision = record["source_revision"]
-        .as_str()
-        .ok_or("qualified source revision")?;
-    if revision.len() != 40 || !revision.bytes().all(|b| b.is_ascii_hexdigit()) {
-        return Err("invalid qualified source revision".into());
-    }
-    for artifact in [&record["source_archive"], &case["audit"]]
-        .into_iter()
-        .chain(
-            record["checks"]
-                .as_array()
-                .ok_or("qualification checks")?
-                .iter(),
-        )
-    {
-        let relative = artifact["path"]
-            .as_str()
-            .ok_or("qualification artifact path")?;
-        if Path::new(relative)
-            .components()
-            .any(|c| !matches!(c, std::path::Component::Normal(_)))
-            || json!(digest(&source.join(relative))?) != artifact["sha256"]
+/// Verify the actual runtime sources, including every source file and both manifests.
+/// A binary hash alone cannot identify which source a build receipt describes.
+pub fn runtime_sources(source: &Path, manifest: &Path) -> Result<BTreeMap<String, String>> {
+    let mut entries = BTreeMap::new();
+    for row in fs::read_to_string(manifest)?.lines() {
+        let (hash, name) = row.split_once("  ").ok_or("invalid build-source row")?;
+        if hash.len() != 64
+            || !hash.bytes().all(|c| c.is_ascii_hexdigit())
+            || name.is_empty()
+            || !Path::new(name)
+                .components()
+                .all(|c| matches!(c, Component::Normal(_)))
+            || entries.insert(name.to_owned(), hash.to_owned()).is_some()
         {
-            return Err("qualification artifact differs".into());
+            return Err("invalid or duplicate build-source entry".into());
+        }
+        if digest(&source.join(name))? != hash {
+            return Err(format!("runtime source differs from its build: {name}").into());
         }
     }
-    let audit: Value = serde_json::from_slice(&fs::read(
-        source.join(case["audit"]["path"].as_str().ok_or("audit path")?),
-    )?)?;
-    if audit["task"] != task
-        || audit["status"] != "passed"
-        || audit["model_calls"] != 0
-        || audit["simulator_complete"] != true
-        || audit["violations"] != 0
-    {
-        return Err("task boundary was not qualified".into());
+    let mut required = Vec::new();
+    files(&source.join("src"), &mut required)?;
+    required.extend([source.join("Cargo.toml"), source.join("Cargo.lock")]);
+    for name in [".cargo/config", ".cargo/config.toml", "build.rs"] {
+        let path = source.join(name);
+        if path.exists() {
+            required.push(path);
+        }
     }
-    Ok(record)
+    if required.iter().any(|path| {
+        path.strip_prefix(source)
+            .ok()
+            .and_then(Path::to_str)
+            .is_none_or(|name| !entries.contains_key(name))
+    }) {
+        return Err("build-source manifest omits runtime source files".into());
+    }
+    Ok(entries)
 }
 
+/// Preserve the selected executable, its checked build receipt and experiment inputs.
+/// This selects artifacts before a run; it cannot authorize a guest operation.
 pub fn freeze(task: &str, output: &Path) -> Result<Value> {
     choreofix_inputs::verify_benchmark(Path::new("."))?;
-    let qualification = qualification(Path::new("."), task)?;
-    let case = &qualification["cases"][task];
-    let runtime = case["runtime_path"].as_str().ok_or("runtime path")?;
-    let verifier = case["protocol_verifier_path"]
-        .as_str()
-        .ok_or("verifier path")?;
-    if json!(digest(Path::new(runtime))?) != case["runtime_sha256"]
-        || json!(digest(Path::new(verifier))?) != case["protocol_verifier_sha256"]
-    {
-        return Err("current binaries differ from qualified build".into());
-    }
+    let family = match task {
+        "1E" | "1M" | "1H" => "CODEBASE",
+        "2E" | "2M" | "2H" => "WRITING",
+        "6E" => "REVIEW",
+        "8E" => "API",
+        "9E" | "9M" | "9H" => "PHILOSOPHERS",
+        "16E" => "CICD",
+        _ => return Err("task has no delegated WASI implementation".into()),
+    };
+    let runtime_key = format!("CHOREOFIX_{family}_WASI_BINARY");
+    let receipt_key = format!("CHOREOFIX_{family}_BUILD_RECEIPT");
+    let runtime = PathBuf::from(std::env::var_os(&runtime_key).ok_or(runtime_key)?);
+    let input_receipt = PathBuf::from(std::env::var_os(&receipt_key).ok_or(receipt_key)?);
+    let receipt = archive_build_receipt(&runtime, &input_receipt, output)?;
+    let build_sources = runtime_sources(Path::new("."), &output.join("build-source.sha256"))?;
     let mut paths = Vec::new();
     for directory in [
         "src",
@@ -114,7 +111,6 @@ pub fn freeze(task: &str, output: &Path) -> Result<Value> {
         [
             "Cargo.toml",
             "Cargo.lock",
-            ".cargo/config.toml",
             "experiment.json",
             "requirements.lock",
             "AGENTS.md",
@@ -126,20 +122,7 @@ pub fn freeze(task: &str, output: &Path) -> Result<Value> {
         ]
         .map(PathBuf::from),
     );
-    paths.push(PathBuf::from(QUALIFICATION));
-    for artifact in [&qualification["source_archive"], &case["audit"]]
-        .into_iter()
-        .chain(
-            qualification["checks"]
-                .as_array()
-                .ok_or("qualification checks")?
-                .iter(),
-        )
-    {
-        paths.push(PathBuf::from(
-            artifact["path"].as_str().ok_or("artifact path")?,
-        ));
-    }
+    paths.extend(build_sources.keys().map(PathBuf::from));
     paths.sort();
     paths.dedup();
     let mut manifest = Map::new();
@@ -149,44 +132,118 @@ pub fn freeze(task: &str, output: &Path) -> Result<Value> {
         fs::copy(&path, &saved)?;
         manifest.insert(path.to_string_lossy().into_owned(), json!(digest(&saved)?));
     }
+    runtime_sources(&output.join("source"), &output.join("build-source.sha256"))?;
     save(&output.join("source-manifest.json"), &json!(manifest))?;
-    let mut binaries = Map::new();
-    for (name, source) in [
-        ("runtime", PathBuf::from(runtime)),
+    let mut artifacts = vec![
+        ("runtime", runtime),
         (
             "wash.wasm",
             PathBuf::from("vendor/hibana-wash/target/wasm32-wasip1/release/hibana-wash.wasm"),
         ),
         ("runner", std::env::current_exe()?),
-        ("protocol-audit", PathBuf::from(verifier)),
-    ] {
+    ];
+    if family == "PHILOSOPHERS" {
+        artifacts.push((
+            "protocol-audit",
+            PathBuf::from(
+                std::env::var_os("CHOREOFIX_PHILOSOPHERS_VERIFIER_BINARY")
+                    .ok_or("CHOREOFIX_PHILOSOPHERS_VERIFIER_BINARY is required")?,
+            ),
+        ));
+    }
+    let mut binaries = Map::new();
+    for (name, source) in artifacts {
         let saved = output.join(name);
         fs::copy(source, &saved)?;
         binaries.insert(name.into(), json!(digest(&saved)?));
     }
+    if binaries["runtime"] != receipt["binary_sha256"] {
+        return Err("runtime changed while archiving its build".into());
+    }
     let versions = json!({
-        "consumer":command("git", &["rev-parse","HEAD"])?,
-        "consumer_diff":command("git", &["diff","--stat"])?,
-        "format_version":2,
-        "runtime_source_revision":qualification["source_revision"],
-        "qualification_sha256":digest(Path::new(QUALIFICATION))?,
-        "wash":command("git", &["-C","vendor/hibana-wash","rev-parse","HEAD"])?,
-        "host_toolchain":command("rustc", &["+stable","-Vv"])?,
-        "runtime_build_toolchain":qualification["compiler"],
+        "format_version":3,
+        "consumer":command("git", &["rev-parse", "HEAD"])?,
+        "host_toolchain":command("rustc", &["+stable", "-Vv"])?,
+        "runtime_build_receipt":receipt,
+        "build_receipt_sha256":digest(&output.join("build-receipt.json"))?,
+        "input_build_receipt_sha256":digest(&output.join("input-build-receipt.json"))?,
+        "runtime_source_manifest_sha256":digest(&output.join("build-source.sha256"))?,
         "upstream_interpreter":crate::oracle::interpreter_identity()?,
         "model_client":command(model::CLI, &["--version"])?,
         "model_client_sha256":digest(Path::new(model::CLI))?,
         "binaries":binaries,
         "source_manifest_sha256":digest(&output.join("source-manifest.json"))?,
-        "model":model::MODEL,"effort":model::EFFORT,
+        "model":model::MODEL, "effort":model::EFFORT,
     });
-    if versions["binaries"]["wash.wasm"] != qualification["wash_sha256"] {
-        return Err("guest module differs from qualified build".into());
-    }
     fs::write(
         output.join("dependency-tree.txt"),
         command("cargo", &["+stable", "tree", "--locked", "-i", "hibana"])?,
     )?;
     save(&output.join("versions.json"), &versions)?;
     Ok(versions)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn a_build_manifest_must_cover_the_actual_runtime_and_reject_changed_or_escaping_sources() {
+        let root = std::env::temp_dir().join(format!(
+            "choreofix-runtime-source-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir(&root).unwrap();
+        fs::create_dir(root.join("src")).unwrap();
+        for (name, bytes) in [
+            ("src/lib.rs", "pub fn execute() {}\n"),
+            ("Cargo.toml", "[package]\n"),
+            ("Cargo.lock", "version = 4\n"),
+        ] {
+            fs::write(root.join(name), bytes).unwrap();
+        }
+        let entries: Vec<_> = ["src/lib.rs", "Cargo.toml", "Cargo.lock"]
+            .map(|name| format!("{}  {name}\n", digest(&root.join(name)).unwrap()))
+            .into();
+        let manifest = root.join("build-source.sha256");
+        let original = entries.concat();
+        fs::write(&manifest, &original).unwrap();
+        assert_eq!(runtime_sources(&root, &manifest).unwrap().len(), 3);
+        for bad in [
+            String::new(),
+            entries[1..].concat(),
+            format!("{original}{}", entries[0]),
+            format!("{}  ../Cargo.toml\n", "0".repeat(64)),
+            format!("{}  /tmp/source.rs\n", "0".repeat(64)),
+        ] {
+            fs::write(&manifest, bad).unwrap();
+            assert!(runtime_sources(&root, &manifest).is_err());
+        }
+        fs::write(&manifest, &original).unwrap();
+        fs::write(root.join("src/lib.rs"), "pub fn bypass() {}\n").unwrap();
+        assert!(runtime_sources(&root, &manifest).is_err());
+        fs::write(root.join("src/lib.rs"), "pub fn execute() {}\n").unwrap();
+        fs::write(root.join("src/receiver.rs"), "pub fn effect() {}\n").unwrap();
+        assert!(runtime_sources(&root, &manifest).is_err());
+        fs::remove_file(root.join("src/receiver.rs")).unwrap();
+        fs::create_dir(root.join(".cargo")).unwrap();
+        let config = root.join(".cargo/config.toml");
+        fs::write(&config, "[build]\njobs = 1\n").unwrap();
+        assert!(runtime_sources(&root, &manifest).is_err());
+        fs::write(
+            &manifest,
+            format!(
+                "{original}{}  .cargo/config.toml\n",
+                digest(&config).unwrap()
+            ),
+        )
+        .unwrap();
+        assert_eq!(runtime_sources(&root, &manifest).unwrap().len(), 4);
+        fs::remove_dir_all(root).unwrap();
+    }
 }

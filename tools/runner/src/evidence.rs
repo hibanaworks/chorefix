@@ -79,7 +79,6 @@ pub fn save(path: &Path, value: &Value) -> Result<()> {
     Ok(())
 }
 
-#[cfg(test)]
 pub fn archive_build_receipt(runtime: &Path, input: &Path, directory: &Path) -> Result<Value> {
     let original = fs::read(input)?;
     let mut receipt: Value = serde_json::from_slice(&original)?;

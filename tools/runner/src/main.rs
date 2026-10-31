@@ -1,4 +1,3 @@
-#[cfg(test)]
 mod api_audit;
 #[cfg(test)]
 mod api_boundary;
@@ -155,8 +154,13 @@ reply, do not call shell again. Leaving before doing the work fails the run.
 }
 
 async fn run(task: &str, depth: u8, output: &Path) -> Result<Value> {
-    if !["1E", "1M", "2E", "2M", "2H", "8E", "9E", "9M", "9H"].contains(&task) || depth > 2 {
-        return Err("expected a qualified task and depth 0..2".into());
+    if ![
+        "1E", "1M", "1H", "2E", "2M", "2H", "6E", "8E", "9E", "9M", "9H", "16E",
+    ]
+    .contains(&task)
+        || depth > 2
+    {
+        return Err("expected a migrated task and depth 0..2".into());
     }
     fs::create_dir_all(output.parent().ok_or("output parent")?)?;
     fs::create_dir(output)?;
@@ -234,7 +238,16 @@ async fn run(task: &str, depth: u8, output: &Path) -> Result<Value> {
     })
     .await;
     let error = match finished {
-        Ok(Ok(())) => None,
+        Ok(Ok(())) => outcomes
+            .iter()
+            .find(|value| value["status"] == "harness_error")
+            .map(|value| {
+                value["error"]
+                    .as_str()
+                    .ok_or("missing harness error")
+                    .map(str::to_owned)
+            })
+            .transpose()?,
         Ok(Err(e)) => Some(e.to_string()),
         Err(_) => Some("case timeout; incomplete work retained".to_owned()),
     };
@@ -251,6 +264,8 @@ async fn run(task: &str, depth: u8, output: &Path) -> Result<Value> {
 async fn main() -> Result<()> {
     let args: Vec<_> = std::env::args().skip(1).collect();
     match args.as_slice() {
+        [mode, events] if mode == "--audit-api" => println!("{}", serde_json::to_string_pretty(&api_audit::audit(Path::new(events))?)?),
+        [mode, events, output] if mode == "--check-api-mutants" => println!("{}", serde_json::to_string_pretty(&api_audit::check_mutants(Path::new(events), Path::new(output))?)?),
         [mode, events] if mode == "--audit-review" => println!("{}", serde_json::to_string_pretty(&review_audit::audit(Path::new(events))?)?),
         [mode, events, output] if mode == "--check-review-mutants" => println!("{}", serde_json::to_string_pretty(&review_audit::check_mutants(Path::new(events), Path::new(output))?)?),
         [mode, events] if mode == "--audit-writing" => println!("{}", serde_json::to_string_pretty(&writing_audit::audit(Path::new(events))?)?),
@@ -271,17 +286,16 @@ async fn main() -> Result<()> {
             "{}",
             serde_json::to_string_pretty(&codebase_audit::check_mutants(Path::new(events), Path::new(output))?)?
         ),
-        [mode, input, output, verifier] if mode == "--check-mutants" => println!(
+        [mode, input, output] if mode == "--check-run-mutants" => println!(
             "{}",
             serde_json::to_string_pretty(&audit::check_mutants(
                 Path::new(input),
-                Path::new(output),
-                Path::new(verifier)
+                Path::new(output)
             )?)?
         ),
-        [mode, output, verifier] if mode == "--audit" => println!(
+        [mode, output] if mode == "--audit-run" => println!(
             "{}",
-            serde_json::to_string_pretty(&audit::run(Path::new(output), Path::new(verifier))?)?
+            serde_json::to_string_pretty(&audit::run(Path::new(output))?)?
         ),
         [task, depth, output] => {
             let result = match run(task, depth.parse()?, Path::new(output)).await {
@@ -298,13 +312,16 @@ async fn main() -> Result<()> {
                 }
             };
             println!("{}", serde_json::to_string(&result)?);
+            if let Some(error) = result["error"].as_str() {
+                return Err(error.to_owned().into());
+            }
         }
         _ => return Err(concat!(
-            "usage: choreofix-experiments 1E|1M|2E|2M|2H|8E|9E|9M|9H DEPTH OUTPUT\n",
-            "       --audit-review|--audit-writing|--audit-cicd|--audit EVENTS\n",
-            "       --check-review-mutants|--check-writing-mutants|--check-cicd-mutants|--check-protocol-mutants EVENTS NEW_OUTPUT\n",
-            "       --audit RUN VERIFIER\n",
-            "       --check-mutants RUN NEW_OUTPUT VERIFIER"
+            "usage: choreofix-experiments 1E|1M|1H|2E|2M|2H|6E|8E|9E|9M|9H|16E DEPTH OUTPUT\n",
+            "       --audit-api|--audit-review|--audit-writing|--audit-cicd|--audit EVENTS\n",
+            "       --check-api-mutants|--check-review-mutants|--check-writing-mutants|--check-cicd-mutants|--check-protocol-mutants EVENTS NEW_OUTPUT\n",
+            "       --audit-run RUN\n",
+            "       --check-run-mutants RUN NEW_OUTPUT"
         ).into()),
     }
     Ok(())

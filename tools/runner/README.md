@@ -11,19 +11,44 @@ write and flush complete, including any I/O error. The simulator starts the
 original asynchronous tools concurrently and returns each actual result on its
 request's reply channel.
 
-Source-qualified boundary tests and subscription preflights require a selected
-runtime and its build receipt. Set `CHOREOFIX_<FAMILY>_WASI_BINARY` and
+Runs and boundary tests require a selected runtime and its build receipt.
+Set `CHOREOFIX_<FAMILY>_WASI_BINARY` and
 `CHOREOFIX_<FAMILY>_BUILD_RECEIPT`, where `FAMILY` is `CODEBASE`, `WRITING`, `API`,
-`CICD`, `REVIEW` or `PHILOSOPHERS`, as applicable to the test. A receipt contains
+`CICD`, `REVIEW` or `PHILOSOPHERS`, as applicable to the task. A receipt contains
 `binary_sha256`, `source_manifest`, `source_manifest_sha256` and
 `source_unchanged: true`. Resolve the input manifest relative to the receipt.
 The build must compare that source manifest before and after compilation.
+It must include every file under `src`, `Cargo.toml`, `Cargo.lock`, and any
+local Cargo configuration or `build.rs` used by the runtime.
 
 Each evidence bundle saves the checked manifest, original receipt and a receipt
 whose manifest path is relative to the bundle. Missing or mismatched files stop
 the qualification before starting a guest. Existing build archives cannot be
 overwritten. These records identify the measured build; they do not establish
 that its implementation or task outcome is correct.
+
+The normal command and live subscription tests use the same execution path.
+It supports `1E`, `1M`, `1H`, `2E`, `2M`, `2H`, `6E`, `8E`, `9E`, `9M`, `9H`
+and `16E`, with the original failure conditions `0`, `1` and `2`. Run from the
+repository root and choose a new output directory:
+
+```sh
+export PYTHONHASHSEED=0 PYTHONDONTWRITEBYTECODE=1
+export CHOREOFIX_REVIEW_WASI_BINARY=/path/to/review-runtime
+export CHOREOFIX_REVIEW_BUILD_RECEIPT=/path/to/build-receipt.json
+cargo +stable run --locked --manifest-path tools/runner/Cargo.toml -- 6E 2 output/review-run
+cargo +stable run --locked --manifest-path tools/runner/Cargo.toml -- --audit-run output/review-run
+```
+
+The run freezes the selected runtime, receipt, source, wash guest, runner,
+participant inputs and dependency tree before starting any models. The audit
+checks those files, each model's actual tool exchanges and usage, the task's
+Endpoint messages, and its original simulator outcome. A negative domain result
+is preserved as a domain result. It is not changed into successful work by a
+completed protocol. Dining tasks also require the selected
+`CHOREOFIX_PHILOSOPHERS_VERIFIER_BINARY`, which is copied into the same bundle.
+`--check-run-mutants RUN NEW_DIRECTORY` checks the saved model records against
+deliberately altered records without making model calls.
 
 The completed code-review auditor checks the repository Endpoint, actual WASI
 arguments, simulator requests and results, approval before merging, and guest
