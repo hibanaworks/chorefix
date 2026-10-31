@@ -38,7 +38,7 @@ impl Domain for Effects {
             active.push(agent);
             self.2.set(self.2.get().max(active.len()));
             self.1.set(active);
-            tokio::task::yield_now().await;
+            hibana_runtime::yield_now().await;
             let mut active = self.1.take();
             active.retain(|who| *who != agent);
             self.1.set(active);
@@ -47,6 +47,7 @@ impl Domain for Effects {
     }
 }
 
+#[hibana_runtime::localside]
 async fn client<const ROLE: u8, const LEFT: u8, const RIGHT: u8>(
     endpoint: &mut Endpoint<'_, ROLE>,
     agent: &'static str,
@@ -61,23 +62,27 @@ async fn client<const ROLE: u8, const LEFT: u8, const RIGHT: u8>(
     );
     let (mut left, mut right) = {
         let [mut left_loan, mut right_loan] = task.par()?;
-        tokio::try_join!(
-            async {
+        async {
+            #[localside]
+            let left = async {
                 let mut resource = left_loan.recv::<Loan<LEFT>>().await?;
                 resource.send::<Eat<LEFT>>(&arguments).await?;
-                Ok::<_, hibana::EndpointError>(resource)
-            },
-            async {
+                Ok(resource)
+            };
+            #[localside]
+            let right = async {
                 let mut resource = right_loan.recv::<Loan<RIGHT>>().await?;
                 resource.send::<Eat<RIGHT>>(&arguments).await?;
-                Ok::<_, hibana::EndpointError>(resource)
-            },
-        )?
+                Ok(resource)
+            };
+            Ok((left, right))
+        }
+        .await?
     };
-    let (left_result, right_result) = tokio::try_join!(
-        async { Ok::<_, hibana::EndpointError>(left.recv::<Meal<LEFT>>().await?.to_vec()) },
-        async { Ok::<_, hibana::EndpointError>(right.recv::<Meal<RIGHT>>().await?.to_vec()) },
-    )?;
+    #[localside]
+    let left_result = async { Ok(left.recv::<Meal<LEFT>>().await?.to_vec()) };
+    #[localside]
+    let right_result = async { Ok(right.recv::<Meal<RIGHT>>().await?.to_vec()) };
     assert_eq!(left_result, right_result);
     assert_eq!(
         serde_json::from_slice::<serde_json::Value>(&left_result).unwrap()["tool"],
@@ -85,17 +90,24 @@ async fn client<const ROLE: u8, const LEFT: u8, const RIGHT: u8>(
     );
     {
         let [mut left_return, mut right_return] = task.par()?;
-        tokio::try_join!(
-            left_return.send::<Loan<LEFT>>(left),
-            right_return.send::<Loan<RIGHT>>(right)
-        )?;
+        async {
+            async {
+                left_return.send::<Loan<LEFT>>(left).await?;
+            };
+            async {
+                right_return.send::<Loan<RIGHT>>(right).await?;
+            };
+            Ok(())
+        }
+        .await?;
     }
     task.send::<ServiceExit>(&0).await?;
     private.send::<Exit>(&0).await?;
     Ok(())
 }
 
-#[tokio::test(flavor = "current_thread")]
+#[hibana_runtime::main]
+#[test]
 async fn three_guests_use_both_real_fork_endpoints_and_return_them() -> ShellResult<()> {
     use roles9e::*;
     let programs = project_9e();
@@ -127,41 +139,49 @@ async fn three_guests_use_both_real_fork_endpoints_and_return_them() -> ShellRes
     let mut a_io = runtime.enter(session, &programs.a_io)?;
     let mut b_io = runtime.enter(session, &programs.b_io)?;
     let mut c_io = runtime.enter(session, &programs.c_io)?;
-    tokio::try_join!(
+    async {
+        #[localside]
         localside::philosopher::run::<A, FORK_A_RESOURCE, FORK_C_RESOURCE>(
             "PHILOSOPHER_A",
             &mut a,
-            &effects
-        ),
+            &effects,
+        );
+        #[localside]
         localside::philosopher::run::<B, FORK_B_RESOURCE, FORK_A_RESOURCE>(
             "PHILOSOPHER_B",
             &mut b,
-            &effects
-        ),
+            &effects,
+        );
+        #[localside]
         localside::philosopher::run::<C, FORK_C_RESOURCE, FORK_B_RESOURCE>(
             "PHILOSOPHER_C",
             &mut c,
-            &effects
-        ),
-        localside::fork::run::<FORK_A, FORK_A_RESOURCE>(&mut fork_a, resource_a),
-        localside::fork::run::<FORK_B, FORK_B_RESOURCE>(&mut fork_b, resource_b),
-        localside::fork::run::<FORK_C, FORK_C_RESOURCE>(&mut fork_c, resource_c),
-        client::<A_WASI, FORK_A_RESOURCE, FORK_C_RESOURCE>(&mut a_wasi, "PHILOSOPHER_A"),
-        client::<B_WASI, FORK_B_RESOURCE, FORK_A_RESOURCE>(&mut b_wasi, "PHILOSOPHER_B"),
-        client::<C_WASI, FORK_C_RESOURCE, FORK_B_RESOURCE>(&mut c_wasi, "PHILOSOPHER_C"),
+            &effects,
+        );
+        #[localside]
+        localside::fork::run::<FORK_A, FORK_A_RESOURCE>(&mut fork_a, resource_a);
+        #[localside]
+        localside::fork::run::<FORK_B, FORK_B_RESOURCE>(&mut fork_b, resource_b);
+        #[localside]
+        localside::fork::run::<FORK_C, FORK_C_RESOURCE>(&mut fork_c, resource_c);
+        #[localside]
+        client::<A_WASI, FORK_A_RESOURCE, FORK_C_RESOURCE>(&mut a_wasi, "PHILOSOPHER_A");
+        #[localside]
+        client::<B_WASI, FORK_B_RESOURCE, FORK_A_RESOURCE>(&mut b_wasi, "PHILOSOPHER_B");
+        #[localside]
+        client::<C_WASI, FORK_C_RESOURCE, FORK_B_RESOURCE>(&mut c_wasi, "PHILOSOPHER_C");
         async {
             assert_eq!(a_io.offer().await?.recv::<Exit>().await?, 0);
-            Ok::<_, crate::shell::ShellError>(())
-        },
+        };
         async {
             assert_eq!(b_io.offer().await?.recv::<Exit>().await?, 0);
-            Ok::<_, crate::shell::ShellError>(())
-        },
+        };
         async {
             assert_eq!(c_io.offer().await?.recv::<Exit>().await?, 0);
-            Ok::<_, crate::shell::ShellError>(())
-        },
-    )?;
+        };
+        Ok(())
+    }
+    .await?;
     let effects = effects.0.take();
     for agent in ["PHILOSOPHER_A", "PHILOSOPHER_B", "PHILOSOPHER_C"] {
         assert_eq!(
@@ -183,13 +203,13 @@ async fn three_guests_use_both_real_fork_endpoints_and_return_them() -> ShellRes
     Ok(())
 }
 
-// Expand only fixture attachment and joining. Production participants above
-// keep their Endpoint operations in the actual localside functions.
+// Attach each fixture role and declare its production participant.
 macro_rules! larger_fixture {
     ($name:ident, $project:ident, $roles:ident;
       $(($service:ident, $role:ident, $fork:ident, $owner:ident,
          $resource:ident, $resource_role:ident, $vm:ident, $vm_role:ident,
          $io:ident, $io_role:ident, $left:ident, $right:ident, $agent:literal)),+ $(,)?) => {
+        #[hibana_runtime::localside]
         async fn $name(domain: &impl Domain) -> ShellResult<()> {
             use super::identity::$roles::*;
             let programs = $project();
@@ -207,17 +227,15 @@ macro_rules! larger_fixture {
                 let mut $vm = runtime.enter(session, &programs.$vm)?;
                 let mut $io = runtime.enter(session, &programs.$io)?;
             )+
-            tokio::try_join!(
-                $(
-                    localside::philosopher::run::<$role, $left, $right>($agent, &mut $service, domain),
-                    localside::fork::run::<$owner, $resource_role>(&mut $fork, $resource),
-                    client::<$vm_role, $left, $right>(&mut $vm, $agent),
-                    async {
-                        assert_eq!($io.offer().await?.recv::<Exit>().await?, 0);
-                        Ok::<_, crate::shell::ShellError>(())
-                    },
-                )+
-            )?;
+            $(
+                #[localside]
+                localside::philosopher::run::<$role, $left, $right>($agent, &mut $service, domain);
+                #[localside]
+                localside::fork::run::<$owner, $resource_role>(&mut $fork, $resource);
+                #[localside]
+                client::<$vm_role, $left, $right>(&mut $vm, $agent);
+                async { assert_eq!($io.offer().await?.recv::<Exit>().await?, 0); };
+            )+
             Ok(())
         }
     };
@@ -241,7 +259,8 @@ larger_fixture!(drive_seven, project_9h, roles9h;
     (g, G, fork_g, FORK_G, resource_g, FORK_G_RESOURCE, g_wasi, G_WASI, g_io, G_IO, FORK_G_RESOURCE, FORK_F_RESOURCE, "PHILOSOPHER_G"),
 );
 
-#[tokio::test(flavor = "current_thread")]
+#[hibana_runtime::main]
+#[test]
 async fn five_guests_keep_two_disjoint_meals_running() -> ShellResult<()> {
     let effects = Effects::default();
     drive_five(&effects).await?;
@@ -251,7 +270,8 @@ async fn five_guests_keep_two_disjoint_meals_running() -> ShellResult<()> {
     Ok(())
 }
 
-#[tokio::test(flavor = "current_thread")]
+#[hibana_runtime::main]
+#[test]
 async fn seven_guests_keep_three_disjoint_meals_running() -> ShellResult<()> {
     let effects = Effects::default();
     drive_seven(&effects).await?;
@@ -261,11 +281,12 @@ async fn seven_guests_keep_three_disjoint_meals_running() -> ShellResult<()> {
     Ok(())
 }
 
-#[tokio::test(flavor = "current_thread")]
+#[hibana_runtime::main]
+#[test]
 async fn a_delayed_meal_does_not_hold_an_unrelated_fork_pair() -> ShellResult<()> {
     struct DelayA {
-        receiver: Cell<Option<tokio::sync::oneshot::Receiver<()>>>,
-        sender: Cell<Option<tokio::sync::oneshot::Sender<()>>>,
+        receiver: Cell<Option<hibana_runtime::host::Io>>,
+        sender: Cell<Option<hibana_runtime::host::Notification>>,
     }
     impl Domain for DelayA {
         async fn execute(
@@ -276,27 +297,38 @@ async fn a_delayed_meal_does_not_hold_an_unrelated_fork_pair() -> ShellResult<()
         ) -> Result<serde_json::Value, String> {
             // A controlled test barrier, never a production permission.
             if tool == "eat" && agent == "PHILOSOPHER_A" {
-                let receiver = self.receiver.take().unwrap();
-                receiver.await.map_err(|error| error.to_string())?;
+                let mut receiver = self.receiver.take().unwrap();
+                let mut byte = [0; 1];
+                if receiver.read(&mut byte).await.map_err(|e| e.to_string())? != 1 {
+                    return Err("delayed meal notification closed".into());
+                }
             }
             if tool == "eat" && agent == "PHILOSOPHER_D" {
-                self.sender.take().unwrap().send(()).unwrap();
+                self.sender
+                    .take()
+                    .unwrap()
+                    .notify()
+                    .map_err(|e| e.to_string())?;
             }
             Ok(serde_json::json!({"success":true,"tool":tool}))
         }
     }
-    let (sender, receiver) = tokio::sync::oneshot::channel();
+    let (sender, receiver) = hibana_runtime::host::notification()?;
     let domain = DelayA {
         receiver: Cell::new(Some(receiver)),
         sender: Cell::new(Some(sender)),
     };
-    tokio::time::timeout(std::time::Duration::from_secs(5), drive_five(&domain))
-        .await
-        .expect("D's disjoint fork pair must progress while A is delayed")?;
+    hibana_runtime::race(
+        drive_five(&domain),
+        hibana_runtime::host::deadline(std::time::Duration::from_secs(5)),
+    )
+    .await
+    .expect("D's disjoint fork pair must progress while A is delayed");
     Ok(())
 }
 
-#[tokio::test(flavor = "current_thread")]
+#[hibana_runtime::main]
+#[test]
 async fn the_guest_cannot_send_an_eat_request_without_the_resource_endpoints() -> ShellResult<()> {
     use roles9e::*;
     let programs = project_9e();
@@ -311,7 +343,7 @@ async fn the_guest_cannot_send_an_eat_request_without_the_resource_endpoints() -
     let mut service = runtime.enter(session, &programs.a)?;
     let mut vm = runtime.enter(session, &programs.a_wasi)?;
     let effects = Effects::default();
-    tokio::try_join!(
+    async {
         async {
             let [mut task, _private] = vm.par()?;
             let arguments = PhilosopherArguments::from_value(
@@ -321,7 +353,7 @@ async fn the_guest_cannot_send_an_eat_request_without_the_resource_endpoints() -
             task.recv::<Thought>().await?;
             assert!(task.send::<Eat<FORK_A_RESOURCE>>(&arguments).await.is_err());
             Ok::<_, crate::shell::ShellError>(())
-        },
+        };
         async {
             let arguments = service.recv::<Think>().await?;
             let result = effects
@@ -331,8 +363,10 @@ async fn the_guest_cannot_send_an_eat_request_without_the_resource_endpoints() -
             let bytes = serde_json::to_vec(&result).unwrap();
             service.send::<Thought>(&bytes.as_slice()).await?;
             Ok::<_, crate::shell::ShellError>(())
-        },
-    )?;
+        };
+        Ok(())
+    }
+    .await?;
     assert_eq!(effects.0.take(), [("PHILOSOPHER_A", "think")]);
     let observations = bus.transport.take_observations();
     assert_eq!(

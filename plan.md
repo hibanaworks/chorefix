@@ -214,8 +214,8 @@ Globalを唯一の連携仕様にし、localsideへEndpointの操作を直接書
 ChoreoFixのmanifest/lockは本体
 `e139912e07fe4cd5ba599dd3749d6e03ce9d1ee1`、WASI
 `6b62998b614e2b68feecd2d94042adbcc614693d`を選択している。
-アプリは`hibana-runtime`の`01a861b918236c4ec8d7f933b2be430c4818efbe`、実験runnerは
-借用した参加者を直接並行実行する`dc0a13a2fdd551fa0835a813dd46aace90016bfb`を選択する。
+アプリと実験runnerは`hibana-runtime`の
+`dc0a13a2fdd551fa0835a813dd46aace90016bfb`を選択する。
 通常のGit依存を使い、診断用のpath patchを認定へ流用しない。
 
 runtimeの中核はno_std・割当なし・caller-owned storageである。12課題の起動処理から
@@ -237,8 +237,12 @@ protocol完了し、監査違反は0件だった。
 別のCI/CD早期終了1条件では共有効果0件を確認した。記録変異1,307件をすべて拒否した。
 この実行の全binary build、アプリのClippyと検査前後のsource hash照合は成功した。
 記録は`output/review-occurrence-qualification/tokio-host-io`に保持する。
-handoff fixtureの計算に入れていた固定20msの遅延は除去し、現在のアプリ全targetのRust40試験が
-通過した。protocolの依存関係や受信・公開の検査は変更していない。
+handoff fixtureの計算に入れていた固定20msの遅延は除去した。
+アプリのruntime pinをrunnerと同じ版へ更新し、食事課題の試験も参加者を直接宣言する形へ
+変更した。貸出・要求・返却はその場に記述し、3/5/7人の独立動作と保留中の別資源の進行を維持した。
+同じsourceでアプリ全targetのRust40試験とClippyが通過した。最大memoryは1,595,785,216bytes。
+記録は`output/review-occurrence-qualification/direct-core-tests`に保持する。
+protocolの依存関係や受信・公開の検査は変更していない。
 runnerからTokioとspawn/JoinSet、task登録・終了回収を除去した。guestとmodel接続は
 借用した値で直接宣言する。外部simulatorは受理済み要求を並行に開始し、実応答をI/O担当へ
 返す。記録とRPC IDの対応付けは実データであり、globalの進行や権限を記録しない。
@@ -246,7 +250,7 @@ runnerからTokioとspawn/JoinSet、task登録・終了回収を除去した。g
 通常22試験とClippy、全依存treeのTokio/mio/socket2不在を確認した。
 別の参加者の待機中の独立要求、同じ参加者の並列要求、turn/start応答前の要求、
 guest終了後の接続切断・timeout、部分JSON行の受信キャンセルを実I/Oで検査した。
-このrunnerで12課題の実Wasm75条件を再実行し、74条件のprotocol完了・監査違反0件、
+アプリがruntime `01a861b`を選択するbuildに対し、このrunnerで12課題の実Wasm75条件を再実行し、74条件のprotocol完了・監査違反0件、
 早期終了1条件の共有効果0件、記録変異1,307件の拒否を確認した。各sourceの前後hashは一致し、
 全子孫最大memoryは628,572,160bytesだった。記録は
 `output/review-occurrence-qualification/structured-runner`に保持する。
@@ -258,7 +262,7 @@ Endpointで受理した後、試験用I/O境界で3件がそろうまで保留�
 返答なしで3件が受理され、解放後の実commitも3件重なった。globalとlocalsideは変更していない。
 この開始条件を制御する機構試験を、通常の性能測定や実モデルの並行性へ混ぜない。
 
-アプリの通常依存とrunnerの全依存にはTokioがない。アプリの試験依存は撤去中であり、\nプロジェクト全体の完全除去と同一版へのpin統一は未完である。
+アプリの通常依存とrunnerの全依存にはTokioがない。アプリの試験依存は撤去中であり、\nプロジェクト全体の完全除去は未完である。統一したruntime pinでの実Wasm全条件の再認定も残る。
 依存の削除に加え、タスク登録・回収、起動joinツリー、独自の実行管理を残さず、
 各参加者の借用とEndpoint操作を直接宣言する構成への移行を完了条件とする。
 必要な物理I/OのバッファとRPC対応付けを、連携手順や完了管理へ流用しない。

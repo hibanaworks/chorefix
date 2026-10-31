@@ -17,7 +17,8 @@ use serde_json::json;
 #[path = "../src/imp/transport.rs"]
 mod transport;
 
-#[tokio::test(flavor = "current_thread")]
+#[hibana_runtime::main]
+#[test]
 async fn request_codec_rejects_fd_target_and_noncanonical_suffixes() {
     type Request = Close<EASY, 0, DESIGN>;
     let valid = b"\x04{\"feature_name\":\"user_authentication\"}";
@@ -91,7 +92,8 @@ fn module_data_is_normalized_without_changing_the_pair_or_its_order() {
     );
 }
 
-#[tokio::test(flavor = "current_thread")]
+#[hibana_runtime::main]
+#[test]
 async fn a_design_result_requires_its_typed_request() {
     let programs = global::project_1e();
     let mut slab = vec![0; 2 * 1024 * 1024];
@@ -110,7 +112,8 @@ async fn a_design_result_requires_its_typed_request() {
     );
 }
 
-#[tokio::test(flavor = "current_thread")]
+#[hibana_runtime::main]
+#[test]
 async fn invalid_abi_data_then_valid_work_keeps_one_affine_effect() {
     let programs = global::project_1e();
     let mut slab = vec![0; 2 * 1024 * 1024];
@@ -144,7 +147,8 @@ async fn invalid_abi_data_then_valid_work_keeps_one_affine_effect() {
     );
 }
 
-#[tokio::test(flavor = "current_thread")]
+#[hibana_runtime::main]
+#[test]
 async fn a_valid_implementation_payload_cannot_skip_design() {
     let programs = global::project_1e();
     let mut slab = vec![0; 2 * 1024 * 1024];
@@ -178,7 +182,8 @@ async fn a_valid_implementation_payload_cannot_skip_design() {
     );
 }
 
-#[tokio::test(flavor = "current_thread")]
+#[hibana_runtime::main]
+#[test]
 async fn a_valid_commit_request_cannot_use_the_guest_endpoint_as_a_module() {
     let programs = global::project_1e();
     let mut slab = vec![0; 2 * 1024 * 1024];
@@ -248,7 +253,8 @@ impl WirePayload for UncheckedBytes {
     }
 }
 
-#[tokio::test(flavor = "current_thread")]
+#[hibana_runtime::main]
+#[test]
 async fn untrusted_request_bytes_do_not_commit_an_effect() {
     let programs = global::project_1e();
     let mut slab = vec![0; 2 * 1024 * 1024];
