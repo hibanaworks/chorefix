@@ -6,9 +6,10 @@ use hibana_wasip1_runtime::{
     protocol,
 };
 
+#[hibana_runtime::localside]
 pub async fn tester(
-    guest: &mut HibanaWasiGuest<'_>,
-    endpoint: &mut hibana::Endpoint<'_, TESTER_VM>,
+    guest: &mut HibanaWasiGuest,
+    endpoint: &mut hibana::Endpoint<TESTER_VM>,
 ) -> ShellResult<i32> {
     let mut fuel_id = 0u16;
     loop {
@@ -120,16 +121,14 @@ pub async fn tester(
                         match branch.label() {
                             105 => {
                                 let arguments = {
-                                    let bytes = branch.recv::<Admitted<'_>>().await?;
+                                    let bytes = branch.recv::<Admitted>().await?;
                                     super::super::imp::ApiArguments::<{super::super::imp::TEST}>::from_bytes(bytes)?
                                 };
                                 let mut environment =
-                                    endpoint.recv::<Loan<'_, TEST_RESOURCE>>().await?;
+                                    endpoint.recv::<Loan<TEST_RESOURCE>>().await?;
                                 environment.send::<TestRequest>(&arguments).await?;
-                                let bytes = environment.recv::<TestCompleted<'_>>().await?.to_vec();
-                                endpoint
-                                    .send::<Loan<'_, TEST_RESOURCE>>(environment)
-                                    .await?;
+                                let bytes = environment.recv::<TestCompleted>().await?.to_vec();
+                                endpoint.send::<Loan<TEST_RESOURCE>>(environment).await?;
                                 let reply = bytes;
                                 for (index, chunk) in
                                     reply.chunks(protocol::WASIP1_IO_CHUNK_CAPACITY).enumerate()
@@ -143,7 +142,7 @@ pub async fn tester(
                                 protocol::FdClosedRet(protocol::FdClosed::new(request.0.fd()))
                             }
                             106 => {
-                                let reply = branch.recv::<Rejected<'_>>().await?.to_vec();
+                                let reply = branch.recv::<Rejected>().await?.to_vec();
                                 for (index, chunk) in
                                     reply.chunks(protocol::WASIP1_IO_CHUNK_CAPACITY).enumerate()
                                 {
@@ -208,7 +207,7 @@ pub async fn tester(
             }
             WasiBoundaryStep::BudgetExpired(_) => {
                 fuel_id = fuel_id.wrapping_add(1);
-                tokio::task::yield_now().await;
+                hibana_runtime::yield_now().await;
             }
             WasiBoundaryStep::Exit(exit) => {
                 let status = exit.status() as i32;
@@ -221,10 +220,11 @@ pub async fn tester(
     }
 }
 
+#[hibana_runtime::localside]
 pub async fn admin(
-    guest: &mut HibanaWasiGuest<'_>,
-    endpoint: &mut hibana::Endpoint<'_, ADMIN_VM>,
-    outcome: &mut hibana::Endpoint<'_, ADMIN_OUTCOME_VM>,
+    guest: &mut HibanaWasiGuest,
+    endpoint: &mut hibana::Endpoint<ADMIN_VM>,
+    outcome: &mut hibana::Endpoint<ADMIN_OUTCOME_VM>,
 ) -> ShellResult<i32> {
     let mut fuel_id = 0u16;
     loop {
@@ -357,17 +357,14 @@ pub async fn admin(
                         match branch.label() {
                             105 => {
                                 let arguments = {
-                                    let bytes = branch.recv::<Admitted<'_>>().await?;
+                                    let bytes = branch.recv::<Admitted>().await?;
                                     super::super::imp::ApiArguments::<{super::super::imp::MIGRATE}>::from_bytes(bytes)?
                                 };
                                 let mut database =
-                                    endpoint.recv::<Loan<'_, DATABASE_RESOURCE>>().await?;
+                                    endpoint.recv::<Loan<DATABASE_RESOURCE>>().await?;
                                 database.send::<MigrationRequest>(&arguments).await?;
-                                let bytes =
-                                    database.recv::<MigrationCompleted<'_>>().await?.to_vec();
-                                endpoint
-                                    .send::<Loan<'_, DATABASE_RESOURCE>>(database)
-                                    .await?;
+                                let bytes = database.recv::<MigrationCompleted>().await?.to_vec();
+                                endpoint.send::<Loan<DATABASE_RESOURCE>>(database).await?;
                                 let reply = bytes;
                                 for (index, chunk) in
                                     reply.chunks(protocol::WASIP1_IO_CHUNK_CAPACITY).enumerate()
@@ -381,7 +378,7 @@ pub async fn admin(
                                 protocol::FdClosedRet(protocol::FdClosed::new(request.0.fd()))
                             }
                             106 => {
-                                let reply = branch.recv::<Rejected<'_>>().await?.to_vec();
+                                let reply = branch.recv::<Rejected>().await?.to_vec();
                                 for (index, chunk) in
                                     reply.chunks(protocol::WASIP1_IO_CHUNK_CAPACITY).enumerate()
                                 {
@@ -446,7 +443,7 @@ pub async fn admin(
             }
             WasiBoundaryStep::BudgetExpired(_) => {
                 fuel_id = fuel_id.wrapping_add(1);
-                tokio::task::yield_now().await;
+                hibana_runtime::yield_now().await;
             }
             WasiBoundaryStep::Exit(exit) => {
                 let status = exit.status() as i32;
@@ -459,10 +456,11 @@ pub async fn admin(
     }
 }
 
+#[hibana_runtime::localside]
 pub async fn backend(
-    guest: &mut HibanaWasiGuest<'_>,
-    endpoint: &mut hibana::Endpoint<'_, BACKEND_VM>,
-    outcome: &mut hibana::Endpoint<'_, BACKEND_OUTCOME_VM>,
+    guest: &mut HibanaWasiGuest,
+    endpoint: &mut hibana::Endpoint<BACKEND_VM>,
+    outcome: &mut hibana::Endpoint<BACKEND_OUTCOME_VM>,
 ) -> ShellResult<i32> {
     let mut fuel_id = 0u16;
     loop {
@@ -594,8 +592,8 @@ pub async fn backend(
                         let branch = endpoint.offer().await?;
                         match branch.label() {
                             105 => {
-                                branch.recv::<Admitted<'_>>().await?;
-                                let bytes = endpoint.recv::<ResultBytes<'_>>().await?.to_vec();
+                                branch.recv::<Admitted>().await?;
+                                let bytes = endpoint.recv::<ResultBytes>().await?.to_vec();
                                 let reply = bytes;
                                 for (index, chunk) in
                                     reply.chunks(protocol::WASIP1_IO_CHUNK_CAPACITY).enumerate()
@@ -609,7 +607,7 @@ pub async fn backend(
                                 protocol::FdClosedRet(protocol::FdClosed::new(request.0.fd()))
                             }
                             106 => {
-                                let reply = branch.recv::<Rejected<'_>>().await?.to_vec();
+                                let reply = branch.recv::<Rejected>().await?.to_vec();
                                 for (index, chunk) in
                                     reply.chunks(protocol::WASIP1_IO_CHUNK_CAPACITY).enumerate()
                                 {
@@ -674,7 +672,7 @@ pub async fn backend(
             }
             WasiBoundaryStep::BudgetExpired(_) => {
                 fuel_id = fuel_id.wrapping_add(1);
-                tokio::task::yield_now().await;
+                hibana_runtime::yield_now().await;
             }
             WasiBoundaryStep::Exit(exit) => {
                 let status = exit.status() as i32;

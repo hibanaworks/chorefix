@@ -7,6 +7,7 @@ use super::super::{
 use crate::shell::{ShellError, ShellResult, imp::service::Domain};
 use hibana::Endpoint;
 
+#[hibana_runtime::localside]
 pub(crate) async fn run<
     const TASK: u8,
     const ROLE: u8,
@@ -15,7 +16,7 @@ pub(crate) async fn run<
     const FIRST_OWNER: u8,
     const SECOND_OWNER: u8,
 >(
-    endpoint: &mut Endpoint<'_, ROLE>,
+    endpoint: &mut Endpoint<ROLE>,
     domain: &impl Domain,
     test_result: &super::super::input::TestResult,
 ) -> ShellResult<()> {
@@ -42,7 +43,7 @@ pub(crate) async fn run<
     let bytes =
         serde_json::to_vec(&result).map_err(|error| ShellError::message(error.to_string()))?;
     let response = bytes.as_slice();
-    endpoint.send::<DesignCompleted<'_>>(&response).await?;
+    endpoint.send::<DesignCompleted>(&response).await?;
 
     loop {
         let request = endpoint.recv::<ImplementRequest<TASK, ROLE>>().await?;
@@ -68,14 +69,18 @@ pub(crate) async fn run<
         let bytes =
             serde_json::to_vec(&result).map_err(|error| ShellError::message(error.to_string()))?;
         let response = bytes.as_slice();
-        endpoint.send::<ImplementCompleted<'_>>(&response).await?;
+        endpoint.send::<ImplementCompleted>(&response).await?;
 
         let arguments = {
             let [mut first, mut second] = endpoint.par()?;
-            let (first, second) = tokio::try_join!(
-                first.recv::<CommitRequest<TASK, ROLE, FIRST>>(),
-                second.recv::<CommitRequest<TASK, ROLE, SECOND>>()
-            )?;
+            let (first, second) = async {
+                #[localside]
+                let first = first.recv::<CommitRequest<TASK, ROLE, FIRST>>();
+                #[localside]
+                let second = second.recv::<CommitRequest<TASK, ROLE, SECOND>>();
+                Ok((first, second))
+            }
+            .await?;
             if first.as_bytes() != second.as_bytes() {
                 return Err(ShellError::message(
                     "module requests name different commits",
@@ -106,10 +111,14 @@ pub(crate) async fn run<
         {
             let [mut first, mut second] = endpoint.par()?;
             let payload = bytes.as_slice();
-            tokio::try_join!(
-                first.send::<CommitCompleted<'_, FIRST>>(&payload),
-                second.send::<CommitCompleted<'_, SECOND>>(&payload)
-            )?;
+            async {
+                #[localside]
+                first.send::<CommitCompleted<FIRST>>(&payload);
+                #[localside]
+                second.send::<CommitCompleted<SECOND>>(&payload);
+                Ok(())
+            }
+            .await?;
         }
 
         let request = endpoint.recv::<TestRequest<TASK, ROLE>>().await?;
@@ -135,21 +144,31 @@ pub(crate) async fn run<
                 drop(branch);
                 let [mut vm, mut first_owner, mut second_owner] = endpoint.par()?;
                 let payload = bytes.as_slice();
-                tokio::try_join!(
-                    vm.send::<TestPassed<'_>>(&payload),
-                    first_owner.send::<ModuleTestResult<'_, SECOND>>(&payload),
-                    second_owner.send::<ModuleTestResult<'_, FIRST>>(&payload)
-                )?;
+                async {
+                    #[localside]
+                    vm.send::<TestPassed>(&payload);
+                    #[localside]
+                    first_owner.send::<ModuleTestResult<SECOND>>(&payload);
+                    #[localside]
+                    second_owner.send::<ModuleTestResult<FIRST>>(&payload);
+                    Ok(())
+                }
+                .await?;
             }
             184 => {
                 drop(branch);
                 let [mut vm, mut first_owner, mut second_owner] = endpoint.par()?;
                 let payload = bytes.as_slice();
-                tokio::try_join!(
-                    vm.send::<TestFailed<'_>>(&payload),
-                    first_owner.send::<ModuleTestResult<'_, SECOND_OWNER>>(&payload),
-                    second_owner.send::<ModuleTestResult<'_, FIRST_OWNER>>(&payload)
-                )?;
+                async {
+                    #[localside]
+                    vm.send::<TestFailed>(&payload);
+                    #[localside]
+                    first_owner.send::<ModuleTestResult<SECOND_OWNER>>(&payload);
+                    #[localside]
+                    second_owner.send::<ModuleTestResult<FIRST_OWNER>>(&payload);
+                    Ok(())
+                }
+                .await?;
                 continue;
             }
             _ => return Err(ShellError::message("unexpected test result branch")),

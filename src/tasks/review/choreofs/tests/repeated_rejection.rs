@@ -82,28 +82,28 @@ async fn a_waiting_developer_does_not_repeat_work_during_the_other_review_loop()
                 task.offer().await.unwrap().recv::<FirstA>().await.unwrap();
                 drop(task.offer().await.unwrap());
                 task.offer().await.unwrap().send::<ImplementA>(&arguments_a).await.unwrap();
-                let mut resource = task.recv::<RepoLoan<'_>>().await.unwrap();
+                let mut resource = task.recv::<RepoLoan>().await.unwrap();
                 resource.send::<ImplementOnRepo>(&arguments_a).await.unwrap();
-                resource.recv::<RepoResult<'_>>().await.unwrap();
-                task.send::<RepoLoan<'_>>(resource).await.unwrap();
-                task.send::<ReadyA<'_>>(&b"{}".as_slice()).await.unwrap();
-                task.offer().await.unwrap().recv::<RejectedA<'_>>().await.unwrap();
+                resource.recv::<RepoResult>().await.unwrap();
+                task.send::<RepoLoan>(resource).await.unwrap();
+                task.send::<ReadyA>(&b"{}".as_slice()).await.unwrap();
+                task.offer().await.unwrap().recv::<RejectedA>().await.unwrap();
                 task.offer().await.unwrap().recv::<BDuringARevision>().await.unwrap();
                 a_private.send::<protocol::FdCloseReqMsg>(&protocol::FdCloseReq(protocol::FdRequest::new(4))).await.unwrap();
                 a_private.recv::<ClosedFileMsg>().await.unwrap();
                 a_private.send::<ResultChunkMsg>(&ResultChunk::new(0, b"{}").unwrap()).await.unwrap();
                 drop(task.offer().await.unwrap());
                 task.offer().await.unwrap().send::<ReviseA>(&arguments_a).await.unwrap();
-                let mut resource = task.recv::<RepoLoan<'_>>().await.unwrap();
+                let mut resource = task.recv::<RepoLoan>().await.unwrap();
                 resource.send::<ImplementOnRepo>(&arguments_a).await.unwrap();
-                resource.recv::<RepoResult<'_>>().await.unwrap();
-                task.send::<RepoLoan<'_>>(resource).await.unwrap();
-                task.send::<ReadyA<'_>>(&b"{}".as_slice()).await.unwrap();
-                task.offer().await.unwrap().recv::<RejectedB<'_>>().await.unwrap();
+                resource.recv::<RepoResult>().await.unwrap();
+                task.send::<RepoLoan>(resource).await.unwrap();
+                task.send::<ReadyA>(&b"{}".as_slice()).await.unwrap();
+                task.offer().await.unwrap().recv::<RejectedB>().await.unwrap();
                 task.offer().await.unwrap().recv::<AgainBBeforeAReview>().await.unwrap();
-                task.offer().await.unwrap().recv::<RejectedB<'_>>().await.unwrap();
+                task.offer().await.unwrap().recv::<RejectedB>().await.unwrap();
                 task.offer().await.unwrap().recv::<AgainBBeforeA>().await.unwrap();
-                task.offer().await.unwrap().recv::<RejectedB<'_>>().await.unwrap();
+                task.offer().await.unwrap().recv::<RejectedB>().await.unwrap();
                 match tokio::time::timeout(Duration::from_millis(20), task.offer()).await {
                     Err(_) => {},
                     Ok(Ok(branch)) => panic!("offered {} before a new intent", branch.label()),
@@ -114,24 +114,24 @@ async fn a_waiting_developer_does_not_repeat_work_during_the_other_review_loop()
                 task.offer().await.unwrap().recv::<FirstA>().await.unwrap();
                 drop(task.offer().await.unwrap());
                 task.offer().await.unwrap().send::<ImplementB>(&arguments_b).await.unwrap();
-                let mut resource = task.recv::<RepoLoan<'_>>().await.unwrap();
+                let mut resource = task.recv::<RepoLoan>().await.unwrap();
                 resource.send::<ImplementOnRepo>(&arguments_b).await.unwrap();
-                resource.recv::<RepoResult<'_>>().await.unwrap();
-                task.send::<RepoLoan<'_>>(resource).await.unwrap();
-                task.send::<ReadyB<'_>>(&b"{}".as_slice()).await.unwrap();
-                task.offer().await.unwrap().recv::<RejectedA<'_>>().await.unwrap();
+                resource.recv::<RepoResult>().await.unwrap();
+                task.send::<RepoLoan>(resource).await.unwrap();
+                task.send::<ReadyB>(&b"{}".as_slice()).await.unwrap();
+                task.offer().await.unwrap().recv::<RejectedA>().await.unwrap();
                 task.offer().await.unwrap().recv::<BDuringARevision>().await.unwrap();
-                task.offer().await.unwrap().recv::<RejectedB<'_>>().await.unwrap();
+                task.offer().await.unwrap().recv::<RejectedB>().await.unwrap();
                 task.offer().await.unwrap().recv::<AgainBBeforeAReview>().await.unwrap();
                 for iteration in 0..2 {
                     drop(task.offer().await.unwrap());
                     task.offer().await.unwrap().send::<ReviseB>(&arguments_b).await.unwrap();
-                    let mut resource = task.recv::<RepoLoan<'_>>().await.unwrap();
+                    let mut resource = task.recv::<RepoLoan>().await.unwrap();
                     resource.send::<ImplementOnRepo>(&arguments_b).await.unwrap();
-                    resource.recv::<RepoResult<'_>>().await.unwrap();
-                    task.send::<RepoLoan<'_>>(resource).await.unwrap();
-                    task.send::<ReadyB<'_>>(&b"{}".as_slice()).await.unwrap();
-                    task.offer().await.unwrap().recv::<RejectedB<'_>>().await.unwrap();
+                    resource.recv::<RepoResult>().await.unwrap();
+                    task.send::<RepoLoan>(resource).await.unwrap();
+                    task.send::<ReadyB>(&b"{}".as_slice()).await.unwrap();
+                    task.offer().await.unwrap().recv::<RejectedB>().await.unwrap();
                     if iteration == 0 { task.offer().await.unwrap().recv::<AgainBBeforeA>().await.unwrap(); }
                 }
             }, async {
@@ -139,30 +139,30 @@ async fn a_waiting_developer_does_not_repeat_work_during_the_other_review_loop()
                 target.record(FEATURE_A);
                 task.offer().await.unwrap().send::<FirstA>(&review_arguments_a).await.unwrap();
                 for _ in 0..4 { task.send::<FirstA>(&review_arguments_a).await.unwrap(); }
-                task.recv::<ReadyA<'_>>().await.unwrap();
+                task.recv::<ReadyA>().await.unwrap();
                 {
                     let [mut review, mut other] = task.par().unwrap();
-                    tokio::join!(async { review.send::<ReviewA>(&review_arguments_a).await.unwrap(); }, async { other.recv::<ReadyB<'_>>().await.unwrap(); });
+                    tokio::join!(async { review.send::<ReviewA>(&review_arguments_a).await.unwrap(); }, async { other.recv::<ReadyB>().await.unwrap(); });
                 }
-                task.offer().await.unwrap().recv::<RejectedA<'_>>().await.unwrap();
+                task.offer().await.unwrap().recv::<RejectedA>().await.unwrap();
                 target.record(FEATURE_B);
                 task.offer().await.unwrap().send::<BDuringARevision>(&review_arguments_b).await.unwrap();
                 for _ in 0..4 { task.send::<BDuringARevision>(&review_arguments_b).await.unwrap(); }
                 {
                     let [mut other, mut review] = task.par().unwrap();
-                    tokio::join!(async { other.recv::<ReadyA<'_>>().await.unwrap(); }, async { review.send::<ReviewB>(&review_arguments_b).await.unwrap(); });
+                    tokio::join!(async { other.recv::<ReadyA>().await.unwrap(); }, async { review.send::<ReviewB>(&review_arguments_b).await.unwrap(); });
                 }
-                task.offer().await.unwrap().recv::<RejectedB<'_>>().await.unwrap();
+                task.offer().await.unwrap().recv::<RejectedB>().await.unwrap();
                 task.offer().await.unwrap().send::<AgainBBeforeAReview>(&review_arguments_b).await.unwrap();
                 for _ in 0..4 { task.send::<AgainBBeforeAReview>(&review_arguments_b).await.unwrap(); }
-                task.recv::<ReadyB<'_>>().await.unwrap();
+                task.recv::<ReadyB>().await.unwrap();
                 task.send::<ReReviewB>(&review_arguments_b).await.unwrap();
-                task.offer().await.unwrap().recv::<RejectedB<'_>>().await.unwrap();
+                task.offer().await.unwrap().recv::<RejectedB>().await.unwrap();
                 task.offer().await.unwrap().send::<AgainBBeforeA>(&review_arguments_b).await.unwrap();
                 for _ in 0..4 { task.send::<AgainBBeforeA>(&review_arguments_b).await.unwrap(); }
-                task.recv::<ReadyB<'_>>().await.unwrap();
+                task.recv::<ReadyB>().await.unwrap();
                 task.send::<ReReviewB>(&review_arguments_b).await.unwrap();
-                task.offer().await.unwrap().recv::<RejectedB<'_>>().await.unwrap();
+                task.offer().await.unwrap().recv::<RejectedB>().await.unwrap();
             }, async {
                 for _ in 0..5 {
                     a_io.offer().await.unwrap().recv::<protocol::FdCloseReqMsg>().await.unwrap();

@@ -7,9 +7,10 @@ use hibana_wasip1_runtime::{
     protocol,
 };
 
+#[hibana_runtime::localside]
 pub async fn run<const ROLE: u8, const FIRST: u8, const SECOND: u8>(
-    guest: &mut HibanaWasiGuest<'_>,
-    endpoint: &mut hibana::Endpoint<'_, ROLE>,
+    guest: &mut HibanaWasiGuest,
+    endpoint: &mut hibana::Endpoint<ROLE>,
 ) -> ShellResult<i32> {
     let [mut task, mut private] = endpoint.par()?;
     let mut fuel_id = 0u16;
@@ -122,7 +123,7 @@ pub async fn run<const ROLE: u8, const FIRST: u8, const SECOND: u8>(
                         match branch.label() {
                             105 => {
                                 branch.recv::<ReadAdmitted>().await?;
-                                let bytes = task.recv::<ReadCompleted<'_>>().await?.to_vec();
+                                let bytes = task.recv::<ReadCompleted>().await?.to_vec();
                                 let reply = bytes;
                                 for (index, chunk) in
                                     reply.chunks(protocol::WASIP1_IO_CHUNK_CAPACITY).enumerate()
@@ -139,7 +140,7 @@ pub async fn run<const ROLE: u8, const FIRST: u8, const SECOND: u8>(
                                 break;
                             }
                             106 => {
-                                let reply = branch.recv::<ReadRejected<'_>>().await?.to_vec();
+                                let reply = branch.recv::<ReadRejected>().await?.to_vec();
                                 for (index, chunk) in
                                     reply.chunks(protocol::WASIP1_IO_CHUNK_CAPACITY).enumerate()
                                 {
@@ -201,7 +202,7 @@ pub async fn run<const ROLE: u8, const FIRST: u8, const SECOND: u8>(
             }
             WasiBoundaryStep::BudgetExpired(_) => {
                 fuel_id = fuel_id.wrapping_add(1);
-                tokio::task::yield_now().await;
+                hibana_runtime::yield_now().await;
             }
             WasiBoundaryStep::Exit(exit) => {
                 return Err(crate::shell::ShellError::message(format!(
@@ -320,7 +321,7 @@ pub async fn run<const ROLE: u8, const FIRST: u8, const SECOND: u8>(
                         match branch.label() {
                             130 => {
                                 branch.recv::<DraftAdmitted>().await?;
-                                let bytes = task.recv::<DraftCompleted<'_>>().await?.to_vec();
+                                let bytes = task.recv::<DraftCompleted>().await?.to_vec();
                                 let reply = bytes;
                                 for (index, chunk) in
                                     reply.chunks(protocol::WASIP1_IO_CHUNK_CAPACITY).enumerate()
@@ -337,7 +338,7 @@ pub async fn run<const ROLE: u8, const FIRST: u8, const SECOND: u8>(
                                 break;
                             }
                             131 => {
-                                let reply = branch.recv::<DraftRejected<'_>>().await?.to_vec();
+                                let reply = branch.recv::<DraftRejected>().await?.to_vec();
                                 for (index, chunk) in
                                     reply.chunks(protocol::WASIP1_IO_CHUNK_CAPACITY).enumerate()
                                 {
@@ -399,7 +400,7 @@ pub async fn run<const ROLE: u8, const FIRST: u8, const SECOND: u8>(
             }
             WasiBoundaryStep::BudgetExpired(_) => {
                 fuel_id = fuel_id.wrapping_add(1);
-                tokio::task::yield_now().await;
+                hibana_runtime::yield_now().await;
             }
             WasiBoundaryStep::Exit(exit) => {
                 return Err(crate::shell::ShellError::message(format!(
@@ -518,48 +519,46 @@ pub async fn run<const ROLE: u8, const FIRST: u8, const SECOND: u8>(
                         match branch.label() {
                             155 => {
                                 let arguments = {
-                                    let bytes = branch.recv::<WriteAdmitted<'_>>().await?;
+                                    let bytes = branch.recv::<WriteAdmitted>().await?;
                                     super::super::imp::WriteArguments::from_bytes(bytes)?
                                 };
                                 let (mut first, mut second) = {
                                     let [mut first_loan, mut second_loan] = task.par()?;
-                                    tokio::try_join!(
-                                        async {
+                                    async {
+                                        #[localside]
+                                        let first = async {
                                             let mut section =
-                                                first_loan.recv::<Loan<'_, FIRST>>().await?;
+                                                first_loan.recv::<Loan<FIRST>>().await?;
                                             section
                                                 .send::<SectionRequest<FIRST>>(&arguments)
                                                 .await?;
-                                            Ok::<_, hibana::EndpointError>(section)
-                                        },
-                                        async {
+                                            Ok(section)
+                                        };
+                                        #[localside]
+                                        let second = async {
                                             let mut section =
-                                                second_loan.recv::<Loan<'_, SECOND>>().await?;
+                                                second_loan.recv::<Loan<SECOND>>().await?;
                                             section
                                                 .send::<SectionRequest<SECOND>>(&arguments)
                                                 .await?;
-                                            Ok::<_, hibana::EndpointError>(section)
-                                        }
-                                    )?
-                                };
-                                let (first_result, second_result) = tokio::try_join!(
-                                    async {
-                                        Ok::<_, hibana::EndpointError>(
-                                            first
-                                                .recv::<SectionWritten<'_, FIRST>>()
-                                                .await?
-                                                .to_vec(),
-                                        )
-                                    },
-                                    async {
-                                        Ok::<_, hibana::EndpointError>(
-                                            second
-                                                .recv::<SectionWritten<'_, SECOND>>()
-                                                .await?
-                                                .to_vec(),
-                                        )
+                                            Ok(section)
+                                        };
+                                        Ok((first, second))
                                     }
-                                )?;
+                                    .await?
+                                };
+                                let (first_result, second_result) = async {
+                                    #[localside]
+                                    let first_result = async {
+                                        Ok(first.recv::<SectionWritten<FIRST>>().await?.to_vec())
+                                    };
+                                    #[localside]
+                                    let second_result = async {
+                                        Ok(second.recv::<SectionWritten<SECOND>>().await?.to_vec())
+                                    };
+                                    Ok((first_result, second_result))
+                                }
+                                .await?;
                                 if first_result != second_result {
                                     return Err(crate::shell::ShellError::message(
                                         "sections received different results",
@@ -567,10 +566,14 @@ pub async fn run<const ROLE: u8, const FIRST: u8, const SECOND: u8>(
                                 }
                                 {
                                     let [mut first_return, mut second_return] = task.par()?;
-                                    tokio::try_join!(
-                                        first_return.send::<Loan<'_, FIRST>>(first),
-                                        second_return.send::<Loan<'_, SECOND>>(second)
-                                    )?;
+                                    async {
+                                        #[localside]
+                                        first_return.send::<Loan<FIRST>>(first);
+                                        #[localside]
+                                        second_return.send::<Loan<SECOND>>(second);
+                                        Ok(())
+                                    }
+                                    .await?;
                                 }
                                 let bytes = first_result;
                                 let reply = bytes;
@@ -589,7 +592,7 @@ pub async fn run<const ROLE: u8, const FIRST: u8, const SECOND: u8>(
                                 break;
                             }
                             156 => {
-                                let reply = branch.recv::<WriteRejected<'_>>().await?.to_vec();
+                                let reply = branch.recv::<WriteRejected>().await?.to_vec();
                                 for (index, chunk) in
                                     reply.chunks(protocol::WASIP1_IO_CHUNK_CAPACITY).enumerate()
                                 {
@@ -651,7 +654,7 @@ pub async fn run<const ROLE: u8, const FIRST: u8, const SECOND: u8>(
             }
             WasiBoundaryStep::BudgetExpired(_) => {
                 fuel_id = fuel_id.wrapping_add(1);
-                tokio::task::yield_now().await;
+                hibana_runtime::yield_now().await;
             }
             WasiBoundaryStep::Exit(exit) => {
                 return Err(crate::shell::ShellError::message(format!(
@@ -770,7 +773,7 @@ pub async fn run<const ROLE: u8, const FIRST: u8, const SECOND: u8>(
                         match branch.label() {
                             180 => {
                                 branch.recv::<ReviewAdmitted>().await?;
-                                let bytes = task.recv::<ReviewCompleted<'_>>().await?.to_vec();
+                                let bytes = task.recv::<ReviewCompleted>().await?.to_vec();
                                 let reply = bytes;
                                 for (index, chunk) in
                                     reply.chunks(protocol::WASIP1_IO_CHUNK_CAPACITY).enumerate()
@@ -787,7 +790,7 @@ pub async fn run<const ROLE: u8, const FIRST: u8, const SECOND: u8>(
                                 break;
                             }
                             181 => {
-                                let reply = branch.recv::<ReviewRejected<'_>>().await?.to_vec();
+                                let reply = branch.recv::<ReviewRejected>().await?.to_vec();
                                 for (index, chunk) in
                                     reply.chunks(protocol::WASIP1_IO_CHUNK_CAPACITY).enumerate()
                                 {
@@ -849,7 +852,7 @@ pub async fn run<const ROLE: u8, const FIRST: u8, const SECOND: u8>(
             }
             WasiBoundaryStep::BudgetExpired(_) => {
                 fuel_id = fuel_id.wrapping_add(1);
-                tokio::task::yield_now().await;
+                hibana_runtime::yield_now().await;
             }
             WasiBoundaryStep::Exit(exit) => {
                 return Err(crate::shell::ShellError::message(format!(
@@ -1014,7 +1017,7 @@ pub async fn run<const ROLE: u8, const FIRST: u8, const SECOND: u8>(
             }
             WasiBoundaryStep::BudgetExpired(_) => {
                 fuel_id = fuel_id.wrapping_add(1);
-                tokio::task::yield_now().await;
+                hibana_runtime::yield_now().await;
             }
             WasiBoundaryStep::Exit(exit) => {
                 let status = exit.status() as i32;

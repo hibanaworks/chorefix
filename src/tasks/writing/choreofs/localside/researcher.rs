@@ -16,8 +16,9 @@ pub(crate) struct Assignment {
     pub sections: [&'static str; 2],
 }
 
+#[hibana_runtime::localside]
 pub(crate) async fn run<const ROLE: u8, const FIRST: u8, const SECOND: u8>(
-    endpoint: &mut Endpoint<'_, ROLE>,
+    endpoint: &mut Endpoint<ROLE>,
     domain: &impl Domain,
     (validation, assignment): (&Validation, &Assignment),
 ) -> ShellResult<()> {
@@ -61,7 +62,7 @@ pub(crate) async fn run<const ROLE: u8, const FIRST: u8, const SECOND: u8>(
                             &json!({"status":"invalid_arguments", "error":validation.rejection()?}),
                         )
                         .map_err(|error| ShellError::message(error.to_string()))?;
-                        decision.send::<ReadRejected<'_>>(&bytes.as_slice()).await?;
+                        decision.send::<ReadRejected>(&bytes.as_slice()).await?;
                     }
                     _ => return Err(ShellError::message("unexpected validation branch")),
                 }
@@ -82,7 +83,7 @@ pub(crate) async fn run<const ROLE: u8, const FIRST: u8, const SECOND: u8>(
     let bytes =
         serde_json::to_vec(&result).map_err(|error| ShellError::message(error.to_string()))?;
     let response = bytes.as_slice();
-    endpoint.send::<ReadCompleted<'_>>(&response).await?;
+    endpoint.send::<ReadCompleted>(&response).await?;
 
     // draft_content: the Endpoint admits this lifetime, including reconsideration.
     let mut file = File::new(b"service/draft_content", SERVICE_FD);
@@ -127,9 +128,7 @@ pub(crate) async fn run<const ROLE: u8, const FIRST: u8, const SECOND: u8>(
                             &json!({"status":"invalid_arguments", "error":validation.rejection()?}),
                         )
                         .map_err(|error| ShellError::message(error.to_string()))?;
-                        decision
-                            .send::<DraftRejected<'_>>(&bytes.as_slice())
-                            .await?;
+                        decision.send::<DraftRejected>(&bytes.as_slice()).await?;
                     }
                     _ => return Err(ShellError::message("unexpected validation branch")),
                 }
@@ -150,7 +149,7 @@ pub(crate) async fn run<const ROLE: u8, const FIRST: u8, const SECOND: u8>(
     let bytes =
         serde_json::to_vec(&result).map_err(|error| ShellError::message(error.to_string()))?;
     let response = bytes.as_slice();
-    endpoint.send::<DraftCompleted<'_>>(&response).await?;
+    endpoint.send::<DraftCompleted>(&response).await?;
 
     // write_to_document: the Endpoint admits this lifetime, including reconsideration.
     let mut file = File::new(b"service/write_to_document", SERVICE_FD);
@@ -202,7 +201,7 @@ pub(crate) async fn run<const ROLE: u8, const FIRST: u8, const SECOND: u8>(
                             hibana::runtime::wire::WireEncode::encode_into(&arguments, &mut bytes)
                                 .map_err(|error| ShellError::message(format!("{error:?}")))?;
                         let payload = &bytes[..count];
-                        endpoint.send::<WriteAdmitted<'_>>(&payload).await?;
+                        endpoint.send::<WriteAdmitted>(&payload).await?;
                         break arguments;
                     }
                     156 => {
@@ -210,9 +209,7 @@ pub(crate) async fn run<const ROLE: u8, const FIRST: u8, const SECOND: u8>(
                             &json!({"status":"invalid_arguments", "error":validation.rejection()?}),
                         )
                         .map_err(|error| ShellError::message(error.to_string()))?;
-                        decision
-                            .send::<WriteRejected<'_>>(&bytes.as_slice())
-                            .await?;
+                        decision.send::<WriteRejected>(&bytes.as_slice()).await?;
                     }
                     _ => return Err(ShellError::message("unexpected validation branch")),
                 }
@@ -222,10 +219,14 @@ pub(crate) async fn run<const ROLE: u8, const FIRST: u8, const SECOND: u8>(
     };
     let (first, second) = {
         let [mut first, mut second] = endpoint.par()?;
-        tokio::try_join!(
-            first.recv::<SectionRequest<FIRST>>(),
-            second.recv::<SectionRequest<SECOND>>()
-        )?
+        async {
+            #[localside]
+            let first = first.recv::<SectionRequest<FIRST>>();
+            #[localside]
+            let second = second.recv::<SectionRequest<SECOND>>();
+            Ok((first, second))
+        }
+        .await?
     };
     if first != second || first != admitted {
         return Err(ShellError::message(
@@ -246,10 +247,14 @@ pub(crate) async fn run<const ROLE: u8, const FIRST: u8, const SECOND: u8>(
     {
         let [mut first, mut second] = endpoint.par()?;
         let payload = bytes.as_slice();
-        tokio::try_join!(
-            first.send::<SectionWritten<'_, FIRST>>(&payload),
-            second.send::<SectionWritten<'_, SECOND>>(&payload)
-        )?;
+        async {
+            #[localside]
+            first.send::<SectionWritten<FIRST>>(&payload);
+            #[localside]
+            second.send::<SectionWritten<SECOND>>(&payload);
+            Ok(())
+        }
+        .await?;
     }
 
     // review_own_work: the Endpoint admits this lifetime, including reconsideration.
@@ -295,9 +300,7 @@ pub(crate) async fn run<const ROLE: u8, const FIRST: u8, const SECOND: u8>(
                             &json!({"status":"invalid_arguments", "error":validation.rejection()?}),
                         )
                         .map_err(|error| ShellError::message(error.to_string()))?;
-                        decision
-                            .send::<ReviewRejected<'_>>(&bytes.as_slice())
-                            .await?;
+                        decision.send::<ReviewRejected>(&bytes.as_slice()).await?;
                     }
                     _ => return Err(ShellError::message("unexpected validation branch")),
                 }
@@ -313,7 +316,7 @@ pub(crate) async fn run<const ROLE: u8, const FIRST: u8, const SECOND: u8>(
     let bytes =
         serde_json::to_vec(&result).map_err(|error| ShellError::message(error.to_string()))?;
     let response = bytes.as_slice();
-    endpoint.send::<ReviewCompleted<'_>>(&response).await?;
+    endpoint.send::<ReviewCompleted>(&response).await?;
 
     // Review is terminal even when its domain verdict is false.
     loop {

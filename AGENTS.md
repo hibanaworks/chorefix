@@ -75,7 +75,8 @@ The globals use `par`, `route`, explicit resolvers, `roll`, `seq`, and `send`;
 the localsides use the published `offer`, `send`, and `recv` directly.
 Use hibana-runtime for scoped localside execution. Remove Tokio from application,
 runner, tests and resolved dependencies; do not retain a compatibility module or
-a second executor. Host I/O owns descriptors, buffers and RPC correlation, never
+a second executor. Complete this removal before starting new live-model
+qualification. Host I/O owns descriptors, buffers and RPC correlation, never
 protocol progress. Do not introduce a new API name or
 move phase selection into a generic guest driver to work around an ambiguous
 rolled request. Distinguish the projected communication and ownership instead.
@@ -83,6 +84,13 @@ Do not move ordering, authorization, retry, branch, or completion decisions into
 a helper, wrapper, driver, callback, filesystem, or transport layer.
 Do not recreate them as a stage enum, program counter, allowed-operation table,
 approved/done boolean, owner record, or disguised equivalent.
+
+Omit inferred lifetime arguments at every message-type use, including globals,
+localsides, tests and examples: write `Loan<RESOURCE>`, `CommitCompleted<FIRST>`
+and `ReadyA`, never `Loan<'_, RESOURCE>`, `CommitCompleted<'_, FIRST>` or
+`ReadyA<'_>`. Apply this to all messages rather than a list of selected names.
+Retain named lifetimes that express an actual borrowing relationship in type
+definitions and signatures. Do not introduce aliases or wrappers to hide them.
 
 Rewrite localsides for hibana-runtime's ownership and scoped execution model.
 Replacing Tokio macro, task or channel names while retaining their structure is

@@ -11,8 +11,8 @@ async fn metadata_is_served_by_the_file_owner_before_and_after_the_result() -> S
     let publication = g::seq(
         g::par(
             g::route(
-                g::send::<TESTER, ADMIN_OUTCOME, PassedAdmin<'static>>(),
-                g::send::<TESTER, ADMIN_OUTCOME, FailedAdmin<'static>>(),
+                g::send::<TESTER, ADMIN_OUTCOME, PassedAdmin>(),
+                g::send::<TESTER, ADMIN_OUTCOME, FailedAdmin>(),
             ),
             g::send::<ADMIN_OUTCOME_VM, ADMIN_OUTCOME, OutcomeOpen>(),
         ),
@@ -78,9 +78,9 @@ async fn metadata_is_served_by_the_file_owner_before_and_after_the_result() -> S
                     assert_eq!(waiting.0.errno(), 0);
                     assert_eq!(waiting.0.size(), 0);
                     if success {
-                        tester.send::<PassedAdmin<'_>>(&bytes.as_slice()).await?;
+                        tester.send::<PassedAdmin>(&bytes.as_slice()).await?;
                     } else {
-                        tester.send::<FailedAdmin<'_>>(&bytes.as_slice()).await?;
+                        tester.send::<FailedAdmin>(&bytes.as_slice()).await?;
                     }
                     loop {
                         io.send::<OutcomePathStat>(&stat).await?;

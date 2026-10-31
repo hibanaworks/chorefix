@@ -166,6 +166,39 @@ async fn developer(
     Ok(feedback)
 }
 
+async fn assigned_operations(
+    guest: process::Guest,
+    simulator: oracle::Simulator,
+    actor: Value,
+    _task: String,
+) -> Result<Vec<Value>> {
+    let agent = actor["agent"].as_str().ok_or("original participant")?;
+    let calls = actor["calls"].as_array().ok_or("original operations")?;
+    assert_eq!(calls.len(), 4);
+    let mut feedback = Vec::new();
+    for call in calls {
+        let tool = call["tool"].as_str().ok_or("original tool")?;
+        let reply = guest
+            .command(
+                agent,
+                format!(
+                    "echo '{}' > /service/{tool}; cat /service/result",
+                    call["arguments"]
+                ),
+            )
+            .await?;
+        let result = response(&reply)?;
+        assert_eq!(result["success"], true, "{agent}/{tool}: {result}");
+        assert_eq!(count(&simulator.observed_events().await?, agent, tool), 1);
+        feedback.push(result);
+    }
+    assert_eq!(
+        guest.command(agent, "exit 0".into()).await?["exit_status"],
+        0
+    );
+    Ok(feedback)
+}
+
 // Fixture setup and evidence checks contain no application Endpoint operations.
 fn output(label: &str) -> Result<std::path::PathBuf> {
     std::env::set_current_dir(
@@ -185,13 +218,18 @@ fn output(label: &str) -> Result<std::path::PathBuf> {
     Ok(directory)
 }
 
-async fn case(
+async fn case<F>(
     directory: &Path,
     task: &str,
     depth: u8,
     delay: f64,
     failures: &[(&str, u32)],
-) -> Result<Value> {
+    drive: fn(process::Guest, oracle::Simulator, Value, String) -> F,
+    held_commit_agents: &[&str],
+) -> Result<Value>
+where
+    F: Future<Output = Result<Vec<Value>>> + Send + 'static,
+{
     let case = directory.join(format!("{task}-depth{depth}"));
     fs::create_dir(&case)?;
     let versions = snapshot::freeze(task, &case)?;
@@ -199,12 +237,21 @@ async fn case(
         &case.join("case.json"),
         &json!({"task":task,"depth":depth,
         "kind":"deterministic_rust_wasi_boundary","model_calls":0,"scored_benchmark":false,"versions":versions,
-        "test_barriers":"none", "domain_delay_multiplier":delay,"external_failure_specs":failures,
+        "test_barriers":held_commit_agents, "domain_delay_multiplier":delay,"external_failure_specs":failures,
+        "participant_driver":std::any::type_name::<F>(),
         }),
     )?;
     let trace = Trace::create(&case.join("events.jsonl"))?;
     let (simulator, fixture) = oracle::Simulator::new(task, depth, delay, trace.clone(), failures)?;
     save(&case.join("simulator-fixture.json"), &fixture)?;
+    if !held_commit_agents.is_empty() {
+        assert_eq!(
+            simulator
+                .call(json!({"type":"hold_disjoint_commits","agents":held_commit_agents}))
+                .await?["status"],
+            "configured"
+        );
+    }
     let actors = fixture["fixtures"].as_array().ok_or("original actors")?;
     let (guest, runtime_loop) = process::guest(
         &case.join("runtime").canonicalize()?,
@@ -216,7 +263,7 @@ async fn case(
     )?;
     let mut participants = JoinSet::new();
     for actor in actors {
-        participants.spawn(developer(
+        participants.spawn(drive(
             guest.clone(),
             simulator.clone(),
             actor.clone(),
@@ -281,7 +328,7 @@ async fn seven_guests_reconsider_failures_through_delegated_module_endpoints() -
     let directory = output("codebase-rust-reconsider")?;
     let mut outcomes = Vec::new();
     for depth in [0, 1, 2] {
-        outcomes.push(case(&directory, "1H", depth, 0.01, &[]).await?);
+        outcomes.push(case(&directory, "1H", depth, 0.01, &[], developer, &[]).await?);
         save(&directory.join("summary.json"), &json!(outcomes))?;
     }
     let repeated = directory.join("two-failed-tests");
@@ -292,6 +339,8 @@ async fn seven_guests_reconsider_failures_through_delegated_module_endpoints() -
         0,
         0.01,
         &[("run_local_tests", 0), ("run_local_tests", 1)],
+        developer,
+        &[],
     )
     .await?;
     assert!(
@@ -302,12 +351,48 @@ async fn seven_guests_reconsider_failures_through_delegated_module_endpoints() -
             .all(|count| count.as_u64() == Some(3))
     );
     outcomes.push(outcome);
+    let probes = directory.join("normal-delays-admission-probes");
+    fs::create_dir(&probes)?;
+    outcomes.push(case(&probes, "1H", 0, 1.0, &[], developer, &[]).await?);
+    save(&directory.join("summary.json"), &json!(outcomes))?;
     let normal = directory.join("normal-delays");
     fs::create_dir(&normal)?;
-    let outcome = case(&normal, "1H", 0, 1.0, &[]).await?;
-    assert_eq!(outcome["audit"]["max_disjoint_commits"], 3);
-    outcomes.push(outcome);
+    outcomes.push(case(&normal, "1H", 0, 1.0, &[], assigned_operations, &[]).await?);
     save(&directory.join("summary.json"), &json!(outcomes))?;
+    println!("{}", directory.display());
+    Ok(())
+}
+
+#[tokio::test(flavor = "current_thread")]
+#[ignore = "requires real WASI; the fixture withholds three independent commit effects"]
+async fn three_disjoint_commits_are_admitted_before_any_response() -> Result<()> {
+    let directory = output("codebase-rust-held-commits")?;
+    let agents = ["DEVELOPER_A", "DEVELOPER_C", "DEVELOPER_E"];
+    let outcome = case(&directory, "1H", 0, 1.0, &[], assigned_operations, &agents).await?;
+    let events = fs::read_to_string(directory.join("1H-depth0/events.jsonl"))?
+        .lines()
+        .map(serde_json::from_str)
+        .collect::<std::result::Result<Vec<Value>, _>>()?;
+    let release = events
+        .iter()
+        .position(|row| row["message"]["type"] == "commits_released")
+        .ok_or("held commits were not released")?;
+    for agent in agents {
+        assert_eq!(
+            events[..release]
+                .iter()
+                .filter(|row| row["direction"] == "test_control"
+                    && row["message"]["type"] == "commit_held"
+                    && row["message"]["request"]["agent"] == agent)
+                .count(),
+            1
+        );
+    }
+    assert!(!events[..release].iter().any(
+        |row| row["direction"] == "domain_start" && row["message"]["tool"] == "commit_changes"
+    ));
+    assert_eq!(outcome["audit"]["max_disjoint_commits"], 3);
+    save(&directory.join("summary.json"), &outcome)?;
     println!("{}", directory.display());
     Ok(())
 }
@@ -319,7 +404,7 @@ async fn typed_requests_gate_effects_and_keep_shell_errors_recoverable() -> Resu
     let mut outcomes = Vec::new();
     for task in ["1E", "1M"] {
         for depth in [0, 1, 2] {
-            outcomes.push(case(&directory, task, depth, 0.01, &[]).await?);
+            outcomes.push(case(&directory, task, depth, 0.01, &[], developer, &[]).await?);
             save(&directory.join("summary.json"), &json!(outcomes))?;
         }
     }
@@ -333,7 +418,18 @@ async fn terminal_test_errors_close_without_retries() -> Result<()> {
     let directory = output("codebase-rust-terminal-tests")?;
     let mut outcomes = Vec::new();
     for task in ["1E", "1M"] {
-        outcomes.push(case(&directory, task, 0, 0.01, &[("run_local_tests", 0)]).await?);
+        outcomes.push(
+            case(
+                &directory,
+                task,
+                0,
+                0.01,
+                &[("run_local_tests", 0)],
+                developer,
+                &[],
+            )
+            .await?,
+        );
         save(&directory.join("summary.json"), &json!(outcomes))?;
     }
     println!("{}", directory.display());
@@ -344,7 +440,7 @@ async fn terminal_test_errors_close_without_retries() -> Result<()> {
 #[ignore = "requires real WASI and original normal domain delays, without barriers"]
 async fn normal_delays_allow_two_disjoint_actual_wasi_commits() -> Result<()> {
     let directory = output("codebase-rust-normal-delays")?;
-    let outcome = case(&directory, "1M", 0, 1.0, &[]).await?;
+    let outcome = case(&directory, "1M", 0, 1.0, &[], developer, &[]).await?;
     save(&directory.join("summary.json"), &outcome)?;
     assert_eq!(outcome["audit"]["max_disjoint_commits"], 2);
     println!("{}", directory.display());

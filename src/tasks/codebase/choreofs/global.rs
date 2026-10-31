@@ -33,25 +33,25 @@ fn developer<
 >() -> impl Projectable {
     let design = g::seq(
         g::send::<VM, OWNER, DesignRequest<TASK, OWNER>>(),
-        g::send::<OWNER, VM, DesignCompleted<'static>>(),
+        g::send::<OWNER, VM, DesignCompleted>(),
     );
     let implementation = g::seq(
         g::send::<VM, OWNER, ImplementRequest<TASK, OWNER>>(),
-        g::send::<OWNER, VM, ImplementCompleted<'static>>(),
+        g::send::<OWNER, VM, ImplementCompleted>(),
     );
     let acquire = g::par(
         g::seq(
-            g::send::<FIRST, VM, Loan<'_, FIRST_RESOURCE>>(),
+            g::send::<FIRST, VM, Loan<FIRST_RESOURCE>>(),
             g::send::<FIRST_RESOURCE, OWNER, CommitRequest<TASK, OWNER, FIRST_RESOURCE>>(),
         ),
         g::seq(
-            g::send::<SECOND, VM, Loan<'_, SECOND_RESOURCE>>(),
+            g::send::<SECOND, VM, Loan<SECOND_RESOURCE>>(),
             g::send::<SECOND_RESOURCE, OWNER, CommitRequest<TASK, OWNER, SECOND_RESOURCE>>(),
         ),
     );
     let release = g::par(
-        g::send::<VM, FIRST, Loan<'_, FIRST_RESOURCE>>(),
-        g::send::<VM, SECOND, Loan<'_, SECOND_RESOURCE>>(),
+        g::send::<VM, FIRST, Loan<FIRST_RESOURCE>>(),
+        g::send::<VM, SECOND, Loan<SECOND_RESOURCE>>(),
     );
     let commit = g::seq(
         g::seq(design, implementation),
@@ -59,8 +59,8 @@ fn developer<
             acquire,
             g::seq(
                 g::par(
-                    g::send::<OWNER, FIRST_RESOURCE, CommitCompleted<'static, FIRST_RESOURCE>>(),
-                    g::send::<OWNER, SECOND_RESOURCE, CommitCompleted<'static, SECOND_RESOURCE>>(),
+                    g::send::<OWNER, FIRST_RESOURCE, CommitCompleted<FIRST_RESOURCE>>(),
+                    g::send::<OWNER, SECOND_RESOURCE, CommitCompleted<SECOND_RESOURCE>>(),
                 ),
                 release,
             ),
@@ -68,7 +68,7 @@ fn developer<
     );
     let test = g::seq(
         g::send::<VM, OWNER, TestRequest<TASK, OWNER>>(),
-        g::send::<OWNER, VM, TestCompleted<'static>>(),
+        g::send::<OWNER, VM, TestCompleted>(),
     );
     g::seq(commit, g::seq(test, g::send::<VM, OWNER, ServiceExit>()))
 }
@@ -267,29 +267,29 @@ fn revision_attempt<
     g::seq(
         g::seq(
             g::send::<VM, OWNER, ImplementRequest<HARD, OWNER>>(),
-            g::send::<OWNER, VM, ImplementCompleted<'static>>(),
+            g::send::<OWNER, VM, ImplementCompleted>(),
         ),
         g::seq(
             g::par(
                 g::seq(
-                    g::send::<FIRST, VM, Loan<'_, FIRST_RESOURCE>>(),
+                    g::send::<FIRST, VM, Loan<FIRST_RESOURCE>>(),
                     g::send::<FIRST_RESOURCE, OWNER, CommitRequest<HARD, OWNER, FIRST_RESOURCE>>(),
                 ),
                 g::seq(
-                    g::send::<SECOND, VM, Loan<'_, SECOND_RESOURCE>>(),
+                    g::send::<SECOND, VM, Loan<SECOND_RESOURCE>>(),
                     g::send::<SECOND_RESOURCE, OWNER, CommitRequest<HARD, OWNER, SECOND_RESOURCE>>(
                     ),
                 ),
             ),
             g::seq(
                 g::par(
-                    g::send::<OWNER, FIRST_RESOURCE, CommitCompleted<'static, FIRST_RESOURCE>>(),
-                    g::send::<OWNER, SECOND_RESOURCE, CommitCompleted<'static, SECOND_RESOURCE>>(),
+                    g::send::<OWNER, FIRST_RESOURCE, CommitCompleted<FIRST_RESOURCE>>(),
+                    g::send::<OWNER, SECOND_RESOURCE, CommitCompleted<SECOND_RESOURCE>>(),
                 ),
                 g::seq(
                     g::par(
-                        g::send::<VM, FIRST, Loan<'_, FIRST_RESOURCE>>(),
-                        g::send::<VM, SECOND, Loan<'_, SECOND_RESOURCE>>(),
+                        g::send::<VM, FIRST, Loan<FIRST_RESOURCE>>(),
+                        g::send::<VM, SECOND, Loan<SECOND_RESOURCE>>(),
                     ),
                     g::send::<VM, OWNER, TestRequest<HARD, OWNER>>(),
                 ),
@@ -309,20 +309,20 @@ fn revising_developer<
 >() -> (impl Projectable, impl Projectable) {
     let complete = g::seq(
         g::par(
-            g::send::<OWNER, VM, TestPassed<'static>>(),
+            g::send::<OWNER, VM, TestPassed>(),
             g::par(
-                g::send::<OWNER, FIRST, ModuleTestResult<'static, SECOND_RESOURCE>>(),
-                g::send::<OWNER, SECOND, ModuleTestResult<'static, FIRST_RESOURCE>>(),
+                g::send::<OWNER, FIRST, ModuleTestResult<SECOND_RESOURCE>>(),
+                g::send::<OWNER, SECOND, ModuleTestResult<FIRST_RESOURCE>>(),
             ),
         ),
         g::send::<VM, OWNER, ServiceExit>(),
     );
     let revise = g::seq(
         g::par(
-            g::send::<OWNER, VM, TestFailed<'static>>(),
+            g::send::<OWNER, VM, TestFailed>(),
             g::par(
-                g::send::<OWNER, FIRST, ModuleTestResult<'static, SECOND>>(),
-                g::send::<OWNER, SECOND, ModuleTestResult<'static, FIRST>>(),
+                g::send::<OWNER, FIRST, ModuleTestResult<SECOND>>(),
+                g::send::<OWNER, SECOND, ModuleTestResult<FIRST>>(),
             ),
         ),
         revision_attempt::<VM, OWNER, FIRST, SECOND, FIRST_RESOURCE, SECOND_RESOURCE>(),
@@ -330,7 +330,7 @@ fn revising_developer<
     let initial = g::seq(
         g::seq(
             g::send::<VM, OWNER, DesignRequest<HARD, OWNER>>(),
-            g::send::<OWNER, VM, DesignCompleted<'static>>(),
+            g::send::<OWNER, VM, DesignCompleted>(),
         ),
         revision_attempt::<VM, OWNER, FIRST, SECOND, FIRST_RESOURCE, SECOND_RESOURCE>(),
     );

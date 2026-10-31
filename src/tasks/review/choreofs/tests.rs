@@ -104,7 +104,7 @@ async fn repository_receiver_rejects_substitution_and_wrong_target_before_effect
                 localside::repo::run(&mut service, repository, &NoEffects),
                 async {
                     task.send::<ImplementA>(&admitted).await.unwrap();
-                    let mut repository = task.recv::<RepoLoan<'_>>().await.unwrap();
+                    let mut repository = task.recv::<RepoLoan>().await.unwrap();
                     assert!(owner.enter(session, &p.repo_endpoint).is_err());
                     assert!(guest.enter(session, &p.repo_endpoint).is_err());
                     repository
@@ -200,15 +200,15 @@ async fn repository_receiver_executes_the_exact_received_request_and_returns_its
             }
             result = async {
                 task.send::<ImplementA>(&arguments).await?;
-                let mut repository = task.recv::<RepoLoan<'_>>().await?;
+                let mut repository = task.recv::<RepoLoan>().await?;
                 repository.send::<ImplementOnRepo>(&arguments).await?;
-                let response = repository.recv::<RepoResult<'_>>().await?.to_vec();
+                let response = repository.recv::<RepoResult>().await?.to_vec();
                 assert_eq!(serde_json::from_slice::<Value>(&response).unwrap(), json!({
                     "success":true,"agent":"DEVELOPER_A","tool":"implement_feature",
                     "arguments":{"feature_name":FEATURE_A}
                 }));
-                task.send::<RepoLoan<'_>>(repository).await?;
-                task.send::<ReadyA<'_>>(&response.as_slice()).await?;
+                task.send::<RepoLoan>(repository).await?;
+                task.send::<ReadyA>(&response.as_slice()).await?;
                 Ok::<_, crate::shell::ShellError>(())
             } => result.unwrap(),
         }

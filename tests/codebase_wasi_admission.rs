@@ -104,7 +104,7 @@ async fn a_design_result_requires_its_typed_request() {
     let mut owner = rv.enter(SessionId::new(87), &programs.a).unwrap();
     assert!(
         owner
-            .send::<DesignCompleted<'_>>(&b"{}".as_slice())
+            .send::<DesignCompleted>(&b"{}".as_slice())
             .await
             .is_err()
     );
@@ -132,12 +132,12 @@ async fn invalid_abi_data_then_valid_work_keeps_one_affine_effect() {
         br#"{"feature_name":"user_authentication"}"#
     );
     owner
-        .send::<DesignCompleted<'_>>(&b"{}".as_slice())
+        .send::<DesignCompleted>(&b"{}".as_slice())
         .await
         .unwrap();
     assert!(
         owner
-            .send::<DesignCompleted<'_>>(&b"{}".as_slice())
+            .send::<DesignCompleted>(&b"{}".as_slice())
             .await
             .is_err(),
         "request completed twice"
@@ -172,7 +172,7 @@ async fn a_valid_implementation_payload_cannot_skip_design() {
     );
     assert!(
         owner
-            .send::<DesignCompleted<'_>>(&b"{}".as_slice())
+            .send::<DesignCompleted>(&b"{}".as_slice())
             .await
             .is_err()
     );
@@ -198,10 +198,10 @@ async fn a_valid_commit_request_cannot_use_the_guest_endpoint_as_a_module() {
     wasi.send::<DesignRequest<EASY, 0>>(&request).await.unwrap();
     owner.recv::<DesignRequest<EASY, 0>>().await.unwrap();
     owner
-        .send::<DesignCompleted<'_>>(&b"{}".as_slice())
+        .send::<DesignCompleted>(&b"{}".as_slice())
         .await
         .unwrap();
-    wasi.recv::<DesignCompleted<'_>>().await.unwrap();
+    wasi.recv::<DesignCompleted>().await.unwrap();
     let request =
         Close::<EASY, 0, IMPLEMENT>::new(close, json!({"feature_name":"user_authentication"}))
             .unwrap();
@@ -210,10 +210,10 @@ async fn a_valid_commit_request_cannot_use_the_guest_endpoint_as_a_module() {
         .unwrap();
     owner.recv::<ImplementRequest<EASY, 0>>().await.unwrap();
     owner
-        .send::<ImplementCompleted<'_>>(&b"{}".as_slice())
+        .send::<ImplementCompleted>(&b"{}".as_slice())
         .await
         .unwrap();
-    wasi.recv::<ImplementCompleted<'_>>().await.unwrap();
+    wasi.recv::<ImplementCompleted>().await.unwrap();
     let request =
         Close::<EASY, 0, COMMIT>::new(close, json!({"modules":"AUTH_MODULE,DATABASE_MODULE"}))
             .unwrap();
@@ -264,7 +264,7 @@ async fn untrusted_request_bytes_do_not_commit_an_effect() {
     .unwrap();
     let request = owner.recv::<DesignRequest<EASY, 0>>().await;
     assert!(request.is_err(), "invalid request committed");
-    let effect = owner.send::<DesignCompleted<'_>>(&b"{}".as_slice()).await;
+    let effect = owner.send::<DesignCompleted>(&b"{}".as_slice()).await;
     assert!(effect.is_err());
     eprintln!(
         "{}",

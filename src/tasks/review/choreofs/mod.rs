@@ -58,102 +58,37 @@ async fn run_guests(
     let mut b_io = rv.enter(session, &p.b_io)?;
     let mut review_io = rv.enter(session, &p.review_io)?;
     let [a_terminal, b_terminal, review_terminal] = terminals;
-    let mut a_fs = PrivateFs::new(a_terminal, bus);
+    let a_fs = PrivateFs::new(a_terminal, bus);
     let mut a_memory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut a_store = HibanaWasiGuestStorage::uninit();
     let a_guest = a_store.init(module, GuestMemory::new(&mut a_memory), bindings())?;
-    let mut b_fs = PrivateFs::new(b_terminal, bus);
+    let b_fs = PrivateFs::new(b_terminal, bus);
     let mut b_memory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut b_store = HibanaWasiGuestStorage::uninit();
     let b_guest = b_store.init(module, GuestMemory::new(&mut b_memory), bindings())?;
-    let mut review_fs = PrivateFs::new(review_terminal, bus);
+    let review_fs = PrivateFs::new(review_terminal, bus);
     let mut review_memory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut review_store = HibanaWasiGuestStorage::uninit();
     let review_guest =
         review_store.init(module, GuestMemory::new(&mut review_memory), bindings())?;
-    async {
-        async {
-            localside::reviewer_a::run(&mut review_a, bus, &review_a_result)
-                .await
-                .map_err(|error| ShellError::message(format!("review A: {error}")))
-        };
-        async {
-            localside::reviewer_b::run(&mut review_b, bus, &review_b_result)
-                .await
-                .map_err(|error| ShellError::message(format!("review B: {error}")))
-        };
-        async {
-            localside::repo::run(&mut repo, repository, bus)
-                .await
-                .map_err(|error| ShellError::message(format!("repository: {error}")))
-        };
-        async {
-            let (vm, io) = async {
-                #[localside]
-                let vm = async {
-                    localside::developer_wasi::run::<A_WASI>(a_guest, &mut a_wasi)
-                        .await
-                        .map_err(|error| ShellError::message(format!("developer A: {error}")))
-                };
-                #[localside]
-                let io = private_io::run(&mut a_io, &mut a_fs);
-                Ok((vm, io))
-            }
-            .await?;
-            if vm != io {
-                return Err(ShellError::message("developer A guest/IO status differs"));
-            }
-            a_fs.terminal
-                .finish(bus, vm, std::mem::take(&mut a_fs.output))
-                .await?;
-            Ok(())
-        };
-        async {
-            let (vm, io) = async {
-                #[localside]
-                let vm = async {
-                    localside::developer_wasi::run::<B_WASI>(b_guest, &mut b_wasi)
-                        .await
-                        .map_err(|error| ShellError::message(format!("developer B: {error}")))
-                };
-                #[localside]
-                let io = private_io::run(&mut b_io, &mut b_fs);
-                Ok((vm, io))
-            }
-            .await?;
-            if vm != io {
-                return Err(ShellError::message("developer B guest/IO status differs"));
-            }
-            b_fs.terminal
-                .finish(bus, vm, std::mem::take(&mut b_fs.output))
-                .await?;
-            Ok(())
-        };
-        async {
-            let (vm, io) = async {
-                #[localside]
-                let vm = async {
-                    localside::reviewer_wasi::run(review_guest, &mut review_wasi, &selected_review)
-                        .await
-                        .map_err(|error| ShellError::message(format!("reviewer guest: {error}")))
-                };
-                #[localside]
-                let io = private_io::run(&mut review_io, &mut review_fs);
-                Ok((vm, io))
-            }
-            .await?;
-            if vm != io {
-                return Err(ShellError::message("reviewer guest/IO status differs"));
-            }
-            review_fs
-                .terminal
-                .finish(bus, vm, std::mem::take(&mut review_fs.output))
-                .await?;
-            Ok(())
-        };
-        Ok(())
-    }
-    .await?;
+    #[localside]
+    localside::reviewer_a::run(&mut review_a, bus, &review_a_result);
+    #[localside]
+    localside::reviewer_b::run(&mut review_b, bus, &review_b_result);
+    #[localside]
+    localside::repo::run(&mut repo, repository, bus);
+    #[localside]
+    localside::developer_wasi::run::<A_WASI>(a_guest, &mut a_wasi);
+    #[localside]
+    private_io::run(&mut a_io, a_fs);
+    #[localside]
+    localside::developer_wasi::run::<B_WASI>(b_guest, &mut b_wasi);
+    #[localside]
+    private_io::run(&mut b_io, b_fs);
+    #[localside]
+    localside::reviewer_wasi::run(review_guest, &mut review_wasi, &selected_review);
+    #[localside]
+    private_io::run(&mut review_io, review_fs);
     Ok(())
 }
 

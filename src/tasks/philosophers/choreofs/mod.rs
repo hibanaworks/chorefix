@@ -19,6 +19,7 @@ use crate::{
 use hibana::runtime::{SessionKitStorage, ids::SessionId};
 use hibana_wasip1_runtime::{GuestMemory, HibanaWasiGuestStorage};
 
+#[hibana_runtime::localside]
 async fn run_9e_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 3]) -> ShellResult<()> {
     use global::*;
     use identity::roles9e::*;
@@ -45,89 +46,58 @@ async fn run_9e_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 3]) -> Sh
     let mut c_wasi = rv.enter(session, &programs.c_wasi)?;
     let mut c_io = rv.enter(session, &programs.c_io)?;
     let [aterm, bterm, cterm] = terminals;
-    let mut afs = PrivateFs::new(aterm, bus);
+    let afs = PrivateFs::new(aterm, bus);
     let mut amemory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut astore = HibanaWasiGuestStorage::uninit();
     let aguest = astore.init(module, GuestMemory::new(&mut amemory), bindings())?;
-    let mut bfs = PrivateFs::new(bterm, bus);
+    let bfs = PrivateFs::new(bterm, bus);
     let mut bmemory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut bstore = HibanaWasiGuestStorage::uninit();
     let bguest = bstore.init(module, GuestMemory::new(&mut bmemory), bindings())?;
-    let mut cfs = PrivateFs::new(cterm, bus);
+    let cfs = PrivateFs::new(cterm, bus);
     let mut cmemory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut cstore = HibanaWasiGuestStorage::uninit();
     let cguest = cstore.init(module, GuestMemory::new(&mut cmemory), bindings())?;
-    tokio::try_join!(
-        localside::philosopher::run::<A, FORK_A_RESOURCE, FORK_C_RESOURCE>(
-            "PHILOSOPHER_A",
-            &mut a,
-            bus
-        ),
-        localside::philosopher::run::<B, FORK_B_RESOURCE, FORK_A_RESOURCE>(
-            "PHILOSOPHER_B",
-            &mut b,
-            bus
-        ),
-        localside::philosopher::run::<C, FORK_C_RESOURCE, FORK_B_RESOURCE>(
-            "PHILOSOPHER_C",
-            &mut c,
-            bus
-        ),
-        localside::fork::run::<FORK_A, FORK_A_RESOURCE>(&mut fork_a, resource_a),
-        localside::fork::run::<FORK_B, FORK_B_RESOURCE>(&mut fork_b, resource_b),
-        localside::fork::run::<FORK_C, FORK_C_RESOURCE>(&mut fork_c, resource_c),
-        async {
-            let (vm, io) = tokio::try_join!(
-                localside::wasi::run::<A_WASI, FORK_A_RESOURCE, FORK_C_RESOURCE>(
-                    aguest,
-                    &mut a_wasi,
-                ),
-                private_io::run(&mut a_io, &mut afs)
-            )?;
-            if vm != io {
-                return Err(ShellError::message("philosopher guest/IO status differs"));
-            }
-            afs.terminal
-                .finish(bus, vm, std::mem::take(&mut afs.output))
-                .await?;
-            Ok(())
-        },
-        async {
-            let (vm, io) = tokio::try_join!(
-                localside::wasi::run::<B_WASI, FORK_B_RESOURCE, FORK_A_RESOURCE>(
-                    bguest,
-                    &mut b_wasi,
-                ),
-                private_io::run(&mut b_io, &mut bfs)
-            )?;
-            if vm != io {
-                return Err(ShellError::message("philosopher guest/IO status differs"));
-            }
-            bfs.terminal
-                .finish(bus, vm, std::mem::take(&mut bfs.output))
-                .await?;
-            Ok(())
-        },
-        async {
-            let (vm, io) = tokio::try_join!(
-                localside::wasi::run::<C_WASI, FORK_C_RESOURCE, FORK_B_RESOURCE>(
-                    cguest,
-                    &mut c_wasi,
-                ),
-                private_io::run(&mut c_io, &mut cfs)
-            )?;
-            if vm != io {
-                return Err(ShellError::message("philosopher guest/IO status differs"));
-            }
-            cfs.terminal
-                .finish(bus, vm, std::mem::take(&mut cfs.output))
-                .await?;
-            Ok(())
-        },
-    )?;
+    #[localside]
+    localside::philosopher::run::<A, FORK_A_RESOURCE, FORK_C_RESOURCE>(
+        "PHILOSOPHER_A",
+        &mut a,
+        bus,
+    );
+    #[localside]
+    localside::philosopher::run::<B, FORK_B_RESOURCE, FORK_A_RESOURCE>(
+        "PHILOSOPHER_B",
+        &mut b,
+        bus,
+    );
+    #[localside]
+    localside::philosopher::run::<C, FORK_C_RESOURCE, FORK_B_RESOURCE>(
+        "PHILOSOPHER_C",
+        &mut c,
+        bus,
+    );
+    #[localside]
+    localside::fork::run::<FORK_A, FORK_A_RESOURCE>(&mut fork_a, resource_a);
+    #[localside]
+    localside::fork::run::<FORK_B, FORK_B_RESOURCE>(&mut fork_b, resource_b);
+    #[localside]
+    localside::fork::run::<FORK_C, FORK_C_RESOURCE>(&mut fork_c, resource_c);
+    #[localside]
+    localside::wasi::run::<A_WASI, FORK_A_RESOURCE, FORK_C_RESOURCE>(aguest, &mut a_wasi);
+    #[localside]
+    private_io::run(&mut a_io, afs);
+    #[localside]
+    localside::wasi::run::<B_WASI, FORK_B_RESOURCE, FORK_A_RESOURCE>(bguest, &mut b_wasi);
+    #[localside]
+    private_io::run(&mut b_io, bfs);
+    #[localside]
+    localside::wasi::run::<C_WASI, FORK_C_RESOURCE, FORK_B_RESOURCE>(cguest, &mut c_wasi);
+    #[localside]
+    private_io::run(&mut c_io, cfs);
     Ok(())
 }
 
+#[hibana_runtime::localside]
 async fn run_9m_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 5]) -> ShellResult<()> {
     use global::*;
     use identity::roles9m::*;
@@ -164,141 +134,90 @@ async fn run_9m_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 5]) -> Sh
     let mut e_wasi = rv.enter(session, &programs.e_wasi)?;
     let mut e_io = rv.enter(session, &programs.e_io)?;
     let [aterm, bterm, cterm, dterm, eterm] = terminals;
-    let mut afs = PrivateFs::new(aterm, bus);
+    let afs = PrivateFs::new(aterm, bus);
     let mut amemory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut astore = HibanaWasiGuestStorage::uninit();
     let aguest = astore.init(module, GuestMemory::new(&mut amemory), bindings())?;
-    let mut bfs = PrivateFs::new(bterm, bus);
+    let bfs = PrivateFs::new(bterm, bus);
     let mut bmemory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut bstore = HibanaWasiGuestStorage::uninit();
     let bguest = bstore.init(module, GuestMemory::new(&mut bmemory), bindings())?;
-    let mut cfs = PrivateFs::new(cterm, bus);
+    let cfs = PrivateFs::new(cterm, bus);
     let mut cmemory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut cstore = HibanaWasiGuestStorage::uninit();
     let cguest = cstore.init(module, GuestMemory::new(&mut cmemory), bindings())?;
-    let mut dfs = PrivateFs::new(dterm, bus);
+    let dfs = PrivateFs::new(dterm, bus);
     let mut dmemory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut dstore = HibanaWasiGuestStorage::uninit();
     let dguest = dstore.init(module, GuestMemory::new(&mut dmemory), bindings())?;
-    let mut efs = PrivateFs::new(eterm, bus);
+    let efs = PrivateFs::new(eterm, bus);
     let mut ememory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut estore = HibanaWasiGuestStorage::uninit();
     let eguest = estore.init(module, GuestMemory::new(&mut ememory), bindings())?;
-    tokio::try_join!(
-        localside::philosopher::run::<A, FORK_A_RESOURCE, FORK_E_RESOURCE>(
-            "PHILOSOPHER_A",
-            &mut a,
-            bus
-        ),
-        localside::philosopher::run::<B, FORK_B_RESOURCE, FORK_A_RESOURCE>(
-            "PHILOSOPHER_B",
-            &mut b,
-            bus
-        ),
-        localside::philosopher::run::<C, FORK_C_RESOURCE, FORK_B_RESOURCE>(
-            "PHILOSOPHER_C",
-            &mut c,
-            bus
-        ),
-        localside::philosopher::run::<D, FORK_D_RESOURCE, FORK_C_RESOURCE>(
-            "PHILOSOPHER_D",
-            &mut d,
-            bus
-        ),
-        localside::philosopher::run::<E, FORK_E_RESOURCE, FORK_D_RESOURCE>(
-            "PHILOSOPHER_E",
-            &mut e,
-            bus
-        ),
-        localside::fork::run::<FORK_A, FORK_A_RESOURCE>(&mut fork_a, resource_a),
-        localside::fork::run::<FORK_B, FORK_B_RESOURCE>(&mut fork_b, resource_b),
-        localside::fork::run::<FORK_C, FORK_C_RESOURCE>(&mut fork_c, resource_c),
-        localside::fork::run::<FORK_D, FORK_D_RESOURCE>(&mut fork_d, resource_d),
-        localside::fork::run::<FORK_E, FORK_E_RESOURCE>(&mut fork_e, resource_e),
-        async {
-            let (vm, io) = tokio::try_join!(
-                localside::wasi::run::<A_WASI, FORK_A_RESOURCE, FORK_E_RESOURCE>(
-                    aguest,
-                    &mut a_wasi,
-                ),
-                private_io::run(&mut a_io, &mut afs)
-            )?;
-            if vm != io {
-                return Err(ShellError::message("philosopher guest/IO status differs"));
-            }
-            afs.terminal
-                .finish(bus, vm, std::mem::take(&mut afs.output))
-                .await?;
-            Ok(())
-        },
-        async {
-            let (vm, io) = tokio::try_join!(
-                localside::wasi::run::<B_WASI, FORK_B_RESOURCE, FORK_A_RESOURCE>(
-                    bguest,
-                    &mut b_wasi,
-                ),
-                private_io::run(&mut b_io, &mut bfs)
-            )?;
-            if vm != io {
-                return Err(ShellError::message("philosopher guest/IO status differs"));
-            }
-            bfs.terminal
-                .finish(bus, vm, std::mem::take(&mut bfs.output))
-                .await?;
-            Ok(())
-        },
-        async {
-            let (vm, io) = tokio::try_join!(
-                localside::wasi::run::<C_WASI, FORK_C_RESOURCE, FORK_B_RESOURCE>(
-                    cguest,
-                    &mut c_wasi,
-                ),
-                private_io::run(&mut c_io, &mut cfs)
-            )?;
-            if vm != io {
-                return Err(ShellError::message("philosopher guest/IO status differs"));
-            }
-            cfs.terminal
-                .finish(bus, vm, std::mem::take(&mut cfs.output))
-                .await?;
-            Ok(())
-        },
-        async {
-            let (vm, io) = tokio::try_join!(
-                localside::wasi::run::<D_WASI, FORK_D_RESOURCE, FORK_C_RESOURCE>(
-                    dguest,
-                    &mut d_wasi,
-                ),
-                private_io::run(&mut d_io, &mut dfs)
-            )?;
-            if vm != io {
-                return Err(ShellError::message("philosopher guest/IO status differs"));
-            }
-            dfs.terminal
-                .finish(bus, vm, std::mem::take(&mut dfs.output))
-                .await?;
-            Ok(())
-        },
-        async {
-            let (vm, io) = tokio::try_join!(
-                localside::wasi::run::<E_WASI, FORK_E_RESOURCE, FORK_D_RESOURCE>(
-                    eguest,
-                    &mut e_wasi,
-                ),
-                private_io::run(&mut e_io, &mut efs)
-            )?;
-            if vm != io {
-                return Err(ShellError::message("philosopher guest/IO status differs"));
-            }
-            efs.terminal
-                .finish(bus, vm, std::mem::take(&mut efs.output))
-                .await?;
-            Ok(())
-        },
-    )?;
+    #[localside]
+    localside::philosopher::run::<A, FORK_A_RESOURCE, FORK_E_RESOURCE>(
+        "PHILOSOPHER_A",
+        &mut a,
+        bus,
+    );
+    #[localside]
+    localside::philosopher::run::<B, FORK_B_RESOURCE, FORK_A_RESOURCE>(
+        "PHILOSOPHER_B",
+        &mut b,
+        bus,
+    );
+    #[localside]
+    localside::philosopher::run::<C, FORK_C_RESOURCE, FORK_B_RESOURCE>(
+        "PHILOSOPHER_C",
+        &mut c,
+        bus,
+    );
+    #[localside]
+    localside::philosopher::run::<D, FORK_D_RESOURCE, FORK_C_RESOURCE>(
+        "PHILOSOPHER_D",
+        &mut d,
+        bus,
+    );
+    #[localside]
+    localside::philosopher::run::<E, FORK_E_RESOURCE, FORK_D_RESOURCE>(
+        "PHILOSOPHER_E",
+        &mut e,
+        bus,
+    );
+    #[localside]
+    localside::fork::run::<FORK_A, FORK_A_RESOURCE>(&mut fork_a, resource_a);
+    #[localside]
+    localside::fork::run::<FORK_B, FORK_B_RESOURCE>(&mut fork_b, resource_b);
+    #[localside]
+    localside::fork::run::<FORK_C, FORK_C_RESOURCE>(&mut fork_c, resource_c);
+    #[localside]
+    localside::fork::run::<FORK_D, FORK_D_RESOURCE>(&mut fork_d, resource_d);
+    #[localside]
+    localside::fork::run::<FORK_E, FORK_E_RESOURCE>(&mut fork_e, resource_e);
+    #[localside]
+    localside::wasi::run::<A_WASI, FORK_A_RESOURCE, FORK_E_RESOURCE>(aguest, &mut a_wasi);
+    #[localside]
+    private_io::run(&mut a_io, afs);
+    #[localside]
+    localside::wasi::run::<B_WASI, FORK_B_RESOURCE, FORK_A_RESOURCE>(bguest, &mut b_wasi);
+    #[localside]
+    private_io::run(&mut b_io, bfs);
+    #[localside]
+    localside::wasi::run::<C_WASI, FORK_C_RESOURCE, FORK_B_RESOURCE>(cguest, &mut c_wasi);
+    #[localside]
+    private_io::run(&mut c_io, cfs);
+    #[localside]
+    localside::wasi::run::<D_WASI, FORK_D_RESOURCE, FORK_C_RESOURCE>(dguest, &mut d_wasi);
+    #[localside]
+    private_io::run(&mut d_io, dfs);
+    #[localside]
+    localside::wasi::run::<E_WASI, FORK_E_RESOURCE, FORK_D_RESOURCE>(eguest, &mut e_wasi);
+    #[localside]
+    private_io::run(&mut e_io, efs);
     Ok(())
 }
 
+#[hibana_runtime::localside]
 async fn run_9h_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 7]) -> ShellResult<()> {
     use global::*;
     use identity::roles9h::*;
@@ -345,190 +264,118 @@ async fn run_9h_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 7]) -> Sh
     let mut g_wasi = rv.enter(session, &programs.g_wasi)?;
     let mut g_io = rv.enter(session, &programs.g_io)?;
     let [aterm, bterm, cterm, dterm, eterm, fterm, gterm] = terminals;
-    let mut afs = PrivateFs::new(aterm, bus);
+    let afs = PrivateFs::new(aterm, bus);
     let mut amemory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut astore = HibanaWasiGuestStorage::uninit();
     let aguest = astore.init(module, GuestMemory::new(&mut amemory), bindings())?;
-    let mut bfs = PrivateFs::new(bterm, bus);
+    let bfs = PrivateFs::new(bterm, bus);
     let mut bmemory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut bstore = HibanaWasiGuestStorage::uninit();
     let bguest = bstore.init(module, GuestMemory::new(&mut bmemory), bindings())?;
-    let mut cfs = PrivateFs::new(cterm, bus);
+    let cfs = PrivateFs::new(cterm, bus);
     let mut cmemory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut cstore = HibanaWasiGuestStorage::uninit();
     let cguest = cstore.init(module, GuestMemory::new(&mut cmemory), bindings())?;
-    let mut dfs = PrivateFs::new(dterm, bus);
+    let dfs = PrivateFs::new(dterm, bus);
     let mut dmemory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut dstore = HibanaWasiGuestStorage::uninit();
     let dguest = dstore.init(module, GuestMemory::new(&mut dmemory), bindings())?;
-    let mut efs = PrivateFs::new(eterm, bus);
+    let efs = PrivateFs::new(eterm, bus);
     let mut ememory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut estore = HibanaWasiGuestStorage::uninit();
     let eguest = estore.init(module, GuestMemory::new(&mut ememory), bindings())?;
-    let mut ffs = PrivateFs::new(fterm, bus);
+    let ffs = PrivateFs::new(fterm, bus);
     let mut fmemory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut fstore = HibanaWasiGuestStorage::uninit();
     let fguest = fstore.init(module, GuestMemory::new(&mut fmemory), bindings())?;
-    let mut gfs = PrivateFs::new(gterm, bus);
+    let gfs = PrivateFs::new(gterm, bus);
     let mut gmemory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut gstore = HibanaWasiGuestStorage::uninit();
     let gguest = gstore.init(module, GuestMemory::new(&mut gmemory), bindings())?;
-    tokio::try_join!(
-        localside::philosopher::run::<A, FORK_A_RESOURCE, FORK_G_RESOURCE>(
-            "PHILOSOPHER_A",
-            &mut a,
-            bus
-        ),
-        localside::philosopher::run::<B, FORK_B_RESOURCE, FORK_A_RESOURCE>(
-            "PHILOSOPHER_B",
-            &mut b,
-            bus
-        ),
-        localside::philosopher::run::<C, FORK_C_RESOURCE, FORK_B_RESOURCE>(
-            "PHILOSOPHER_C",
-            &mut c,
-            bus
-        ),
-        localside::philosopher::run::<D, FORK_D_RESOURCE, FORK_C_RESOURCE>(
-            "PHILOSOPHER_D",
-            &mut d,
-            bus
-        ),
-        localside::philosopher::run::<E, FORK_E_RESOURCE, FORK_D_RESOURCE>(
-            "PHILOSOPHER_E",
-            &mut e,
-            bus
-        ),
-        localside::philosopher::run::<F, FORK_F_RESOURCE, FORK_E_RESOURCE>(
-            "PHILOSOPHER_F",
-            &mut f,
-            bus
-        ),
-        localside::philosopher::run::<G, FORK_G_RESOURCE, FORK_F_RESOURCE>(
-            "PHILOSOPHER_G",
-            &mut g,
-            bus
-        ),
-        localside::fork::run::<FORK_A, FORK_A_RESOURCE>(&mut fork_a, resource_a),
-        localside::fork::run::<FORK_B, FORK_B_RESOURCE>(&mut fork_b, resource_b),
-        localside::fork::run::<FORK_C, FORK_C_RESOURCE>(&mut fork_c, resource_c),
-        localside::fork::run::<FORK_D, FORK_D_RESOURCE>(&mut fork_d, resource_d),
-        localside::fork::run::<FORK_E, FORK_E_RESOURCE>(&mut fork_e, resource_e),
-        localside::fork::run::<FORK_F, FORK_F_RESOURCE>(&mut fork_f, resource_f),
-        localside::fork::run::<FORK_G, FORK_G_RESOURCE>(&mut fork_g, resource_g),
-        async {
-            let (vm, io) = tokio::try_join!(
-                localside::wasi::run::<A_WASI, FORK_A_RESOURCE, FORK_G_RESOURCE>(
-                    aguest,
-                    &mut a_wasi,
-                ),
-                private_io::run(&mut a_io, &mut afs)
-            )?;
-            if vm != io {
-                return Err(ShellError::message("philosopher guest/IO status differs"));
-            }
-            afs.terminal
-                .finish(bus, vm, std::mem::take(&mut afs.output))
-                .await?;
-            Ok(())
-        },
-        async {
-            let (vm, io) = tokio::try_join!(
-                localside::wasi::run::<B_WASI, FORK_B_RESOURCE, FORK_A_RESOURCE>(
-                    bguest,
-                    &mut b_wasi,
-                ),
-                private_io::run(&mut b_io, &mut bfs)
-            )?;
-            if vm != io {
-                return Err(ShellError::message("philosopher guest/IO status differs"));
-            }
-            bfs.terminal
-                .finish(bus, vm, std::mem::take(&mut bfs.output))
-                .await?;
-            Ok(())
-        },
-        async {
-            let (vm, io) = tokio::try_join!(
-                localside::wasi::run::<C_WASI, FORK_C_RESOURCE, FORK_B_RESOURCE>(
-                    cguest,
-                    &mut c_wasi,
-                ),
-                private_io::run(&mut c_io, &mut cfs)
-            )?;
-            if vm != io {
-                return Err(ShellError::message("philosopher guest/IO status differs"));
-            }
-            cfs.terminal
-                .finish(bus, vm, std::mem::take(&mut cfs.output))
-                .await?;
-            Ok(())
-        },
-        async {
-            let (vm, io) = tokio::try_join!(
-                localside::wasi::run::<D_WASI, FORK_D_RESOURCE, FORK_C_RESOURCE>(
-                    dguest,
-                    &mut d_wasi,
-                ),
-                private_io::run(&mut d_io, &mut dfs)
-            )?;
-            if vm != io {
-                return Err(ShellError::message("philosopher guest/IO status differs"));
-            }
-            dfs.terminal
-                .finish(bus, vm, std::mem::take(&mut dfs.output))
-                .await?;
-            Ok(())
-        },
-        async {
-            let (vm, io) = tokio::try_join!(
-                localside::wasi::run::<E_WASI, FORK_E_RESOURCE, FORK_D_RESOURCE>(
-                    eguest,
-                    &mut e_wasi,
-                ),
-                private_io::run(&mut e_io, &mut efs)
-            )?;
-            if vm != io {
-                return Err(ShellError::message("philosopher guest/IO status differs"));
-            }
-            efs.terminal
-                .finish(bus, vm, std::mem::take(&mut efs.output))
-                .await?;
-            Ok(())
-        },
-        async {
-            let (vm, io) = tokio::try_join!(
-                localside::wasi::run::<F_WASI, FORK_F_RESOURCE, FORK_E_RESOURCE>(
-                    fguest,
-                    &mut f_wasi,
-                ),
-                private_io::run(&mut f_io, &mut ffs)
-            )?;
-            if vm != io {
-                return Err(ShellError::message("philosopher guest/IO status differs"));
-            }
-            ffs.terminal
-                .finish(bus, vm, std::mem::take(&mut ffs.output))
-                .await?;
-            Ok(())
-        },
-        async {
-            let (vm, io) = tokio::try_join!(
-                localside::wasi::run::<G_WASI, FORK_G_RESOURCE, FORK_F_RESOURCE>(
-                    gguest,
-                    &mut g_wasi,
-                ),
-                private_io::run(&mut g_io, &mut gfs)
-            )?;
-            if vm != io {
-                return Err(ShellError::message("philosopher guest/IO status differs"));
-            }
-            gfs.terminal
-                .finish(bus, vm, std::mem::take(&mut gfs.output))
-                .await?;
-            Ok(())
-        },
-    )?;
+    #[localside]
+    localside::philosopher::run::<A, FORK_A_RESOURCE, FORK_G_RESOURCE>(
+        "PHILOSOPHER_A",
+        &mut a,
+        bus,
+    );
+    #[localside]
+    localside::philosopher::run::<B, FORK_B_RESOURCE, FORK_A_RESOURCE>(
+        "PHILOSOPHER_B",
+        &mut b,
+        bus,
+    );
+    #[localside]
+    localside::philosopher::run::<C, FORK_C_RESOURCE, FORK_B_RESOURCE>(
+        "PHILOSOPHER_C",
+        &mut c,
+        bus,
+    );
+    #[localside]
+    localside::philosopher::run::<D, FORK_D_RESOURCE, FORK_C_RESOURCE>(
+        "PHILOSOPHER_D",
+        &mut d,
+        bus,
+    );
+    #[localside]
+    localside::philosopher::run::<E, FORK_E_RESOURCE, FORK_D_RESOURCE>(
+        "PHILOSOPHER_E",
+        &mut e,
+        bus,
+    );
+    #[localside]
+    localside::philosopher::run::<F, FORK_F_RESOURCE, FORK_E_RESOURCE>(
+        "PHILOSOPHER_F",
+        &mut f,
+        bus,
+    );
+    #[localside]
+    localside::philosopher::run::<G, FORK_G_RESOURCE, FORK_F_RESOURCE>(
+        "PHILOSOPHER_G",
+        &mut g,
+        bus,
+    );
+    #[localside]
+    localside::fork::run::<FORK_A, FORK_A_RESOURCE>(&mut fork_a, resource_a);
+    #[localside]
+    localside::fork::run::<FORK_B, FORK_B_RESOURCE>(&mut fork_b, resource_b);
+    #[localside]
+    localside::fork::run::<FORK_C, FORK_C_RESOURCE>(&mut fork_c, resource_c);
+    #[localside]
+    localside::fork::run::<FORK_D, FORK_D_RESOURCE>(&mut fork_d, resource_d);
+    #[localside]
+    localside::fork::run::<FORK_E, FORK_E_RESOURCE>(&mut fork_e, resource_e);
+    #[localside]
+    localside::fork::run::<FORK_F, FORK_F_RESOURCE>(&mut fork_f, resource_f);
+    #[localside]
+    localside::fork::run::<FORK_G, FORK_G_RESOURCE>(&mut fork_g, resource_g);
+    #[localside]
+    localside::wasi::run::<A_WASI, FORK_A_RESOURCE, FORK_G_RESOURCE>(aguest, &mut a_wasi);
+    #[localside]
+    private_io::run(&mut a_io, afs);
+    #[localside]
+    localside::wasi::run::<B_WASI, FORK_B_RESOURCE, FORK_A_RESOURCE>(bguest, &mut b_wasi);
+    #[localside]
+    private_io::run(&mut b_io, bfs);
+    #[localside]
+    localside::wasi::run::<C_WASI, FORK_C_RESOURCE, FORK_B_RESOURCE>(cguest, &mut c_wasi);
+    #[localside]
+    private_io::run(&mut c_io, cfs);
+    #[localside]
+    localside::wasi::run::<D_WASI, FORK_D_RESOURCE, FORK_C_RESOURCE>(dguest, &mut d_wasi);
+    #[localside]
+    private_io::run(&mut d_io, dfs);
+    #[localside]
+    localside::wasi::run::<E_WASI, FORK_E_RESOURCE, FORK_D_RESOURCE>(eguest, &mut e_wasi);
+    #[localside]
+    private_io::run(&mut e_io, efs);
+    #[localside]
+    localside::wasi::run::<F_WASI, FORK_F_RESOURCE, FORK_E_RESOURCE>(fguest, &mut f_wasi);
+    #[localside]
+    private_io::run(&mut f_io, ffs);
+    #[localside]
+    localside::wasi::run::<G_WASI, FORK_G_RESOURCE, FORK_F_RESOURCE>(gguest, &mut g_wasi);
+    #[localside]
+    private_io::run(&mut g_io, gfs);
     Ok(())
 }
 
@@ -552,7 +399,9 @@ pub async fn run_stdio(module: &[u8], level: &str) -> ShellResult<()> {
                     ),
                 ],
             );
-            let result = tokio::select! {result=run_9e_guests(module,&bus,terminals)=>result,result=reader.run(&bus)=>result};
+            let result =
+                hibana_runtime::race(run_9e_guests(module, &bus, terminals), reader.run(&bus))
+                    .await;
             match &result {
 Ok(())=>reader.emit(&bus,serde_json::json!({"type":"run_result","status":"complete"})).await?,
 Err(error)=>reader.emit(&bus,serde_json::json!({"type":"run_result","status":"failed","error":error.to_string()})).await?,
@@ -591,7 +440,9 @@ Err(error)=>reader.emit(&bus,serde_json::json!({"type":"run_result","status":"fa
                     ),
                 ],
             );
-            let result = tokio::select! {result=run_9m_guests(module,&bus,terminals)=>result,result=reader.run(&bus)=>result};
+            let result =
+                hibana_runtime::race(run_9m_guests(module, &bus, terminals), reader.run(&bus))
+                    .await;
             match &result {
 Ok(())=>reader.emit(&bus,serde_json::json!({"type":"run_result","status":"complete"})).await?,
 Err(error)=>reader.emit(&bus,serde_json::json!({"type":"run_result","status":"failed","error":error.to_string()})).await?,
@@ -640,7 +491,9 @@ Err(error)=>reader.emit(&bus,serde_json::json!({"type":"run_result","status":"fa
                     ),
                 ],
             );
-            let result = tokio::select! {result=run_9h_guests(module,&bus,terminals)=>result,result=reader.run(&bus)=>result};
+            let result =
+                hibana_runtime::race(run_9h_guests(module, &bus, terminals), reader.run(&bus))
+                    .await;
             match &result {
 Ok(())=>reader.emit(&bus,serde_json::json!({"type":"run_result","status":"complete"})).await?,
 Err(error)=>reader.emit(&bus,serde_json::json!({"type":"run_result","status":"failed","error":error.to_string()})).await?,

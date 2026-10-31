@@ -7,8 +7,9 @@ use super::super::{
 use crate::shell::{ShellError, ShellResult, imp::service::Domain};
 use hibana::Endpoint;
 
+#[hibana_runtime::localside]
 pub(crate) async fn run<const TASK: u8, const ROLE: u8, const FIRST: u8, const SECOND: u8>(
-    endpoint: &mut Endpoint<'_, ROLE>,
+    endpoint: &mut Endpoint<ROLE>,
     domain: &impl Domain,
 ) -> ShellResult<()> {
     let input = assignment::<TASK, ROLE>();
@@ -34,7 +35,7 @@ pub(crate) async fn run<const TASK: u8, const ROLE: u8, const FIRST: u8, const S
     let bytes =
         serde_json::to_vec(&result).map_err(|error| ShellError::message(error.to_string()))?;
     let response = bytes.as_slice();
-    endpoint.send::<DesignCompleted<'_>>(&response).await?;
+    endpoint.send::<DesignCompleted>(&response).await?;
 
     let request = endpoint.recv::<ImplementRequest<TASK, ROLE>>().await?;
     let arguments = serde_json::from_slice(&request.as_bytes()[1..])
@@ -59,14 +60,18 @@ pub(crate) async fn run<const TASK: u8, const ROLE: u8, const FIRST: u8, const S
     let bytes =
         serde_json::to_vec(&result).map_err(|error| ShellError::message(error.to_string()))?;
     let response = bytes.as_slice();
-    endpoint.send::<ImplementCompleted<'_>>(&response).await?;
+    endpoint.send::<ImplementCompleted>(&response).await?;
 
     let arguments = {
         let [mut first, mut second] = endpoint.par()?;
-        let (first, second) = tokio::try_join!(
-            first.recv::<CommitRequest<TASK, ROLE, FIRST>>(),
-            second.recv::<CommitRequest<TASK, ROLE, SECOND>>()
-        )?;
+        let (first, second) = async {
+            #[localside]
+            let first = first.recv::<CommitRequest<TASK, ROLE, FIRST>>();
+            #[localside]
+            let second = second.recv::<CommitRequest<TASK, ROLE, SECOND>>();
+            Ok((first, second))
+        }
+        .await?;
         if first.as_bytes() != second.as_bytes() {
             return Err(ShellError::message(
                 "module requests name different commits",
@@ -97,10 +102,14 @@ pub(crate) async fn run<const TASK: u8, const ROLE: u8, const FIRST: u8, const S
     {
         let [mut first, mut second] = endpoint.par()?;
         let payload = bytes.as_slice();
-        tokio::try_join!(
-            first.send::<CommitCompleted<'_, FIRST>>(&payload),
-            second.send::<CommitCompleted<'_, SECOND>>(&payload)
-        )?;
+        async {
+            #[localside]
+            first.send::<CommitCompleted<FIRST>>(&payload);
+            #[localside]
+            second.send::<CommitCompleted<SECOND>>(&payload);
+            Ok(())
+        }
+        .await?;
     }
 
     let request = endpoint.recv::<TestRequest<TASK, ROLE>>().await?;
@@ -120,7 +129,7 @@ pub(crate) async fn run<const TASK: u8, const ROLE: u8, const FIRST: u8, const S
     let bytes =
         serde_json::to_vec(&result).map_err(|error| ShellError::message(error.to_string()))?;
     let response = bytes.as_slice();
-    endpoint.send::<TestCompleted<'_>>(&response).await?;
+    endpoint.send::<TestCompleted>(&response).await?;
     let status = endpoint.recv::<ServiceExit>().await?;
     if status != 0 {
         return Err(ShellError::message("developer guest failed"));

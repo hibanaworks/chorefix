@@ -48,8 +48,8 @@ async fn the_actual_1h_database_endpoint_reaches_b_only_after_a_returns_it() {
             .await
             .unwrap();
         a.recv::<DesignRequest<HARD, A>>().await.unwrap();
-        a.send::<DesignCompleted<'_>>(&result).await.unwrap();
-        a_task.recv::<DesignCompleted<'_>>().await.unwrap();
+        a.send::<DesignCompleted>(&result).await.unwrap();
+        a_task.recv::<DesignCompleted>().await.unwrap();
         let implement_a = Close::<HARD, A, IMPLEMENT>::new(
             close,
             serde_json::json!({"feature_name":"user_authentication"}),
@@ -60,8 +60,8 @@ async fn the_actual_1h_database_endpoint_reaches_b_only_after_a_returns_it() {
             .await
             .unwrap();
         a.recv::<ImplementRequest<HARD, A>>().await.unwrap();
-        a.send::<ImplementCompleted<'_>>(&result).await.unwrap();
-        a_task.recv::<ImplementCompleted<'_>>().await.unwrap();
+        a.send::<ImplementCompleted>(&result).await.unwrap();
+        a_task.recv::<ImplementCompleted>().await.unwrap();
 
         let design_b = Close::<HARD, B, DESIGN>::new(
             close,
@@ -73,8 +73,8 @@ async fn the_actual_1h_database_endpoint_reaches_b_only_after_a_returns_it() {
             .await
             .unwrap();
         b.recv::<DesignRequest<HARD, B>>().await.unwrap();
-        b.send::<DesignCompleted<'_>>(&result).await.unwrap();
-        b_task.recv::<DesignCompleted<'_>>().await.unwrap();
+        b.send::<DesignCompleted>(&result).await.unwrap();
+        b_task.recv::<DesignCompleted>().await.unwrap();
         let implement_b = Close::<HARD, B, IMPLEMENT>::new(
             close,
             serde_json::json!({"feature_name":"rest_api_endpoints"}),
@@ -85,20 +85,20 @@ async fn the_actual_1h_database_endpoint_reaches_b_only_after_a_returns_it() {
             .await
             .unwrap();
         b.recv::<ImplementRequest<HARD, B>>().await.unwrap();
-        b.send::<ImplementCompleted<'_>>(&result).await.unwrap();
-        b_task.recv::<ImplementCompleted<'_>>().await.unwrap();
+        b.send::<ImplementCompleted>(&result).await.unwrap();
+        b_task.recv::<ImplementCompleted>().await.unwrap();
 
-        auth.send::<Loan<'_, AUTH_RESOURCE>>(auth_resource)
+        auth.send::<Loan<AUTH_RESOURCE>>(auth_resource)
             .await
             .unwrap();
         database
-            .send::<Loan<'_, DATABASE_RESOURCE>>(database_resource)
+            .send::<Loan<DATABASE_RESOURCE>>(database_resource)
             .await
             .unwrap();
         let [mut a_auth, mut a_database] = a_task.par().unwrap();
         let (mut auth_resource, mut database_resource) = tokio::try_join!(
-            a_auth.recv::<Loan<'_, AUTH_RESOURCE>>(),
-            a_database.recv::<Loan<'_, DATABASE_RESOURCE>>()
+            a_auth.recv::<Loan<AUTH_RESOURCE>>(),
+            a_database.recv::<Loan<DATABASE_RESOURCE>>()
         )
         .unwrap();
         assert!(runtime.enter(session, &programs.database_resource).is_err());
@@ -106,7 +106,7 @@ async fn the_actual_1h_database_endpoint_reaches_b_only_after_a_returns_it() {
         // B has already completed its real prerequisites. No module localside or
         // owner table decides whether this receive is available.
         let [_b_api, mut b_database] = b_task.par().unwrap();
-        let mut waiting = std::pin::pin!(b_database.recv::<Loan<'_, DATABASE_RESOURCE>>());
+        let mut waiting = std::pin::pin!(b_database.recv::<Loan<DATABASE_RESOURCE>>());
         assert!(
             std::future::poll_fn(|cx| Poll::Ready(waiting.as_mut().poll(cx)))
                 .await
@@ -134,32 +134,29 @@ async fn the_actual_1h_database_endpoint_reaches_b_only_after_a_returns_it() {
         {
             let [mut first, mut second] = a.par().unwrap();
             tokio::try_join!(
-                first.send::<CommitCompleted<'_, AUTH_RESOURCE>>(&result),
-                second.send::<CommitCompleted<'_, DATABASE_RESOURCE>>(&result)
+                first.send::<CommitCompleted<AUTH_RESOURCE>>(&result),
+                second.send::<CommitCompleted<DATABASE_RESOURCE>>(&result)
             )
             .unwrap();
         }
         tokio::try_join!(
-            auth_resource.recv::<CommitCompleted<'_, AUTH_RESOURCE>>(),
-            database_resource.recv::<CommitCompleted<'_, DATABASE_RESOURCE>>()
+            auth_resource.recv::<CommitCompleted<AUTH_RESOURCE>>(),
+            database_resource.recv::<CommitCompleted<DATABASE_RESOURCE>>()
         )
         .unwrap();
         drop((a_auth, a_database));
         {
             let [mut first, mut second] = a_task.par().unwrap();
             tokio::try_join!(
-                first.send::<Loan<'_, AUTH_RESOURCE>>(auth_resource),
-                second.send::<Loan<'_, DATABASE_RESOURCE>>(database_resource)
+                first.send::<Loan<AUTH_RESOURCE>>(auth_resource),
+                second.send::<Loan<DATABASE_RESOURCE>>(database_resource)
             )
             .unwrap();
         }
-        let _auth_resource = auth.recv::<Loan<'_, AUTH_RESOURCE>>().await.unwrap();
-        let database_resource = database
-            .recv::<Loan<'_, DATABASE_RESOURCE>>()
-            .await
-            .unwrap();
+        let _auth_resource = auth.recv::<Loan<AUTH_RESOURCE>>().await.unwrap();
+        let database_resource = database.recv::<Loan<DATABASE_RESOURCE>>().await.unwrap();
         database
-            .send::<Loan<'_, DATABASE_RESOURCE>>(database_resource)
+            .send::<Loan<DATABASE_RESOURCE>>(database_resource)
             .await
             .unwrap();
         let _b_resource = waiting.await.unwrap();

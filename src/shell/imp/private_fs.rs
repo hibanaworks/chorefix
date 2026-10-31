@@ -1,17 +1,16 @@
 use super::{
     bus::{Bus, Terminal},
-    file_wire::{ClosedFile, FILE_BYTES, RESULT_FD, ResultChunk, SERVICE_FD},
+    file_wire::{ClosedFile, FILE_BYTES, SERVICE_FD},
 };
 use crate::shell::{ShellError, ShellResult};
-use hibana::runtime::wire::ReceivedPayload;
 use hibana_wasip1_runtime::{
-    choreofs::{ChoreoFsObject, ChoreoFsObjectSet, ChoreoFsRequest, FdSpec, ObjectId},
+    choreofs::{ChoreoFsObject, ChoreoFsObjectSet, ChoreoFsWrite, FdSpec, ObjectId},
     exchange::FdBindingTable,
     protocol::{self, FdBinding, FdReadRow, FdReaddirRow, FdWriteRow},
 };
 
 const READ: u64 = 1 << 1;
-const WRITE: u64 = 1 << 6;
+pub(crate) const WRITE: u64 = 1 << 6;
 const READDIR: u64 = 1 << 14;
 const READ_WRITE: FdBinding = FdBinding {
     read: Some(FdReadRow::Base),
@@ -27,18 +26,18 @@ const UNBOUND_PATHS: [&[u8]; 8] = [
 // File contents, offsets and flags are filesystem data, never task progress or
 // ownership authority. All file operations consume ChoreoFS operation results.
 pub struct PrivateFs<'a> {
-    input: Vec<u8>,
+    pub(crate) input: Vec<u8>,
     reply: Vec<u8>,
-    service_path: Vec<u8>,
-    service_bytes: Vec<u8>,
-    work: [Vec<u8>; 8],
-    paths: [Vec<u8>; 8],
+    pub(crate) service_path: Vec<u8>,
+    pub(crate) service_bytes: Vec<u8>,
+    pub(crate) work: [Vec<u8>; 8],
+    pub(crate) paths: [Vec<u8>; 8],
     listing: Vec<u8>,
-    offsets: [usize; 16],
-    fd_flags: [u16; 16],
+    pub(crate) offsets: [usize; 16],
+    pub(crate) fd_flags: [u16; 16],
     pub output: Vec<u8>,
     pub terminal: Terminal,
-    bus: &'a Bus,
+    pub(crate) bus: &'a Bus,
 }
 
 impl<'a> PrivateFs<'a> {
@@ -68,7 +67,7 @@ impl PrivateFs<'_> {
             &self.paths[index]
         }
     }
-    fn refresh_listing(&mut self) {
+    pub(crate) fn refresh_listing(&mut self) {
         self.listing.clear();
         for (index, path) in self.paths.iter().enumerate() {
             let Some(name) = path.strip_prefix(b"work/") else {
@@ -86,7 +85,7 @@ impl PrivateFs<'_> {
         }
     }
 
-    fn objects(&self) -> ChoreoFsObjectSet<'_, 16> {
+    pub(crate) fn objects(&self) -> ChoreoFsObjectSet<'_, 16> {
         ChoreoFsObjectSet::new([
             ChoreoFsObject::readable(
                 b"llm/stdin",
@@ -202,46 +201,8 @@ impl PrivateFs<'_> {
         ])
     }
 
-    pub async fn read(
-        &mut self,
-        received: ReceivedPayload<'_, protocol::FdReadReq>,
-    ) -> ShellResult<protocol::FdReadDoneRet> {
-        let read = protocol::FdReadReq::request(&received).0;
-        if read.fd() == 0 && self.offsets[0] == self.input.len() {
-            let command = self
-                .terminal
-                .read_command(self.bus, std::mem::take(&mut self.output))
-                .await?;
-            if command.len() > 4096 || command.as_bytes().contains(&0) {
-                return Err(ShellError::message(
-                    "shell command exceeds guest input bound",
-                ));
-            }
-            self.input = (command.len() as u32).to_le_bytes().to_vec();
-            self.input.extend_from_slice(command.as_bytes());
-            self.offsets[0] = 0;
-        }
-        let index = read.fd() as usize;
-        let offset = self.offsets.get(index).copied().unwrap_or(0);
-        let (response, next) = self
-            .objects()
-            .choreofs()
-            .fd_read(received)
-            .read_from(offset)?;
-        if let Some(offset) = self.offsets.get_mut(index) {
-            *offset = next;
-        }
-        Ok(response)
-    }
-    pub async fn write<P>(
-        &mut self,
-        received: ReceivedPayload<'_, P>,
-    ) -> ShellResult<protocol::FdWriteDoneRet>
-    where
-        P: ChoreoFsRequest<Request = (protocol::FdWrite, FdWriteRow)>,
-    {
-        let (write, _) = P::request(&received);
-        let operation = self.objects().choreofs().fd_write(received);
+    pub fn write(&mut self, operation: ChoreoFsWrite<'_>) -> ShellResult<protocol::FdWriteDoneRet> {
+        let write = operation.request();
         if !operation.is_writable() {
             return Ok(operation.written());
         }
@@ -296,107 +257,7 @@ impl PrivateFs<'_> {
         }
         Ok(operation.written())
     }
-    pub fn open(
-        &mut self,
-        received: ReceivedPayload<'_, protocol::PathOpenReq>,
-    ) -> ShellResult<protocol::PathOpenedRet> {
-        let request = protocol::PathOpenReq::request(&received).0;
-        if request.preopen_fd() != 3 {
-            return Err(ShellError::message("non-root path_open"));
-        }
-        let path = normalize(request.path());
-        if path.starts_with(b"service/") && path != b"service/result" {
-            let objects = ChoreoFsObjectSet::new([ChoreoFsObject::writable(
-                path,
-                ObjectId(SERVICE_FD as u32),
-                FdSpec::new(SERVICE_FD, WRITE, 1),
-                FdBinding::write(FdWriteRow::Object),
-            )]);
-            let open = objects.choreofs().path_open(received);
-            if open.is_open() {
-                self.service_path.clear();
-                self.service_path.extend_from_slice(path);
-                if request.open_flags() & 8 != 0 {
-                    self.service_bytes.clear();
-                }
-                self.offsets[4] = 0;
-                self.fd_flags[4] = request.fd_flags();
-            }
-            return Ok(open.opened_ret());
-        }
-        let created = if !self.paths.iter().any(|existing| existing == path)
-            && request.open_flags() & 1 != 0
-            && request.rights_base() & WRITE != 0
-            && let Some(name) = path.strip_prefix(b"work/")
-        {
-            if name.is_empty() || name.len() > 64 || name.contains(&b'/') || name.contains(&0) {
-                return Ok(protocol::PathOpenedRet(protocol::PathOpened::new(0, 28)));
-            }
-            let Some(index) = self.paths.iter().position(Vec::is_empty) else {
-                return Ok(protocol::PathOpenedRet(protocol::PathOpened::new(0, 22)));
-            };
-            self.paths[index].extend_from_slice(path);
-            Some(index)
-        } else {
-            None
-        };
-        let open = self.objects().choreofs().path_open(received);
-        if let Some(fd) = open.fd() {
-            let fd = fd as usize;
-            if request.open_flags() & 8 != 0 {
-                match open.object() {
-                    Some(ObjectId(6..=13)) => self.work[fd - 6].clear(),
-                    _ => {
-                        return Err(ShellError::message(
-                            "truncate is only supported on work files",
-                        ));
-                    }
-                }
-            }
-            self.offsets[fd] = 0;
-            self.fd_flags[fd] = request.fd_flags();
-        }
-        if let Some(index) = created {
-            if !open.is_open() {
-                self.paths[index].clear();
-            }
-            self.refresh_listing();
-        }
-        Ok(open.opened_ret())
-    }
-    pub fn stat(
-        &self,
-        request: ReceivedPayload<'_, protocol::FdFdstatGetReq>,
-    ) -> protocol::FdStatRet {
-        self.objects().choreofs().fd_fdstat_get(request)
-    }
-    pub fn file_stat(
-        &self,
-        request: ReceivedPayload<'_, protocol::FdFilestatGetReq>,
-    ) -> protocol::FdFilestatRet {
-        self.objects().choreofs().fd_filestat_get(request)
-    }
-    pub fn path_stat(
-        &self,
-        request: ReceivedPayload<'_, protocol::PathFilestatGetReq>,
-    ) -> ShellResult<protocol::PathFilestatRet> {
-        if protocol::PathFilestatGetReq::request(&request)
-            .0
-            .preopen_fd()
-            != 3
-        {
-            return Err(ShellError::message("non-root path_filestat_get"));
-        }
-        Ok(self.objects().choreofs().path_filestat_get(request))
-    }
-    pub fn read_dir(
-        &self,
-        request: ReceivedPayload<'_, protocol::FdReaddirReq>,
-    ) -> ShellResult<protocol::FdReaddirDoneRet> {
-        Ok(self.objects().choreofs().fd_readdir(request).read_dir()?)
-    }
-    pub fn close(&self, request: ReceivedPayload<'_, protocol::FdCloseReq>) -> ClosedFile {
-        let completion = self.objects().choreofs().fd_close(request);
+    pub fn closed_file(&self, completion: protocol::FdClosedRet) -> ClosedFile {
         let (path, bytes) = if completion.0.fd() == SERVICE_FD && completion.0.errno() == 0 {
             (self.service_path.clone(), self.service_bytes.clone())
         } else {
@@ -408,15 +269,7 @@ impl PrivateFs<'_> {
             bytes,
         }
     }
-    pub fn result_chunk(&mut self, request: ReceivedPayload<'_, ResultChunk>) -> ShellResult<()> {
-        let offset = ResultChunk::offset(&request);
-        let objects = ChoreoFsObjectSet::new([ChoreoFsObject::writable(
-            b"service/result",
-            ObjectId(RESULT_FD as u32),
-            FdSpec::new(RESULT_FD, WRITE, 1),
-            FdBinding::write(FdWriteRow::Base),
-        )]);
-        let operation = objects.choreofs().fd_write(request);
+    pub fn result_chunk(&mut self, operation: ChoreoFsWrite<'_>, offset: usize) -> ShellResult<()> {
         if !operation.is_writable() {
             return Err(ShellError::message("result file is not writable"));
         }
@@ -428,12 +281,6 @@ impl PrivateFs<'_> {
         self.reply[offset..end].copy_from_slice(operation.bytes());
         let _completion = operation.written();
         Ok(())
-    }
-}
-fn normalize(path: &[u8]) -> &[u8] {
-    match path.strip_prefix(b"/") {
-        Some(path) => path,
-        None => path,
     }
 }
 pub fn bindings() -> FdBindingTable {

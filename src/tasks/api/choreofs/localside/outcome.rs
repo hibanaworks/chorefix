@@ -6,23 +6,24 @@ pub mod admin {
     use crate::shell::{ShellError, ShellResult};
     use hibana::Endpoint;
     use serde_json::Value;
+    #[hibana_runtime::localside]
     pub async fn admin(
-        endpoint: &mut Endpoint<'_, ADMIN_OUTCOME>,
+        endpoint: &mut Endpoint<ADMIN_OUTCOME>,
         file: &mut OutcomeFile,
     ) -> ShellResult<()> {
         let [mut results, mut metadata] = endpoint.par()?;
         file.bytes = loop {
             let received = {
-                let offered = tokio::select! {
-                    branch = results.offer() => Ok(branch),
-                    branch = metadata.offer() => Err(branch),
-                };
+                let offered = hibana_runtime::race(async { Ok(results.offer().await) }, async {
+                    Err(metadata.offer().await)
+                })
+                .await;
                 match offered {
                     Ok(branch) => {
                         let branch = branch?;
                         let bytes = match branch.label() {
                             50 => {
-                                let bytes = branch.recv::<PassedAdmin<'_>>().await?.to_vec();
+                                let bytes = branch.recv::<PassedAdmin>().await?.to_vec();
                                 let result: Value = serde_json::from_slice(&bytes)
                                     .map_err(|e| ShellError::message(e.to_string()))?;
                                 if result["success"] != true {
@@ -33,7 +34,7 @@ pub mod admin {
                                 bytes
                             }
                             60 => {
-                                let bytes = branch.recv::<FailedAdmin<'_>>().await?.to_vec();
+                                let bytes = branch.recv::<FailedAdmin>().await?.to_vec();
                                 let result: Value = serde_json::from_slice(&bytes)
                                     .map_err(|e| ShellError::message(e.to_string()))?;
                                 if result["success"] != false {
@@ -65,10 +66,11 @@ pub mod admin {
         };
         let opened = loop {
             let received = {
-                let offered = tokio::select! {
-                    request = results.recv::<OutcomeOpen>() => Ok(request),
-                    branch = metadata.offer() => Err(branch),
-                };
+                let offered = hibana_runtime::race(
+                    async { Ok(results.recv::<OutcomeOpen>().await) },
+                    async { Err(metadata.offer().await) },
+                )
+                .await;
                 match offered {
                     Ok(request) => Ok(file.open(request?)?),
                     Err(branch) => {
@@ -90,10 +92,10 @@ pub mod admin {
         results.send::<OutcomeOpened>(&opened).await?;
         loop {
             let response = {
-                let offered = tokio::select! {
-                    branch = results.offer() => Ok(branch),
-                    branch = metadata.offer() => Err(branch),
-                };
+                let offered = hibana_runtime::race(async { Ok(results.offer().await) }, async {
+                    Err(metadata.offer().await)
+                })
+                .await;
                 match offered {
                     Ok(branch) => {
                         let branch = branch?;
@@ -161,23 +163,24 @@ pub mod backend {
     use crate::shell::{ShellError, ShellResult};
     use hibana::Endpoint;
     use serde_json::Value;
+    #[hibana_runtime::localside]
     pub async fn backend(
-        endpoint: &mut Endpoint<'_, BACKEND_OUTCOME>,
+        endpoint: &mut Endpoint<BACKEND_OUTCOME>,
         file: &mut OutcomeFile,
     ) -> ShellResult<()> {
         let [mut results, mut metadata] = endpoint.par()?;
         file.bytes = loop {
             let received = {
-                let offered = tokio::select! {
-                    branch = results.offer() => Ok(branch),
-                    branch = metadata.offer() => Err(branch),
-                };
+                let offered = hibana_runtime::race(async { Ok(results.offer().await) }, async {
+                    Err(metadata.offer().await)
+                })
+                .await;
                 match offered {
                     Ok(branch) => {
                         let branch = branch?;
                         let bytes = match branch.label() {
                             51 => {
-                                let bytes = branch.recv::<PassedBackend<'_>>().await?.to_vec();
+                                let bytes = branch.recv::<PassedBackend>().await?.to_vec();
                                 let result: Value = serde_json::from_slice(&bytes)
                                     .map_err(|e| ShellError::message(e.to_string()))?;
                                 if result["success"] != true {
@@ -188,7 +191,7 @@ pub mod backend {
                                 bytes
                             }
                             61 => {
-                                let bytes = branch.recv::<FailedBackend<'_>>().await?.to_vec();
+                                let bytes = branch.recv::<FailedBackend>().await?.to_vec();
                                 let result: Value = serde_json::from_slice(&bytes)
                                     .map_err(|e| ShellError::message(e.to_string()))?;
                                 if result["success"] != false {
@@ -220,10 +223,11 @@ pub mod backend {
         };
         let opened = loop {
             let received = {
-                let offered = tokio::select! {
-                    request = results.recv::<OutcomeOpen>() => Ok(request),
-                    branch = metadata.offer() => Err(branch),
-                };
+                let offered = hibana_runtime::race(
+                    async { Ok(results.recv::<OutcomeOpen>().await) },
+                    async { Err(metadata.offer().await) },
+                )
+                .await;
                 match offered {
                     Ok(request) => Ok(file.open(request?)?),
                     Err(branch) => {
@@ -245,10 +249,10 @@ pub mod backend {
         results.send::<OutcomeOpened>(&opened).await?;
         loop {
             let response = {
-                let offered = tokio::select! {
-                    branch = results.offer() => Ok(branch),
-                    branch = metadata.offer() => Err(branch),
-                };
+                let offered = hibana_runtime::race(async { Ok(results.offer().await) }, async {
+                    Err(metadata.offer().await)
+                })
+                .await;
                 match offered {
                     Ok(branch) => {
                         let branch = branch?;

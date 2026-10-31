@@ -5,6 +5,7 @@ use super::{
 use crate::shell::{ShellError, ShellResult};
 use hibana::Endpoint;
 
+#[hibana_runtime::localside]
 pub async fn initial<'r>(
     endpoint: &mut Endpoint<'r, A>,
     mut resource: Endpoint<'r, R>,
@@ -15,7 +16,7 @@ pub async fn initial<'r>(
     resource.send::<Inspect>(&prepared).await?;
     let checked = resource.recv::<Inspected>().await?;
     endpoint.send::<Context>(&checked).await?;
-    endpoint.send::<LoanR<'_>>(resource).await?;
+    endpoint.send::<LoanR>(resource).await?;
     let branch = endpoint.offer().await?;
     match branch.label() {
         26 => {
@@ -23,12 +24,12 @@ pub async fn initial<'r>(
         }
         27 => {
             branch.recv::<CommitDenied>().await?;
-            let _resource = endpoint.recv::<LoanR<'_>>().await?;
+            let _resource = endpoint.recv::<LoanR>().await?;
             return Err(ShellError::message("candidate verification failed"));
         }
         _ => return Err(ShellError::message("unexpected final verification branch")),
     }
-    let mut resource = endpoint.recv::<LoanR<'_>>().await?;
+    let mut resource = endpoint.recv::<LoanR>().await?;
     let reported = Artifact::decode(endpoint.recv::<Report>().await?);
     resource.send::<Audit>(&reported.target).await?;
     let actual = Artifact::decode(resource.recv::<Audited>().await?);
@@ -40,12 +41,13 @@ pub async fn initial<'r>(
     Ok(actual)
 }
 
+#[hibana_runtime::localside]
 pub async fn recover(
-    endpoint: &mut Endpoint<'_, B>,
+    endpoint: &mut Endpoint<B>,
     values: impl IntoIterator<Item = u64>,
 ) -> ShellResult<Artifact> {
     let context = Verification::decode(endpoint.recv::<Context>().await?)?;
-    let mut resource = endpoint.recv::<LoanR<'_>>().await?;
+    let mut resource = endpoint.recv::<LoanR>().await?;
     let mut candidate = context.artifact;
     let mut values = values.into_iter();
     let checked = loop {
@@ -76,12 +78,12 @@ pub async fn recover(
         }
         27 => {
             branch.recv::<CommitDenied>().await?;
-            endpoint.send::<LoanR<'_>>(resource).await?;
+            endpoint.send::<LoanR>(resource).await?;
             return Err(ShellError::message("candidate verification failed"));
         }
         _ => return Err(ShellError::message("unexpected commit branch")),
     }
-    let mut second = endpoint.recv::<LoanS<'_>>().await?;
+    let mut second = endpoint.recv::<LoanS>().await?;
     let payload = checked.bytes();
     tokio::try_join!(
         resource.send::<CommitR>(&payload),
@@ -93,15 +95,16 @@ pub async fn recover(
         return Err(ShellError::message("resource results differ"));
     }
     let published = Artifact::decode(first);
-    endpoint.send::<LoanS<'_>>(second).await?;
-    endpoint.send::<LoanR<'_>>(resource).await?;
+    endpoint.send::<LoanS>(second).await?;
+    endpoint.send::<LoanR>(resource).await?;
     endpoint.send::<Report>(&published.bytes()).await?;
     Ok(published)
 }
 
+#[hibana_runtime::localside]
 pub async fn service(
-    endpoint: &mut Endpoint<'_, STORE>,
-    repository: &mut Repository<'_>,
+    endpoint: &mut Endpoint<STORE>,
+    repository: &mut Repository,
     result: &VerificationInput,
 ) -> ShellResult<()> {
     let (checked, independent) = {
@@ -212,34 +215,37 @@ pub async fn service(
     }
 }
 
-pub async fn independent(endpoint: &mut Endpoint<'_, C>, input: u64) -> ShellResult<u64> {
-    let mut resource = endpoint.recv::<LoanS<'_>>().await?;
+#[hibana_runtime::localside]
+pub async fn independent(endpoint: &mut Endpoint<C>, input: u64) -> ShellResult<u64> {
+    let mut resource = endpoint.recv::<LoanS>().await?;
     resource.send::<Work>(&input).await?;
     let value = resource.recv::<Worked>().await?;
-    endpoint.send::<LoanS<'_>>(resource).await?;
+    endpoint.send::<LoanS>(resource).await?;
     endpoint.send::<WorkReport>(&value).await?;
     Ok(value)
 }
 
-pub async fn auxiliary(endpoint: &mut Endpoint<'_, AUX>) -> ShellResult<()> {
+#[hibana_runtime::localside]
+pub async fn auxiliary(endpoint: &mut Endpoint<AUX>) -> ShellResult<()> {
     let value = endpoint.recv::<Work>().await?;
     tokio::time::sleep(std::time::Duration::from_millis(20)).await;
     endpoint.send::<Worked>(&value.wrapping_mul(value)).await?;
     Ok(())
 }
 
+#[hibana_runtime::localside]
 pub async fn second_owner<'r>(
     endpoint: &mut Endpoint<'r, S_OWNER>,
     resource: Endpoint<'r, S>,
 ) -> ShellResult<()> {
-    endpoint.send::<LoanS<'_>>(resource).await?;
-    let resource = endpoint.recv::<LoanS<'_>>().await?;
+    endpoint.send::<LoanS>(resource).await?;
+    let resource = endpoint.recv::<LoanS>().await?;
     let branch = endpoint.offer().await?;
     match branch.label() {
         26 => {
             branch.recv::<CommitReady>().await?;
-            endpoint.send::<LoanS<'_>>(resource).await?;
-            let _resource = endpoint.recv::<LoanS<'_>>().await?;
+            endpoint.send::<LoanS>(resource).await?;
+            let _resource = endpoint.recv::<LoanS>().await?;
             Ok(())
         }
         27 => {

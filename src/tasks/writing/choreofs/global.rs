@@ -208,14 +208,14 @@ fn prepare<const VM: u8, const OWNER: u8, const CHECK: u16>() -> impl Projectabl
         requests::<VM, OWNER, CHECK, ReadRequest, Read>(),
         g::seq(
             g::send::<OWNER, OWNER, ReadEffect>(),
-            g::send::<OWNER, VM, ReadCompleted<'static>>(),
+            g::send::<OWNER, VM, ReadCompleted>(),
         ),
     );
     let draft = g::seq(
         requests::<VM, OWNER, CHECK, DraftRequest, Draft>(),
         g::seq(
             g::send::<OWNER, OWNER, DraftEffect>(),
-            g::send::<OWNER, VM, DraftCompleted<'static>>(),
+            g::send::<OWNER, VM, DraftCompleted>(),
         ),
     );
     g::seq(read, draft)
@@ -236,22 +236,22 @@ fn write<
     let sections = g::seq(
         g::par(
             g::seq(
-                g::send::<FIRST_OWNER, VM, Loan<'static, FIRST>>(),
+                g::send::<FIRST_OWNER, VM, Loan<FIRST>>(),
                 g::send::<FIRST, OWNER, SectionRequest<FIRST>>(),
             ),
             g::seq(
-                g::send::<SECOND_OWNER, VM, Loan<'static, SECOND>>(),
+                g::send::<SECOND_OWNER, VM, Loan<SECOND>>(),
                 g::send::<SECOND, OWNER, SectionRequest<SECOND>>(),
             ),
         ),
         g::seq(
             g::par(
-                g::send::<OWNER, FIRST, SectionWritten<'static, FIRST>>(),
-                g::send::<OWNER, SECOND, SectionWritten<'static, SECOND>>(),
+                g::send::<OWNER, FIRST, SectionWritten<FIRST>>(),
+                g::send::<OWNER, SECOND, SectionWritten<SECOND>>(),
             ),
             g::par(
-                g::send::<VM, FIRST_OWNER, Loan<'static, FIRST>>(),
-                g::send::<VM, SECOND_OWNER, Loan<'static, SECOND>>(),
+                g::send::<VM, FIRST_OWNER, Loan<FIRST>>(),
+                g::send::<VM, SECOND_OWNER, Loan<SECOND>>(),
             ),
         ),
     );
@@ -259,7 +259,7 @@ fn write<
         requests::<VM, OWNER, CHECK, ReviewRequest, Review>(),
         g::seq(
             g::send::<OWNER, OWNER, ReviewEffect>(),
-            g::send::<OWNER, VM, ReviewCompleted<'static>>(),
+            g::send::<OWNER, VM, ReviewCompleted>(),
         ),
     );
     g::seq(

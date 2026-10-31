@@ -2,9 +2,8 @@ use super::super::global::{author_a as a, author_b as b, *};
 use crate::RunError;
 use hibana::{Endpoint, g::Message};
 
-pub(crate) async fn database(
-    endpoint: &mut Endpoint<'_, DATABASE>,
-) -> Result<(), RunError<String>> {
+#[hibana_runtime::localside]
+pub(crate) async fn database(endpoint: &mut Endpoint<DATABASE>) -> Result<(), RunError<String>> {
     endpoint.recv::<a::RefsRequest>().await?;
     endpoint.send::<a::RefsGranted>(&()).await?;
     endpoint.recv::<a::RefsReturn>().await?;
@@ -16,9 +15,8 @@ pub(crate) async fn database(
     endpoint.send::<b::RefsReturned>(&()).await?;
     Ok(())
 }
-pub(crate) async fn document(
-    endpoint: &mut Endpoint<'_, DOCUMENT>,
-) -> Result<(), RunError<String>> {
+#[hibana_runtime::localside]
+pub(crate) async fn document(endpoint: &mut Endpoint<DOCUMENT>) -> Result<(), RunError<String>> {
     endpoint.send::<a::DocAvailable>(&()).await?;
     endpoint.recv::<a::DocRequest>().await?;
     endpoint.send::<a::DocGranted>(&()).await?;

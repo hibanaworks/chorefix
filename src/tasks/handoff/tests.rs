@@ -198,14 +198,14 @@ async fn old_approval_wrong_target_and_changed_arguments_never_publish() {
                         localside::initial(&mut a, r, Artifact { value: 1, ..initial }),
                         async {
                             let context = Verification::decode(b.recv::<Context>().await?)?;
-                            let mut r = b.recv::<LoanR<'_>>().await?;
+                            let mut r = b.recv::<LoanR>().await?;
                             r.send::<Revise>(&Artifact { value: 2, ..context.artifact }.bytes()).await?;
                             let artifact = r.recv::<Revised>().await?;
                             r.send::<Reinspect>(&artifact).await?;
                             let checked = r.offer().await?.recv::<Passed>().await?;
                             r.send::<CandidateReady>(&checked).await?;
                             r.offer().await?.recv::<CommitReady>().await?;
-                            let mut s = b.recv::<LoanS<'_>>().await?;
+                            let mut s = b.recv::<LoanS>().await?;
                             let first = first.bytes();
                             let second = second.bytes();
                             tokio::try_join!(r.send::<CommitR>(&first), s.send::<CommitS>(&second))?;
@@ -286,7 +286,7 @@ async fn a_missing_second_request_keeps_the_effect_pending_then_can_complete() {
             ),
             async {
                 let context = Verification::decode(b.recv::<Context>().await?)?;
-                let mut r = b.recv::<LoanR<'_>>().await?;
+                let mut r = b.recv::<LoanR>().await?;
                 r.send::<Revise>(
                     &Artifact {
                         value: 2,
@@ -300,7 +300,7 @@ async fn a_missing_second_request_keeps_the_effect_pending_then_can_complete() {
                 let checked = r.offer().await?.recv::<Passed>().await?;
                 r.send::<CandidateReady>(&checked).await?;
                 r.offer().await?.recv::<CommitReady>().await?;
-                let mut s = b.recv::<LoanS<'_>>().await?;
+                let mut s = b.recv::<LoanS>().await?;
                 r.send::<CommitR>(&checked).await?;
                 let mut response = Box::pin(r.recv::<CommittedR>());
                 assert!(
@@ -315,8 +315,8 @@ async fn a_missing_second_request_keeps_the_effect_pending_then_can_complete() {
                 s.send::<CommitS>(&checked).await?;
                 let (first, second) = tokio::try_join!(response, s.recv::<CommittedS>())?;
                 assert_eq!(first, second);
-                b.send::<LoanS<'_>>(s).await?;
-                b.send::<LoanR<'_>>(r).await?;
+                b.send::<LoanS>(s).await?;
+                b.send::<LoanR>(r).await?;
                 b.send::<Report>(&first).await?;
                 Ok(())
             },
@@ -398,7 +398,7 @@ async fn claiming_approval_without_repair_does_not_replace_the_actual_failure() 
                     localside::initial(&mut a, r, Artifact { value: 1, ..initial }),
                     async {
                         let context = Verification::decode(b.recv::<Context>().await?)?;
-                        let mut r = b.recv::<LoanR<'_>>().await?;
+                        let mut r = b.recv::<LoanR>().await?;
                         let forged = Verification { passed: true, ..context };
                         r.send::<CandidateReady>(&forged.bytes()).await?;
                         let approval = r.recv::<CommitReady>().await?;
@@ -476,12 +476,12 @@ async fn a_real_negative_result_can_finish_without_publication_or_forced_repair(
                 async {
                     let context = Verification::decode(b.recv::<Context>().await?)?;
                     assert!(!context.passed);
-                    let mut r = b.recv::<LoanR<'_>>().await?;
+                    let mut r = b.recv::<LoanR>().await?;
                     r.send::<CandidateReady>(&context.bytes()).await?;
                     let actual =
                         Verification::decode(r.offer().await?.recv::<CommitDenied>().await?)?;
                     assert_eq!(actual, context);
-                    b.send::<LoanR<'_>>(r).await?;
+                    b.send::<LoanR>(r).await?;
                     Ok::<(), crate::shell::ShellError>(())
                 },
                 localside::independent(&mut c, 10),

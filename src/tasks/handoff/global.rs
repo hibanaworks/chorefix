@@ -59,7 +59,7 @@ pub fn programs() -> Programs {
             g::seq(
                 g::send::<STORE, A, CommitReady>(),
                 g::seq(
-                    g::send::<S_OWNER, B, LoanS<'_>>(),
+                    g::send::<S_OWNER, B, LoanS>(),
                     g::seq(
                         g::par(
                             g::send::<R, STORE, CommitR>(),
@@ -71,9 +71,9 @@ pub fn programs() -> Programs {
                                 g::send::<STORE, S, CommittedS>(),
                             ),
                             g::seq(
-                                g::send::<B, S_OWNER, LoanS<'_>>(),
+                                g::send::<B, S_OWNER, LoanS>(),
                                 g::seq(
-                                    g::send::<B, A, LoanR<'_>>(),
+                                    g::send::<B, A, LoanR>(),
                                     g::seq(
                                         g::send::<B, A, Report>(),
                                         g::seq(
@@ -95,7 +95,7 @@ pub fn programs() -> Programs {
             g::send::<STORE, S_OWNER, CommitDenied>(),
             g::seq(
                 g::send::<STORE, A, CommitDenied>(),
-                g::send::<B, A, LoanR<'_>>(),
+                g::send::<B, A, LoanR>(),
             ),
         ),
     );
@@ -121,20 +121,20 @@ pub fn programs() -> Programs {
                     g::send::<STORE, R, Inspected>(),
                     g::seq(
                         g::send::<A, B, Context>(),
-                        g::seq(g::send::<A, B, LoanR<'_>>(), reconsider),
+                        g::seq(g::send::<A, B, LoanR>(), reconsider),
                     ),
                 ),
             ),
         ),
     );
     let independent = g::seq(
-        g::send::<S_OWNER, C, LoanS<'_>>(),
+        g::send::<S_OWNER, C, LoanS>(),
         g::seq(
             g::send::<S, AUX, Work>(),
             g::seq(
                 g::send::<AUX, S, Worked>(),
                 g::seq(
-                    g::send::<C, S_OWNER, LoanS<'_>>(),
+                    g::send::<C, S_OWNER, LoanS>(),
                     g::send::<C, STORE, WorkReport>(),
                 ),
             ),

@@ -2,9 +2,10 @@ use super::super::global::*;
 use crate::shell::{ShellError, ShellResult, imp::service::Domain};
 use hibana::Endpoint;
 
+#[hibana_runtime::localside]
 pub(crate) async fn run<const ROLE: u8, const LEFT: u8, const RIGHT: u8>(
     agent: &'static str,
-    endpoint: &mut Endpoint<'_, ROLE>,
+    endpoint: &mut Endpoint<ROLE>,
     domain: &impl Domain,
 ) -> ShellResult<()> {
     let arguments = endpoint.recv::<Think>().await?;
@@ -20,10 +21,17 @@ pub(crate) async fn run<const ROLE: u8, const LEFT: u8, const RIGHT: u8>(
     let bytes =
         serde_json::to_vec(&result).map_err(|error| ShellError::message(error.to_string()))?;
     let response = bytes.as_slice();
-    endpoint.send::<Thought<'_>>(&response).await?;
+    endpoint.send::<Thought>(&response).await?;
     let (left, right) = {
         let [mut left, mut right] = endpoint.par()?;
-        tokio::try_join!(left.recv::<Eat<LEFT>>(), right.recv::<Eat<RIGHT>>())?
+        async {
+            #[localside]
+            let left = left.recv::<Eat<LEFT>>();
+            #[localside]
+            let right = right.recv::<Eat<RIGHT>>();
+            Ok((left, right))
+        }
+        .await?
     };
     if left != right {
         return Err(ShellError::message("fork requests name different meals"));
@@ -40,10 +48,14 @@ pub(crate) async fn run<const ROLE: u8, const LEFT: u8, const RIGHT: u8>(
     {
         let [mut left, mut right] = endpoint.par()?;
         let payload = bytes.as_slice();
-        tokio::try_join!(
-            left.send::<Meal<'_, LEFT>>(&payload),
-            right.send::<Meal<'_, RIGHT>>(&payload)
-        )?;
+        async {
+            #[localside]
+            left.send::<Meal<LEFT>>(&payload);
+            #[localside]
+            right.send::<Meal<RIGHT>>(&payload);
+            Ok(())
+        }
+        .await?;
     }
     let status = endpoint.recv::<ServiceExit>().await?;
     if status != 0 {

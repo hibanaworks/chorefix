@@ -109,7 +109,7 @@ async fn client<
         serde_json::json!({"feature_name":input.feature}),
     )?;
     task.send::<DesignRequest<TASK, SUBJECT>>(&design).await?;
-    let bytes = task.recv::<DesignCompleted<'_>>().await?.to_vec();
+    let bytes = task.recv::<DesignCompleted>().await?.to_vec();
     assert_eq!(
         serde_json::from_slice::<serde_json::Value>(&bytes).unwrap()["tool"],
         "design_feature"
@@ -120,7 +120,7 @@ async fn client<
     )?;
     task.send::<ImplementRequest<TASK, SUBJECT>>(&implementation)
         .await?;
-    let bytes = task.recv::<ImplementCompleted<'_>>().await?.to_vec();
+    let bytes = task.recv::<ImplementCompleted>().await?.to_vec();
     assert_eq!(
         serde_json::from_slice::<serde_json::Value>(&bytes).unwrap()["tool"],
         "implement_code"
@@ -133,14 +133,14 @@ async fn client<
         let [mut first_loan, mut second_loan] = task.par()?;
         tokio::try_join!(
             async {
-                let mut resource = first_loan.recv::<Loan<'_, FIRST>>().await?;
+                let mut resource = first_loan.recv::<Loan<FIRST>>().await?;
                 resource
                     .send::<CommitRequest<TASK, SUBJECT, FIRST>>(&commit)
                     .await?;
                 Ok::<_, hibana::EndpointError>(resource)
             },
             async {
-                let mut resource = second_loan.recv::<Loan<'_, SECOND>>().await?;
+                let mut resource = second_loan.recv::<Loan<SECOND>>().await?;
                 resource
                     .send::<CommitRequest<TASK, SUBJECT, SECOND>>(&commit)
                     .await?;
@@ -150,14 +150,10 @@ async fn client<
     };
     let (first_result, second_result) = tokio::try_join!(
         async {
-            Ok::<_, hibana::EndpointError>(
-                first.recv::<CommitCompleted<'_, FIRST>>().await?.to_vec(),
-            )
+            Ok::<_, hibana::EndpointError>(first.recv::<CommitCompleted<FIRST>>().await?.to_vec())
         },
         async {
-            Ok::<_, hibana::EndpointError>(
-                second.recv::<CommitCompleted<'_, SECOND>>().await?.to_vec(),
-            )
+            Ok::<_, hibana::EndpointError>(second.recv::<CommitCompleted<SECOND>>().await?.to_vec())
         },
     )?;
     assert_eq!(first_result, second_result);
@@ -168,8 +164,8 @@ async fn client<
     {
         let [mut first_return, mut second_return] = task.par()?;
         tokio::try_join!(
-            first_return.send::<Loan<'_, FIRST>>(first),
-            second_return.send::<Loan<'_, SECOND>>(second)
+            first_return.send::<Loan<FIRST>>(first),
+            second_return.send::<Loan<SECOND>>(second)
         )?;
     }
     let test = Close::<TASK, SUBJECT, TEST>::new(
@@ -177,7 +173,7 @@ async fn client<
         serde_json::json!({"feature_name":input.feature}),
     )?;
     task.send::<TestRequest<TASK, SUBJECT>>(&test).await?;
-    let bytes = task.recv::<TestCompleted<'_>>().await?.to_vec();
+    let bytes = task.recv::<TestCompleted>().await?.to_vec();
     let result: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     assert_eq!(result["tool"], "run_local_tests");
     assert_eq!(result["success"], false, "terminal test failure was hidden");
@@ -269,7 +265,7 @@ async fn revising_client<
         serde_json::json!({"feature_name":input.feature}),
     )?;
     task.send::<DesignRequest<TASK, SUBJECT>>(&design).await?;
-    let bytes = task.recv::<DesignCompleted<'_>>().await?.to_vec();
+    let bytes = task.recv::<DesignCompleted>().await?.to_vec();
     assert_eq!(
         serde_json::from_slice::<serde_json::Value>(&bytes).unwrap()["tool"],
         "design_feature"
@@ -281,7 +277,7 @@ async fn revising_client<
         )?;
         task.send::<ImplementRequest<TASK, SUBJECT>>(&implementation)
             .await?;
-        let bytes = task.recv::<ImplementCompleted<'_>>().await?.to_vec();
+        let bytes = task.recv::<ImplementCompleted>().await?.to_vec();
         assert_eq!(
             serde_json::from_slice::<serde_json::Value>(&bytes).unwrap()["tool"],
             "implement_code"
@@ -294,14 +290,14 @@ async fn revising_client<
             let [mut first_loan, mut second_loan] = task.par()?;
             tokio::try_join!(
                 async {
-                    let mut resource = first_loan.recv::<Loan<'_, FIRST>>().await?;
+                    let mut resource = first_loan.recv::<Loan<FIRST>>().await?;
                     resource
                         .send::<CommitRequest<TASK, SUBJECT, FIRST>>(&commit)
                         .await?;
                     Ok::<_, hibana::EndpointError>(resource)
                 },
                 async {
-                    let mut resource = second_loan.recv::<Loan<'_, SECOND>>().await?;
+                    let mut resource = second_loan.recv::<Loan<SECOND>>().await?;
                     resource
                         .send::<CommitRequest<TASK, SUBJECT, SECOND>>(&commit)
                         .await?;
@@ -312,12 +308,12 @@ async fn revising_client<
         let (first_result, second_result) = tokio::try_join!(
             async {
                 Ok::<_, hibana::EndpointError>(
-                    first.recv::<CommitCompleted<'_, FIRST>>().await?.to_vec(),
+                    first.recv::<CommitCompleted<FIRST>>().await?.to_vec(),
                 )
             },
             async {
                 Ok::<_, hibana::EndpointError>(
-                    second.recv::<CommitCompleted<'_, SECOND>>().await?.to_vec(),
+                    second.recv::<CommitCompleted<SECOND>>().await?.to_vec(),
                 )
             },
         )?;
@@ -329,8 +325,8 @@ async fn revising_client<
         {
             let [mut first_return, mut second_return] = task.par()?;
             tokio::try_join!(
-                first_return.send::<Loan<'_, FIRST>>(first),
-                second_return.send::<Loan<'_, SECOND>>(second)
+                first_return.send::<Loan<FIRST>>(first),
+                second_return.send::<Loan<SECOND>>(second)
             )?;
         }
         let test = Close::<TASK, SUBJECT, TEST>::new(
@@ -342,13 +338,13 @@ async fn revising_client<
         let branch = task.offer().await?;
         match branch.label() {
             183 => {
-                let bytes = branch.recv::<TestPassed<'_>>().await?;
+                let bytes = branch.recv::<TestPassed>().await?;
                 let result: serde_json::Value = serde_json::from_slice(bytes).unwrap();
                 assert_eq!(result["success"], true);
                 break 'revisions;
             }
             184 => {
-                let bytes = branch.recv::<TestFailed<'_>>().await?;
+                let bytes = branch.recv::<TestFailed>().await?;
                 let result: serde_json::Value = serde_json::from_slice(bytes).unwrap();
                 assert_eq!(result["success"], false);
             }

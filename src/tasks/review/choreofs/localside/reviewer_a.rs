@@ -8,8 +8,9 @@ use crate::{
 use hibana::Endpoint;
 use hibana::runtime::resolver::DecisionArm;
 
+#[hibana_runtime::localside]
 pub async fn run<D: Domain>(
-    endpoint: &mut Endpoint<'_, REVIEW_A>,
+    endpoint: &mut Endpoint<REVIEW_A>,
     domain: &D,
     review: &ReviewInput,
 ) -> ShellResult<()> {
@@ -38,27 +39,27 @@ pub async fn run<D: Domain>(
                 {
                     DecisionArm::Left => {
                         let reply = ReviewReply::<true>::from_bytes(&bytes)?;
-                        endpoint.send::<ApprovedA<'_>>(&reply).await?;
-                        endpoint.send::<ApprovedA<'_>>(&reply).await?;
-                        endpoint.send::<ApprovedA<'_>>(&reply).await?;
-                        endpoint.send::<ApprovedA<'_>>(&reply).await?;
-                        endpoint.send::<ApprovedA<'_>>(&reply).await?;
+                        endpoint.send::<ApprovedA>(&reply).await?;
+                        endpoint.send::<ApprovedA>(&reply).await?;
+                        endpoint.send::<ApprovedA>(&reply).await?;
+                        endpoint.send::<ApprovedA>(&reply).await?;
+                        endpoint.send::<ApprovedA>(&reply).await?;
                     }
                     DecisionArm::Right => {
                         let reply = ReviewReply::<false>::from_bytes(&bytes)?;
-                        endpoint.send::<RejectedA<'_>>(&reply).await?;
-                        endpoint.send::<RejectedA<'_>>(&reply).await?;
-                        endpoint.send::<RejectedA<'_>>(&reply).await?;
-                        endpoint.send::<RejectedA<'_>>(&reply).await?;
-                        endpoint.send::<RejectedA<'_>>(&reply).await?;
+                        endpoint.send::<RejectedA>(&reply).await?;
+                        endpoint.send::<RejectedA>(&reply).await?;
+                        endpoint.send::<RejectedA>(&reply).await?;
+                        endpoint.send::<RejectedA>(&reply).await?;
+                        endpoint.send::<RejectedA>(&reply).await?;
                     }
                 }
             }
             40 => {
-                branch.recv::<ApprovedB<'_>>().await?;
+                branch.recv::<ApprovedB>().await?;
             }
             41 => {
-                branch.recv::<RejectedB<'_>>().await?;
+                branch.recv::<RejectedB>().await?;
             }
             80 => {
                 branch.recv::<FirstA>().await?;

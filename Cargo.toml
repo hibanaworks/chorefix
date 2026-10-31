@@ -7,7 +7,7 @@ publish = false
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-hibana-runtime = { git = "https://github.com/hibanaworks/hibana-runtime", rev = "6321fb96bc706e2956d956260538f5f62f19495c" }
+hibana-runtime = { git = "https://github.com/hibanaworks/hibana-runtime", rev = "55dca34e36fb48e9384881e50c9092822df1511c" }
 hibana = { git = "https://github.com/hibanaworks/hibana", rev = "e139912e07fe4cd5ba599dd3749d6e03ce9d1ee1", version = "=0.10.0" }
 hibana-wasip1-runtime = { git = "https://github.com/hibanaworks/hibana-wasip1-runtime", rev = "6b62998b614e2b68feecd2d94042adbcc614693d" }
 serde_json = "1.0.154"

@@ -9,9 +9,10 @@ use hibana_wasip1_runtime::{
     protocol,
 };
 
+#[hibana_runtime::localside]
 pub async fn run<const ROLE: u8, const LEFT: u8, const RIGHT: u8>(
-    guest: &mut HibanaWasiGuest<'_>,
-    endpoint: &mut hibana::Endpoint<'_, ROLE>,
+    guest: &mut HibanaWasiGuest,
+    endpoint: &mut hibana::Endpoint<ROLE>,
 ) -> ShellResult<i32> {
     let [mut task, mut private] = endpoint.par()?;
     let mut fuel_id = 0u16;
@@ -138,7 +139,7 @@ pub async fn run<const ROLE: u8, const LEFT: u8, const RIGHT: u8>(
                             }
                             Ok(arguments) => {
                                 task.send::<Think>(&arguments).await?;
-                                let bytes = task.recv::<Thought<'_>>().await?.to_vec();
+                                let bytes = task.recv::<Thought>().await?.to_vec();
                                 let reply = bytes;
                                 for (index, chunk) in
                                     reply.chunks(protocol::WASIP1_IO_CHUNK_CAPACITY).enumerate()
@@ -194,7 +195,7 @@ pub async fn run<const ROLE: u8, const LEFT: u8, const RIGHT: u8>(
             }
             WasiBoundaryStep::BudgetExpired(_) => {
                 fuel_id = fuel_id.wrapping_add(1);
-                tokio::task::yield_now().await;
+                hibana_runtime::yield_now().await;
             }
             WasiBoundaryStep::Exit(exit) => {
                 return Err(ShellError::message(format!(
@@ -327,33 +328,35 @@ pub async fn run<const ROLE: u8, const LEFT: u8, const RIGHT: u8>(
                             Ok(arguments) => {
                                 let (mut left, mut right) = {
                                     let [mut left_loan, mut right_loan] = task.par()?;
-                                    tokio::try_join!(
-                                        async {
+                                    async {
+                                        #[localside]
+                                        let left = async {
                                             let mut resource =
-                                                left_loan.recv::<Loan<'_, LEFT>>().await?;
+                                                left_loan.recv::<Loan<LEFT>>().await?;
                                             resource.send::<Eat<LEFT>>(&arguments).await?;
-                                            Ok::<_, hibana::EndpointError>(resource)
-                                        },
-                                        async {
+                                            Ok(resource)
+                                        };
+                                        #[localside]
+                                        let right = async {
                                             let mut resource =
-                                                right_loan.recv::<Loan<'_, RIGHT>>().await?;
+                                                right_loan.recv::<Loan<RIGHT>>().await?;
                                             resource.send::<Eat<RIGHT>>(&arguments).await?;
-                                            Ok::<_, hibana::EndpointError>(resource)
-                                        },
-                                    )?
+                                            Ok(resource)
+                                        };
+                                        Ok((left, right))
+                                    }
+                                    .await?
                                 };
-                                let (left_result, right_result) = tokio::try_join!(
-                                    async {
-                                        Ok::<_, hibana::EndpointError>(
-                                            left.recv::<Meal<'_, LEFT>>().await?.to_vec(),
-                                        )
-                                    },
-                                    async {
-                                        Ok::<_, hibana::EndpointError>(
-                                            right.recv::<Meal<'_, RIGHT>>().await?.to_vec(),
-                                        )
-                                    },
-                                )?;
+                                let (left_result, right_result) = async {
+                                    #[localside]
+                                    let left_result =
+                                        async { Ok(left.recv::<Meal<LEFT>>().await?.to_vec()) };
+                                    #[localside]
+                                    let right_result =
+                                        async { Ok(right.recv::<Meal<RIGHT>>().await?.to_vec()) };
+                                    Ok((left_result, right_result))
+                                }
+                                .await?;
                                 if left_result != right_result {
                                     return Err(ShellError::message(
                                         "forks received different meal results",
@@ -361,10 +364,14 @@ pub async fn run<const ROLE: u8, const LEFT: u8, const RIGHT: u8>(
                                 }
                                 {
                                     let [mut left_return, mut right_return] = task.par()?;
-                                    tokio::try_join!(
-                                        left_return.send::<Loan<'_, LEFT>>(left),
-                                        right_return.send::<Loan<'_, RIGHT>>(right)
-                                    )?;
+                                    async {
+                                        #[localside]
+                                        left_return.send::<Loan<LEFT>>(left);
+                                        #[localside]
+                                        right_return.send::<Loan<RIGHT>>(right);
+                                        Ok(())
+                                    }
+                                    .await?;
                                 }
                                 let reply = left_result;
                                 for (index, chunk) in
@@ -421,7 +428,7 @@ pub async fn run<const ROLE: u8, const LEFT: u8, const RIGHT: u8>(
             }
             WasiBoundaryStep::BudgetExpired(_) => {
                 fuel_id = fuel_id.wrapping_add(1);
-                tokio::task::yield_now().await;
+                hibana_runtime::yield_now().await;
             }
             WasiBoundaryStep::Exit(exit) => {
                 return Err(ShellError::message(format!(
@@ -578,7 +585,7 @@ pub async fn run<const ROLE: u8, const LEFT: u8, const RIGHT: u8>(
             }
             WasiBoundaryStep::BudgetExpired(_) => {
                 fuel_id = fuel_id.wrapping_add(1);
-                tokio::task::yield_now().await;
+                hibana_runtime::yield_now().await;
             }
             WasiBoundaryStep::Exit(exit) => {
                 let status = exit.status() as i32;

@@ -20,6 +20,7 @@ use hibana::runtime::{SessionKitStorage, ids::SessionId, resolver::ResolverRef};
 use hibana_wasip1_runtime::{GuestMemory, HibanaWasiGuestStorage};
 use localside::researcher::Assignment;
 
+#[hibana_runtime::localside]
 async fn run_2e_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 3]) -> ShellResult<()> {
     use global::{roles2e::*, *};
     let programs = project_2e();
@@ -62,113 +63,82 @@ async fn run_2e_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 3]) -> Sh
     let mut b_io = rv.enter(session, &programs.b_io)?;
     let mut c_io = rv.enter(session, &programs.c_io)?;
     let [aterm, bterm, cterm] = terminals;
-    let mut afs = PrivateFs::new(aterm, bus);
+    let afs = PrivateFs::new(aterm, bus);
     let mut amemory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut astore = HibanaWasiGuestStorage::uninit();
     let aguest = astore.init(module, GuestMemory::new(&mut amemory), bindings())?;
-    let mut bfs = PrivateFs::new(bterm, bus);
+    let bfs = PrivateFs::new(bterm, bus);
     let mut bmemory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut bstore = HibanaWasiGuestStorage::uninit();
     let bguest = bstore.init(module, GuestMemory::new(&mut bmemory), bindings())?;
-    let mut cfs = PrivateFs::new(cterm, bus);
+    let cfs = PrivateFs::new(cterm, bus);
     let mut cmemory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut cstore = HibanaWasiGuestStorage::uninit();
     let cguest = cstore.init(module, GuestMemory::new(&mut cmemory), bindings())?;
-    tokio::try_join!(
-        localside::researcher::run::<A, INTRO_RESOURCE, METHODS_RESOURCE>(
-            &mut a,
-            bus,
-            (
-                &acheck,
-                &Assignment {
-                    agent: "RESEARCHER_A",
-                    topic: "intro_methods_connection",
-                    section: "sec_intro_methods",
-                    sections: ["INTRO_SECTION", "METHODS_SECTION"]
-                }
-            )
+    #[localside]
+    localside::researcher::run::<A, INTRO_RESOURCE, METHODS_RESOURCE>(
+        &mut a,
+        bus,
+        (
+            &acheck,
+            &Assignment {
+                agent: "RESEARCHER_A",
+                topic: "intro_methods_connection",
+                section: "sec_intro_methods",
+                sections: ["INTRO_SECTION", "METHODS_SECTION"],
+            },
         ),
-        localside::researcher::run::<B, METHODS_RESOURCE, RESULTS_RESOURCE>(
-            &mut b,
-            bus,
-            (
-                &bcheck,
-                &Assignment {
-                    agent: "RESEARCHER_B",
-                    topic: "methods_results_connection",
-                    section: "sec_methods_results",
-                    sections: ["METHODS_SECTION", "RESULTS_SECTION"]
-                }
-            )
+    );
+    #[localside]
+    localside::researcher::run::<B, METHODS_RESOURCE, RESULTS_RESOURCE>(
+        &mut b,
+        bus,
+        (
+            &bcheck,
+            &Assignment {
+                agent: "RESEARCHER_B",
+                topic: "methods_results_connection",
+                section: "sec_methods_results",
+                sections: ["METHODS_SECTION", "RESULTS_SECTION"],
+            },
         ),
-        localside::researcher::run::<C, INTRO_RESOURCE, RESULTS_RESOURCE>(
-            &mut c,
-            bus,
-            (
-                &ccheck,
-                &Assignment {
-                    agent: "RESEARCHER_C",
-                    topic: "results_intro_analysis",
-                    section: "sec_results_intro",
-                    sections: ["INTRO_SECTION", "RESULTS_SECTION"]
-                }
-            )
+    );
+    #[localside]
+    localside::researcher::run::<C, INTRO_RESOURCE, RESULTS_RESOURCE>(
+        &mut c,
+        bus,
+        (
+            &ccheck,
+            &Assignment {
+                agent: "RESEARCHER_C",
+                topic: "results_intro_analysis",
+                section: "sec_results_intro",
+                sections: ["INTRO_SECTION", "RESULTS_SECTION"],
+            },
         ),
-        localside::section::run(&mut intro, intro_resource),
-        localside::section::run(&mut methods, methods_resource),
-        localside::section::run(&mut results, results_resource),
-        async {
-            let (vm, io) = tokio::try_join!(
-                localside::wasi::run::<A_WASI, INTRO_RESOURCE, METHODS_RESOURCE>(
-                    aguest,
-                    &mut a_wasi
-                ),
-                private_io::run(&mut a_io, &mut afs)
-            )?;
-            if vm != io {
-                return Err(ShellError::message("researcher a guest/IO status differs"));
-            }
-            afs.terminal
-                .finish(bus, vm, std::mem::take(&mut afs.output))
-                .await?;
-            Ok(())
-        },
-        async {
-            let (vm, io) = tokio::try_join!(
-                localside::wasi::run::<B_WASI, METHODS_RESOURCE, RESULTS_RESOURCE>(
-                    bguest,
-                    &mut b_wasi
-                ),
-                private_io::run(&mut b_io, &mut bfs)
-            )?;
-            if vm != io {
-                return Err(ShellError::message("researcher b guest/IO status differs"));
-            }
-            bfs.terminal
-                .finish(bus, vm, std::mem::take(&mut bfs.output))
-                .await?;
-            Ok(())
-        },
-        async {
-            let (vm, io) = tokio::try_join!(
-                localside::wasi::run::<C_WASI, INTRO_RESOURCE, RESULTS_RESOURCE>(
-                    cguest,
-                    &mut c_wasi
-                ),
-                private_io::run(&mut c_io, &mut cfs)
-            )?;
-            if vm != io {
-                return Err(ShellError::message("researcher c guest/IO status differs"));
-            }
-            cfs.terminal
-                .finish(bus, vm, std::mem::take(&mut cfs.output))
-                .await?;
-            Ok(())
-        },
-    )?;
+    );
+    #[localside]
+    localside::section::run(&mut intro, intro_resource);
+    #[localside]
+    localside::section::run(&mut methods, methods_resource);
+    #[localside]
+    localside::section::run(&mut results, results_resource);
+    #[localside]
+    localside::wasi::run::<A_WASI, INTRO_RESOURCE, METHODS_RESOURCE>(aguest, &mut a_wasi);
+    #[localside]
+    private_io::run(&mut a_io, afs);
+    #[localside]
+    localside::wasi::run::<B_WASI, METHODS_RESOURCE, RESULTS_RESOURCE>(bguest, &mut b_wasi);
+    #[localside]
+    private_io::run(&mut b_io, bfs);
+    #[localside]
+    localside::wasi::run::<C_WASI, INTRO_RESOURCE, RESULTS_RESOURCE>(cguest, &mut c_wasi);
+    #[localside]
+    private_io::run(&mut c_io, cfs);
     Ok(())
 }
 
+#[hibana_runtime::localside]
 async fn run_2m_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 5]) -> ShellResult<()> {
     use global::{roles2m::*, *};
     let programs = project_2m();
@@ -233,181 +203,130 @@ async fn run_2m_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 5]) -> Sh
     let mut d_io = rv.enter(session, &programs.d_io)?;
     let mut e_io = rv.enter(session, &programs.e_io)?;
     let [aterm, bterm, cterm, dterm, eterm] = terminals;
-    let mut afs = PrivateFs::new(aterm, bus);
+    let afs = PrivateFs::new(aterm, bus);
     let mut amemory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut astore = HibanaWasiGuestStorage::uninit();
     let aguest = astore.init(module, GuestMemory::new(&mut amemory), bindings())?;
-    let mut bfs = PrivateFs::new(bterm, bus);
+    let bfs = PrivateFs::new(bterm, bus);
     let mut bmemory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut bstore = HibanaWasiGuestStorage::uninit();
     let bguest = bstore.init(module, GuestMemory::new(&mut bmemory), bindings())?;
-    let mut cfs = PrivateFs::new(cterm, bus);
+    let cfs = PrivateFs::new(cterm, bus);
     let mut cmemory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut cstore = HibanaWasiGuestStorage::uninit();
     let cguest = cstore.init(module, GuestMemory::new(&mut cmemory), bindings())?;
-    let mut dfs = PrivateFs::new(dterm, bus);
+    let dfs = PrivateFs::new(dterm, bus);
     let mut dmemory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut dstore = HibanaWasiGuestStorage::uninit();
     let dguest = dstore.init(module, GuestMemory::new(&mut dmemory), bindings())?;
-    let mut efs = PrivateFs::new(eterm, bus);
+    let efs = PrivateFs::new(eterm, bus);
     let mut ememory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut estore = HibanaWasiGuestStorage::uninit();
     let eguest = estore.init(module, GuestMemory::new(&mut ememory), bindings())?;
-    tokio::try_join!(
-        localside::researcher::run::<A, BACKGROUND_RESOURCE, INTRO_RESOURCE>(
-            &mut a,
-            bus,
-            (
-                &acheck,
-                &Assignment {
-                    agent: "RESEARCHER_A",
-                    topic: "intro_background_connection",
-                    section: "sec_intro_background",
-                    sections: ["BACKGROUND_SECTION", "INTRO_SECTION"]
-                }
-            )
+    #[localside]
+    localside::researcher::run::<A, BACKGROUND_RESOURCE, INTRO_RESOURCE>(
+        &mut a,
+        bus,
+        (
+            &acheck,
+            &Assignment {
+                agent: "RESEARCHER_A",
+                topic: "intro_background_connection",
+                section: "sec_intro_background",
+                sections: ["BACKGROUND_SECTION", "INTRO_SECTION"],
+            },
         ),
-        localside::researcher::run::<B, BACKGROUND_RESOURCE, METHODS_RESOURCE>(
-            &mut b,
-            bus,
-            (
-                &bcheck,
-                &Assignment {
-                    agent: "RESEARCHER_B",
-                    topic: "background_methods_connection",
-                    section: "sec_background_methods",
-                    sections: ["BACKGROUND_SECTION", "METHODS_SECTION"]
-                }
-            )
+    );
+    #[localside]
+    localside::researcher::run::<B, BACKGROUND_RESOURCE, METHODS_RESOURCE>(
+        &mut b,
+        bus,
+        (
+            &bcheck,
+            &Assignment {
+                agent: "RESEARCHER_B",
+                topic: "background_methods_connection",
+                section: "sec_background_methods",
+                sections: ["BACKGROUND_SECTION", "METHODS_SECTION"],
+            },
         ),
-        localside::researcher::run::<C, EXPERIMENTS_RESOURCE, METHODS_RESOURCE>(
-            &mut c,
-            bus,
-            (
-                &ccheck,
-                &Assignment {
-                    agent: "RESEARCHER_C",
-                    topic: "methods_experiments_connection",
-                    section: "sec_methods_experiments",
-                    sections: ["EXPERIMENTS_SECTION", "METHODS_SECTION"]
-                }
-            )
+    );
+    #[localside]
+    localside::researcher::run::<C, EXPERIMENTS_RESOURCE, METHODS_RESOURCE>(
+        &mut c,
+        bus,
+        (
+            &ccheck,
+            &Assignment {
+                agent: "RESEARCHER_C",
+                topic: "methods_experiments_connection",
+                section: "sec_methods_experiments",
+                sections: ["EXPERIMENTS_SECTION", "METHODS_SECTION"],
+            },
         ),
-        localside::researcher::run::<D, EXPERIMENTS_RESOURCE, RESULTS_RESOURCE>(
-            &mut d,
-            bus,
-            (
-                &dcheck,
-                &Assignment {
-                    agent: "RESEARCHER_D",
-                    topic: "experiments_results_connection",
-                    section: "sec_experiments_results",
-                    sections: ["EXPERIMENTS_SECTION", "RESULTS_SECTION"]
-                }
-            )
+    );
+    #[localside]
+    localside::researcher::run::<D, EXPERIMENTS_RESOURCE, RESULTS_RESOURCE>(
+        &mut d,
+        bus,
+        (
+            &dcheck,
+            &Assignment {
+                agent: "RESEARCHER_D",
+                topic: "experiments_results_connection",
+                section: "sec_experiments_results",
+                sections: ["EXPERIMENTS_SECTION", "RESULTS_SECTION"],
+            },
         ),
-        localside::researcher::run::<E, INTRO_RESOURCE, RESULTS_RESOURCE>(
-            &mut e,
-            bus,
-            (
-                &echeck,
-                &Assignment {
-                    agent: "RESEARCHER_E",
-                    topic: "results_intro_analysis",
-                    section: "sec_results_intro",
-                    sections: ["INTRO_SECTION", "RESULTS_SECTION"]
-                }
-            )
+    );
+    #[localside]
+    localside::researcher::run::<E, INTRO_RESOURCE, RESULTS_RESOURCE>(
+        &mut e,
+        bus,
+        (
+            &echeck,
+            &Assignment {
+                agent: "RESEARCHER_E",
+                topic: "results_intro_analysis",
+                section: "sec_results_intro",
+                sections: ["INTRO_SECTION", "RESULTS_SECTION"],
+            },
         ),
-        localside::section::run(&mut background, background_resource),
-        localside::section::run(&mut intro, intro_resource),
-        localside::section::run(&mut methods, methods_resource),
-        localside::section::run(&mut experiments, experiments_resource),
-        localside::section::run(&mut results, results_resource),
-        async {
-            let (vm, io) = tokio::try_join!(
-                localside::wasi::run::<A_WASI, BACKGROUND_RESOURCE, INTRO_RESOURCE>(
-                    aguest,
-                    &mut a_wasi
-                ),
-                private_io::run(&mut a_io, &mut afs)
-            )?;
-            if vm != io {
-                return Err(ShellError::message("researcher a guest/IO status differs"));
-            }
-            afs.terminal
-                .finish(bus, vm, std::mem::take(&mut afs.output))
-                .await?;
-            Ok(())
-        },
-        async {
-            let (vm, io) = tokio::try_join!(
-                localside::wasi::run::<B_WASI, BACKGROUND_RESOURCE, METHODS_RESOURCE>(
-                    bguest,
-                    &mut b_wasi
-                ),
-                private_io::run(&mut b_io, &mut bfs)
-            )?;
-            if vm != io {
-                return Err(ShellError::message("researcher b guest/IO status differs"));
-            }
-            bfs.terminal
-                .finish(bus, vm, std::mem::take(&mut bfs.output))
-                .await?;
-            Ok(())
-        },
-        async {
-            let (vm, io) = tokio::try_join!(
-                localside::wasi::run::<C_WASI, EXPERIMENTS_RESOURCE, METHODS_RESOURCE>(
-                    cguest,
-                    &mut c_wasi
-                ),
-                private_io::run(&mut c_io, &mut cfs)
-            )?;
-            if vm != io {
-                return Err(ShellError::message("researcher c guest/IO status differs"));
-            }
-            cfs.terminal
-                .finish(bus, vm, std::mem::take(&mut cfs.output))
-                .await?;
-            Ok(())
-        },
-        async {
-            let (vm, io) = tokio::try_join!(
-                localside::wasi::run::<D_WASI, EXPERIMENTS_RESOURCE, RESULTS_RESOURCE>(
-                    dguest,
-                    &mut d_wasi
-                ),
-                private_io::run(&mut d_io, &mut dfs)
-            )?;
-            if vm != io {
-                return Err(ShellError::message("researcher d guest/IO status differs"));
-            }
-            dfs.terminal
-                .finish(bus, vm, std::mem::take(&mut dfs.output))
-                .await?;
-            Ok(())
-        },
-        async {
-            let (vm, io) = tokio::try_join!(
-                localside::wasi::run::<E_WASI, INTRO_RESOURCE, RESULTS_RESOURCE>(
-                    eguest,
-                    &mut e_wasi
-                ),
-                private_io::run(&mut e_io, &mut efs)
-            )?;
-            if vm != io {
-                return Err(ShellError::message("researcher e guest/IO status differs"));
-            }
-            efs.terminal
-                .finish(bus, vm, std::mem::take(&mut efs.output))
-                .await?;
-            Ok(())
-        },
-    )?;
+    );
+    #[localside]
+    localside::section::run(&mut background, background_resource);
+    #[localside]
+    localside::section::run(&mut intro, intro_resource);
+    #[localside]
+    localside::section::run(&mut methods, methods_resource);
+    #[localside]
+    localside::section::run(&mut experiments, experiments_resource);
+    #[localside]
+    localside::section::run(&mut results, results_resource);
+    #[localside]
+    localside::wasi::run::<A_WASI, BACKGROUND_RESOURCE, INTRO_RESOURCE>(aguest, &mut a_wasi);
+    #[localside]
+    private_io::run(&mut a_io, afs);
+    #[localside]
+    localside::wasi::run::<B_WASI, BACKGROUND_RESOURCE, METHODS_RESOURCE>(bguest, &mut b_wasi);
+    #[localside]
+    private_io::run(&mut b_io, bfs);
+    #[localside]
+    localside::wasi::run::<C_WASI, EXPERIMENTS_RESOURCE, METHODS_RESOURCE>(cguest, &mut c_wasi);
+    #[localside]
+    private_io::run(&mut c_io, cfs);
+    #[localside]
+    localside::wasi::run::<D_WASI, EXPERIMENTS_RESOURCE, RESULTS_RESOURCE>(dguest, &mut d_wasi);
+    #[localside]
+    private_io::run(&mut d_io, dfs);
+    #[localside]
+    localside::wasi::run::<E_WASI, INTRO_RESOURCE, RESULTS_RESOURCE>(eguest, &mut e_wasi);
+    #[localside]
+    private_io::run(&mut e_io, efs);
     Ok(())
 }
 
+#[hibana_runtime::localside]
 async fn run_2h_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 7]) -> ShellResult<()> {
     use global::{roles2h::*, *};
     let programs = project_2h();
@@ -494,246 +413,174 @@ async fn run_2h_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 7]) -> Sh
     let mut f_io = rv.enter(session, &programs.f_io)?;
     let mut g_io = rv.enter(session, &programs.g_io)?;
     let [aterm, bterm, cterm, dterm, eterm, fterm, gterm] = terminals;
-    let mut afs = PrivateFs::new(aterm, bus);
+    let afs = PrivateFs::new(aterm, bus);
     let mut amemory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut astore = HibanaWasiGuestStorage::uninit();
     let aguest = astore.init(module, GuestMemory::new(&mut amemory), bindings())?;
-    let mut bfs = PrivateFs::new(bterm, bus);
+    let bfs = PrivateFs::new(bterm, bus);
     let mut bmemory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut bstore = HibanaWasiGuestStorage::uninit();
     let bguest = bstore.init(module, GuestMemory::new(&mut bmemory), bindings())?;
-    let mut cfs = PrivateFs::new(cterm, bus);
+    let cfs = PrivateFs::new(cterm, bus);
     let mut cmemory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut cstore = HibanaWasiGuestStorage::uninit();
     let cguest = cstore.init(module, GuestMemory::new(&mut cmemory), bindings())?;
-    let mut dfs = PrivateFs::new(dterm, bus);
+    let dfs = PrivateFs::new(dterm, bus);
     let mut dmemory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut dstore = HibanaWasiGuestStorage::uninit();
     let dguest = dstore.init(module, GuestMemory::new(&mut dmemory), bindings())?;
-    let mut efs = PrivateFs::new(eterm, bus);
+    let efs = PrivateFs::new(eterm, bus);
     let mut ememory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut estore = HibanaWasiGuestStorage::uninit();
     let eguest = estore.init(module, GuestMemory::new(&mut ememory), bindings())?;
-    let mut ffs = PrivateFs::new(fterm, bus);
+    let ffs = PrivateFs::new(fterm, bus);
     let mut fmemory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut fstore = HibanaWasiGuestStorage::uninit();
     let fguest = fstore.init(module, GuestMemory::new(&mut fmemory), bindings())?;
-    let mut gfs = PrivateFs::new(gterm, bus);
+    let gfs = PrivateFs::new(gterm, bus);
     let mut gmemory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut gstore = HibanaWasiGuestStorage::uninit();
     let gguest = gstore.init(module, GuestMemory::new(&mut gmemory), bindings())?;
-    tokio::try_join!(
-        localside::researcher::run::<A, BACKGROUND_RESOURCE, INTRO_RESOURCE>(
-            &mut a,
-            bus,
-            (
-                &acheck,
-                &Assignment {
-                    agent: "RESEARCHER_A",
-                    topic: "intro_background_connection",
-                    section: "sec_intro_background",
-                    sections: ["BACKGROUND_SECTION", "INTRO_SECTION"]
-                }
-            )
+    #[localside]
+    localside::researcher::run::<A, BACKGROUND_RESOURCE, INTRO_RESOURCE>(
+        &mut a,
+        bus,
+        (
+            &acheck,
+            &Assignment {
+                agent: "RESEARCHER_A",
+                topic: "intro_background_connection",
+                section: "sec_intro_background",
+                sections: ["BACKGROUND_SECTION", "INTRO_SECTION"],
+            },
         ),
-        localside::researcher::run::<B, BACKGROUND_RESOURCE, RELATED_RESOURCE>(
-            &mut b,
-            bus,
-            (
-                &bcheck,
-                &Assignment {
-                    agent: "RESEARCHER_B",
-                    topic: "background_related_connection",
-                    section: "sec_background_related",
-                    sections: ["BACKGROUND_SECTION", "RELATED_SECTION"]
-                }
-            )
+    );
+    #[localside]
+    localside::researcher::run::<B, BACKGROUND_RESOURCE, RELATED_RESOURCE>(
+        &mut b,
+        bus,
+        (
+            &bcheck,
+            &Assignment {
+                agent: "RESEARCHER_B",
+                topic: "background_related_connection",
+                section: "sec_background_related",
+                sections: ["BACKGROUND_SECTION", "RELATED_SECTION"],
+            },
         ),
-        localside::researcher::run::<C, METHODS_RESOURCE, RELATED_RESOURCE>(
-            &mut c,
-            bus,
-            (
-                &ccheck,
-                &Assignment {
-                    agent: "RESEARCHER_C",
-                    topic: "related_methods_connection",
-                    section: "sec_related_methods",
-                    sections: ["METHODS_SECTION", "RELATED_SECTION"]
-                }
-            )
+    );
+    #[localside]
+    localside::researcher::run::<C, METHODS_RESOURCE, RELATED_RESOURCE>(
+        &mut c,
+        bus,
+        (
+            &ccheck,
+            &Assignment {
+                agent: "RESEARCHER_C",
+                topic: "related_methods_connection",
+                section: "sec_related_methods",
+                sections: ["METHODS_SECTION", "RELATED_SECTION"],
+            },
         ),
-        localside::researcher::run::<D, EXPERIMENTS_RESOURCE, METHODS_RESOURCE>(
-            &mut d,
-            bus,
-            (
-                &dcheck,
-                &Assignment {
-                    agent: "RESEARCHER_D",
-                    topic: "methods_experiments_connection",
-                    section: "sec_methods_experiments",
-                    sections: ["EXPERIMENTS_SECTION", "METHODS_SECTION"]
-                }
-            )
+    );
+    #[localside]
+    localside::researcher::run::<D, EXPERIMENTS_RESOURCE, METHODS_RESOURCE>(
+        &mut d,
+        bus,
+        (
+            &dcheck,
+            &Assignment {
+                agent: "RESEARCHER_D",
+                topic: "methods_experiments_connection",
+                section: "sec_methods_experiments",
+                sections: ["EXPERIMENTS_SECTION", "METHODS_SECTION"],
+            },
         ),
-        localside::researcher::run::<E, EXPERIMENTS_RESOURCE, RESULTS_RESOURCE>(
-            &mut e,
-            bus,
-            (
-                &echeck,
-                &Assignment {
-                    agent: "RESEARCHER_E",
-                    topic: "experiments_results_connection",
-                    section: "sec_experiments_results",
-                    sections: ["EXPERIMENTS_SECTION", "RESULTS_SECTION"]
-                }
-            )
+    );
+    #[localside]
+    localside::researcher::run::<E, EXPERIMENTS_RESOURCE, RESULTS_RESOURCE>(
+        &mut e,
+        bus,
+        (
+            &echeck,
+            &Assignment {
+                agent: "RESEARCHER_E",
+                topic: "experiments_results_connection",
+                section: "sec_experiments_results",
+                sections: ["EXPERIMENTS_SECTION", "RESULTS_SECTION"],
+            },
         ),
-        localside::researcher::run::<F, DISCUSSION_RESOURCE, RESULTS_RESOURCE>(
-            &mut f,
-            bus,
-            (
-                &fcheck,
-                &Assignment {
-                    agent: "RESEARCHER_F",
-                    topic: "results_discussion_connection",
-                    section: "sec_results_discussion",
-                    sections: ["DISCUSSION_SECTION", "RESULTS_SECTION"]
-                }
-            )
+    );
+    #[localside]
+    localside::researcher::run::<F, DISCUSSION_RESOURCE, RESULTS_RESOURCE>(
+        &mut f,
+        bus,
+        (
+            &fcheck,
+            &Assignment {
+                agent: "RESEARCHER_F",
+                topic: "results_discussion_connection",
+                section: "sec_results_discussion",
+                sections: ["DISCUSSION_SECTION", "RESULTS_SECTION"],
+            },
         ),
-        localside::researcher::run::<G, DISCUSSION_RESOURCE, INTRO_RESOURCE>(
-            &mut g,
-            bus,
-            (
-                &gcheck,
-                &Assignment {
-                    agent: "RESEARCHER_G",
-                    topic: "discussion_intro_connection",
-                    section: "sec_discussion_intro",
-                    sections: ["DISCUSSION_SECTION", "INTRO_SECTION"]
-                }
-            )
+    );
+    #[localside]
+    localside::researcher::run::<G, DISCUSSION_RESOURCE, INTRO_RESOURCE>(
+        &mut g,
+        bus,
+        (
+            &gcheck,
+            &Assignment {
+                agent: "RESEARCHER_G",
+                topic: "discussion_intro_connection",
+                section: "sec_discussion_intro",
+                sections: ["DISCUSSION_SECTION", "INTRO_SECTION"],
+            },
         ),
-        localside::section::run(&mut background, background_resource),
-        localside::section::run(&mut intro, intro_resource),
-        localside::section::run(&mut related, related_resource),
-        localside::section::run(&mut methods, methods_resource),
-        localside::section::run(&mut experiments, experiments_resource),
-        localside::section::run(&mut results, results_resource),
-        localside::section::run(&mut discussion, discussion_resource),
-        async {
-            let (vm, io) = tokio::try_join!(
-                localside::wasi::run::<A_WASI, BACKGROUND_RESOURCE, INTRO_RESOURCE>(
-                    aguest,
-                    &mut a_wasi
-                ),
-                private_io::run(&mut a_io, &mut afs)
-            )?;
-            if vm != io {
-                return Err(ShellError::message("researcher a guest/IO status differs"));
-            }
-            afs.terminal
-                .finish(bus, vm, std::mem::take(&mut afs.output))
-                .await?;
-            Ok(())
-        },
-        async {
-            let (vm, io) = tokio::try_join!(
-                localside::wasi::run::<B_WASI, BACKGROUND_RESOURCE, RELATED_RESOURCE>(
-                    bguest,
-                    &mut b_wasi
-                ),
-                private_io::run(&mut b_io, &mut bfs)
-            )?;
-            if vm != io {
-                return Err(ShellError::message("researcher b guest/IO status differs"));
-            }
-            bfs.terminal
-                .finish(bus, vm, std::mem::take(&mut bfs.output))
-                .await?;
-            Ok(())
-        },
-        async {
-            let (vm, io) = tokio::try_join!(
-                localside::wasi::run::<C_WASI, METHODS_RESOURCE, RELATED_RESOURCE>(
-                    cguest,
-                    &mut c_wasi
-                ),
-                private_io::run(&mut c_io, &mut cfs)
-            )?;
-            if vm != io {
-                return Err(ShellError::message("researcher c guest/IO status differs"));
-            }
-            cfs.terminal
-                .finish(bus, vm, std::mem::take(&mut cfs.output))
-                .await?;
-            Ok(())
-        },
-        async {
-            let (vm, io) = tokio::try_join!(
-                localside::wasi::run::<D_WASI, EXPERIMENTS_RESOURCE, METHODS_RESOURCE>(
-                    dguest,
-                    &mut d_wasi
-                ),
-                private_io::run(&mut d_io, &mut dfs)
-            )?;
-            if vm != io {
-                return Err(ShellError::message("researcher d guest/IO status differs"));
-            }
-            dfs.terminal
-                .finish(bus, vm, std::mem::take(&mut dfs.output))
-                .await?;
-            Ok(())
-        },
-        async {
-            let (vm, io) = tokio::try_join!(
-                localside::wasi::run::<E_WASI, EXPERIMENTS_RESOURCE, RESULTS_RESOURCE>(
-                    eguest,
-                    &mut e_wasi
-                ),
-                private_io::run(&mut e_io, &mut efs)
-            )?;
-            if vm != io {
-                return Err(ShellError::message("researcher e guest/IO status differs"));
-            }
-            efs.terminal
-                .finish(bus, vm, std::mem::take(&mut efs.output))
-                .await?;
-            Ok(())
-        },
-        async {
-            let (vm, io) = tokio::try_join!(
-                localside::wasi::run::<F_WASI, DISCUSSION_RESOURCE, RESULTS_RESOURCE>(
-                    fguest,
-                    &mut f_wasi
-                ),
-                private_io::run(&mut f_io, &mut ffs)
-            )?;
-            if vm != io {
-                return Err(ShellError::message("researcher f guest/IO status differs"));
-            }
-            ffs.terminal
-                .finish(bus, vm, std::mem::take(&mut ffs.output))
-                .await?;
-            Ok(())
-        },
-        async {
-            let (vm, io) = tokio::try_join!(
-                localside::wasi::run::<G_WASI, DISCUSSION_RESOURCE, INTRO_RESOURCE>(
-                    gguest,
-                    &mut g_wasi
-                ),
-                private_io::run(&mut g_io, &mut gfs)
-            )?;
-            if vm != io {
-                return Err(ShellError::message("researcher g guest/IO status differs"));
-            }
-            gfs.terminal
-                .finish(bus, vm, std::mem::take(&mut gfs.output))
-                .await?;
-            Ok(())
-        },
-    )?;
+    );
+    #[localside]
+    localside::section::run(&mut background, background_resource);
+    #[localside]
+    localside::section::run(&mut intro, intro_resource);
+    #[localside]
+    localside::section::run(&mut related, related_resource);
+    #[localside]
+    localside::section::run(&mut methods, methods_resource);
+    #[localside]
+    localside::section::run(&mut experiments, experiments_resource);
+    #[localside]
+    localside::section::run(&mut results, results_resource);
+    #[localside]
+    localside::section::run(&mut discussion, discussion_resource);
+    #[localside]
+    localside::wasi::run::<A_WASI, BACKGROUND_RESOURCE, INTRO_RESOURCE>(aguest, &mut a_wasi);
+    #[localside]
+    private_io::run(&mut a_io, afs);
+    #[localside]
+    localside::wasi::run::<B_WASI, BACKGROUND_RESOURCE, RELATED_RESOURCE>(bguest, &mut b_wasi);
+    #[localside]
+    private_io::run(&mut b_io, bfs);
+    #[localside]
+    localside::wasi::run::<C_WASI, METHODS_RESOURCE, RELATED_RESOURCE>(cguest, &mut c_wasi);
+    #[localside]
+    private_io::run(&mut c_io, cfs);
+    #[localside]
+    localside::wasi::run::<D_WASI, EXPERIMENTS_RESOURCE, METHODS_RESOURCE>(dguest, &mut d_wasi);
+    #[localside]
+    private_io::run(&mut d_io, dfs);
+    #[localside]
+    localside::wasi::run::<E_WASI, EXPERIMENTS_RESOURCE, RESULTS_RESOURCE>(eguest, &mut e_wasi);
+    #[localside]
+    private_io::run(&mut e_io, efs);
+    #[localside]
+    localside::wasi::run::<F_WASI, DISCUSSION_RESOURCE, RESULTS_RESOURCE>(fguest, &mut f_wasi);
+    #[localside]
+    private_io::run(&mut f_io, ffs);
+    #[localside]
+    localside::wasi::run::<G_WASI, DISCUSSION_RESOURCE, INTRO_RESOURCE>(gguest, &mut g_wasi);
+    #[localside]
+    private_io::run(&mut g_io, gfs);
     Ok(())
 }
 
@@ -744,7 +591,9 @@ pub async fn run_stdio(module: &[u8], level: &str) -> ShellResult<()> {
                 ["RESEARCHER_A", "RESEARCHER_B", "RESEARCHER_C"],
                 [28, 29, 30].map(|role| (SessionId::new(18), role)),
             );
-            let result = tokio::select! {result = run_2e_guests(module, &bus, terminals) => result, result = reader.run(&bus) => result};
+            let result =
+                hibana_runtime::race(run_2e_guests(module, &bus, terminals), reader.run(&bus))
+                    .await;
             match &result {
 Ok(()) => reader.emit(&bus,serde_json::json!({"type":"run_result", "status":"complete"})).await?,
 Err(error) => reader.emit(&bus,serde_json::json!({"type":"run_result", "status":"failed", "error":error.to_string()})).await?,
@@ -762,7 +611,9 @@ Err(error) => reader.emit(&bus,serde_json::json!({"type":"run_result", "status":
                 ],
                 [28, 29, 30, 31, 32].map(|role| (SessionId::new(18), role)),
             );
-            let result = tokio::select! {result = run_2m_guests(module, &bus, terminals) => result, result = reader.run(&bus) => result};
+            let result =
+                hibana_runtime::race(run_2m_guests(module, &bus, terminals), reader.run(&bus))
+                    .await;
             match &result {
 Ok(()) => reader.emit(&bus,serde_json::json!({"type":"run_result", "status":"complete"})).await?,
 Err(error) => reader.emit(&bus,serde_json::json!({"type":"run_result", "status":"failed", "error":error.to_string()})).await?,
@@ -782,7 +633,9 @@ Err(error) => reader.emit(&bus,serde_json::json!({"type":"run_result", "status":
                 ],
                 [28, 29, 30, 31, 32, 33, 34].map(|role| (SessionId::new(18), role)),
             );
-            let result = tokio::select! {result = run_2h_guests(module, &bus, terminals) => result, result = reader.run(&bus) => result};
+            let result =
+                hibana_runtime::race(run_2h_guests(module, &bus, terminals), reader.run(&bus))
+                    .await;
             match &result {
 Ok(()) => reader.emit(&bus,serde_json::json!({"type":"run_result", "status":"complete"})).await?,
 Err(error) => reader.emit(&bus,serde_json::json!({"type":"run_result", "status":"failed", "error":error.to_string()})).await?,

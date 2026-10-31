@@ -7,8 +7,9 @@ use hibana::Endpoint;
 use hibana_wasip1_runtime::protocol;
 use serde_json::json;
 
+#[hibana_runtime::localside]
 pub async fn run<D: Domain>(
-    endpoint: &mut Endpoint<'_, DEVELOPER>,
+    endpoint: &mut Endpoint<DEVELOPER>,
     domain: &D,
     compile: &Validation,
 ) -> ShellResult<()> {
@@ -42,7 +43,7 @@ pub async fn run<D: Domain>(
                         let admitted = compile.take()?;
                         let arguments = serde_json::to_vec(&admitted)
                             .map_err(|error| ShellError::message(error.to_string()))?;
-                        endpoint.send::<Admitted<'_>>(&arguments.as_slice()).await?;
+                        endpoint.send::<Admitted>(&arguments.as_slice()).await?;
                         break admitted;
                     }
                     9 => {
@@ -50,7 +51,7 @@ pub async fn run<D: Domain>(
                             &json!({"status":"invalid_arguments", "error":compile.rejection()?}),
                         )
                         .map_err(|e| ShellError::message(e.to_string()))?;
-                        decision.send::<Rejected<'_>>(&bytes.as_slice()).await?;
+                        decision.send::<Rejected>(&bytes.as_slice()).await?;
                     }
                     _ => return Err(ShellError::message("unexpected argument decision")),
                 }
@@ -70,9 +71,7 @@ pub async fn run<D: Domain>(
         .map_err(ShellError::message)?;
     let bytes =
         serde_json::to_vec(&result).map_err(|error| ShellError::message(error.to_string()))?;
-    endpoint
-        .send::<CompileResult<'_>>(&bytes.as_slice())
-        .await?;
+    endpoint.send::<CompileResult>(&bytes.as_slice()).await?;
     if result["success"] != true {
         return Err(ShellError::message(format!(
             "domain operation failed: {result}"

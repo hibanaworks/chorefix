@@ -214,20 +214,36 @@ Globalを唯一の連携仕様にし、localsideへEndpointの操作を直接書
 ChoreoFixのmanifest/lockは本体
 `e139912e07fe4cd5ba599dd3749d6e03ce9d1ee1`、WASI
 `6b62998b614e2b68feecd2d94042adbcc614693d`を選択している。
+executorは`hibana-runtime`の`55dca34e36fb48e9384881e50c9092822df1511c`を選択する。
 通常のGit依存を使い、診断用のpath patchを認定へ流用しない。
 
-6Eの並行駆動は、公開した`hibana-runtime`
-`6321fb96bc706e2956d956260538f5f62f19495c`へ移した。globalは変更していない。
-runtimeの中核はno_std・割当なし・caller-owned storageで、生成する実行コードに
-外部async frameworkを使わない。runtime単体ではnative52試験、compile入力12件、
-Miri45試験、Lean/Z3、Picoのlink検査が成功した。Lean/Z3はschedulerの性質を扱い、
-任意のRustやmacro展開全体の詳細化証明ではない。
-同じGit依存のアプリ21試験、runner17試験、Clippy、全binaryのbuildと、6Eの実Wasm34条件が
-成功した。監査違反0、記録変異826件を拒否し、実装/レビューとmerge/レビューの重なりを確認した。
-sourceの前後hashは一致し、全子孫の最大memoryは1,659,109,376bytesだった。
-モデル呼出しと採点比較への算入は0件である。記録は
-`output/review-occurrence-qualification/runtime-6e`に保持する。
-Tokioは外部I/O、runner、他familyと試験に残っており、完全除去は未完である。
+runtimeの中核はno_std・割当なし・caller-owned storageである。12課題の起動処理から
+joinツリーとguest/I/Oの二重の終了値回収を除去し、
+I/O参加者がファイル内容と最終I/Oを所有して終了する形に変更した。全メッセージ型の
+使用箇所で推論できるlifetimeを省略し、型定義の借用関係は維持した。
+選択中のruntimeは、Futureを最終のinline slotに置いてから参照の平衡木を一度だけ構築する。
+既存Futureを値で繰り返し移動するstorage構築と、入力を二重に保持するawait wrapperを除去した。
+利用側のpin操作やstack増量、heap割当は追加しない。
+同じ入力とstack予算で旧実装がoverflowし、修正後が通過する実行試験と感度検査を追加した。
+native59試験、compile入力12件、strict-provenance Miri51試験、Lean16定理/Z3、no_std/Pico linkを
+含む全runtime gateが同じsourceで成功した。Lean/Z3はschedulerとstorageの性質を扱い、
+macro変換全体や任意のRustの詳細化証明ではない。
+
+この通常Git pinで、12課題の実Wasm74条件がprotocol完了し、監査違反は0件だった。
+別のCI/CD早期終了1条件では共有効果0件を確認した。記録変異1,307件をすべて拒否した。
+アプリ全targetのRust36試験、runner17試験とClippy、全binaryのbuildが通過し、
+アプリとrunnerの検査前後のsource hashは一致した。全子孫の最大memoryは1,525,792,768bytes。
+記録は`output/review-occurrence-qualification/choreofs-controlled-concurrency`に保持する。
+モデル呼出し・採点済み実験への算入は0件であり、各条件の業務結果は元scoreへ別に記録する。
+
+1Hの通常遅延でcommitの重なりが2件になった記録は保持する。parは同時実行を許すが、
+実装の完了時刻が異なる通常実行で必ず3件が重なるとはしない。独立したA/C/Eの実要求を
+Endpointで受理した後、試験用I/O境界で3件がそろうまで保留する条件を別に追加した。
+返答なしで3件が受理され、解放後の実commitも3件重なった。globalとlocalsideは変更していない。
+この開始条件を制御する機構試験を、通常の性能測定や実モデルの並行性へ混ぜない。
+
+Tokioは外部I/O、runner、entry pointと試験に残っており、完全除去は未完である。
+次はTokioの完全除去を先に完了し、そのsourceを固定してからAI予備実験へ進む。
 比較接続用の未使用bridgeとHTTP依存を削除した。元の比較実装は変更していない。
 
 | 対象 | 現状 | 残る確認・変更 |
@@ -491,9 +507,15 @@ core `967a89bbbbb392387e70a74b579ecf39ec21b5c5`ではKani全319件が成功し�
 同じ3契約の構文・操作text・probe一覧が不変であることを照合し、36完走・1,092呼出し・
 2,043,136操作試行でモデルと実行時の不一致0、2,240局所拒否、全感度controlが成功した。
 最大memoryは2,731,363,112bytesで、元と同じ2.75GB guard、forbid、最適化とassertionを維持した。
-この最終sourceの全gateをKaniから再実行中であり、全体成功とは扱わない。
 この版のKani全319件は成功し、全子孫の最大memoryは2,587,378,000bytesだった。
-protocol fuzz、Miri等を含む全gateの完了は別に確認する。
+続く生成検査では、同じ公開message contractのaliasからresolver入力を作り直すと、
+受理時と異なる分岐になる試験器の不具合が露呈した。`510fe108`で受理時の入力を保存し、
+再生とLean照合で同じ入力を使うよう修正した。元の停止shardは188形・681,484操作試行で
+runtime-only/model-onlyの不一致0だった。元の試験器の処理だけを戻すと回帰試験が失敗する。
+同版の全gateはrolled predecessorのKaniで2.75GB上限を超え停止した。
+`bb33e40c1e7e7f5d7b338e41b0b7448ef10f3eb3`では元の`u8 % 3`の値域を0/1/2へ分割し、
+他の記号入力とassertionを維持した。個別の3証明は成功したが、最終sourceのKani全件と
+protocol fuzz、Miri等を含む全gateは再実行が必要であり、全体成功とは扱わない。
 アプリの通常Git pinは`e139912e`のままで、固定する本体版への更新と統合認定は残っている。
 旧pinのMiri生成木群は180秒で時間切れになっている。停止を成功へ変えず、必要な検査を通す。
 アプリ/executor/transportの前提とモデル定理、Rust実装の試験を区別し、任意Rust全体の完全証明を

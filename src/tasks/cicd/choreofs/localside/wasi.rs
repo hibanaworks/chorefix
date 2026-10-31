@@ -6,9 +6,10 @@ use hibana_wasip1_runtime::{
     protocol,
 };
 
+#[hibana_runtime::localside]
 pub async fn developer(
-    guest: &mut HibanaWasiGuest<'_>,
-    endpoint: &mut hibana::Endpoint<'_, DEV_WASI>,
+    guest: &mut HibanaWasiGuest,
+    endpoint: &mut hibana::Endpoint<DEV_WASI>,
 ) -> ShellResult<i32> {
     let mut fuel_id = 0u16;
     loop {
@@ -120,13 +121,13 @@ pub async fn developer(
                         match branch.label() {
                             8 => {
                                 let arguments = {
-                                    let bytes = branch.recv::<Admitted<'_>>().await?;
+                                    let bytes = branch.recv::<Admitted>().await?;
                                     super::super::imp::Arguments::<1>::from_bytes(bytes)?
                                 };
-                                let mut build = endpoint.recv::<Loan<'_, BUILD_SERVER>>().await?;
+                                let mut build = endpoint.recv::<Loan<BUILD_SERVER>>().await?;
                                 build.send::<CompileRequest>(&arguments).await?;
-                                let bytes = build.recv::<CompileResult<'_>>().await?.to_vec();
-                                endpoint.send::<Loan<'_, BUILD_SERVER>>(build).await?;
+                                let bytes = build.recv::<CompileResult>().await?.to_vec();
+                                endpoint.send::<Loan<BUILD_SERVER>>(build).await?;
                                 let reply = bytes;
                                 for (index, chunk) in
                                     reply.chunks(protocol::WASIP1_IO_CHUNK_CAPACITY).enumerate()
@@ -140,7 +141,7 @@ pub async fn developer(
                                 protocol::FdClosedRet(protocol::FdClosed::new(request.0.fd()))
                             }
                             9 => {
-                                let reply = branch.recv::<Rejected<'_>>().await?.to_vec();
+                                let reply = branch.recv::<Rejected>().await?.to_vec();
                                 for (index, chunk) in
                                     reply.chunks(protocol::WASIP1_IO_CHUNK_CAPACITY).enumerate()
                                 {
@@ -205,7 +206,7 @@ pub async fn developer(
             }
             WasiBoundaryStep::BudgetExpired(_) => {
                 fuel_id = fuel_id.wrapping_add(1);
-                tokio::task::yield_now().await;
+                hibana_runtime::yield_now().await;
             }
             WasiBoundaryStep::Exit(exit) => {
                 let status = exit.status() as i32;
@@ -218,9 +219,10 @@ pub async fn developer(
     }
 }
 
+#[hibana_runtime::localside]
 pub async fn tester(
-    guest: &mut HibanaWasiGuest<'_>,
-    endpoint: &mut hibana::Endpoint<'_, TEST_WASI>,
+    guest: &mut HibanaWasiGuest,
+    endpoint: &mut hibana::Endpoint<TEST_WASI>,
 ) -> ShellResult<i32> {
     let mut fuel_id = 0u16;
     loop {
@@ -332,13 +334,13 @@ pub async fn tester(
                         match branch.label() {
                             8 => {
                                 let arguments = {
-                                    let bytes = branch.recv::<Admitted<'_>>().await?;
+                                    let bytes = branch.recv::<Admitted>().await?;
                                     super::super::imp::Arguments::<2>::from_bytes(bytes)?
                                 };
-                                let mut build = endpoint.recv::<Loan<'_, BUILD_SERVER>>().await?;
+                                let mut build = endpoint.recv::<Loan<BUILD_SERVER>>().await?;
                                 build.send::<TestRequest>(&arguments).await?;
-                                let bytes = build.recv::<TestResult<'_>>().await?.to_vec();
-                                endpoint.send::<Loan<'_, BUILD_SERVER>>(build).await?;
+                                let bytes = build.recv::<TestResult>().await?.to_vec();
+                                endpoint.send::<Loan<BUILD_SERVER>>(build).await?;
                                 let reply = bytes;
                                 for (index, chunk) in
                                     reply.chunks(protocol::WASIP1_IO_CHUNK_CAPACITY).enumerate()
@@ -352,7 +354,7 @@ pub async fn tester(
                                 protocol::FdClosedRet(protocol::FdClosed::new(request.0.fd()))
                             }
                             9 => {
-                                let reply = branch.recv::<Rejected<'_>>().await?.to_vec();
+                                let reply = branch.recv::<Rejected>().await?.to_vec();
                                 for (index, chunk) in
                                     reply.chunks(protocol::WASIP1_IO_CHUNK_CAPACITY).enumerate()
                                 {
@@ -417,7 +419,7 @@ pub async fn tester(
             }
             WasiBoundaryStep::BudgetExpired(_) => {
                 fuel_id = fuel_id.wrapping_add(1);
-                tokio::task::yield_now().await;
+                hibana_runtime::yield_now().await;
             }
             WasiBoundaryStep::Exit(exit) => {
                 let status = exit.status() as i32;
@@ -430,9 +432,10 @@ pub async fn tester(
     }
 }
 
+#[hibana_runtime::localside]
 pub async fn deployer(
-    guest: &mut HibanaWasiGuest<'_>,
-    endpoint: &mut hibana::Endpoint<'_, DEPLOY_WASI>,
+    guest: &mut HibanaWasiGuest,
+    endpoint: &mut hibana::Endpoint<DEPLOY_WASI>,
 ) -> ShellResult<i32> {
     let mut fuel_id = 0u16;
     loop {
@@ -544,14 +547,13 @@ pub async fn deployer(
                         match branch.label() {
                             8 => {
                                 let arguments = {
-                                    let bytes = branch.recv::<Admitted<'_>>().await?;
+                                    let bytes = branch.recv::<Admitted>().await?;
                                     super::super::imp::Arguments::<3>::from_bytes(bytes)?
                                 };
-                                let mut environment =
-                                    endpoint.recv::<Loan<'_, DEPLOY_ENV>>().await?;
+                                let mut environment = endpoint.recv::<Loan<DEPLOY_ENV>>().await?;
                                 environment.send::<DeployRequest>(&arguments).await?;
-                                let bytes = environment.recv::<DeployResult<'_>>().await?.to_vec();
-                                endpoint.send::<Loan<'_, DEPLOY_ENV>>(environment).await?;
+                                let bytes = environment.recv::<DeployResult>().await?.to_vec();
+                                endpoint.send::<Loan<DEPLOY_ENV>>(environment).await?;
                                 let reply = bytes;
                                 for (index, chunk) in
                                     reply.chunks(protocol::WASIP1_IO_CHUNK_CAPACITY).enumerate()
@@ -565,7 +567,7 @@ pub async fn deployer(
                                 protocol::FdClosedRet(protocol::FdClosed::new(request.0.fd()))
                             }
                             9 => {
-                                let reply = branch.recv::<Rejected<'_>>().await?.to_vec();
+                                let reply = branch.recv::<Rejected>().await?.to_vec();
                                 for (index, chunk) in
                                     reply.chunks(protocol::WASIP1_IO_CHUNK_CAPACITY).enumerate()
                                 {
@@ -630,7 +632,7 @@ pub async fn deployer(
             }
             WasiBoundaryStep::BudgetExpired(_) => {
                 fuel_id = fuel_id.wrapping_add(1);
-                tokio::task::yield_now().await;
+                hibana_runtime::yield_now().await;
             }
             WasiBoundaryStep::Exit(exit) => {
                 let status = exit.status() as i32;

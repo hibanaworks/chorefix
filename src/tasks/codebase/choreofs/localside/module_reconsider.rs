@@ -3,6 +3,7 @@ use super::super::global::{Loan, ModuleTestResult};
 use crate::shell::{ShellError, ShellResult};
 use hibana::Endpoint;
 
+#[hibana_runtime::localside]
 pub(crate) async fn run<
     'r,
     const ROLE: u8,
@@ -17,43 +18,41 @@ pub(crate) async fn run<
 ) -> ShellResult<()> {
     // Both assigned developers get their first commit before results are read.
     for _ in 0..2 {
-        endpoint.send::<Loan<'_, RESOURCE>>(resource).await?;
-        resource = endpoint.recv::<Loan<'_, RESOURCE>>().await?;
+        endpoint.send::<Loan<RESOURCE>>(resource).await?;
+        resource = endpoint.recv::<Loan<RESOURCE>>().await?;
     }
     loop {
         let branch = endpoint.offer().await?;
         match branch.label() {
             label if label == FIRST_OTHER_OWNER => {
-                let _result = branch
-                    .recv::<ModuleTestResult<'_, FIRST_OTHER_OWNER>>()
-                    .await?;
-                endpoint.send::<Loan<'_, RESOURCE>>(resource).await?;
-                resource = endpoint.recv::<Loan<'_, RESOURCE>>().await?;
+                let _result = branch.recv::<ModuleTestResult<FIRST_OTHER_OWNER>>().await?;
+                endpoint.send::<Loan<RESOURCE>>(resource).await?;
+                resource = endpoint.recv::<Loan<RESOURCE>>().await?;
             }
             label if label == SECOND_OTHER_OWNER => {
                 let _result = branch
-                    .recv::<ModuleTestResult<'_, SECOND_OTHER_OWNER>>()
+                    .recv::<ModuleTestResult<SECOND_OTHER_OWNER>>()
                     .await?;
-                endpoint.send::<Loan<'_, RESOURCE>>(resource).await?;
-                resource = endpoint.recv::<Loan<'_, RESOURCE>>().await?;
+                endpoint.send::<Loan<RESOURCE>>(resource).await?;
+                resource = endpoint.recv::<Loan<RESOURCE>>().await?;
             }
             label if label == FIRST_OTHER_RESOURCE => {
                 let _result = branch
-                    .recv::<ModuleTestResult<'_, FIRST_OTHER_RESOURCE>>()
+                    .recv::<ModuleTestResult<FIRST_OTHER_RESOURCE>>()
                     .await?;
                 loop {
                     let branch = endpoint.offer().await?;
                     match branch.label() {
                         label if label == SECOND_OTHER_OWNER => {
                             let _result = branch
-                                .recv::<ModuleTestResult<'_, SECOND_OTHER_OWNER>>()
+                                .recv::<ModuleTestResult<SECOND_OTHER_OWNER>>()
                                 .await?;
-                            endpoint.send::<Loan<'_, RESOURCE>>(resource).await?;
-                            resource = endpoint.recv::<Loan<'_, RESOURCE>>().await?;
+                            endpoint.send::<Loan<RESOURCE>>(resource).await?;
+                            resource = endpoint.recv::<Loan<RESOURCE>>().await?;
                         }
                         label if label == SECOND_OTHER_RESOURCE => {
                             let _result = branch
-                                .recv::<ModuleTestResult<'_, SECOND_OTHER_RESOURCE>>()
+                                .recv::<ModuleTestResult<SECOND_OTHER_RESOURCE>>()
                                 .await?;
                             return Ok(());
                         }
@@ -63,21 +62,20 @@ pub(crate) async fn run<
             }
             label if label == SECOND_OTHER_RESOURCE => {
                 let _result = branch
-                    .recv::<ModuleTestResult<'_, SECOND_OTHER_RESOURCE>>()
+                    .recv::<ModuleTestResult<SECOND_OTHER_RESOURCE>>()
                     .await?;
                 loop {
                     let branch = endpoint.offer().await?;
                     match branch.label() {
                         label if label == FIRST_OTHER_OWNER => {
-                            let _result = branch
-                                .recv::<ModuleTestResult<'_, FIRST_OTHER_OWNER>>()
-                                .await?;
-                            endpoint.send::<Loan<'_, RESOURCE>>(resource).await?;
-                            resource = endpoint.recv::<Loan<'_, RESOURCE>>().await?;
+                            let _result =
+                                branch.recv::<ModuleTestResult<FIRST_OTHER_OWNER>>().await?;
+                            endpoint.send::<Loan<RESOURCE>>(resource).await?;
+                            resource = endpoint.recv::<Loan<RESOURCE>>().await?;
                         }
                         label if label == FIRST_OTHER_RESOURCE => {
                             let _result = branch
-                                .recv::<ModuleTestResult<'_, FIRST_OTHER_RESOURCE>>()
+                                .recv::<ModuleTestResult<FIRST_OTHER_RESOURCE>>()
                                 .await?;
                             return Ok(());
                         }

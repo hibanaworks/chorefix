@@ -20,7 +20,7 @@ pub type ServiceExit = g::Msg<241, i32>;
 fn think<const VM: u8, const SERVICE: u8>() -> impl Projectable {
     g::seq(
         g::send::<VM, SERVICE, Think>(),
-        g::send::<SERVICE, VM, Thought<'static>>(),
+        g::send::<SERVICE, VM, Thought>(),
     )
 }
 
@@ -35,22 +35,22 @@ fn eat<
     g::seq(
         g::par(
             g::seq(
-                g::send::<LEFT_OWNER, VM, Loan<'_, LEFT>>(),
+                g::send::<LEFT_OWNER, VM, Loan<LEFT>>(),
                 g::send::<LEFT, SERVICE, Eat<LEFT>>(),
             ),
             g::seq(
-                g::send::<RIGHT_OWNER, VM, Loan<'_, RIGHT>>(),
+                g::send::<RIGHT_OWNER, VM, Loan<RIGHT>>(),
                 g::send::<RIGHT, SERVICE, Eat<RIGHT>>(),
             ),
         ),
         g::seq(
             g::par(
-                g::send::<SERVICE, LEFT, Meal<'static, LEFT>>(),
-                g::send::<SERVICE, RIGHT, Meal<'static, RIGHT>>(),
+                g::send::<SERVICE, LEFT, Meal<LEFT>>(),
+                g::send::<SERVICE, RIGHT, Meal<RIGHT>>(),
             ),
             g::par(
-                g::send::<VM, LEFT_OWNER, Loan<'_, LEFT>>(),
-                g::send::<VM, RIGHT_OWNER, Loan<'_, RIGHT>>(),
+                g::send::<VM, LEFT_OWNER, Loan<LEFT>>(),
+                g::send::<VM, RIGHT_OWNER, Loan<RIGHT>>(),
             ),
         ),
     )

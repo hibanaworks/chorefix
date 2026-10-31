@@ -87,14 +87,14 @@ fn implement_a<const LABEL: u8>() -> impl Projectable {
     g::seq(
         g::send::<A_WASI, REPO, g::Msg<LABEL, RepositoryArguments<1>>>(),
         g::seq(
-            g::send::<REPO, A_WASI, RepoLoan<'_>>(),
+            g::send::<REPO, A_WASI, RepoLoan>(),
             g::seq(
                 g::send::<REPO_ENDPOINT, REPO, ImplementOnRepo>(),
                 g::seq(
-                    g::send::<REPO, REPO_ENDPOINT, RepoResult<'static>>(),
+                    g::send::<REPO, REPO_ENDPOINT, RepoResult>(),
                     g::seq(
-                        g::send::<A_WASI, REPO, RepoLoan<'_>>(),
-                        g::send::<A_WASI, REVIEW_WASI, ReadyA<'static>>(),
+                        g::send::<A_WASI, REPO, RepoLoan>(),
+                        g::send::<A_WASI, REVIEW_WASI, ReadyA>(),
                     ),
                 ),
             ),
@@ -105,14 +105,14 @@ fn implement_b<const LABEL: u8>() -> impl Projectable {
     g::seq(
         g::send::<B_WASI, REPO, g::Msg<LABEL, RepositoryArguments<1>>>(),
         g::seq(
-            g::send::<REPO, B_WASI, RepoLoan<'_>>(),
+            g::send::<REPO, B_WASI, RepoLoan>(),
             g::seq(
                 g::send::<REPO_ENDPOINT, REPO, ImplementOnRepo>(),
                 g::seq(
-                    g::send::<REPO, REPO_ENDPOINT, RepoResult<'static>>(),
+                    g::send::<REPO, REPO_ENDPOINT, RepoResult>(),
                     g::seq(
-                        g::send::<B_WASI, REPO, RepoLoan<'_>>(),
-                        g::send::<B_WASI, REVIEW_WASI, ReadyB<'static>>(),
+                        g::send::<B_WASI, REPO, RepoLoan>(),
+                        g::send::<B_WASI, REVIEW_WASI, ReadyB>(),
                     ),
                 ),
             ),
@@ -123,12 +123,12 @@ fn merge_a() -> impl Projectable {
     g::seq(
         g::send::<A_WASI, REPO, MergeA>(),
         g::seq(
-            g::send::<REPO, A_WASI, RepoLoan<'_>>(),
+            g::send::<REPO, A_WASI, RepoLoan>(),
             g::seq(
                 g::send::<REPO_ENDPOINT, REPO, MergeOnRepo>(),
                 g::seq(
-                    g::send::<REPO, REPO_ENDPOINT, RepoResult<'static>>(),
-                    g::send::<A_WASI, REPO, RepoLoan<'_>>(),
+                    g::send::<REPO, REPO_ENDPOINT, RepoResult>(),
+                    g::send::<A_WASI, REPO, RepoLoan>(),
                 ),
             ),
         ),
@@ -138,12 +138,12 @@ fn merge_b() -> impl Projectable {
     g::seq(
         g::send::<B_WASI, REPO, MergeB>(),
         g::seq(
-            g::send::<REPO, B_WASI, RepoLoan<'_>>(),
+            g::send::<REPO, B_WASI, RepoLoan>(),
             g::seq(
                 g::send::<REPO_ENDPOINT, REPO, MergeOnRepo>(),
                 g::seq(
-                    g::send::<REPO, REPO_ENDPOINT, RepoResult<'static>>(),
-                    g::send::<B_WASI, REPO, RepoLoan<'_>>(),
+                    g::send::<REPO, REPO_ENDPOINT, RepoResult>(),
+                    g::send::<B_WASI, REPO, RepoLoan>(),
                 ),
             ),
         ),
@@ -206,11 +206,8 @@ fn merge_a_and_review_b(review: impl Projectable) -> impl Projectable {
     g::seq(
         g::par(merge_a(), review),
         g::route(
-            g::seq(
-                outcome_b::<ApprovedB<'static>>(),
-                g::seq(merge_b(), finish()),
-            ),
-            g::seq(outcome_b::<RejectedB<'static>>(), repeat_b_last()),
+            g::seq(outcome_b::<ApprovedB>(), g::seq(merge_b(), finish())),
+            g::seq(outcome_b::<RejectedB>(), repeat_b_last()),
         )
         .resolve::<DECIDE_B>(),
     )
@@ -219,11 +216,8 @@ fn merge_b_and_review_a(review: impl Projectable) -> impl Projectable {
     g::seq(
         g::par(merge_b(), review),
         g::route(
-            g::seq(
-                outcome_a::<ApprovedA<'static>>(),
-                g::seq(merge_a(), finish()),
-            ),
-            g::seq(outcome_a::<RejectedA<'static>>(), repeat_a_last()),
+            g::seq(outcome_a::<ApprovedA>(), g::seq(merge_a(), finish())),
+            g::seq(outcome_a::<RejectedA>(), repeat_a_last()),
         )
         .resolve::<DECIDE_A>(),
     )
@@ -241,10 +235,10 @@ fn review_a_until_approved(approved: impl Projectable) -> impl Projectable {
         next,
         g::seq(
             g::route(
-                outcome_a::<ApprovedA<'static>>(),
+                outcome_a::<ApprovedA>(),
                 g::seq(
                     g::seq(
-                        outcome_a::<RejectedA<'static>>(),
+                        outcome_a::<RejectedA>(),
                         g::seq(
                             intent::<82>(),
                             g::seq(
@@ -254,7 +248,7 @@ fn review_a_until_approved(approved: impl Projectable) -> impl Projectable {
                         ),
                     )
                     .roll(),
-                    outcome_a::<ApprovedA<'static>>(),
+                    outcome_a::<ApprovedA>(),
                 ),
             )
             .resolve::<DECIDE_A>(),
@@ -274,10 +268,10 @@ fn review_b_until_approved(approved: impl Projectable) -> impl Projectable {
         next,
         g::seq(
             g::route(
-                outcome_b::<ApprovedB<'static>>(),
+                outcome_b::<ApprovedB>(),
                 g::seq(
                     g::seq(
-                        outcome_b::<RejectedB<'static>>(),
+                        outcome_b::<RejectedB>(),
                         g::seq(
                             intent::<86>(),
                             g::seq(
@@ -287,7 +281,7 @@ fn review_b_until_approved(approved: impl Projectable) -> impl Projectable {
                         ),
                     )
                     .roll(),
-                    outcome_b::<ApprovedB<'static>>(),
+                    outcome_b::<ApprovedB>(),
                 ),
             )
             .resolve::<DECIDE_B>(),
@@ -307,14 +301,14 @@ fn both_rejected_a_ready() -> impl Projectable {
                 ),
                 g::route(
                     g::seq(
-                        outcome_a::<ApprovedA<'static>>(),
+                        outcome_a::<ApprovedA>(),
                         g::seq(
                             intent::<89>(),
                             merge_a_and_review_b(g::send::<REVIEW_WASI, REVIEW_B, ReReviewB>()),
                         ),
                     ),
                     g::seq(
-                        outcome_a::<RejectedA<'static>>(),
+                        outcome_a::<RejectedA>(),
                         review_a_until_approved(g::seq(
                             intent::<89>(),
                             merge_a_and_review_b(g::send::<REVIEW_WASI, REVIEW_B, ReReviewB>()),
@@ -332,14 +326,14 @@ fn both_rejected_a_ready() -> impl Projectable {
                     g::send::<REVIEW_WASI, REVIEW_B, ReReviewB>(),
                     g::route(
                         g::seq(
-                            outcome_b::<ApprovedB<'static>>(),
+                            outcome_b::<ApprovedB>(),
                             g::seq(
                                 intent::<85>(),
                                 merge_b_and_review_a(g::send::<REVIEW_WASI, REVIEW_A, ReReviewA>()),
                             ),
                         ),
                         g::seq(
-                            outcome_b::<RejectedB<'static>>(),
+                            outcome_b::<RejectedB>(),
                             review_b_until_approved(g::seq(
                                 intent::<85>(),
                                 merge_b_and_review_a(g::send::<REVIEW_WASI, REVIEW_A, ReReviewA>()),
@@ -363,14 +357,14 @@ fn both_rejected_b_ready() -> impl Projectable {
                     g::send::<REVIEW_WASI, REVIEW_A, ReReviewA>(),
                     g::route(
                         g::seq(
-                            outcome_a::<ApprovedA<'static>>(),
+                            outcome_a::<ApprovedA>(),
                             g::seq(
                                 intent::<89>(),
                                 merge_a_and_review_b(g::send::<REVIEW_WASI, REVIEW_B, ReReviewB>()),
                             ),
                         ),
                         g::seq(
-                            outcome_a::<RejectedA<'static>>(),
+                            outcome_a::<RejectedA>(),
                             review_a_until_approved(g::seq(
                                 intent::<89>(),
                                 merge_a_and_review_b(g::send::<REVIEW_WASI, REVIEW_B, ReReviewB>()),
@@ -390,14 +384,14 @@ fn both_rejected_b_ready() -> impl Projectable {
                 ),
                 g::route(
                     g::seq(
-                        outcome_b::<ApprovedB<'static>>(),
+                        outcome_b::<ApprovedB>(),
                         g::seq(
                             intent::<85>(),
                             merge_b_and_review_a(g::send::<REVIEW_WASI, REVIEW_A, ReReviewA>()),
                         ),
                     ),
                     g::seq(
-                        outcome_b::<RejectedB<'static>>(),
+                        outcome_b::<RejectedB>(),
                         review_b_until_approved(g::seq(
                             intent::<85>(),
                             merge_b_and_review_a(g::send::<REVIEW_WASI, REVIEW_A, ReReviewA>()),
@@ -421,13 +415,13 @@ fn repeat_a_before_b() -> impl Projectable {
                     g::send::<REVIEW_WASI, REVIEW_A, ReReviewA>(),
                     g::route(
                         g::seq(
-                            outcome_a::<ApprovedA<'static>>(),
+                            outcome_a::<ApprovedA>(),
                             g::seq(
                                 intent::<84>(),
                                 merge_a_and_review_b(g::send::<REVIEW_WASI, REVIEW_B, ReviewB>()),
                             ),
                         ),
-                        outcome_a::<RejectedA<'static>>(),
+                        outcome_a::<RejectedA>(),
                     )
                     .resolve::<DECIDE_A>(),
                 ),
@@ -442,13 +436,13 @@ fn repeat_a_before_b() -> impl Projectable {
                 ),
                 g::route(
                     g::seq(
-                        outcome_b::<ApprovedB<'static>>(),
+                        outcome_b::<ApprovedB>(),
                         g::seq(
                             intent::<85>(),
                             merge_b_and_review_a(g::send::<REVIEW_WASI, REVIEW_A, ReReviewA>()),
                         ),
                     ),
-                    g::seq(outcome_b::<RejectedB<'static>>(), both_rejected_a_ready()),
+                    g::seq(outcome_b::<RejectedB>(), both_rejected_a_ready()),
                 )
                 .resolve::<DECIDE_B>(),
             ),
@@ -468,13 +462,13 @@ fn repeat_b_before_a() -> impl Projectable {
                 ),
                 g::route(
                     g::seq(
-                        outcome_a::<ApprovedA<'static>>(),
+                        outcome_a::<ApprovedA>(),
                         g::seq(
                             intent::<89>(),
                             merge_a_and_review_b(g::send::<REVIEW_WASI, REVIEW_B, ReReviewB>()),
                         ),
                     ),
-                    g::seq(outcome_a::<RejectedA<'static>>(), both_rejected_b_ready()),
+                    g::seq(outcome_a::<RejectedA>(), both_rejected_b_ready()),
                 )
                 .resolve::<DECIDE_A>(),
             ),
@@ -487,13 +481,13 @@ fn repeat_b_before_a() -> impl Projectable {
                     g::send::<REVIEW_WASI, REVIEW_B, ReReviewB>(),
                     g::route(
                         g::seq(
-                            outcome_b::<ApprovedB<'static>>(),
+                            outcome_b::<ApprovedB>(),
                             g::seq(
                                 intent::<88>(),
                                 merge_b_and_review_a(g::send::<REVIEW_WASI, REVIEW_A, ReviewA>()),
                             ),
                         ),
-                        outcome_b::<RejectedB<'static>>(),
+                        outcome_b::<RejectedB>(),
                     )
                     .resolve::<DECIDE_B>(),
                 ),
@@ -515,13 +509,13 @@ fn first_a() -> impl Projectable {
                 ),
                 g::route(
                     g::seq(
-                        outcome_a::<ApprovedA<'static>>(),
+                        outcome_a::<ApprovedA>(),
                         g::seq(
                             intent::<84>(),
                             merge_a_and_review_b(g::send::<REVIEW_WASI, REVIEW_B, ReviewB>()),
                         ),
                     ),
-                    g::seq(outcome_a::<RejectedA<'static>>(), repeat_a_before_b()),
+                    g::seq(outcome_a::<RejectedA>(), repeat_a_before_b()),
                 )
                 .resolve::<DECIDE_A>(),
             ),
@@ -540,13 +534,13 @@ fn first_b() -> impl Projectable {
                 ),
                 g::route(
                     g::seq(
-                        outcome_b::<ApprovedB<'static>>(),
+                        outcome_b::<ApprovedB>(),
                         g::seq(
                             intent::<88>(),
                             merge_b_and_review_a(g::send::<REVIEW_WASI, REVIEW_A, ReviewA>()),
                         ),
                     ),
-                    g::seq(outcome_b::<RejectedB<'static>>(), repeat_b_before_a()),
+                    g::seq(outcome_b::<RejectedB>(), repeat_b_before_a()),
                 )
                 .resolve::<DECIDE_B>(),
             ),

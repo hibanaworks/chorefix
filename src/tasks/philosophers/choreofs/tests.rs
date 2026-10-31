@@ -54,7 +54,7 @@ async fn client<const ROLE: u8, const LEFT: u8, const RIGHT: u8>(
     let [mut task, mut private] = endpoint.par()?;
     let arguments = PhilosopherArguments::from_value(serde_json::json!({"philosopher":agent}))?;
     task.send::<Think>(&arguments).await?;
-    let thought = task.recv::<Thought<'_>>().await?.to_vec();
+    let thought = task.recv::<Thought>().await?.to_vec();
     assert_eq!(
         serde_json::from_slice::<serde_json::Value>(&thought).unwrap()["tool"],
         "think"
@@ -63,20 +63,20 @@ async fn client<const ROLE: u8, const LEFT: u8, const RIGHT: u8>(
         let [mut left_loan, mut right_loan] = task.par()?;
         tokio::try_join!(
             async {
-                let mut resource = left_loan.recv::<Loan<'_, LEFT>>().await?;
+                let mut resource = left_loan.recv::<Loan<LEFT>>().await?;
                 resource.send::<Eat<LEFT>>(&arguments).await?;
                 Ok::<_, hibana::EndpointError>(resource)
             },
             async {
-                let mut resource = right_loan.recv::<Loan<'_, RIGHT>>().await?;
+                let mut resource = right_loan.recv::<Loan<RIGHT>>().await?;
                 resource.send::<Eat<RIGHT>>(&arguments).await?;
                 Ok::<_, hibana::EndpointError>(resource)
             },
         )?
     };
     let (left_result, right_result) = tokio::try_join!(
-        async { Ok::<_, hibana::EndpointError>(left.recv::<Meal<'_, LEFT>>().await?.to_vec()) },
-        async { Ok::<_, hibana::EndpointError>(right.recv::<Meal<'_, RIGHT>>().await?.to_vec()) },
+        async { Ok::<_, hibana::EndpointError>(left.recv::<Meal<LEFT>>().await?.to_vec()) },
+        async { Ok::<_, hibana::EndpointError>(right.recv::<Meal<RIGHT>>().await?.to_vec()) },
     )?;
     assert_eq!(left_result, right_result);
     assert_eq!(
@@ -86,8 +86,8 @@ async fn client<const ROLE: u8, const LEFT: u8, const RIGHT: u8>(
     {
         let [mut left_return, mut right_return] = task.par()?;
         tokio::try_join!(
-            left_return.send::<Loan<'_, LEFT>>(left),
-            right_return.send::<Loan<'_, RIGHT>>(right)
+            left_return.send::<Loan<LEFT>>(left),
+            right_return.send::<Loan<RIGHT>>(right)
         )?;
     }
     task.send::<ServiceExit>(&0).await?;
@@ -318,7 +318,7 @@ async fn the_guest_cannot_send_an_eat_request_without_the_resource_endpoints() -
                 serde_json::json!({"philosopher":"PHILOSOPHER_A"}),
             )?;
             task.send::<Think>(&arguments).await?;
-            task.recv::<Thought<'_>>().await?;
+            task.recv::<Thought>().await?;
             assert!(task.send::<Eat<FORK_A_RESOURCE>>(&arguments).await.is_err());
             Ok::<_, crate::shell::ShellError>(())
         },
@@ -329,7 +329,7 @@ async fn the_guest_cannot_send_an_eat_request_without_the_resource_endpoints() -
                 .await
                 .map_err(crate::shell::ShellError::message)?;
             let bytes = serde_json::to_vec(&result).unwrap();
-            service.send::<Thought<'_>>(&bytes.as_slice()).await?;
+            service.send::<Thought>(&bytes.as_slice()).await?;
             Ok::<_, crate::shell::ShellError>(())
         },
     )?;

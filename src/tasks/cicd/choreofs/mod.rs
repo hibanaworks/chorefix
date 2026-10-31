@@ -9,6 +9,7 @@ use crate::{
 };
 use hibana::runtime::{SessionKitStorage, ids::SessionId, resolver::ResolverRef};
 
+#[hibana_runtime::localside]
 async fn run_guests(
     module: &[u8],
     bus: &crate::shell::imp::bus::Bus,
@@ -58,9 +59,9 @@ async fn run_guests(
     let mut bio = rv.enter(session, &programs.test_io)?;
     let mut cio = rv.enter(session, &programs.deploy_io)?;
     let [aterm, bterm, cterm] = terminals;
-    let mut afs = PrivateFs::new(aterm, bus);
-    let mut bfs = PrivateFs::new(bterm, bus);
-    let mut cfs = PrivateFs::new(cterm, bus);
+    let afs = PrivateFs::new(aterm, bus);
+    let bfs = PrivateFs::new(bterm, bus);
+    let cfs = PrivateFs::new(cterm, bus);
     let mut amemory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut bmemory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut cmemory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
@@ -70,52 +71,28 @@ async fn run_guests(
     let aguest = astore.init(module, GuestMemory::new(&mut amemory), bindings())?;
     let bguest = bstore.init(module, GuestMemory::new(&mut bmemory), bindings())?;
     let cguest = cstore.init(module, GuestMemory::new(&mut cmemory), bindings())?;
-    tokio::try_join!(
-        localside::developer::run(&mut developer, bus, &compile),
-        localside::tester::run(&mut tester, bus, &test),
-        localside::deployer::run(&mut deployer, bus, &deploy),
-        localside::infrastructure::build_server(&mut build_owner, build),
-        localside::infrastructure::deploy_env(&mut deploy_owner, env),
-        async {
-            let (vm, io) = tokio::try_join!(
-                localside::wasi::developer(aguest, &mut avm),
-                private_io::run(&mut aio, &mut afs)
-            )?;
-            if vm != io {
-                return Err(ShellError::message("developer guest/IO status differs"));
-            }
-            afs.terminal
-                .finish(bus, vm, std::mem::take(&mut afs.output))
-                .await?;
-            Ok(())
-        },
-        async {
-            let (vm, io) = tokio::try_join!(
-                localside::wasi::tester(bguest, &mut bvm),
-                private_io::run(&mut bio, &mut bfs)
-            )?;
-            if vm != io {
-                return Err(ShellError::message("tester guest/IO status differs"));
-            }
-            bfs.terminal
-                .finish(bus, vm, std::mem::take(&mut bfs.output))
-                .await?;
-            Ok(())
-        },
-        async {
-            let (vm, io) = tokio::try_join!(
-                localside::wasi::deployer(cguest, &mut cvm),
-                private_io::run(&mut cio, &mut cfs)
-            )?;
-            if vm != io {
-                return Err(ShellError::message("deployer guest/IO status differs"));
-            }
-            cfs.terminal
-                .finish(bus, vm, std::mem::take(&mut cfs.output))
-                .await?;
-            Ok(())
-        },
-    )?;
+    #[localside]
+    localside::developer::run(&mut developer, bus, &compile);
+    #[localside]
+    localside::tester::run(&mut tester, bus, &test);
+    #[localside]
+    localside::deployer::run(&mut deployer, bus, &deploy);
+    #[localside]
+    localside::infrastructure::build_server(&mut build_owner, build);
+    #[localside]
+    localside::infrastructure::deploy_env(&mut deploy_owner, env);
+    #[localside]
+    localside::wasi::developer(aguest, &mut avm);
+    #[localside]
+    private_io::run(&mut aio, afs);
+    #[localside]
+    localside::wasi::tester(bguest, &mut bvm);
+    #[localside]
+    private_io::run(&mut bio, bfs);
+    #[localside]
+    localside::wasi::deployer(cguest, &mut cvm);
+    #[localside]
+    private_io::run(&mut cio, cfs);
     Ok(())
 }
 
@@ -127,10 +104,7 @@ pub async fn run_stdio(module: &[u8]) -> ShellResult<()> {
             (SessionId::new(16), global::DEPLOY_ENV),
         ],
     );
-    let result = tokio::select! {
-        result = run_guests(module, &bus, terminals) => result,
-        result = reader.run(&bus) => result,
-    };
+    let result = hibana_runtime::race(run_guests(module, &bus, terminals), reader.run(&bus)).await;
     match &result {
         Ok(()) => reader.emit(&bus,serde_json::json!({"type":"run_result", "status":"complete"})).await?,
         Err(error) => reader.emit(&bus,serde_json::json!({"type":"run_result", "status":"failed", "error":error.to_string()})).await?,

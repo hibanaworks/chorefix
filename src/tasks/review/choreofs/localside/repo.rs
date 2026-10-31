@@ -4,6 +4,7 @@ use super::super::global::*;
 use crate::shell::{ShellError, ShellResult, imp::service::Domain};
 use hibana::Endpoint;
 
+#[hibana_runtime::localside]
 pub async fn run<'r, D: Domain>(
     endpoint: &mut Endpoint<'r, REPO>,
     mut repository: Endpoint<'r, REPO_ENDPOINT>,
@@ -21,7 +22,7 @@ pub async fn run<'r, D: Domain>(
                     _ => unreachable!(),
                 };
                 let admitted = admitted.into_value();
-                endpoint.send::<RepoLoan<'_>>(repository).await?;
+                endpoint.send::<RepoLoan>(repository).await?;
                 let request = endpoint.recv::<ImplementOnRepo>().await?.into_value();
                 if request != admitted || request["feature_name"] != feature {
                     return Err(ShellError::message(
@@ -34,8 +35,8 @@ pub async fn run<'r, D: Domain>(
                     .map_err(ShellError::message)?;
                 let bytes = serde_json::to_vec(&result)
                     .map_err(|error| ShellError::message(error.to_string()))?;
-                endpoint.send::<RepoResult<'_>>(&bytes.as_slice()).await?;
-                repository = endpoint.recv::<RepoLoan<'_>>().await?;
+                endpoint.send::<RepoResult>(&bytes.as_slice()).await?;
+                repository = endpoint.recv::<RepoLoan>().await?;
             }
             70 | 170 => {
                 let (agent, assigned_branch, admitted) = match branch.label() {
@@ -52,7 +53,7 @@ pub async fn run<'r, D: Domain>(
                     _ => unreachable!(),
                 };
                 let admitted = admitted.into_value();
-                endpoint.send::<RepoLoan<'_>>(repository).await?;
+                endpoint.send::<RepoLoan>(repository).await?;
                 let request = endpoint.recv::<MergeOnRepo>().await?.into_value();
                 if request != admitted || request["branch"] != assigned_branch {
                     return Err(ShellError::message("repository merge arguments differ"));
@@ -63,20 +64,20 @@ pub async fn run<'r, D: Domain>(
                     .map_err(ShellError::message)?;
                 let bytes = serde_json::to_vec(&result)
                     .map_err(|error| ShellError::message(error.to_string()))?;
-                endpoint.send::<RepoResult<'_>>(&bytes.as_slice()).await?;
-                repository = endpoint.recv::<RepoLoan<'_>>().await?;
+                endpoint.send::<RepoResult>(&bytes.as_slice()).await?;
+                repository = endpoint.recv::<RepoLoan>().await?;
             }
             30 => {
-                branch.recv::<ApprovedA<'_>>().await?;
+                branch.recv::<ApprovedA>().await?;
             }
             31 => {
-                branch.recv::<RejectedA<'_>>().await?;
+                branch.recv::<RejectedA>().await?;
             }
             40 => {
-                branch.recv::<ApprovedB<'_>>().await?;
+                branch.recv::<ApprovedB>().await?;
             }
             41 => {
-                branch.recv::<RejectedB<'_>>().await?;
+                branch.recv::<RejectedB>().await?;
             }
             80 => {
                 branch.recv::<FirstA>().await?;

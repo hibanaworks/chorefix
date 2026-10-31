@@ -97,14 +97,14 @@ async fn replacing_an_admitted_compile_argument_is_rejected_before_the_effect() 
                 guest.recv::<RequestReady>().await.unwrap();
                 guest.send::<Commit>(&protocol::FdCloseReq(protocol::FdRequest::new(SERVICE_FD))).await.unwrap();
                 assert_eq!(
-                    serde_json::from_slice::<Value>(guest.recv::<Admitted<'_>>().await.unwrap()).unwrap(),
+                    serde_json::from_slice::<Value>(guest.recv::<Admitted>().await.unwrap()).unwrap(),
                     json!({"component":"reviewed_candidate"})
                 );
-                owner.send::<Loan<'_, BUILD_SERVER>>(build).await.unwrap();
-                let mut build = guest.recv::<Loan<'_, BUILD_SERVER>>().await.unwrap();
+                owner.send::<Loan<BUILD_SERVER>>(build).await.unwrap();
+                let mut build = guest.recv::<Loan<BUILD_SERVER>>().await.unwrap();
                 let substituted = Arguments::<1>::from_bytes(br#"{"component":"unreviewed_candidate"}"#).unwrap();
                 build.send::<CompileRequest>(&substituted).await.unwrap();
-                let response = build.recv::<CompileResult<'_>>().await.unwrap();
+                let response = build.recv::<CompileResult>().await.unwrap();
                 panic!("substituted argument caused an effect: {:?}; reply: {:?}", journal.events(), response);
             } => unreachable!(),
         }
@@ -166,8 +166,7 @@ async fn wasi_roles_reach_the_service_owners_only_through_projected_messages() {
                     .await
                     .unwrap();
                 let rejected =
-                    serde_json::from_slice::<Value>(a.recv::<Rejected<'_>>().await.unwrap())
-                        .unwrap();
+                    serde_json::from_slice::<Value>(a.recv::<Rejected>().await.unwrap()).unwrap();
                 assert_eq!(rejected["status"], "invalid_arguments");
                 assert!(journal.events().is_empty());
                 assert_eq!(open(&mut a, b"service/compile_and_test").await, 0);
@@ -177,17 +176,17 @@ async fn wasi_roles_reach_the_service_owners_only_through_projected_messages() {
                     .await
                     .unwrap();
                 let arguments = {
-                    let bytes = a.recv::<Admitted<'_>>().await.unwrap();
+                    let bytes = a.recv::<Admitted>().await.unwrap();
                     Arguments::<1>::from_bytes(bytes).unwrap()
                 };
-                let mut resource = a.recv::<Loan<'_, BUILD_SERVER>>().await.unwrap();
+                let mut resource = a.recv::<Loan<BUILD_SERVER>>().await.unwrap();
                 resource.send::<CompileRequest>(&arguments).await.unwrap();
-                let result = resource.recv::<CompileResult<'_>>().await.unwrap().to_vec();
+                let result = resource.recv::<CompileResult>().await.unwrap().to_vec();
                 assert_eq!(
                     serde_json::from_slice::<Value>(&result).unwrap()["success"],
                     true
                 );
-                a.send::<Loan<'_, BUILD_SERVER>>(resource).await.unwrap();
+                a.send::<Loan<BUILD_SERVER>>(resource).await.unwrap();
                 assert_eq!(open(&mut a, b"service/compile_and_test").await, 8);
                 // Closed-service errors must not wait for downstream effects.
                 assert_eq!(journal.events().len(), 1);
@@ -221,17 +220,17 @@ async fn wasi_roles_reach_the_service_owners_only_through_projected_messages() {
                     .await
                     .unwrap();
                 let arguments = {
-                    let bytes = b.recv::<Admitted<'_>>().await.unwrap();
+                    let bytes = b.recv::<Admitted>().await.unwrap();
                     Arguments::<2>::from_bytes(bytes).unwrap()
                 };
-                let mut resource = b.recv::<Loan<'_, BUILD_SERVER>>().await.unwrap();
+                let mut resource = b.recv::<Loan<BUILD_SERVER>>().await.unwrap();
                 resource.send::<TestRequest>(&arguments).await.unwrap();
-                let result = resource.recv::<TestResult<'_>>().await.unwrap().to_vec();
+                let result = resource.recv::<TestResult>().await.unwrap().to_vec();
                 assert_eq!(
                     serde_json::from_slice::<Value>(&result).unwrap()["success"],
                     true
                 );
-                b.send::<Loan<'_, BUILD_SERVER>>(resource).await.unwrap();
+                b.send::<Loan<BUILD_SERVER>>(resource).await.unwrap();
                 b.recv::<RequestReady>().await.unwrap();
                 b.send::<ServiceExit>(&0).await.unwrap();
             },
@@ -243,17 +242,17 @@ async fn wasi_roles_reach_the_service_owners_only_through_projected_messages() {
                     .await
                     .unwrap();
                 let arguments = {
-                    let bytes = c.recv::<Admitted<'_>>().await.unwrap();
+                    let bytes = c.recv::<Admitted>().await.unwrap();
                     Arguments::<3>::from_bytes(bytes).unwrap()
                 };
-                let mut resource = c.recv::<Loan<'_, DEPLOY_ENV>>().await.unwrap();
+                let mut resource = c.recv::<Loan<DEPLOY_ENV>>().await.unwrap();
                 resource.send::<DeployRequest>(&arguments).await.unwrap();
-                let result = resource.recv::<DeployResult<'_>>().await.unwrap().to_vec();
+                let result = resource.recv::<DeployResult>().await.unwrap().to_vec();
                 assert_eq!(
                     serde_json::from_slice::<Value>(&result).unwrap()["success"],
                     true
                 );
-                c.send::<Loan<'_, DEPLOY_ENV>>(resource).await.unwrap();
+                c.send::<Loan<DEPLOY_ENV>>(resource).await.unwrap();
                 c.recv::<RequestReady>().await.unwrap();
                 c.send::<ServiceExit>(&0).await.unwrap();
             },

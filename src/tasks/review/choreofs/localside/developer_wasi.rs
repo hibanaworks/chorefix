@@ -11,9 +11,10 @@ use hibana_wasip1_runtime::{
 };
 use serde_json::{Value, json};
 
+#[hibana_runtime::localside]
 pub async fn run<const ROLE: u8>(
-    guest: &mut HibanaWasiGuest<'_>,
-    endpoint: &mut hibana::Endpoint<'_, ROLE>,
+    guest: &mut HibanaWasiGuest,
+    endpoint: &mut hibana::Endpoint<ROLE>,
 ) -> ShellResult<i32> {
     let [mut task, mut private] = endpoint.par()?;
     let mut fuel_id = 0u16;
@@ -195,16 +196,16 @@ pub async fn run<const ROLE: u8>(
                                             branch.recv::<AgainABeforeBReview>().await?;
                                         }
                                         30 if ROLE == B_WASI => {
-                                            branch.recv::<ApprovedA<'_>>().await?;
+                                            branch.recv::<ApprovedA>().await?;
                                         }
                                         31 if ROLE == B_WASI => {
-                                            branch.recv::<RejectedA<'_>>().await?;
+                                            branch.recv::<RejectedA>().await?;
                                         }
                                         40 if ROLE == A_WASI => {
-                                            branch.recv::<ApprovedB<'_>>().await?;
+                                            branch.recv::<ApprovedB>().await?;
                                         }
                                         41 if ROLE == A_WASI => {
-                                            branch.recv::<RejectedB<'_>>().await?;
+                                            branch.recv::<RejectedB>().await?;
                                         }
                                         69 | 76 | 169 | 176
                                             if closed.path == b"service/implement_feature" =>
@@ -220,16 +221,15 @@ pub async fn run<const ROLE: u8>(
                                                 176 => branch.send::<ReviseB>(&arguments).await?,
                                                 _ => unreachable!(),
                                             };
-                                            let mut repository =
-                                                task.recv::<RepoLoan<'_>>().await?;
+                                            let mut repository = task.recv::<RepoLoan>().await?;
                                             repository.send::<ImplementOnRepo>(&arguments).await?;
                                             let bytes =
-                                                repository.recv::<RepoResult<'_>>().await?.to_vec();
-                                            task.send::<RepoLoan<'_>>(repository).await?;
+                                                repository.recv::<RepoResult>().await?.to_vec();
+                                            task.send::<RepoLoan>(repository).await?;
                                             if ROLE == A_WASI {
-                                                task.send::<ReadyA<'_>>(&bytes.as_slice()).await?;
+                                                task.send::<ReadyA>(&bytes.as_slice()).await?;
                                             } else {
-                                                task.send::<ReadyB<'_>>(&bytes.as_slice()).await?;
+                                                task.send::<ReadyB>(&bytes.as_slice()).await?;
                                             }
                                             let mut result: Value = serde_json::from_slice(&bytes)
                                                 .map_err(|e| ShellError::message(e.to_string()))?;
@@ -288,39 +288,39 @@ pub async fn run<const ROLE: u8>(
                                                     }
                                                     30 if ROLE == A_WASI => {
                                                         break branch
-                                                            .recv::<ApprovedA<'_>>()
+                                                            .recv::<ApprovedA>()
                                                             .await?
                                                             .to_vec();
                                                     }
                                                     31 if ROLE == A_WASI => {
                                                         break branch
-                                                            .recv::<RejectedA<'_>>()
+                                                            .recv::<RejectedA>()
                                                             .await?
                                                             .to_vec();
                                                     }
                                                     40 if ROLE == B_WASI => {
                                                         break branch
-                                                            .recv::<ApprovedB<'_>>()
+                                                            .recv::<ApprovedB>()
                                                             .await?
                                                             .to_vec();
                                                     }
                                                     41 if ROLE == B_WASI => {
                                                         break branch
-                                                            .recv::<RejectedB<'_>>()
+                                                            .recv::<RejectedB>()
                                                             .await?
                                                             .to_vec();
                                                     }
                                                     30 => {
-                                                        branch.recv::<ApprovedA<'_>>().await?;
+                                                        branch.recv::<ApprovedA>().await?;
                                                     }
                                                     31 => {
-                                                        branch.recv::<RejectedA<'_>>().await?;
+                                                        branch.recv::<RejectedA>().await?;
                                                     }
                                                     40 => {
-                                                        branch.recv::<ApprovedB<'_>>().await?;
+                                                        branch.recv::<ApprovedB>().await?;
                                                     }
                                                     41 => {
-                                                        branch.recv::<RejectedB<'_>>().await?;
+                                                        branch.recv::<RejectedB>().await?;
                                                     }
                                                     label => {
                                                         return Err(ShellError::message(format!(
@@ -340,12 +340,11 @@ pub async fn run<const ROLE: u8>(
                                                 170 => branch.send::<MergeB>(&arguments).await?,
                                                 _ => unreachable!(),
                                             };
-                                            let mut repository =
-                                                task.recv::<RepoLoan<'_>>().await?;
+                                            let mut repository = task.recv::<RepoLoan>().await?;
                                             repository.send::<MergeOnRepo>(&arguments).await?;
                                             let bytes =
-                                                repository.recv::<RepoResult<'_>>().await?.to_vec();
-                                            task.send::<RepoLoan<'_>>(repository).await?;
+                                                repository.recv::<RepoResult>().await?.to_vec();
+                                            task.send::<RepoLoan>(repository).await?;
                                             break (
                                                 serde_json::from_slice(&bytes).map_err(|e| {
                                                     ShellError::message(e.to_string())
@@ -468,16 +467,16 @@ pub async fn run<const ROLE: u8>(
                             branch.recv::<AgainABeforeBReview>().await?;
                         }
                         30 if ROLE == B_WASI => {
-                            branch.recv::<ApprovedA<'_>>().await?;
+                            branch.recv::<ApprovedA>().await?;
                         }
                         31 if ROLE == B_WASI => {
-                            branch.recv::<RejectedA<'_>>().await?;
+                            branch.recv::<RejectedA>().await?;
                         }
                         40 if ROLE == A_WASI => {
-                            branch.recv::<ApprovedB<'_>>().await?;
+                            branch.recv::<ApprovedB>().await?;
                         }
                         41 if ROLE == A_WASI => {
-                            branch.recv::<RejectedB<'_>>().await?;
+                            branch.recv::<RejectedB>().await?;
                         }
                         230 if ROLE == A_WASI => {
                             branch.send::<ExitA>(&status).await?;

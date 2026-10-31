@@ -6,8 +6,9 @@ use crate::shell::{
 use hibana::Endpoint;
 use hibana_wasip1_runtime::protocol;
 use serde_json::json;
+#[hibana_runtime::localside]
 pub async fn run<D: Domain>(
-    endpoint: &mut Endpoint<'_, BACKEND>,
+    endpoint: &mut Endpoint<BACKEND>,
     domain: &D,
     validation: &Validation,
 ) -> ShellResult<()> {
@@ -46,7 +47,7 @@ pub async fn run<D: Domain>(
                         let arguments = validation.take()?;
                         let bytes = serde_json::to_vec(&arguments)
                             .map_err(|error| ShellError::message(error.to_string()))?;
-                        endpoint.send::<Admitted<'_>>(&bytes.as_slice()).await?;
+                        endpoint.send::<Admitted>(&bytes.as_slice()).await?;
                         break arguments;
                     }
                     106 => {
@@ -54,7 +55,7 @@ pub async fn run<D: Domain>(
                             &json!({"status":"invalid_arguments","error":validation.rejection()?}),
                         )
                         .map_err(|e| ShellError::message(e.to_string()))?;
-                        decision.send::<Rejected<'_>>(&bytes.as_slice()).await?;
+                        decision.send::<Rejected>(&bytes.as_slice()).await?;
                     }
                     _ => return Err(ShellError::message("unexpected argument decision")),
                 }
@@ -74,7 +75,7 @@ pub async fn run<D: Domain>(
     }
     let bytes = serde_json::to_vec(&result).map_err(|e| ShellError::message(e.to_string()))?;
     let response = bytes.as_slice();
-    endpoint.send::<ResultBytes<'_>>(&response).await?;
+    endpoint.send::<ResultBytes>(&response).await?;
     endpoint.send::<BackendReady>(&()).await?;
     loop {
         endpoint.send::<RejectRequest>(&()).await?;

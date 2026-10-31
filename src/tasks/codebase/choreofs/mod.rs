@@ -18,6 +18,7 @@ use crate::{
 };
 use hibana::runtime::{SessionKitStorage, ids::SessionId};
 use hibana_wasip1_runtime::{GuestMemory, HibanaWasiGuestStorage};
+#[hibana_runtime::localside]
 async fn run_1e_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 3]) -> ShellResult<()> {
     use global::{roles1e::*, *};
     let programs = project_1e();
@@ -42,76 +43,45 @@ async fn run_1e_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 3]) -> Sh
     let mut api = rv.enter(session, &programs.api)?;
     let api_resource = rv.enter(session, &programs.api_resource)?;
     let [term_a, term_b, term_c] = terminals;
-    let mut fs_a = PrivateFs::new(term_a, bus);
+    let fs_a = PrivateFs::new(term_a, bus);
     let mut memory_a = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut store_a = HibanaWasiGuestStorage::uninit();
     let guest_a = store_a.init(module, GuestMemory::new(&mut memory_a), bindings())?;
-    let mut fs_b = PrivateFs::new(term_b, bus);
+    let fs_b = PrivateFs::new(term_b, bus);
     let mut memory_b = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut store_b = HibanaWasiGuestStorage::uninit();
     let guest_b = store_b.init(module, GuestMemory::new(&mut memory_b), bindings())?;
-    let mut fs_c = PrivateFs::new(term_c, bus);
+    let fs_c = PrivateFs::new(term_c, bus);
     let mut memory_c = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut store_c = HibanaWasiGuestStorage::uninit();
     let guest_c = store_c.init(module, GuestMemory::new(&mut memory_c), bindings())?;
-    tokio::try_join!(
-        localside::developer::run::<EASY, A, AUTH_RESOURCE, DATABASE_RESOURCE>(&mut a, bus,),
-        localside::developer::run::<EASY, B, API_RESOURCE, DATABASE_RESOURCE>(&mut b, bus,),
-        localside::developer::run::<EASY, C, API_RESOURCE, AUTH_RESOURCE>(&mut c, bus,),
-        localside::module::run::<AUTH, AUTH_RESOURCE>(&mut auth, auth_resource),
-        localside::module::run::<DATABASE, DATABASE_RESOURCE>(&mut database, database_resource),
-        localside::module::run::<API, API_RESOURCE>(&mut api, api_resource),
-        async {
-            let (vm, io) = tokio::try_join!(
-                localside::wasi::run::<_, A, EASY, AUTH_RESOURCE, DATABASE_RESOURCE>(
-                    guest_a,
-                    &mut a_wasi,
-                ),
-                private_io::run(&mut a_io, &mut fs_a)
-            )?;
-            if vm != io {
-                return Err(ShellError::message("developer guest/IO status differs"));
-            }
-            fs_a.terminal
-                .finish(bus, vm, std::mem::take(&mut fs_a.output))
-                .await?;
-            Ok(())
-        },
-        async {
-            let (vm, io) = tokio::try_join!(
-                localside::wasi::run::<_, B, EASY, API_RESOURCE, DATABASE_RESOURCE>(
-                    guest_b,
-                    &mut b_wasi,
-                ),
-                private_io::run(&mut b_io, &mut fs_b)
-            )?;
-            if vm != io {
-                return Err(ShellError::message("developer guest/IO status differs"));
-            }
-            fs_b.terminal
-                .finish(bus, vm, std::mem::take(&mut fs_b.output))
-                .await?;
-            Ok(())
-        },
-        async {
-            let (vm, io) = tokio::try_join!(
-                localside::wasi::run::<_, C, EASY, API_RESOURCE, AUTH_RESOURCE>(
-                    guest_c,
-                    &mut c_wasi,
-                ),
-                private_io::run(&mut c_io, &mut fs_c)
-            )?;
-            if vm != io {
-                return Err(ShellError::message("developer guest/IO status differs"));
-            }
-            fs_c.terminal
-                .finish(bus, vm, std::mem::take(&mut fs_c.output))
-                .await?;
-            Ok(())
-        },
-    )?;
+    #[localside]
+    localside::developer::run::<EASY, A, AUTH_RESOURCE, DATABASE_RESOURCE>(&mut a, bus);
+    #[localside]
+    localside::developer::run::<EASY, B, API_RESOURCE, DATABASE_RESOURCE>(&mut b, bus);
+    #[localside]
+    localside::developer::run::<EASY, C, API_RESOURCE, AUTH_RESOURCE>(&mut c, bus);
+    #[localside]
+    localside::module::run::<AUTH, AUTH_RESOURCE>(&mut auth, auth_resource);
+    #[localside]
+    localside::module::run::<DATABASE, DATABASE_RESOURCE>(&mut database, database_resource);
+    #[localside]
+    localside::module::run::<API, API_RESOURCE>(&mut api, api_resource);
+    #[localside]
+    localside::wasi::run::<A_WASI, A, EASY, AUTH_RESOURCE, DATABASE_RESOURCE>(guest_a, &mut a_wasi);
+    #[localside]
+    private_io::run(&mut a_io, fs_a);
+    #[localside]
+    localside::wasi::run::<B_WASI, B, EASY, API_RESOURCE, DATABASE_RESOURCE>(guest_b, &mut b_wasi);
+    #[localside]
+    private_io::run(&mut b_io, fs_b);
+    #[localside]
+    localside::wasi::run::<C_WASI, C, EASY, API_RESOURCE, AUTH_RESOURCE>(guest_c, &mut c_wasi);
+    #[localside]
+    private_io::run(&mut c_io, fs_c);
     Ok(())
 }
+#[hibana_runtime::localside]
 async fn run_1m_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 5]) -> ShellResult<()> {
     use global::{roles1m::*, *};
     let programs = project_1m();
@@ -146,118 +116,75 @@ async fn run_1m_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 5]) -> Sh
     let mut notify = rv.enter(session, &programs.notify)?;
     let notify_resource = rv.enter(session, &programs.notify_resource)?;
     let [term_a, term_b, term_c, term_d, term_e] = terminals;
-    let mut fs_a = PrivateFs::new(term_a, bus);
+    let fs_a = PrivateFs::new(term_a, bus);
     let mut memory_a = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut store_a = HibanaWasiGuestStorage::uninit();
     let guest_a = store_a.init(module, GuestMemory::new(&mut memory_a), bindings())?;
-    let mut fs_b = PrivateFs::new(term_b, bus);
+    let fs_b = PrivateFs::new(term_b, bus);
     let mut memory_b = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut store_b = HibanaWasiGuestStorage::uninit();
     let guest_b = store_b.init(module, GuestMemory::new(&mut memory_b), bindings())?;
-    let mut fs_c = PrivateFs::new(term_c, bus);
+    let fs_c = PrivateFs::new(term_c, bus);
     let mut memory_c = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut store_c = HibanaWasiGuestStorage::uninit();
     let guest_c = store_c.init(module, GuestMemory::new(&mut memory_c), bindings())?;
-    let mut fs_d = PrivateFs::new(term_d, bus);
+    let fs_d = PrivateFs::new(term_d, bus);
     let mut memory_d = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut store_d = HibanaWasiGuestStorage::uninit();
     let guest_d = store_d.init(module, GuestMemory::new(&mut memory_d), bindings())?;
-    let mut fs_e = PrivateFs::new(term_e, bus);
+    let fs_e = PrivateFs::new(term_e, bus);
     let mut memory_e = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut store_e = HibanaWasiGuestStorage::uninit();
     let guest_e = store_e.init(module, GuestMemory::new(&mut memory_e), bindings())?;
-    tokio::try_join!(
-        localside::developer::run::<MEDIUM, A, AUTH_RESOURCE, DATABASE_RESOURCE>(&mut a, bus,),
-        localside::developer::run::<MEDIUM, B, API_RESOURCE, DATABASE_RESOURCE>(&mut b, bus,),
-        localside::developer::run::<MEDIUM, C, API_RESOURCE, PAYMENT_RESOURCE>(&mut c, bus,),
-        localside::developer::run::<MEDIUM, D, NOTIFY_RESOURCE, PAYMENT_RESOURCE>(&mut d, bus,),
-        localside::developer::run::<MEDIUM, E, AUTH_RESOURCE, NOTIFY_RESOURCE>(&mut e, bus,),
-        localside::module::run::<AUTH, AUTH_RESOURCE>(&mut auth, auth_resource),
-        localside::module::run::<DATABASE, DATABASE_RESOURCE>(&mut database, database_resource),
-        localside::module::run::<API, API_RESOURCE>(&mut api, api_resource),
-        localside::module::run::<PAYMENT, PAYMENT_RESOURCE>(&mut payment, payment_resource),
-        localside::module::run::<NOTIFY, NOTIFY_RESOURCE>(&mut notify, notify_resource),
-        async {
-            let (vm, io) = tokio::try_join!(
-                localside::wasi::run::<_, A, MEDIUM, AUTH_RESOURCE, DATABASE_RESOURCE>(
-                    guest_a,
-                    &mut a_wasi,
-                ),
-                private_io::run(&mut a_io, &mut fs_a)
-            )?;
-            if vm != io {
-                return Err(ShellError::message("developer guest/IO status differs"));
-            }
-            fs_a.terminal
-                .finish(bus, vm, std::mem::take(&mut fs_a.output))
-                .await?;
-            Ok(())
-        },
-        async {
-            let (vm, io) = tokio::try_join!(
-                localside::wasi::run::<_, B, MEDIUM, API_RESOURCE, DATABASE_RESOURCE>(
-                    guest_b,
-                    &mut b_wasi,
-                ),
-                private_io::run(&mut b_io, &mut fs_b)
-            )?;
-            if vm != io {
-                return Err(ShellError::message("developer guest/IO status differs"));
-            }
-            fs_b.terminal
-                .finish(bus, vm, std::mem::take(&mut fs_b.output))
-                .await?;
-            Ok(())
-        },
-        async {
-            let (vm, io) = tokio::try_join!(
-                localside::wasi::run::<_, C, MEDIUM, API_RESOURCE, PAYMENT_RESOURCE>(
-                    guest_c,
-                    &mut c_wasi,
-                ),
-                private_io::run(&mut c_io, &mut fs_c)
-            )?;
-            if vm != io {
-                return Err(ShellError::message("developer guest/IO status differs"));
-            }
-            fs_c.terminal
-                .finish(bus, vm, std::mem::take(&mut fs_c.output))
-                .await?;
-            Ok(())
-        },
-        async {
-            let (vm, io) = tokio::try_join!(
-                localside::wasi::run::<_, D, MEDIUM, NOTIFY_RESOURCE, PAYMENT_RESOURCE>(
-                    guest_d,
-                    &mut d_wasi,
-                ),
-                private_io::run(&mut d_io, &mut fs_d)
-            )?;
-            if vm != io {
-                return Err(ShellError::message("developer guest/IO status differs"));
-            }
-            fs_d.terminal
-                .finish(bus, vm, std::mem::take(&mut fs_d.output))
-                .await?;
-            Ok(())
-        },
-        async {
-            let (vm, io) = tokio::try_join!(
-                localside::wasi::run::<_, E, MEDIUM, AUTH_RESOURCE, NOTIFY_RESOURCE>(
-                    guest_e,
-                    &mut e_wasi,
-                ),
-                private_io::run(&mut e_io, &mut fs_e)
-            )?;
-            if vm != io {
-                return Err(ShellError::message("developer guest/IO status differs"));
-            }
-            fs_e.terminal
-                .finish(bus, vm, std::mem::take(&mut fs_e.output))
-                .await?;
-            Ok(())
-        },
-    )?;
+    #[localside]
+    localside::developer::run::<MEDIUM, A, AUTH_RESOURCE, DATABASE_RESOURCE>(&mut a, bus);
+    #[localside]
+    localside::developer::run::<MEDIUM, B, API_RESOURCE, DATABASE_RESOURCE>(&mut b, bus);
+    #[localside]
+    localside::developer::run::<MEDIUM, C, API_RESOURCE, PAYMENT_RESOURCE>(&mut c, bus);
+    #[localside]
+    localside::developer::run::<MEDIUM, D, NOTIFY_RESOURCE, PAYMENT_RESOURCE>(&mut d, bus);
+    #[localside]
+    localside::developer::run::<MEDIUM, E, AUTH_RESOURCE, NOTIFY_RESOURCE>(&mut e, bus);
+    #[localside]
+    localside::module::run::<AUTH, AUTH_RESOURCE>(&mut auth, auth_resource);
+    #[localside]
+    localside::module::run::<DATABASE, DATABASE_RESOURCE>(&mut database, database_resource);
+    #[localside]
+    localside::module::run::<API, API_RESOURCE>(&mut api, api_resource);
+    #[localside]
+    localside::module::run::<PAYMENT, PAYMENT_RESOURCE>(&mut payment, payment_resource);
+    #[localside]
+    localside::module::run::<NOTIFY, NOTIFY_RESOURCE>(&mut notify, notify_resource);
+    #[localside]
+    localside::wasi::run::<A_WASI, A, MEDIUM, AUTH_RESOURCE, DATABASE_RESOURCE>(
+        guest_a,
+        &mut a_wasi,
+    );
+    #[localside]
+    private_io::run(&mut a_io, fs_a);
+    #[localside]
+    localside::wasi::run::<B_WASI, B, MEDIUM, API_RESOURCE, DATABASE_RESOURCE>(
+        guest_b,
+        &mut b_wasi,
+    );
+    #[localside]
+    private_io::run(&mut b_io, fs_b);
+    #[localside]
+    localside::wasi::run::<C_WASI, C, MEDIUM, API_RESOURCE, PAYMENT_RESOURCE>(guest_c, &mut c_wasi);
+    #[localside]
+    private_io::run(&mut c_io, fs_c);
+    #[localside]
+    localside::wasi::run::<D_WASI, D, MEDIUM, NOTIFY_RESOURCE, PAYMENT_RESOURCE>(
+        guest_d,
+        &mut d_wasi,
+    );
+    #[localside]
+    private_io::run(&mut d_io, fs_d);
+    #[localside]
+    localside::wasi::run::<E_WASI, E, MEDIUM, AUTH_RESOURCE, NOTIFY_RESOURCE>(guest_e, &mut e_wasi);
+    #[localside]
+    private_io::run(&mut e_io, fs_e);
     Ok(())
 }
 pub async fn run_stdio(module: &[u8], task: &str) -> ShellResult<()> {
@@ -271,7 +198,9 @@ pub async fn run_stdio(module: &[u8], task: &str) -> ShellResult<()> {
                     (SessionId::new(20), global::roles1e::API_RESOURCE),
                 ],
             );
-            let result = tokio::select! {result=run_1e_guests(module,&bus,terminals)=>result,result=reader.run(&bus)=>result};
+            let result =
+                hibana_runtime::race(run_1e_guests(module, &bus, terminals), reader.run(&bus))
+                    .await;
             match &result{Ok(())=>reader.emit(&bus,serde_json::json!({"type":"run_result","status":"complete"})).await?,Err(e)=>reader.emit(&bus,serde_json::json!({"type":"run_result","status":"failed","error":e.to_string()})).await?}
             result
         }
@@ -292,7 +221,9 @@ pub async fn run_stdio(module: &[u8], task: &str) -> ShellResult<()> {
                     (SessionId::new(20), global::roles1m::NOTIFY_RESOURCE),
                 ],
             );
-            let result = tokio::select! {result=run_1m_guests(module,&bus,terminals)=>result,result=reader.run(&bus)=>result};
+            let result =
+                hibana_runtime::race(run_1m_guests(module, &bus, terminals), reader.run(&bus))
+                    .await;
             match &result{Ok(())=>reader.emit(&bus,serde_json::json!({"type":"run_result","status":"complete"})).await?,Err(e)=>reader.emit(&bus,serde_json::json!({"type":"run_result","status":"failed","error":e.to_string()})).await?}
             result
         }
@@ -317,7 +248,9 @@ pub async fn run_stdio(module: &[u8], task: &str) -> ShellResult<()> {
                     (SessionId::new(20), global::roles1h::SEARCH_RESOURCE),
                 ],
             );
-            let result = tokio::select! {result=run_1h_guests(module,&bus,terminals)=>result,result=reader.run(&bus)=>result};
+            let result =
+                hibana_runtime::race(run_1h_guests(module, &bus, terminals), reader.run(&bus))
+                    .await;
             match &result{Ok(())=>reader.emit(&bus,serde_json::json!({"type":"run_result","status":"complete"})).await?,Err(e)=>reader.emit(&bus,serde_json::json!({"type":"run_result","status":"failed","error":e.to_string()})).await?}
             result
         }
@@ -325,6 +258,7 @@ pub async fn run_stdio(module: &[u8], task: &str) -> ShellResult<()> {
     }
 }
 
+#[hibana_runtime::localside]
 async fn run_1h_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 7]) -> ShellResult<()> {
     use global::{roles1h::*, *};
     use hibana::runtime::resolver::ResolverRef;
@@ -412,249 +346,188 @@ async fn run_1h_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 7]) -> Sh
     let mut search = rv.enter(session, &programs.search)?;
     let search_resource = rv.enter(session, &programs.search_resource)?;
     let [term_a, term_b, term_c, term_d, term_e, term_f, term_g] = terminals;
-    let mut fs_a = PrivateFs::new(term_a, bus);
+    let fs_a = PrivateFs::new(term_a, bus);
     let mut memory_a = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut store_a = HibanaWasiGuestStorage::uninit();
     let guest_a = store_a.init(module, GuestMemory::new(&mut memory_a), bindings())?;
-    let mut fs_b = PrivateFs::new(term_b, bus);
+    let fs_b = PrivateFs::new(term_b, bus);
     let mut memory_b = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut store_b = HibanaWasiGuestStorage::uninit();
     let guest_b = store_b.init(module, GuestMemory::new(&mut memory_b), bindings())?;
-    let mut fs_c = PrivateFs::new(term_c, bus);
+    let fs_c = PrivateFs::new(term_c, bus);
     let mut memory_c = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut store_c = HibanaWasiGuestStorage::uninit();
     let guest_c = store_c.init(module, GuestMemory::new(&mut memory_c), bindings())?;
-    let mut fs_d = PrivateFs::new(term_d, bus);
+    let fs_d = PrivateFs::new(term_d, bus);
     let mut memory_d = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut store_d = HibanaWasiGuestStorage::uninit();
     let guest_d = store_d.init(module, GuestMemory::new(&mut memory_d), bindings())?;
-    let mut fs_e = PrivateFs::new(term_e, bus);
+    let fs_e = PrivateFs::new(term_e, bus);
     let mut memory_e = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut store_e = HibanaWasiGuestStorage::uninit();
     let guest_e = store_e.init(module, GuestMemory::new(&mut memory_e), bindings())?;
-    let mut fs_f = PrivateFs::new(term_f, bus);
+    let fs_f = PrivateFs::new(term_f, bus);
     let mut memory_f = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut store_f = HibanaWasiGuestStorage::uninit();
     let guest_f = store_f.init(module, GuestMemory::new(&mut memory_f), bindings())?;
-    let mut fs_g = PrivateFs::new(term_g, bus);
+    let fs_g = PrivateFs::new(term_g, bus);
     let mut memory_g = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut store_g = HibanaWasiGuestStorage::uninit();
     let guest_g = store_g.init(module, GuestMemory::new(&mut memory_g), bindings())?;
-    tokio::try_join!(
-        localside::developer_reconsider::run::<
-            HARD,
-            A,
-            AUTH_RESOURCE,
-            DATABASE_RESOURCE,
-            AUTH,
-            DATABASE,
-        >(&mut a, bus, &result_a),
-        localside::developer_reconsider::run::<
-            HARD,
-            B,
-            API_RESOURCE,
-            DATABASE_RESOURCE,
-            API,
-            DATABASE,
-        >(&mut b, bus, &result_b),
-        localside::developer_reconsider::run::<HARD, C, API_RESOURCE, PAYMENT_RESOURCE, API, PAYMENT>(
-            &mut c, bus, &result_c
-        ),
-        localside::developer_reconsider::run::<
-            HARD,
-            D,
-            NOTIFY_RESOURCE,
-            PAYMENT_RESOURCE,
-            NOTIFY,
-            PAYMENT,
-        >(&mut d, bus, &result_d),
-        localside::developer_reconsider::run::<
-            HARD,
-            E,
-            ANALYTICS_RESOURCE,
-            NOTIFY_RESOURCE,
-            ANALYTICS,
-            NOTIFY,
-        >(&mut e, bus, &result_e),
-        localside::developer_reconsider::run::<
-            HARD,
-            F,
-            ANALYTICS_RESOURCE,
-            SEARCH_RESOURCE,
-            ANALYTICS,
-            SEARCH,
-        >(&mut f, bus, &result_f),
-        localside::developer_reconsider::run::<HARD, G, AUTH_RESOURCE, SEARCH_RESOURCE, AUTH, SEARCH>(
-            &mut g, bus, &result_g
-        ),
-        localside::module_reconsider::run::<
-            AUTH,
-            AUTH_RESOURCE,
-            DATABASE,
-            DATABASE_RESOURCE,
-            SEARCH,
-            SEARCH_RESOURCE,
-        >(&mut auth, auth_resource),
-        localside::module_reconsider::run::<
-            DATABASE,
-            DATABASE_RESOURCE,
-            AUTH,
-            AUTH_RESOURCE,
-            API,
-            API_RESOURCE,
-        >(&mut database, database_resource),
-        localside::module_reconsider::run::<
-            API,
-            API_RESOURCE,
-            PAYMENT,
-            PAYMENT_RESOURCE,
-            DATABASE,
-            DATABASE_RESOURCE,
-        >(&mut api, api_resource),
-        localside::module_reconsider::run::<
-            PAYMENT,
-            PAYMENT_RESOURCE,
-            API,
-            API_RESOURCE,
-            NOTIFY,
-            NOTIFY_RESOURCE,
-        >(&mut payment, payment_resource),
-        localside::module_reconsider::run::<
-            NOTIFY,
-            NOTIFY_RESOURCE,
-            ANALYTICS,
-            ANALYTICS_RESOURCE,
-            PAYMENT,
-            PAYMENT_RESOURCE,
-        >(&mut notify, notify_resource),
-        localside::module_reconsider::run::<
-            ANALYTICS,
-            ANALYTICS_RESOURCE,
-            NOTIFY,
-            NOTIFY_RESOURCE,
-            SEARCH,
-            SEARCH_RESOURCE,
-        >(&mut analytics, analytics_resource),
-        localside::module_reconsider::run::<
-            SEARCH,
-            SEARCH_RESOURCE,
-            ANALYTICS,
-            ANALYTICS_RESOURCE,
-            AUTH,
-            AUTH_RESOURCE,
-        >(&mut search, search_resource),
-        async {
-            let (vm, io) = tokio::try_join!(
-                localside::wasi_reconsider::run::<_, A, HARD, AUTH_RESOURCE, DATABASE_RESOURCE>(
-                    guest_a,
-                    &mut a_wasi,
-                ),
-                private_io::run(&mut a_io, &mut fs_a)
-            )?;
-            if vm != io {
-                return Err(ShellError::message("developer guest/IO status differs"));
-            }
-            fs_a.terminal
-                .finish(bus, vm, std::mem::take(&mut fs_a.output))
-                .await?;
-            Ok(())
-        },
-        async {
-            let (vm, io) = tokio::try_join!(
-                localside::wasi_reconsider::run::<_, B, HARD, API_RESOURCE, DATABASE_RESOURCE>(
-                    guest_b,
-                    &mut b_wasi,
-                ),
-                private_io::run(&mut b_io, &mut fs_b)
-            )?;
-            if vm != io {
-                return Err(ShellError::message("developer guest/IO status differs"));
-            }
-            fs_b.terminal
-                .finish(bus, vm, std::mem::take(&mut fs_b.output))
-                .await?;
-            Ok(())
-        },
-        async {
-            let (vm, io) = tokio::try_join!(
-                localside::wasi_reconsider::run::<_, C, HARD, API_RESOURCE, PAYMENT_RESOURCE>(
-                    guest_c,
-                    &mut c_wasi,
-                ),
-                private_io::run(&mut c_io, &mut fs_c)
-            )?;
-            if vm != io {
-                return Err(ShellError::message("developer guest/IO status differs"));
-            }
-            fs_c.terminal
-                .finish(bus, vm, std::mem::take(&mut fs_c.output))
-                .await?;
-            Ok(())
-        },
-        async {
-            let (vm, io) = tokio::try_join!(
-                localside::wasi_reconsider::run::<_, D, HARD, NOTIFY_RESOURCE, PAYMENT_RESOURCE>(
-                    guest_d,
-                    &mut d_wasi,
-                ),
-                private_io::run(&mut d_io, &mut fs_d)
-            )?;
-            if vm != io {
-                return Err(ShellError::message("developer guest/IO status differs"));
-            }
-            fs_d.terminal
-                .finish(bus, vm, std::mem::take(&mut fs_d.output))
-                .await?;
-            Ok(())
-        },
-        async {
-            let (vm, io) = tokio::try_join!(
-                localside::wasi_reconsider::run::<_, E, HARD, ANALYTICS_RESOURCE, NOTIFY_RESOURCE>(
-                    guest_e,
-                    &mut e_wasi,
-                ),
-                private_io::run(&mut e_io, &mut fs_e)
-            )?;
-            if vm != io {
-                return Err(ShellError::message("developer guest/IO status differs"));
-            }
-            fs_e.terminal
-                .finish(bus, vm, std::mem::take(&mut fs_e.output))
-                .await?;
-            Ok(())
-        },
-        async {
-            let (vm, io) = tokio::try_join!(
-                localside::wasi_reconsider::run::<_, F, HARD, ANALYTICS_RESOURCE, SEARCH_RESOURCE>(
-                    guest_f,
-                    &mut f_wasi,
-                ),
-                private_io::run(&mut f_io, &mut fs_f)
-            )?;
-            if vm != io {
-                return Err(ShellError::message("developer guest/IO status differs"));
-            }
-            fs_f.terminal
-                .finish(bus, vm, std::mem::take(&mut fs_f.output))
-                .await?;
-            Ok(())
-        },
-        async {
-            let (vm, io) = tokio::try_join!(
-                localside::wasi_reconsider::run::<_, G, HARD, AUTH_RESOURCE, SEARCH_RESOURCE>(
-                    guest_g,
-                    &mut g_wasi,
-                ),
-                private_io::run(&mut g_io, &mut fs_g)
-            )?;
-            if vm != io {
-                return Err(ShellError::message("developer guest/IO status differs"));
-            }
-            fs_g.terminal
-                .finish(bus, vm, std::mem::take(&mut fs_g.output))
-                .await?;
-            Ok(())
-        },
-    )?;
+    #[localside]
+    localside::developer_reconsider::run::<HARD, A, AUTH_RESOURCE, DATABASE_RESOURCE, AUTH, DATABASE>(
+        &mut a, bus, &result_a,
+    );
+    #[localside]
+    localside::developer_reconsider::run::<HARD, B, API_RESOURCE, DATABASE_RESOURCE, API, DATABASE>(
+        &mut b, bus, &result_b,
+    );
+    #[localside]
+    localside::developer_reconsider::run::<HARD, C, API_RESOURCE, PAYMENT_RESOURCE, API, PAYMENT>(
+        &mut c, bus, &result_c,
+    );
+    #[localside]
+    localside::developer_reconsider::run::<
+        HARD,
+        D,
+        NOTIFY_RESOURCE,
+        PAYMENT_RESOURCE,
+        NOTIFY,
+        PAYMENT,
+    >(&mut d, bus, &result_d);
+    #[localside]
+    localside::developer_reconsider::run::<
+        HARD,
+        E,
+        ANALYTICS_RESOURCE,
+        NOTIFY_RESOURCE,
+        ANALYTICS,
+        NOTIFY,
+    >(&mut e, bus, &result_e);
+    #[localside]
+    localside::developer_reconsider::run::<
+        HARD,
+        F,
+        ANALYTICS_RESOURCE,
+        SEARCH_RESOURCE,
+        ANALYTICS,
+        SEARCH,
+    >(&mut f, bus, &result_f);
+    #[localside]
+    localside::developer_reconsider::run::<HARD, G, AUTH_RESOURCE, SEARCH_RESOURCE, AUTH, SEARCH>(
+        &mut g, bus, &result_g,
+    );
+    #[localside]
+    localside::module_reconsider::run::<
+        AUTH,
+        AUTH_RESOURCE,
+        DATABASE,
+        DATABASE_RESOURCE,
+        SEARCH,
+        SEARCH_RESOURCE,
+    >(&mut auth, auth_resource);
+    #[localside]
+    localside::module_reconsider::run::<
+        DATABASE,
+        DATABASE_RESOURCE,
+        AUTH,
+        AUTH_RESOURCE,
+        API,
+        API_RESOURCE,
+    >(&mut database, database_resource);
+    #[localside]
+    localside::module_reconsider::run::<
+        API,
+        API_RESOURCE,
+        PAYMENT,
+        PAYMENT_RESOURCE,
+        DATABASE,
+        DATABASE_RESOURCE,
+    >(&mut api, api_resource);
+    #[localside]
+    localside::module_reconsider::run::<
+        PAYMENT,
+        PAYMENT_RESOURCE,
+        API,
+        API_RESOURCE,
+        NOTIFY,
+        NOTIFY_RESOURCE,
+    >(&mut payment, payment_resource);
+    #[localside]
+    localside::module_reconsider::run::<
+        NOTIFY,
+        NOTIFY_RESOURCE,
+        ANALYTICS,
+        ANALYTICS_RESOURCE,
+        PAYMENT,
+        PAYMENT_RESOURCE,
+    >(&mut notify, notify_resource);
+    #[localside]
+    localside::module_reconsider::run::<
+        ANALYTICS,
+        ANALYTICS_RESOURCE,
+        NOTIFY,
+        NOTIFY_RESOURCE,
+        SEARCH,
+        SEARCH_RESOURCE,
+    >(&mut analytics, analytics_resource);
+    #[localside]
+    localside::module_reconsider::run::<
+        SEARCH,
+        SEARCH_RESOURCE,
+        ANALYTICS,
+        ANALYTICS_RESOURCE,
+        AUTH,
+        AUTH_RESOURCE,
+    >(&mut search, search_resource);
+    #[localside]
+    localside::wasi_reconsider::run::<A_WASI, A, HARD, AUTH_RESOURCE, DATABASE_RESOURCE>(
+        guest_a,
+        &mut a_wasi,
+    );
+    #[localside]
+    private_io::run(&mut a_io, fs_a);
+    #[localside]
+    localside::wasi_reconsider::run::<B_WASI, B, HARD, API_RESOURCE, DATABASE_RESOURCE>(
+        guest_b,
+        &mut b_wasi,
+    );
+    #[localside]
+    private_io::run(&mut b_io, fs_b);
+    #[localside]
+    localside::wasi_reconsider::run::<C_WASI, C, HARD, API_RESOURCE, PAYMENT_RESOURCE>(
+        guest_c,
+        &mut c_wasi,
+    );
+    #[localside]
+    private_io::run(&mut c_io, fs_c);
+    #[localside]
+    localside::wasi_reconsider::run::<D_WASI, D, HARD, NOTIFY_RESOURCE, PAYMENT_RESOURCE>(
+        guest_d,
+        &mut d_wasi,
+    );
+    #[localside]
+    private_io::run(&mut d_io, fs_d);
+    #[localside]
+    localside::wasi_reconsider::run::<E_WASI, E, HARD, ANALYTICS_RESOURCE, NOTIFY_RESOURCE>(
+        guest_e,
+        &mut e_wasi,
+    );
+    #[localside]
+    private_io::run(&mut e_io, fs_e);
+    #[localside]
+    localside::wasi_reconsider::run::<F_WASI, F, HARD, ANALYTICS_RESOURCE, SEARCH_RESOURCE>(
+        guest_f,
+        &mut f_wasi,
+    );
+    #[localside]
+    private_io::run(&mut f_io, fs_f);
+    #[localside]
+    localside::wasi_reconsider::run::<G_WASI, G, HARD, AUTH_RESOURCE, SEARCH_RESOURCE>(
+        guest_g,
+        &mut g_wasi,
+    );
+    #[localside]
+    private_io::run(&mut g_io, fs_g);
     Ok(())
 }

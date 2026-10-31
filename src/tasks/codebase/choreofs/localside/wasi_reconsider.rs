@@ -13,6 +13,7 @@ use hibana_wasip1_runtime::{
     protocol,
 };
 
+#[hibana_runtime::localside]
 pub async fn run<
     const ROLE: u8,
     const SUBJECT: u8,
@@ -20,8 +21,8 @@ pub async fn run<
     const FIRST: u8,
     const SECOND: u8,
 >(
-    guest: &mut HibanaWasiGuest<'_>,
-    endpoint: &mut hibana::Endpoint<'_, ROLE>,
+    guest: &mut HibanaWasiGuest,
+    endpoint: &mut hibana::Endpoint<ROLE>,
 ) -> ShellResult<i32> {
     let [mut task, mut private] = endpoint.par()?;
     let mut fuel_id = 0u16;
@@ -133,7 +134,7 @@ pub async fn run<
                             Ok(arguments) => {
                                 task.send::<DesignRequest<TASK, SUBJECT>>(&arguments)
                                     .await?;
-                                let bytes = task.recv::<DesignCompleted<'_>>().await?.to_vec();
+                                let bytes = task.recv::<DesignCompleted>().await?.to_vec();
                                 for (index, chunk) in
                                     bytes.chunks(protocol::WASIP1_IO_CHUNK_CAPACITY).enumerate()
                                 {
@@ -207,7 +208,7 @@ pub async fn run<
             }
             WasiBoundaryStep::BudgetExpired(_) => {
                 fuel_id = fuel_id.wrapping_add(1);
-                tokio::task::yield_now().await;
+                hibana_runtime::yield_now().await;
             }
             WasiBoundaryStep::Exit(exit) => {
                 return Err(crate::shell::ShellError::message(format!(
@@ -326,8 +327,7 @@ pub async fn run<
                                 Ok(arguments) => {
                                     task.send::<ImplementRequest<TASK, SUBJECT>>(&arguments)
                                         .await?;
-                                    let bytes =
-                                        task.recv::<ImplementCompleted<'_>>().await?.to_vec();
+                                    let bytes = task.recv::<ImplementCompleted>().await?.to_vec();
                                     for (index, chunk) in
                                         bytes.chunks(protocol::WASIP1_IO_CHUNK_CAPACITY).enumerate()
                                     {
@@ -403,7 +403,7 @@ pub async fn run<
                 }
                 WasiBoundaryStep::BudgetExpired(_) => {
                     fuel_id = fuel_id.wrapping_add(1);
-                    tokio::task::yield_now().await;
+                    hibana_runtime::yield_now().await;
                 }
                 WasiBoundaryStep::Exit(exit) => {
                     return Err(crate::shell::ShellError::message(format!(
@@ -521,47 +521,51 @@ pub async fn run<
                                 Ok(arguments) => {
                                     let (mut first, mut second) = {
                                         let [mut first_loan, mut second_loan] = task.par()?;
-                                        tokio::try_join!(
-                                            async {
+                                        async {
+                                            #[localside]
+                                            let first = async {
                                                 let mut resource =
-                                                    first_loan.recv::<Loan<'_, FIRST>>().await?;
+                                                    first_loan.recv::<Loan<FIRST>>().await?;
                                                 resource
                                                     .send::<CommitRequest<TASK, SUBJECT, FIRST>>(
                                                         &arguments,
                                                     )
                                                     .await?;
-                                                Ok::<_, hibana::EndpointError>(resource)
-                                            },
-                                            async {
+                                                Ok(resource)
+                                            };
+                                            #[localside]
+                                            let second = async {
                                                 let mut resource =
-                                                    second_loan.recv::<Loan<'_, SECOND>>().await?;
+                                                    second_loan.recv::<Loan<SECOND>>().await?;
                                                 resource
                                                     .send::<CommitRequest<TASK, SUBJECT, SECOND>>(
                                                         &arguments,
                                                     )
                                                     .await?;
-                                                Ok::<_, hibana::EndpointError>(resource)
-                                            },
-                                        )?
+                                                Ok(resource)
+                                            };
+                                            Ok((first, second))
+                                        }
+                                        .await?
                                     };
-                                    let (bytes, second_bytes) = tokio::try_join!(
-                                        async {
-                                            Ok::<_, hibana::EndpointError>(
-                                                first
-                                                    .recv::<CommitCompleted<'_, FIRST>>()
-                                                    .await?
-                                                    .to_vec(),
-                                            )
-                                        },
-                                        async {
-                                            Ok::<_, hibana::EndpointError>(
-                                                second
-                                                    .recv::<CommitCompleted<'_, SECOND>>()
-                                                    .await?
-                                                    .to_vec(),
-                                            )
-                                        },
-                                    )?;
+                                    let (bytes, second_bytes) = async {
+                                        #[localside]
+                                        let bytes = async {
+                                            Ok(first
+                                                .recv::<CommitCompleted<FIRST>>()
+                                                .await?
+                                                .to_vec())
+                                        };
+                                        #[localside]
+                                        let second_bytes = async {
+                                            Ok(second
+                                                .recv::<CommitCompleted<SECOND>>()
+                                                .await?
+                                                .to_vec())
+                                        };
+                                        Ok((bytes, second_bytes))
+                                    }
+                                    .await?;
                                     if bytes != second_bytes {
                                         return Err(crate::shell::ShellError::message(
                                             "modules received different commit results",
@@ -569,10 +573,14 @@ pub async fn run<
                                     }
                                     {
                                         let [mut first_return, mut second_return] = task.par()?;
-                                        tokio::try_join!(
-                                            first_return.send::<Loan<'_, FIRST>>(first),
-                                            second_return.send::<Loan<'_, SECOND>>(second)
-                                        )?;
+                                        async {
+                                            #[localside]
+                                            first_return.send::<Loan<FIRST>>(first);
+                                            #[localside]
+                                            second_return.send::<Loan<SECOND>>(second);
+                                            Ok(())
+                                        }
+                                        .await?;
                                     }
                                     for (index, chunk) in
                                         bytes.chunks(protocol::WASIP1_IO_CHUNK_CAPACITY).enumerate()
@@ -649,7 +657,7 @@ pub async fn run<
                 }
                 WasiBoundaryStep::BudgetExpired(_) => {
                     fuel_id = fuel_id.wrapping_add(1);
-                    tokio::task::yield_now().await;
+                    hibana_runtime::yield_now().await;
                 }
                 WasiBoundaryStep::Exit(exit) => {
                     return Err(crate::shell::ShellError::message(format!(
@@ -776,7 +784,7 @@ pub async fn run<
                                         match branch.label() {
                                             183 => {
                                                 let bytes =
-                                                    branch.recv::<TestPassed<'_>>().await?.to_vec();
+                                                    branch.recv::<TestPassed>().await?.to_vec();
                                                 for (index, chunk) in bytes
                                                     .chunks(protocol::WASIP1_IO_CHUNK_CAPACITY)
                                                     .enumerate()
@@ -792,7 +800,7 @@ pub async fn run<
                                             }
                                             184 => {
                                                 let bytes =
-                                                    branch.recv::<TestFailed<'_>>().await?.to_vec();
+                                                    branch.recv::<TestFailed>().await?.to_vec();
                                                 for (index, chunk) in bytes
                                                     .chunks(protocol::WASIP1_IO_CHUNK_CAPACITY)
                                                     .enumerate()
@@ -873,7 +881,7 @@ pub async fn run<
                 }
                 WasiBoundaryStep::BudgetExpired(_) => {
                     fuel_id = fuel_id.wrapping_add(1);
-                    tokio::task::yield_now().await;
+                    hibana_runtime::yield_now().await;
                 }
                 WasiBoundaryStep::Exit(exit) => {
                     return Err(crate::shell::ShellError::message(format!(
@@ -1030,7 +1038,7 @@ pub async fn run<
             }
             WasiBoundaryStep::BudgetExpired(_) => {
                 fuel_id = fuel_id.wrapping_add(1);
-                tokio::task::yield_now().await;
+                hibana_runtime::yield_now().await;
             }
             WasiBoundaryStep::Exit(exit) => {
                 let status = exit.status() as i32;

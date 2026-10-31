@@ -14,8 +14,8 @@ use serde_json::{Value, json};
 
 #[hibana_runtime::localside]
 pub async fn run(
-    guest: &mut HibanaWasiGuest<'_>,
-    endpoint: &mut hibana::Endpoint<'_, REVIEW_WASI>,
+    guest: &mut HibanaWasiGuest,
+    endpoint: &mut hibana::Endpoint<REVIEW_WASI>,
     selection: &super::super::imp::ReviewTarget,
 ) -> ShellResult<i32> {
     let [mut task, mut private] = endpoint.par()?;
@@ -148,11 +148,11 @@ pub async fn run(
                                     let branch = task.offer().await?;
                                     match branch.label() {
                                         90 => {
-                                            branch.recv::<ReadyA<'_>>().await?;
+                                            branch.recv::<ReadyA>().await?;
                                             continue;
                                         }
                                         91 => {
-                                            branch.recv::<ReadyB<'_>>().await?;
+                                            branch.recv::<ReadyB>().await?;
                                             continue;
                                         }
                                         80 if feature == FEATURE_A => {
@@ -161,14 +161,14 @@ pub async fn run(
                                             task.send::<FirstA>(&arguments).await?;
                                             task.send::<FirstA>(&arguments).await?;
                                             task.send::<FirstA>(&arguments).await?;
-                                            task.recv::<ReadyA<'_>>().await?;
+                                            task.recv::<ReadyA>().await?;
                                             let [mut review, mut other] = task.par()?;
                                             async {
                                                 async {
                                                     review.send::<ReviewA>(&arguments).await?;
                                                 };
                                                 async {
-                                                    other.recv::<ReadyB<'_>>().await?;
+                                                    other.recv::<ReadyB>().await?;
                                                 };
                                                 Ok(())
                                             }
@@ -180,14 +180,14 @@ pub async fn run(
                                             task.send::<FirstB>(&arguments).await?;
                                             task.send::<FirstB>(&arguments).await?;
                                             task.send::<FirstB>(&arguments).await?;
-                                            task.recv::<ReadyB<'_>>().await?;
+                                            task.recv::<ReadyB>().await?;
                                             let [mut review, mut other] = task.par()?;
                                             async {
                                                 async {
                                                     review.send::<ReviewB>(&arguments).await?;
                                                 };
                                                 async {
-                                                    other.recv::<ReadyA<'_>>().await?;
+                                                    other.recv::<ReadyA>().await?;
                                                 };
                                                 Ok(())
                                             }
@@ -199,7 +199,7 @@ pub async fn run(
                                             task.send::<AgainABeforeB>(&arguments).await?;
                                             task.send::<AgainABeforeB>(&arguments).await?;
                                             task.send::<AgainABeforeB>(&arguments).await?;
-                                            task.recv::<ReadyA<'_>>().await?;
+                                            task.recv::<ReadyA>().await?;
                                             task.send::<ReReviewA>(&arguments).await?;
                                         }
                                         83 if feature == FEATURE_B => {
@@ -211,7 +211,7 @@ pub async fn run(
                                             let [mut other, mut review] = task.par()?;
                                             async {
                                                 async {
-                                                    other.recv::<ReadyA<'_>>().await?;
+                                                    other.recv::<ReadyA>().await?;
                                                 };
                                                 async {
                                                     review.send::<ReviewB>(&arguments).await?;
@@ -242,7 +242,7 @@ pub async fn run(
                                             task.send::<AgainBBeforeA>(&arguments).await?;
                                             task.send::<AgainBBeforeA>(&arguments).await?;
                                             task.send::<AgainBBeforeA>(&arguments).await?;
-                                            task.recv::<ReadyB<'_>>().await?;
+                                            task.recv::<ReadyB>().await?;
                                             task.send::<ReReviewB>(&arguments).await?;
                                         }
                                         87 if feature == FEATURE_A => {
@@ -254,7 +254,7 @@ pub async fn run(
                                             let [mut other, mut review] = task.par()?;
                                             async {
                                                 async {
-                                                    other.recv::<ReadyB<'_>>().await?;
+                                                    other.recv::<ReadyB>().await?;
                                                 };
                                                 async {
                                                     review.send::<ReviewA>(&arguments).await?;
@@ -296,7 +296,7 @@ pub async fn run(
                                             let [mut other, mut review] = task.par()?;
                                             async {
                                                 async {
-                                                    other.recv::<ReadyB<'_>>().await?;
+                                                    other.recv::<ReadyB>().await?;
                                                 };
                                                 async {
                                                     review.send::<ReReviewA>(&arguments).await?;
@@ -316,7 +316,7 @@ pub async fn run(
                                             let [mut other, mut review] = task.par()?;
                                             async {
                                                 async {
-                                                    other.recv::<ReadyA<'_>>().await?;
+                                                    other.recv::<ReadyA>().await?;
                                                 };
                                                 async {
                                                     review.send::<ReReviewB>(&arguments).await?;
@@ -331,7 +331,7 @@ pub async fn run(
                                             task.send::<AgainBBeforeAReview>(&arguments).await?;
                                             task.send::<AgainBBeforeAReview>(&arguments).await?;
                                             task.send::<AgainBBeforeAReview>(&arguments).await?;
-                                            task.recv::<ReadyB<'_>>().await?;
+                                            task.recv::<ReadyB>().await?;
                                             task.send::<ReReviewB>(&arguments).await?;
                                         }
                                         95 if feature == FEATURE_A => {
@@ -340,7 +340,7 @@ pub async fn run(
                                             task.send::<AgainABeforeBReview>(&arguments).await?;
                                             task.send::<AgainABeforeBReview>(&arguments).await?;
                                             task.send::<AgainABeforeBReview>(&arguments).await?;
-                                            task.recv::<ReadyA<'_>>().await?;
+                                            task.recv::<ReadyA>().await?;
                                             task.send::<ReReviewA>(&arguments).await?;
                                         }
                                         _ => {
@@ -352,10 +352,10 @@ pub async fn run(
                                     }
                                     let feedback = task.offer().await?;
                                     let bytes = match feedback.label() {
-                                        30 => feedback.recv::<ApprovedA<'_>>().await?.to_vec(),
-                                        31 => feedback.recv::<RejectedA<'_>>().await?.to_vec(),
-                                        40 => feedback.recv::<ApprovedB<'_>>().await?.to_vec(),
-                                        41 => feedback.recv::<RejectedB<'_>>().await?.to_vec(),
+                                        30 => feedback.recv::<ApprovedA>().await?.to_vec(),
+                                        31 => feedback.recv::<RejectedA>().await?.to_vec(),
+                                        40 => feedback.recv::<ApprovedB>().await?.to_vec(),
+                                        41 => feedback.recv::<RejectedB>().await?.to_vec(),
                                         label => {
                                             return Err(ShellError::message(format!(
                                                 "unexpected review reply {label}"

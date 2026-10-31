@@ -84,9 +84,9 @@ fn service<const VM: u8, const OWNER: u8, const CHECK: u16>() -> impl Projectabl
                         g::route(
                             g::seq(
                                 g::send::<OWNER, OWNER, Validate>(),
-                                g::send::<OWNER, VM, Admitted<'static>>(),
+                                g::send::<OWNER, VM, Admitted>(),
                             ),
-                            g::send::<OWNER, VM, Rejected<'static>>(),
+                            g::send::<OWNER, VM, Rejected>(),
                         )
                         .resolve::<CHECK>(),
                     ),
@@ -134,12 +134,12 @@ pub fn programs() -> Programs {
                 g::seq(
                     service::<DEV_WASI, DEVELOPER, COMPILE_CLOSE>(),
                     g::seq(
-                        g::send::<BUILD_OWNER, DEV_WASI, Loan<'static, BUILD_SERVER>>(),
+                        g::send::<BUILD_OWNER, DEV_WASI, Loan<BUILD_SERVER>>(),
                         g::seq(
                             g::send::<BUILD_SERVER, DEVELOPER, CompileRequest>(),
                             g::seq(
-                                g::send::<DEVELOPER, BUILD_SERVER, CompileResult<'static>>(),
-                                g::send::<DEV_WASI, BUILD_OWNER, Loan<'static, BUILD_SERVER>>(),
+                                g::send::<DEVELOPER, BUILD_SERVER, CompileResult>(),
+                                g::send::<DEV_WASI, BUILD_OWNER, Loan<BUILD_SERVER>>(),
                             ),
                         ),
                     ),
@@ -159,12 +159,12 @@ pub fn programs() -> Programs {
         g::seq(
             service::<TEST_WASI, TESTER, TEST_CLOSE>(),
             g::seq(
-                g::send::<BUILD_OWNER, TEST_WASI, Loan<'static, BUILD_SERVER>>(),
+                g::send::<BUILD_OWNER, TEST_WASI, Loan<BUILD_SERVER>>(),
                 g::seq(
                     g::send::<BUILD_SERVER, TESTER, TestRequest>(),
                     g::seq(
-                        g::send::<TESTER, BUILD_SERVER, TestResult<'static>>(),
-                        g::send::<TEST_WASI, BUILD_OWNER, Loan<'static, BUILD_SERVER>>(),
+                        g::send::<TESTER, BUILD_SERVER, TestResult>(),
+                        g::send::<TEST_WASI, BUILD_OWNER, Loan<BUILD_SERVER>>(),
                     ),
                 ),
             ),
@@ -192,16 +192,12 @@ pub fn programs() -> Programs {
                         g::seq(
                             service::<DEPLOY_WASI, DEPLOYER, DEPLOY_CLOSE>(),
                             g::seq(
-                                g::send::<DEPLOY_OWNER, DEPLOY_WASI, Loan<'static, DEPLOY_ENV>>(),
+                                g::send::<DEPLOY_OWNER, DEPLOY_WASI, Loan<DEPLOY_ENV>>(),
                                 g::seq(
                                     g::send::<DEPLOY_ENV, DEPLOYER, DeployRequest>(),
                                     g::seq(
-                                        g::send::<DEPLOYER, DEPLOY_ENV, DeployResult<'static>>(),
-                                        g::send::<
-                                            DEPLOY_WASI,
-                                            DEPLOY_OWNER,
-                                            Loan<'static, DEPLOY_ENV>,
-                                        >(),
+                                        g::send::<DEPLOYER, DEPLOY_ENV, DeployResult>(),
+                                        g::send::<DEPLOY_WASI, DEPLOY_OWNER, Loan<DEPLOY_ENV>>(),
                                     ),
                                 ),
                             ),

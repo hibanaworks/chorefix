@@ -86,9 +86,9 @@ fn requests<const VM: u8, const OWNER: u8, const CHECK: u16>() -> impl Projectab
                         g::route(
                             g::seq(
                                 g::send::<OWNER, OWNER, Validate>(),
-                                g::send::<OWNER, VM, Admitted<'static>>(),
+                                g::send::<OWNER, VM, Admitted>(),
                             ),
-                            g::send::<OWNER, VM, Rejected<'static>>(),
+                            g::send::<OWNER, VM, Rejected>(),
                         )
                         .resolve::<CHECK>(),
                     ),
@@ -181,13 +181,13 @@ pub fn programs() -> Programs {
     let migration = g::seq(
         requests::<ADMIN_VM, ADMIN, CHECK_ADMIN>(),
         g::seq(
-            g::send::<DATABASE, ADMIN_VM, Loan<'_, DATABASE_RESOURCE>>(),
+            g::send::<DATABASE, ADMIN_VM, Loan<DATABASE_RESOURCE>>(),
             g::seq(
                 g::send::<DATABASE_RESOURCE, ADMIN, MigrationRequest>(),
                 g::seq(
-                    g::send::<ADMIN, DATABASE_RESOURCE, MigrationCompleted<'static>>(),
+                    g::send::<ADMIN, DATABASE_RESOURCE, MigrationCompleted>(),
                     g::seq(
-                        g::send::<ADMIN_VM, DATABASE, Loan<'_, DATABASE_RESOURCE>>(),
+                        g::send::<ADMIN_VM, DATABASE, Loan<DATABASE_RESOURCE>>(),
                         g::send::<ADMIN, BACKEND, MigrationDone>(),
                     ),
                 ),
@@ -199,7 +199,7 @@ pub fn programs() -> Programs {
         g::seq(
             g::send::<BACKEND, BACKEND, Effect>(),
             g::seq(
-                g::send::<BACKEND, BACKEND_VM, ResultBytes<'static>>(),
+                g::send::<BACKEND, BACKEND_VM, ResultBytes>(),
                 g::send::<BACKEND, TESTER, BackendReady>(),
             ),
         ),
@@ -207,24 +207,24 @@ pub fn programs() -> Programs {
     let test = g::seq(
         requests::<TESTER_VM, TESTER, CHECK_TESTER>(),
         g::seq(
-            g::send::<TEST_ENV, TESTER_VM, Loan<'_, TEST_RESOURCE>>(),
+            g::send::<TEST_ENV, TESTER_VM, Loan<TEST_RESOURCE>>(),
             g::seq(
                 g::send::<TEST_RESOURCE, TESTER, TestRequest>(),
                 g::seq(
-                    g::send::<TESTER, TEST_RESOURCE, TestCompleted<'static>>(),
-                    g::send::<TESTER_VM, TEST_ENV, Loan<'_, TEST_RESOURCE>>(),
+                    g::send::<TESTER, TEST_RESOURCE, TestCompleted>(),
+                    g::send::<TESTER_VM, TEST_ENV, Loan<TEST_RESOURCE>>(),
                 ),
             ),
         ),
     );
     let outcome = g::route(
         g::par(
-            g::send::<TESTER, ADMIN_OUTCOME, PassedAdmin<'static>>(),
-            g::send::<TESTER, BACKEND_OUTCOME, PassedBackend<'static>>(),
+            g::send::<TESTER, ADMIN_OUTCOME, PassedAdmin>(),
+            g::send::<TESTER, BACKEND_OUTCOME, PassedBackend>(),
         ),
         g::par(
-            g::send::<TESTER, ADMIN_OUTCOME, FailedAdmin<'static>>(),
-            g::send::<TESTER, BACKEND_OUTCOME, FailedBackend<'static>>(),
+            g::send::<TESTER, ADMIN_OUTCOME, FailedAdmin>(),
+            g::send::<TESTER, BACKEND_OUTCOME, FailedBackend>(),
         ),
     )
     .resolve::<TEST_RESULT>();

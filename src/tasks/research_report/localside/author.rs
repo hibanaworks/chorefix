@@ -5,8 +5,9 @@ use super::super::{
 use crate::RunError;
 use hibana::{Endpoint, g::Message};
 
+#[hibana_runtime::localside]
 pub(crate) async fn author_a<D: Domain>(
-    endpoint: &mut Endpoint<'_, A>,
+    endpoint: &mut Endpoint<A>,
     domain: &D,
 ) -> Result<(), RunError<String>> {
     loop {
@@ -107,8 +108,9 @@ pub(crate) async fn author_a<D: Domain>(
     }
 }
 
+#[hibana_runtime::localside]
 pub(crate) async fn author_b<D: Domain>(
-    endpoint: &mut Endpoint<'_, B>,
+    endpoint: &mut Endpoint<B>,
     domain: &D,
 ) -> Result<(), RunError<String>> {
     loop {

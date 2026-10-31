@@ -6,8 +6,9 @@ use crate::shell::{
 use hibana::Endpoint;
 use hibana_wasip1_runtime::protocol;
 use serde_json::json;
+#[hibana_runtime::localside]
 pub async fn run<D: Domain>(
-    endpoint: &mut Endpoint<'_, TESTER>,
+    endpoint: &mut Endpoint<TESTER>,
     domain: &D,
     validation: &Validation,
     result_input: &crate::tasks::api::imp::TestInput,
@@ -46,7 +47,7 @@ pub async fn run<D: Domain>(
                         decision.recv::<Validate>().await?;
                         let arguments = serde_json::to_vec(&validation.take()?)
                             .map_err(|error| ShellError::message(error.to_string()))?;
-                        endpoint.send::<Admitted<'_>>(&arguments.as_slice()).await?;
+                        endpoint.send::<Admitted>(&arguments.as_slice()).await?;
                         break;
                     }
                     106 => {
@@ -54,7 +55,7 @@ pub async fn run<D: Domain>(
                             &json!({"status":"invalid_arguments","error":validation.rejection()?}),
                         )
                         .map_err(|e| ShellError::message(e.to_string()))?;
-                        decision.send::<Rejected<'_>>(&bytes.as_slice()).await?;
+                        decision.send::<Rejected>(&bytes.as_slice()).await?;
                     }
                     _ => return Err(ShellError::message("unexpected argument decision")),
                 }
@@ -69,7 +70,7 @@ pub async fn run<D: Domain>(
         .map_err(ShellError::message)?;
     let bytes = serde_json::to_vec(&result).map_err(|e| ShellError::message(e.to_string()))?;
     let response = bytes.as_slice();
-    endpoint.send::<TestCompleted<'_>>(&response).await?;
+    endpoint.send::<TestCompleted>(&response).await?;
     result_input.record(result);
     let decision = endpoint.offer().await?;
     let label = decision.label();
@@ -79,16 +80,24 @@ pub async fn run<D: Domain>(
         let response = bytes.as_slice();
         match label {
             50 | 51 => {
-                tokio::try_join!(
-                    admin.send::<PassedAdmin<'_>>(&response),
-                    backend.send::<PassedBackend<'_>>(&response),
-                )?;
+                async {
+                    #[localside]
+                    admin.send::<PassedAdmin>(&response);
+                    #[localside]
+                    backend.send::<PassedBackend>(&response);
+                    Ok(())
+                }
+                .await?;
             }
             60 | 61 => {
-                tokio::try_join!(
-                    admin.send::<FailedAdmin<'_>>(&response),
-                    backend.send::<FailedBackend<'_>>(&response),
-                )?;
+                async {
+                    #[localside]
+                    admin.send::<FailedAdmin>(&response);
+                    #[localside]
+                    backend.send::<FailedBackend>(&response);
+                    Ok(())
+                }
+                .await?;
             }
             _ => return Err(ShellError::message("unexpected test outcome")),
         }

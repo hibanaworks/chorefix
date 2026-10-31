@@ -8,6 +8,8 @@ use serde_json::{Value, json};
 use std::{fs, path::Path, time::Instant};
 use tokio::sync::mpsc;
 
+type Request = (Value, mpsc::Sender<Result<Value>>);
+
 pub fn interpreter_identity() -> Result<Value> {
     if std::env::var("PYTHONHASHSEED").as_deref() != Ok("0") {
         return Err("PYTHONHASHSEED=0 is required before interpreter startup".into());
@@ -216,11 +218,88 @@ impl Simulator {
             trace,
             started: Instant::now(),
         };
-        let (send, mut receive) = mpsc::unbounded_channel::<(Value, mpsc::Sender<Result<Value>>)>();
+        let (send, mut receive) = mpsc::unbounded_channel::<Request>();
         std::thread::Builder::new()
             .name("original-environment".into())
             .spawn(move || {
+                // Test-only I/O withholding: requests have already crossed the
+                // real guest and Endpoint path. The gate cannot grant a step.
+                #[cfg(test)]
+                let mut commit_gate: Option<(
+                    std::collections::BTreeSet<String>,
+                    Vec<Request>,
+                )> = None;
                 while let Some((message, reply)) = receive.blocking_recv() {
+                    #[cfg(test)]
+                    {
+                        if message["type"] == "hold_disjoint_commits" {
+                            let agents: Option<std::collections::BTreeSet<String>> =
+                                message["agents"].as_array().and_then(|values| {
+                                    values
+                                        .iter()
+                                        .map(|value| value.as_str().map(str::to_owned))
+                                        .collect()
+                                });
+                            let configured = match agents {
+                                Some(agents)
+                                    if commit_gate.is_none()
+                                        && agents.len() > 1
+                                        && message["agents"].as_array().map(Vec::len)
+                                            == Some(agents.len()) =>
+                                {
+                                    environment
+                                        .trace
+                                        .record("test_control", &message)
+                                        .map(|()| {
+                                            commit_gate = Some((agents, Vec::new()));
+                                            json!({"status":"configured"})
+                                        })
+                                }
+                                _ => Err("invalid or duplicate test commit gate".into()),
+                            };
+                            let _ = reply.try_send(configured);
+                            continue;
+                        }
+                        if message["type"] == "execute"
+                            && message["tool"] == "commit_changes"
+                            && let Some((agents, held)) = &mut commit_gate
+                            && message["agent"]
+                                .as_str()
+                                .is_some_and(|a| agents.contains(a))
+                        {
+                            if held
+                                .iter()
+                                .any(|(prior, _)| prior["agent"] == message["agent"])
+                            {
+                                let _ = reply.try_send(Err("duplicate held commit".into()));
+                                continue;
+                            }
+                            if let Err(error) = environment.trace.record(
+                                "test_control",
+                                &json!({"type":"commit_held","request":message}),
+                            ) {
+                                let _ = reply.try_send(Err(error));
+                                continue;
+                            }
+                            held.push((message, reply));
+                            if held.len() == agents.len() {
+                                let (agents, held) = commit_gate.take().expect("live test gate");
+                                if let Err(error) = environment.trace.record(
+                                    "test_control",
+                                    &json!({"type":"commits_released","agents":agents}),
+                                ) {
+                                    for (_, reply) in held {
+                                        let _ = reply.try_send(Err(error.to_string().into()));
+                                    }
+                                    continue;
+                                }
+                                for (message, reply) in held {
+                                    environment.serve(message, reply);
+                                }
+                            }
+                            continue;
+                        }
+                    }
                     environment.serve(message, reply);
                 }
             })?;
