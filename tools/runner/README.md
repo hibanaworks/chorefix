@@ -11,6 +11,14 @@ write and flush complete, including any I/O error. The simulator starts the
 original asynchronous tools concurrently and returns each actual result on its
 request's reply channel.
 
+The guest process and model connection run as scoped Hibana localsides with
+borrowed inputs. Their I/O owners retain descriptors, partial JSON lines and
+RPC request IDs. External callbacks enqueue the actual reply and notify the
+owning reader through hibana-runtime. Calls do not allocate spawned tasks or
+require a task-result collection loop. Already accepted simulator requests are
+observed before scoring, including after a guest error. Cancellation does not
+undo their effects. The runner and its tests have no Tokio dependency.
+
 Runs and boundary tests require a selected runtime and its build receipt.
 Set `CHOREOFIX_<FAMILY>_WASI_BINARY` and
 `CHOREOFIX_<FAMILY>_BUILD_RECEIPT`, where `FAMILY` is `CODEBASE`, `WRITING`, `API`,

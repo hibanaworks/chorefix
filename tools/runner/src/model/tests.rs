@@ -1,15 +1,19 @@
 use super::*;
+use crate::process::Guest;
 use crate::wire;
-use std::sync::Arc;
-use tokio::{
-    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
-    sync::Notify,
-};
+use hibana_runtime::host::{Io, deadline, sleep};
+use std::os::unix::net::UnixStream;
 
 // These byte-stream fixtures exercise the same multiplexed client as live runs.
 // They do not replace participants in a benchmark trial.
+#[hibana_runtime::localside]
 async fn exchange(mode: &str) -> Result<(Vec<Conversation>, Vec<Value>)> {
     let count = if mode == "parallel" { 2 } else { 1 };
+    let calls = if mode == "parallel_same_thread" {
+        2
+    } else {
+        count
+    };
     let root = std::env::temp_dir().join(format!(
         "choreofix-model-wire-{}-{}-{mode}",
         std::process::id(),
@@ -33,15 +37,14 @@ async fn exchange(mode: &str) -> Result<(Vec<Conversation>, Vec<Value>)> {
             started: Instant::now(),
         });
     }
-    let (client, server) = tokio::io::duplex(65536);
-    let (output, input) = tokio::io::split(client);
-    let (server_read, mut server_write) = tokio::io::split(server);
-    let mut incoming = BufReader::new(server_read).lines();
+    let (client, server) = UnixStream::pair()?;
     let mut client = Wire::new(
-        input,
-        output,
+        Io::new(client.try_clone()?.into())?,
+        Io::new(client.into())?,
         Trace::create(&root.join("connection.jsonl"))?,
     );
+    let mut incoming = wire::Lines::new(Io::new(server.try_clone()?.into())?);
+    let mut server_write = Io::new(server.try_clone()?.into())?;
     let server = async {
         let init: Value =
             serde_json::from_str(&incoming.next_line().await?.ok_or("initialize missing")?)?;
@@ -66,7 +69,7 @@ async fn exchange(mode: &str) -> Result<(Vec<Conversation>, Vec<Value>)> {
                 serde_json::from_str(&incoming.next_line().await?.ok_or("turn missing")?)?;
             assert_eq!(turn["params"]["threadId"], format!("t{index}"));
             assert_eq!(turn["params"]["effort"], EFFORT);
-            if mode != "missing_start_reply" {
+            if mode != "missing_start_reply" && mode != "early_tool" {
                 wire::send(&mut server_write,&json!({"id":turn["id"],"result":{"turn":{"id":format!("turn-{index}"),"status":"inProgress"}}})).await?;
             }
         }
@@ -74,72 +77,121 @@ async fn exchange(mode: &str) -> Result<(Vec<Conversation>, Vec<Value>)> {
             wire::send(&mut server_write,&json!({"method":"item/started","params":{"threadId":"t0","item":{"type":"commandExecution"}}})).await?;
             return Ok(());
         }
-        for index in 0..count {
-            wire::send(&mut server_write,&json!({"id":format!("call-{index}"),"method":"item/tool/call","params":{"threadId":format!("t{index}"),"tool":"shell","arguments":{"command":format!("work-{index}")}}})).await?;
+        for index in 0..calls {
+            let thread = if mode == "parallel_same_thread" {
+                0
+            } else {
+                index
+            };
+            wire::send(&mut server_write,&json!({"id":format!("call-{index}"),"method":"item/tool/call","params":{"threadId":format!("t{thread}"),"tool":"shell","arguments":{"command":format!("work-{index}")}}})).await?;
         }
-        for slot in 0..count {
+        for slot in 0..calls {
             let reply: Value =
                 serde_json::from_str(&incoming.next_line().await?.ok_or("tool reply missing")?)?;
-            let index = if mode == "parallel" {
-                count - 1 - slot
+            let index = if mode.starts_with("parallel") {
+                calls - 1 - slot
             } else {
                 0
             };
             assert_eq!(reply["id"], format!("call-{index}"));
             assert_eq!(
                 reply["result"]["contentItems"][0]["text"],
-                shell_result(mode, &format!("agent-{index}"), &format!("work-{index}")).to_string()
+                shell_result(
+                    mode,
+                    &format!(
+                        "agent-{}",
+                        if mode == "parallel_same_thread" {
+                            0
+                        } else {
+                            index
+                        }
+                    ),
+                    &format!("work-{index}")
+                )
+                .to_string()
             );
             if mode == "late_disconnect" {
-                server_write.shutdown().await?;
+                server.shutdown(std::net::Shutdown::Write)?;
                 return Ok(());
             }
             if mode == "late_timeout" {
-                tokio::time::sleep(Duration::from_millis(100)).await;
+                sleep(Duration::from_millis(100)).await?;
                 return Ok(());
+            }
+            if mode == "early_tool" {
+                wire::send(&mut server_write, &json!({"id":2 + count,"result":{"turn":{"id":"turn-0","status":"inProgress"}}})).await?;
+            }
+            if mode == "parallel_same_thread" && slot + 1 != calls {
+                continue;
             }
             wire::send(&mut server_write,&json!({"method":"thread/tokenUsage/updated","params":{"threadId":format!("t{index}"),"tokenUsage":{"total":{"inputTokens":100,"outputTokens":20+index,"totalTokens":120+index}}}})).await?;
             wire::send(&mut server_write,&json!({"method":"turn/completed","params":{"threadId":format!("t{index}"),"turn":{"status":"completed","error":null}}})).await?;
         }
         Ok(())
     };
-    let released = Arc::new(Notify::new());
-    let parallel = mode == "parallel";
-    let guest_exited = mode.starts_with("late_");
-    let mut completed = Vec::new();
-    let run = driver::run(
-        &mut client,
-        &mut people,
-        &mut completed,
-        200,
-        move |agent, command| {
-            let released = released.clone();
-            async move {
-                if parallel {
-                    if agent == "agent-0" {
-                        released.notified().await;
-                    } else {
-                        released.notify_one();
-                    }
-                }
+    let (guest, commands, mut ready) = Guest::test_input()?;
+    let shell = async {
+        if ["wrong_model", "wrong_effort", "native"].contains(&mode) {
+            return Ok(());
+        }
+        let first = wire::receive(&commands, &mut ready)
+            .await?
+            .ok_or("first shell request missing")?;
+        let mut requests = Vec::new();
+        if mode.starts_with("parallel") {
+            requests.push(
+                wire::receive(&commands, &mut ready)
+                    .await?
+                    .ok_or("independent shell request was blocked")?,
+            );
+        }
+        requests.push(first);
+        for (request, reply) in requests {
+            wire::respond(
+                &reply,
+                request["id"].clone(),
                 Ok(shell_result(
-                    if guest_exited { "late" } else { "normal" },
-                    &agent,
-                    &command,
-                ))
-            }
-        },
-    );
+                    mode,
+                    request["agent"].as_str().ok_or("shell agent")?,
+                    request["command"].as_str().ok_or("shell command")?,
+                )),
+            )?;
+        }
+        Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
+    };
+    let mut completed = Vec::new();
     let timeout = if mode == "late_timeout" {
         Duration::from_millis(20)
     } else {
         Duration::from_secs(4)
     };
-    let (result, server) = tokio::time::timeout(Duration::from_secs(5), async {
-        tokio::join!(tokio::time::timeout(timeout, run), server)
-    })
+    let result = hibana_runtime::race(
+        async {
+            #[localside]
+            let result = async {
+                let result: io::Result<Result<()>> = hibana_runtime::race(
+                    async {
+                        Ok(
+                            driver::run(&mut client, &mut people, &mut completed, 200, &guest)
+                                .await,
+                        )
+                    },
+                    deadline(timeout),
+                )
+                .await;
+                Ok(result)
+            };
+            async {
+                server.await?;
+            };
+            async {
+                shell.await?;
+            };
+            Ok(result)
+        },
+        deadline(Duration::from_secs(5)),
+    )
     .await?;
-    server?;
     let completed = finish_reports(&people, completed, result);
     fs::remove_dir_all(root)?;
     Ok((people, completed?))
@@ -153,7 +205,8 @@ fn shell_result(mode: &str, agent: &str, command: &str) -> Value {
     result
 }
 
-#[tokio::test(flavor = "current_thread")]
+#[hibana_runtime::main]
+#[test]
 async fn tool_response_and_inclusive_usage_cross_actual_wire() -> Result<()> {
     let (people, completed) = exchange("normal").await?;
     assert_eq!(completed[0]["status"], "completed");
@@ -162,7 +215,26 @@ async fn tool_response_and_inclusive_usage_cross_actual_wire() -> Result<()> {
     Ok(())
 }
 
-#[tokio::test(flavor = "current_thread")]
+#[hibana_runtime::main]
+#[test]
+async fn tools_can_arrive_before_the_turn_start_acknowledgement() -> Result<()> {
+    let (people, completed) = exchange("early_tool").await?;
+    assert_eq!(completed[0]["status"], "completed");
+    assert_eq!(people[0].observed.tool_calls, 1);
+    Ok(())
+}
+
+#[hibana_runtime::main]
+#[test]
+async fn parallel_tool_calls_from_one_conversation_keep_their_reply_ids() -> Result<()> {
+    let (people, completed) = exchange("parallel_same_thread").await?;
+    assert_eq!(completed[0]["status"], "completed");
+    assert_eq!(people[0].observed.tool_calls, 2);
+    Ok(())
+}
+
+#[hibana_runtime::main]
+#[test]
 async fn independent_conversations_dispatch_tools_concurrently_without_crossing_results()
 -> Result<()> {
     let (people, completed) = exchange("parallel").await?;
@@ -180,7 +252,8 @@ async fn independent_conversations_dispatch_tools_concurrently_without_crossing_
     Ok(())
 }
 
-#[tokio::test(flavor = "current_thread")]
+#[hibana_runtime::main]
+#[test]
 async fn substituted_model_is_rejected() -> Result<()> {
     let (_, results) = exchange("wrong_model").await?;
     assert_eq!(results[0]["status"], "harness_error");
@@ -193,7 +266,8 @@ async fn substituted_model_is_rejected() -> Result<()> {
     Ok(())
 }
 
-#[tokio::test(flavor = "current_thread")]
+#[hibana_runtime::main]
+#[test]
 async fn substituted_effort_is_rejected() -> Result<()> {
     let (_, results) = exchange("wrong_effort").await?;
     assert_eq!(results[0]["status"], "harness_error");
@@ -206,7 +280,8 @@ async fn substituted_effort_is_rejected() -> Result<()> {
     Ok(())
 }
 
-#[tokio::test(flavor = "current_thread")]
+#[hibana_runtime::main]
+#[test]
 async fn native_tool_is_rejected() -> Result<()> {
     let (_, results) = exchange("native").await?;
     assert_eq!(results[0]["status"], "harness_error");
@@ -221,7 +296,8 @@ fn completed_guest(score_complete: bool) -> Value {
     }})
 }
 
-#[tokio::test(flavor = "current_thread")]
+#[hibana_runtime::main]
+#[test]
 async fn late_model_disconnect_after_guest_exit_fails_trial() -> Result<()> {
     let (_, results) = exchange("late_disconnect").await?;
     assert_eq!(results[0]["status"], "harness_error");
@@ -237,7 +313,8 @@ async fn late_model_disconnect_after_guest_exit_fails_trial() -> Result<()> {
     Ok(())
 }
 
-#[tokio::test(flavor = "current_thread")]
+#[hibana_runtime::main]
+#[test]
 async fn late_model_timeout_after_guest_exit_fails_trial() -> Result<()> {
     let (_, results) = exchange("late_timeout").await?;
     assert_eq!(results[0]["status"], "timeout");
@@ -249,7 +326,8 @@ async fn late_model_timeout_after_guest_exit_fails_trial() -> Result<()> {
     Ok(())
 }
 
-#[tokio::test(flavor = "current_thread")]
+#[hibana_runtime::main]
+#[test]
 async fn completed_model_and_terminal_domain_failure_remain_a_normal_trial() -> Result<()> {
     let (_, results) = exchange("normal").await?;
     let outcomes = [
@@ -260,13 +338,15 @@ async fn completed_model_and_terminal_domain_failure_remain_a_normal_trial() -> 
     Ok(())
 }
 
-#[tokio::test(flavor = "current_thread")]
-async fn group_error_is_preserved_after_every_participant_reports_completion() {
+#[hibana_runtime::main]
+#[test]
+async fn group_error_is_preserved_after_every_participant_reports_completion() -> Result<()> {
     let error = exchange("missing_start_reply")
         .await
         .err()
         .expect("unfinished start RPC must fail the group");
     assert!(error.to_string().contains("unfinished model RPC requests"));
+    Ok(())
 }
 
 #[test]

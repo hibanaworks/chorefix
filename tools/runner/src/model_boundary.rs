@@ -10,67 +10,78 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-#[tokio::test(flavor = "current_thread")]
+#[hibana_runtime::main]
+#[test]
 #[ignore = "uses three Luna xhigh participants through the existing ChatGPT subscription and actual WASI guests"]
 async fn subscription_participants_use_independent_wash_guests() -> Result<()> {
     subscription_case("9E", 0).await
 }
 
-#[tokio::test(flavor = "current_thread")]
+#[hibana_runtime::main]
+#[test]
 #[ignore = "uses five Luna xhigh participants through the existing ChatGPT subscription and actual WASI guests"]
 async fn subscription_five_philosophers_use_independent_wash_guests() -> Result<()> {
     subscription_case("9M", 0).await
 }
 
-#[tokio::test(flavor = "current_thread")]
+#[hibana_runtime::main]
+#[test]
 #[ignore = "uses seven Luna xhigh participants through the existing ChatGPT subscription and actual WASI guests"]
 async fn subscription_seven_philosophers_use_independent_wash_guests() -> Result<()> {
     subscription_case("9H", 0).await
 }
 
-#[tokio::test(flavor = "current_thread")]
+#[hibana_runtime::main]
+#[test]
 #[ignore = "uses seven Luna xhigh participants, actual WASI guests and upstream test failures"]
 async fn subscription_developers_reconsider_through_seven_wash_guests() -> Result<()> {
     subscription_case("1H", 2).await
 }
 
-#[tokio::test(flavor = "current_thread")]
+#[hibana_runtime::main]
+#[test]
 #[ignore = "uses three Luna xhigh participants through actual API-task resource Endpoints"]
 async fn subscription_api_participants_receive_the_actual_successful_result() -> Result<()> {
     subscription_case("8E", 0).await
 }
 
-#[tokio::test(flavor = "current_thread")]
+#[hibana_runtime::main]
+#[test]
 #[ignore = "uses three Luna xhigh participants and preserves the original terminal test failure"]
 async fn subscription_api_participants_receive_the_actual_failed_result() -> Result<()> {
     subscription_case("8E", 2).await
 }
 
-#[tokio::test(flavor = "current_thread")]
+#[hibana_runtime::main]
+#[test]
 #[ignore = "uses three Luna xhigh participants and actual CI/CD resource Endpoints"]
 async fn subscription_cicd_participants_use_resource_endpoints() -> Result<()> {
     subscription_case("16E", 0).await
 }
 
-#[tokio::test(flavor = "current_thread")]
+#[hibana_runtime::main]
+#[test]
 #[ignore = "uses three Luna xhigh participants, actual repository Endpoints and upstream review failures"]
 async fn subscription_review_participants_reconsider_with_resource_endpoints() -> Result<()> {
     subscription_case("6E", 2).await
 }
 
-#[tokio::test(flavor = "current_thread")]
+#[hibana_runtime::main]
+#[test]
 #[ignore = "uses three Luna xhigh participants and actual section Endpoints through WASI"]
 async fn subscription_writing_three_participants_use_section_endpoints() -> Result<()> {
     subscription_case("2E", 0).await
 }
 
-#[tokio::test(flavor = "current_thread")]
+#[hibana_runtime::main]
+#[test]
 #[ignore = "uses five Luna xhigh participants and actual section Endpoints through WASI"]
 async fn subscription_writing_five_participants_use_section_endpoints() -> Result<()> {
     subscription_case("2M", 0).await
 }
 
-#[tokio::test(flavor = "current_thread")]
+#[hibana_runtime::main]
+#[test]
 #[ignore = "uses seven Luna xhigh participants and actual section Endpoints through WASI"]
 async fn subscription_writing_seven_participants_use_section_endpoints() -> Result<()> {
     subscription_case("2H", 0).await

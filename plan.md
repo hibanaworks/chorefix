@@ -215,7 +215,7 @@ ChoreoFixのmanifest/lockは本体
 `e139912e07fe4cd5ba599dd3749d6e03ce9d1ee1`、WASI
 `6b62998b614e2b68feecd2d94042adbcc614693d`を選択している。
 アプリは`hibana-runtime`の`01a861b918236c4ec8d7f933b2be430c4818efbe`、実験runnerは
-参加者の配列宣言を使う`349f45ec6297b169c6d6846486b4963917cb5397`を選択する。
+借用した参加者を直接並行実行する`dc0a13a2fdd551fa0835a813dd46aace90016bfb`を選択する。
 通常のGit依存を使い、診断用のpath patchを認定へ流用しない。
 
 runtimeの中核はno_std・割当なし・caller-owned storageである。12課題の起動処理から
@@ -226,9 +226,9 @@ I/O参加者がファイル内容と最終I/Oを所有して終了する形に�
 既存Futureを値で繰り返し移動するstorage構築と、入力を二重に保持するawait wrapperを除去した。
 利用側のpin操作やstack増量、heap割当は追加しない。
 同じ入力とstack予算で旧実装がoverflowし、修正後が通過する実行試験と感度検査を追加した。
-runtimeの`349f45e`はnative81試験、compile入力13件、strict-provenance Miri57試験、
+runtimeの`dc0a13a`はnative85試験、compile入力13件、strict-provenance Miri57試験、
 Lean16定理/Z3、no_std/Pico linkを含む全gateが同じsourceで成功した。
-配列からのlocalside宣言と、所有する子processのI/O・終了待機・破棄を検査対象へ加えた。
+配列からのlocalside宣言、所有する子processのI/O・終了待機・破棄、外部callbackの通知を検査した。\n通知はOS descriptorを所有し、scoped Futureへのpointerを保持しない。full socketでもproducerを\n止めず、通知の合流、最後のproducer後のEOF、closed reader、Rust割当0件をnativeで確認した。
 hostのOS呼出しはnativeで検査し、Miri成功件数へ含めない。Lean/Z3はschedulerとstorageの性質を扱い、
 macro変換全体や任意のRustの詳細化証明ではない。
 
@@ -239,13 +239,17 @@ protocol完了し、監査違反は0件だった。
 記録は`output/review-occurrence-qualification/tokio-host-io`に保持する。
 handoff fixtureの計算に入れていた固定20msの遅延は除去し、現在のアプリ全targetのRust40試験が
 通過した。protocolの依存関係や受信・公開の検査は変更していない。
-runnerのコードベース条件では、タスク登録・回収を参加者の配列宣言へ置き換えた。
-feedbackは各参加者へ排他的に借用する返り値で、各Futureの完了はruntimeが管理する。
-通常17試験とClippy、実Wasmの5人の通常遅延条件と7人の制御条件を通過し、
-それぞれcommit2件・3件の重なりと監査違反0件を確認した。
-この限定した再検査は12課題全体の最終版認定とは区別する。
-記録は`output/review-occurrence-qualification/direct-participant-declarations`に保持する。
-これらの検証の全子孫最大memoryは1,570,848,768bytesだった。
+runnerからTokioとspawn/JoinSet、task登録・終了回収を除去した。guestとmodel接続は
+借用した値で直接宣言する。外部simulatorは受理済み要求を並行に開始し、実応答をI/O担当へ
+返す。記録とRPC IDの対応付けは実データであり、globalの進行や権限を記録しない。
+終了・失敗後にも受理済みの実要求への応答を確認してから元scoreを取得する。
+通常22試験とClippy、全依存treeのTokio/mio/socket2不在を確認した。
+別の参加者の待機中の独立要求、同じ参加者の並列要求、turn/start応答前の要求、
+guest終了後の接続切断・timeout、部分JSON行の受信キャンセルを実I/Oで検査した。
+このrunnerで12課題の実Wasm75条件を再実行し、74条件のprotocol完了・監査違反0件、
+早期終了1条件の共有効果0件、記録変異1,307件の拒否を確認した。各sourceの前後hashは一致し、
+全子孫最大memoryは628,572,160bytesだった。記録は
+`output/review-occurrence-qualification/structured-runner`に保持する。
 モデル呼出し・採点済み実験への算入は0件であり、各条件の業務結果は元scoreへ別に記録する。
 
 1Hの通常遅延でcommitの重なりが2件になった記録は保持する。parは同時実行を許すが、
@@ -254,7 +258,7 @@ Endpointで受理した後、試験用I/O境界で3件がそろうまで保留�
 返答なしで3件が受理され、解放後の実commitも3件重なった。globalとlocalsideは変更していない。
 この開始条件を制御する機構試験を、通常の性能測定や実モデルの並行性へ混ぜない。
 
-アプリの通常依存にはTokioがない。runnerとアプリの試験依存には残っており、完全除去は未完である。
+アプリの通常依存とrunnerの全依存にはTokioがない。アプリの試験依存は撤去中であり、\nプロジェクト全体の完全除去と同一版へのpin統一は未完である。
 依存の削除に加え、タスク登録・回収、起動joinツリー、独自の実行管理を残さず、
 各参加者の借用とEndpoint操作を直接宣言する構成への移行を完了条件とする。
 必要な物理I/OのバッファとRPC対応付けを、連携手順や完了管理へ流用しない。

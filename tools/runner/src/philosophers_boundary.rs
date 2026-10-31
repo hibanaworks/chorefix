@@ -9,7 +9,6 @@ use std::{
     path::{Path, PathBuf},
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
-use tokio::task::JoinSet;
 
 fn response(reply: &Value) -> Result<Value> {
     let text = reply["stdout"].as_str().ok_or("terminal output")?;
@@ -22,8 +21,8 @@ fn response(reply: &Value) -> Result<Value> {
 }
 
 async fn participant(
-    guest: process::Guest,
-    simulator: oracle::Simulator,
+    guest: &process::Guest,
+    simulator: &oracle::Simulator,
     actor: Value,
 ) -> Result<Value> {
     let agent = actor["agent"].as_str().ok_or("participant")?;
@@ -113,7 +112,30 @@ async fn participant(
     Ok(json!({"kind":"participant","agent":agent,"results":results}))
 }
 
-#[tokio::test(flavor = "current_thread")]
+#[hibana_runtime::localside]
+async fn inputs<const N: usize>(
+    guest: &process::Guest,
+    simulator: &oracle::Simulator,
+    actors: [Value; N],
+) -> Result<Vec<Value>> {
+    let mut results: [Value; N] = core::array::from_fn(|_| Value::Null);
+    let mut actors = actors.into_iter();
+    let inputs = results
+        .each_mut()
+        .map(|output| (actors.next().expect("one input per participant"), output));
+    async {
+        #[localside]
+        for (actor, output) in inputs {
+            *output = participant(guest, simulator, actor).await?;
+        }
+        Ok(())
+    }
+    .await?;
+    Ok(results.into_iter().collect())
+}
+
+#[hibana_runtime::main]
+#[test]
 #[ignore = "requires the source-qualified dining runtime, wash and unchanged original environments"]
 async fn all_dining_levels_use_both_resource_endpoints_through_wasi() -> Result<()> {
     std::env::set_current_dir(
@@ -152,32 +174,51 @@ async fn all_dining_levels_use_both_resource_endpoints_through_wasi() -> Result<
         let actors = fixture["fixtures"]
             .as_array()
             .ok_or("original participants")?;
-        let mut jobs = JoinSet::new();
-        jobs.spawn(async move {
-            runtime
-                .await
-                .map(|result| json!({"kind":"runtime","result":result}))
-        });
-        for actor in actors {
-            jobs.spawn(participant(guest.clone(), simulator.clone(), actor.clone()));
-        }
-        let completed = tokio::time::timeout(Duration::from_secs(120), async {
-            let mut outcomes = Vec::new();
-            while let Some(outcome) = jobs.join_next().await {
-                outcomes.push(outcome??);
-                save(&case.join("outcomes.json"), &json!(outcomes))?;
-            }
-            Ok::<_, Box<dyn std::error::Error + Send + Sync>>(outcomes)
-        })
-        .await;
-        jobs.abort_all();
-        while jobs.join_next().await.is_some() {}
-        let outcomes = completed??;
+        let (runtime, mut outcomes) = hibana_runtime::race(
+            async {
+                #[localside]
+                let runtime = runtime;
+                #[localside]
+                let participants = async {
+                    match task {
+                        "9E" => {
+                            inputs(
+                                &guest,
+                                &simulator,
+                                <[Value; 3]>::try_from(actors.clone())
+                                    .map_err(|_| "dining actor count")?,
+                            )
+                            .await
+                        }
+                        "9M" => {
+                            inputs(
+                                &guest,
+                                &simulator,
+                                <[Value; 5]>::try_from(actors.clone())
+                                    .map_err(|_| "dining actor count")?,
+                            )
+                            .await
+                        }
+                        "9H" => {
+                            inputs(
+                                &guest,
+                                &simulator,
+                                <[Value; 7]>::try_from(actors.clone())
+                                    .map_err(|_| "dining actor count")?,
+                            )
+                            .await
+                        }
+                        _ => Err("unknown dining task".into()),
+                    }
+                };
+                Ok((runtime, participants))
+            },
+            hibana_runtime::host::deadline(Duration::from_secs(120)),
+        )
+        .await?;
+        outcomes.push(json!({"kind":"runtime","result":runtime}));
+        save(&case.join("outcomes.json"), &json!(outcomes))?;
         assert_eq!(outcomes.len(), actors.len() + 1);
-        let runtime = &outcomes
-            .iter()
-            .find(|value| value["kind"] == "runtime")
-            .ok_or("runtime outcome")?["result"];
         assert_eq!(runtime["runtime_exit_code"], 0);
         assert_eq!(runtime["protocol"]["status"], "complete");
         assert_eq!(runtime["score"]["complete"], true);

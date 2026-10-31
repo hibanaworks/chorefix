@@ -1,16 +1,20 @@
 //! Independent Luna conversations over one App Server connection.
 use crate::{
     evidence::{Result, Trace, digest, save},
+    process::Guest,
     wire::Wire,
+};
+use hibana_runtime::{
+    host::{Process, deadline},
+    race,
 };
 use serde_json::{Value, json};
 use std::{
-    fs,
+    fs, io,
     path::PathBuf,
-    process::Stdio,
+    process::{Command, Stdio},
     time::{Duration, Instant},
 };
-use tokio::process::Command;
 
 mod driver;
 #[cfg(test)]
@@ -79,15 +83,7 @@ impl Conversation {
     }
 }
 
-pub async fn run<F, Fut>(
-    people: Vec<Participant>,
-    limits: Limits,
-    dispatch: F,
-) -> Result<Vec<Value>>
-where
-    F: Fn(String, String) -> Fut + Clone + Send + 'static,
-    Fut: Future<Output = Result<Value>> + Send + 'static,
-{
+pub async fn run(people: Vec<Participant>, limits: Limits, guest: &Guest) -> Result<Vec<Value>> {
     let parent = people
         .first()
         .ok_or("empty model group")?
@@ -113,49 +109,55 @@ where
             observed: Observed::default(),
         });
     }
-    let mut child = Command::new(CLI)
-        .args([
-            "-c",
-            "forced_login_method=\"chatgpt\"",
-            "-c",
-            "model_provider=\"openai\"",
-            "app-server",
-            "--listen",
-            "stdio://",
-        ])
-        .env_remove("OPENAI_API_KEY")
-        .env_remove("CODEX_API_KEY")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(fs::File::create_new(directory.join("stderr.log"))?)
-        .kill_on_drop(true)
-        .spawn()?;
+    let mut child = Process::spawn(
+        Command::new(CLI)
+            .args([
+                "-c",
+                "forced_login_method=\"chatgpt\"",
+                "-c",
+                "model_provider=\"openai\"",
+                "app-server",
+                "--listen",
+                "stdio://",
+            ])
+            .env_remove("OPENAI_API_KEY")
+            .env_remove("CODEX_API_KEY")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(fs::File::create_new(directory.join("stderr.log"))?),
+    )?;
+    let (input, output) = child.io()?;
     let mut wire = Wire::new(
-        child.stdin.take().ok_or("model stdin")?,
-        child.stdout.take().ok_or("model stdout")?,
+        input,
+        output,
         Trace::create(&directory.join("events.jsonl"))?,
     );
     let mut completed = Vec::new();
-    let outcome = tokio::time::timeout(
-        limits.timeout,
-        driver::run(
-            &mut wire,
-            &mut conversations,
-            &mut completed,
-            limits.tool_calls,
-            dispatch,
-        ),
+    let outcome: io::Result<Result<()>> = race(
+        async {
+            Ok(driver::run(
+                &mut wire,
+                &mut conversations,
+                &mut completed,
+                limits.tool_calls,
+                guest,
+            )
+            .await)
+        },
+        deadline(limits.timeout),
     )
     .await;
-    let _ = child.kill().await;
-    let _ = child.wait().await;
+    let outcome = match child.terminate() {
+        Ok(_) => outcome,
+        Err(error) => Ok(Err(error.into())),
+    };
     finish_reports(&conversations, completed, outcome)
 }
 
 fn finish_reports(
     conversations: &[Conversation],
     mut completed: Vec<Value>,
-    outcome: std::result::Result<Result<()>, tokio::time::error::Elapsed>,
+    outcome: io::Result<Result<()>>,
 ) -> Result<Vec<Value>> {
     let error = match outcome {
         Ok(Ok(())) => None,

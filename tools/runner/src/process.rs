@@ -2,18 +2,22 @@
 use crate::{
     evidence::{Result, Trace},
     oracle::Simulator,
-    wire,
+    wire::{self, Lines, Reply},
+};
+use hibana_runtime::{
+    host::{Io, Notification, Process, notification},
+    race,
 };
 use serde_json::{Value, json};
-use std::{collections::BTreeMap, fs::File, path::Path, process::Stdio};
-use tokio::{
-    io::{AsyncBufReadExt, BufReader},
-    process::{Child, Command},
-    sync::{mpsc, oneshot},
-    task::JoinSet,
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fs::File,
+    path::Path,
+    process::{Command, Stdio},
+    sync::mpsc,
 };
 
-type Request = (Value, oneshot::Sender<Value>);
+type Request = (Value, Reply);
 
 pub async fn simulator(
     task: &str,
@@ -28,22 +32,46 @@ pub async fn simulator(
     let delay = config["domain_tool_delay_multiplier"]
         .as_f64()
         .ok_or("tool delay multiplier")?;
-    let result = crate::oracle::Simulator::new(task, depth, delay, trace, &[])?;
+    let result = Simulator::new(task, depth, delay, trace, &[])?;
     crate::evidence::save(&output.join("simulator-fixture.json"), &result.1)?;
     Ok(result)
 }
 
-#[derive(Clone)]
-pub struct Guest(mpsc::UnboundedSender<Request>);
+pub struct Guest {
+    input: mpsc::Sender<Request>,
+    notify: Notification,
+}
+
 impl Guest {
-    pub async fn command(&self, agent: &str, command: String) -> Result<Value> {
-        let (send, receive) = oneshot::channel();
-        self.0
-            .send((json!({"agent":agent,"command":command}), send))
+    #[cfg(test)]
+    pub(crate) fn test_input() -> Result<(Self, mpsc::Receiver<Request>, Io)> {
+        let (input, receive) = mpsc::channel();
+        let (notify, ready) = notification()?;
+        Ok((Self { input, notify }, receive, ready))
+    }
+    pub(crate) fn send(&self, message: Value, reply: Reply) -> Result<()> {
+        self.input
+            .send((message, reply))
             .map_err(|_| "guest runtime closed")?;
-        Ok(receive
-            .await
-            .map_err(|_| "guest command direction closed")?)
+        self.notify.notify()?;
+        Ok(())
+    }
+
+    #[cfg(test)]
+    pub async fn command(&self, agent: &str, command: String) -> Result<Value> {
+        let (send, receive) = mpsc::channel();
+        let (notify, mut ready) = notification()?;
+        self.send(
+            json!({"agent":agent,"command":command,"id":null}),
+            (send, notify),
+        )?;
+        let (id, result) = wire::receive(&receive, &mut ready)
+            .await?
+            .ok_or("guest command direction closed")?;
+        if !id.is_null() {
+            return Err("guest command reply id mismatch".into());
+        }
+        result
     }
 }
 
@@ -55,53 +83,92 @@ pub fn guest(
     trace: Trace,
     simulator: Simulator,
 ) -> Result<(Guest, impl Future<Output = Result<Value>> + use<>)> {
-    let mut child = Command::new(runtime)
-        .arg(module)
-        .arg(task)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(File::create_new(output.join("runtime-stderr.log"))?)
-        .kill_on_drop(true)
-        .spawn()?;
-    let input = child.stdin.take().ok_or("runtime stdin")?;
-    let lines = BufReader::new(child.stdout.take().ok_or("runtime stdout")?).lines();
-    let (send, receive) = mpsc::unbounded_channel();
+    let mut child = Process::spawn(
+        Command::new(runtime)
+            .arg(module)
+            .arg(task)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(File::create_new(output.join("runtime-stderr.log"))?),
+    )?;
+    let (input, output) = child.io()?;
+    let (send, receive) = mpsc::channel();
+    let (notify, ready) = notification()?;
     Ok((
-        Guest(send),
-        runtime_loop(child, input, lines, receive, trace, simulator),
+        Guest {
+            input: send,
+            notify,
+        },
+        runtime_loop(
+            child,
+            input,
+            Lines::new(output),
+            receive,
+            ready,
+            trace,
+            simulator,
+        ),
     ))
 }
 
+enum Input {
+    Command(Request),
+    Frame(Value),
+    Effect(Value, Result<Value>),
+}
+
 async fn runtime_loop(
-    mut child: Child,
-    mut input: tokio::process::ChildStdin,
-    mut lines: tokio::io::Lines<BufReader<tokio::process::ChildStdout>>,
-    mut commands: mpsc::UnboundedReceiver<Request>,
+    mut child: Process,
+    mut input: Io,
+    mut lines: Lines,
+    commands: mpsc::Receiver<Request>,
+    mut commands_ready: Io,
     trace: Trace,
     simulator: Simulator,
 ) -> Result<Value> {
-    let mut backend = JoinSet::new();
+    let (effects, results) = mpsc::channel();
+    let (notify, mut effects_ready) = notification()?;
+    let mut pending = BTreeMap::new();
+    let mut admitted = BTreeSet::new();
+    let mut backend_errors = Vec::new();
     let verdict: Result<Value> = async {
         let mut sequence = 0u64;
-        let mut pending = BTreeMap::<u64,oneshot::Sender<Value>>::new();
         loop {
-            tokio::select! {
-                Some((mut command, response)) = commands.recv() => {
-                    sequence += 1;
+            // These are physical input directions. The task's Endpoint operations
+            // run in the child; this owner only transfers their actual bytes.
+            let event = race(async {
+                let line = lines.next_line().await?.ok_or("guest runtime closed before verdict")?;
+                Ok::<Input, Box<dyn std::error::Error + Send + Sync>>(Input::Frame(serde_json::from_str(&line)?))
+            }, async {
+                race(async {
+                    match wire::receive(&commands, &mut commands_ready).await? {
+                        Some(command) => Ok(Input::Command(command)),
+                        None => core::future::pending().await,
+                    }
+                }, async {
+                    let (id, result) = wire::receive(&results, &mut effects_ready).await?.ok_or("effect response direction closed")?;
+                    Ok(Input::Effect(id, result))
+                }).await
+            }).await?;
+            match event {
+                Input::Command((mut command, response)) => {
+                    sequence = sequence.checked_add(1).ok_or("guest command id overflow")?;
+                    let caller_id = command["id"].take();
                     command["type"] = json!("command");
                     command["id"] = json!(sequence);
-                    pending.insert(sequence,response);
-                    trace.record("to_runtime",&command)?;
-                    wire::send(&mut input,&command).await?;
+                    pending.insert(sequence, (caller_id, response));
+                    trace.record("to_runtime", &command)?;
+                    wire::send(&mut input, &command).await?;
                 }
-                line = lines.next_line() => {
-                    let message: Value = serde_json::from_str(&line?.ok_or("guest runtime closed before verdict")?)?;
-                    trace.record("runtime",&message)?;
+                Input::Frame(message) => {
+                    trace.record("runtime", &message)?;
                     match message["type"].as_str() {
                         Some("protocol_frame") => {},
                         Some("execute") => {
-                            let sim = simulator.clone();
-                            backend.spawn(async move { sim.call(message).await });
+                            let id = message["id"].as_u64().ok_or("effect request id")?;
+                            if admitted.contains(&id) { return Err("duplicate effect request id".into()); }
+                            simulator.send(message, (effects.clone(), notify.try_clone()?))?;
+                            admitted.insert(id);
                         }
                         Some("terminal" | "exit" | "terminal_closed") => {
                             if message["id"].is_null() { continue; }
@@ -111,46 +178,64 @@ async fn runtime_loop(
                                 Some("exit") => json!({"stdout":message["stdout"],"exit_status":message["status"]}),
                                 _ => json!({"status":"guest_closed"}),
                             };
-                            pending.remove(&id).ok_or("unknown terminal reply id")?.send(response).map_err(|_| "terminal receiver dropped")?;
+                            let (id, reply) = pending.remove(&id).ok_or("unknown terminal reply id")?;
+                            wire::respond(&reply, id, Ok(response))?;
                         }
                         Some("run_result") => break Ok(message),
                         _ => return Err(format!("unknown guest event: {message}").into()),
                     }
                 }
-                Some(reply) = backend.join_next() => {
-                    let response = reply??;
-                    wire::send(&mut input,&response).await?;
+                Input::Effect(id, result) => {
+                    let id = id.as_u64().ok_or("effect reply id")?;
+                    if !admitted.remove(&id) { return Err("unknown or duplicate effect reply".into()); }
+                    let response = match result {
+                        Ok(response) if response["id"] == id => response,
+                        Ok(_) => return Err("effect reply id mismatch".into()),
+                        Err(error) => {
+                            backend_errors.push(error.to_string());
+                            return Err(error);
+                        }
+                    };
+                    wire::send(&mut input, &response).await?;
                 }
             }
         }
     }.await;
-    // Closing the transport cancels pending tool requests without granting or
-    // guessing any protocol step. Already admitted effects are still observed.
     drop(commands);
     drop(input);
+    drop(pending);
     if !verdict.as_ref().is_ok_and(|v| v["status"] == "complete") {
-        let _ = child.kill().await;
+        child.terminate()?;
     }
     let exit = child.wait().await?;
-    let mut errors = Vec::new();
-    while let Some(reply) = backend.join_next().await {
-        if let Err(error) = reply
-            .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { e.into() })
-            .and_then(|v| v)
-        {
-            errors.push(error.to_string());
+    // Observe the response for each actual accepted RPC before scoring, even
+    // if the guest has exited. Python may retain completed callback objects;
+    // their destruction is not evidence that an effect finished.
+    while !admitted.is_empty() {
+        let (id, result) = wire::receive(&results, &mut effects_ready)
+            .await?
+            .ok_or("missing accepted effect replies")?;
+        if !id.as_u64().is_some_and(|id| admitted.remove(&id)) {
+            backend_errors.push("unknown or duplicate drained effect reply".to_owned());
+        }
+        if let Err(error) = result {
+            backend_errors.push(error.to_string());
         }
     }
+    drop(effects);
+    drop(notify);
     let score = simulator.call(json!({"type":"score"})).await?;
     Ok(
-        json!({"protocol":verdict.as_ref().ok(),"error":verdict.err().map(|e|e.to_string()),"runtime_exit_code":exit.code(),"score":score,"backend_errors":errors}),
+        json!({"protocol":verdict.as_ref().ok(),"error":verdict.err().map(|e|e.to_string()),
+        "runtime_exit_code":exit.code(),"score":score,"backend_errors":backend_errors}),
     )
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[tokio::test(flavor = "current_thread")]
+    #[hibana_runtime::main]
+    #[test]
     #[ignore = "requires the built writing runtime, wash module and original simulator environment"]
     async fn original_simulator_overlaps_disjoint_actual_wasi_effects() -> Result<()> {
         std::env::set_current_dir(
@@ -189,52 +274,50 @@ mod tests {
             trace,
             simulator,
         )?;
-        let mut subjects = JoinSet::new();
-        for actor in fixture["fixtures"].as_array().ok_or("fixtures")? {
-            let actor = actor.clone();
-            let guest = guest.clone();
-            subjects.spawn(async move {
-                let name = actor["agent"].as_str().ok_or("actor")?;
-                for call in actor["calls"].as_array().ok_or("calls")? {
-                    let arguments = serde_json::to_string(&call["arguments"])?;
-                    let quote = format!("'{}'", arguments.replace('\'', "'\"'\"'"));
-                    let response = guest
-                        .command(
-                            name,
-                            format!(
-                                "printf '%s' {quote} > /service/{}; cat /service/result",
-                                call["tool"].as_str().ok_or("tool")?
-                            ),
-                        )
-                        .await?;
-                    if !response["stdout"]
-                        .as_str()
-                        .ok_or("stdout")?
-                        .contains("\"success\":true")
-                    {
-                        return Err(format!("probe operation failed: {response}").into());
+        let actors: [Value; 5] = fixture["fixtures"]
+            .as_array()
+            .ok_or("fixtures")?
+            .clone()
+            .try_into()
+            .map_err(|_| "writing actor count")?;
+        let result = hibana_runtime::race(
+            async {
+                let guest = &guest;
+                #[localside]
+                let result = guest_loop;
+                #[localside]
+                for actor in actors {
+                    let name = actor["agent"].as_str().ok_or("actor")?;
+                    for call in actor["calls"].as_array().ok_or("calls")? {
+                        let arguments = serde_json::to_string(&call["arguments"])?;
+                        let quote = format!("'{}'", arguments.replace('\'', "'\"'\"'"));
+                        let response = guest
+                            .command(
+                                name,
+                                format!(
+                                    "printf '%s' {quote} > /service/{}; cat /service/result",
+                                    call["tool"].as_str().ok_or("tool")?
+                                ),
+                            )
+                            .await?;
+                        if !response["stdout"]
+                            .as_str()
+                            .ok_or("stdout")?
+                            .contains("\"success\":true")
+                        {
+                            return Err(format!("probe operation failed: {response}").into());
+                        }
+                    }
+                    let exit = guest.command(name, "exit 0".into()).await?;
+                    if exit["exit_status"] != 0 {
+                        return Err("probe guest exit failed".into());
                     }
                 }
-                let exit = guest.command(name, "exit 0".into()).await?;
-                if exit["exit_status"] != 0 {
-                    return Err("probe guest exit failed".into());
-                }
-                Ok::<_, Box<dyn std::error::Error + Send + Sync>>(())
-            });
-        }
-        drop(guest);
-        let participants = async {
-            while let Some(result) = subjects.join_next().await {
-                result??;
-            }
-            Ok::<_, Box<dyn std::error::Error + Send + Sync>>(())
-        };
-        let (result, actors) = tokio::time::timeout(std::time::Duration::from_secs(120), async {
-            tokio::join!(guest_loop, participants)
-        })
+                Ok(result)
+            },
+            hibana_runtime::host::deadline(std::time::Duration::from_secs(120)),
+        )
         .await?;
-        actors?;
-        let result = result?;
         if result["protocol"]["status"] != "complete" || result["score"]["complete"] != true {
             return Err(format!("probe failed: {result}").into());
         }

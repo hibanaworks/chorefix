@@ -268,19 +268,22 @@ async fn case<const N: usize>(
     let participants = feedback
         .each_mut()
         .map(|output| (actors.next().expect("one fixture per participant"), output));
-    let result = tokio::time::timeout(Duration::from_secs(90), async {
-        let drive = &drive;
-        let guest = &guest;
-        let simulator = &simulator;
-        #[localside]
-        let result = runtime_loop;
-        #[localside]
-        for (actor, output) in participants {
-            *output = drive(guest, simulator, actor, task).await?;
-        }
-        Ok(result)
-    })
-    .await??;
+    let result = hibana_runtime::race(
+        async {
+            let drive = &drive;
+            let guest = &guest;
+            let simulator = &simulator;
+            #[localside]
+            let result = runtime_loop;
+            #[localside]
+            for (actor, output) in participants {
+                *output = drive(guest, simulator, actor, task).await?;
+            }
+            Ok(result)
+        },
+        hibana_runtime::host::deadline(Duration::from_secs(90)),
+    )
+    .await?;
     save(&case.join("result.json"), &result)?;
     let audit = crate::codebase_audit::audit(&case.join("events.jsonl"))?;
     save(&case.join("audit.json"), &audit)?;
@@ -318,7 +321,8 @@ async fn case<const N: usize>(
     )
 }
 
-#[tokio::test(flavor = "current_thread")]
+#[hibana_runtime::main]
+#[test]
 #[ignore = "requires seven actual WASI guests and the unchanged original simulator"]
 async fn seven_guests_reconsider_failures_through_delegated_module_endpoints() -> Result<()> {
     let directory = output("codebase-rust-reconsider")?;
@@ -359,7 +363,8 @@ async fn seven_guests_reconsider_failures_through_delegated_module_endpoints() -
     Ok(())
 }
 
-#[tokio::test(flavor = "current_thread")]
+#[hibana_runtime::main]
+#[test]
 #[ignore = "requires real WASI; the fixture withholds three independent commit effects"]
 async fn three_disjoint_commits_are_admitted_before_any_response() -> Result<()> {
     let directory = output("codebase-rust-held-commits")?;
@@ -393,7 +398,8 @@ async fn three_disjoint_commits_are_admitted_before_any_response() -> Result<()>
     Ok(())
 }
 
-#[tokio::test(flavor = "current_thread")]
+#[hibana_runtime::main]
+#[test]
 #[ignore = "requires the built codebase WASI runtime, wash and original simulator environment"]
 async fn typed_requests_gate_effects_and_keep_shell_errors_recoverable() -> Result<()> {
     let directory = output("codebase-rust-boundary")?;
@@ -413,7 +419,8 @@ async fn typed_requests_gate_effects_and_keep_shell_errors_recoverable() -> Resu
     Ok(())
 }
 
-#[tokio::test(flavor = "current_thread")]
+#[hibana_runtime::main]
+#[test]
 #[ignore = "requires real WASI and uses only the upstream FailureSpec environment API"]
 async fn terminal_test_errors_close_without_retries() -> Result<()> {
     let directory = output("codebase-rust-terminal-tests")?;
@@ -453,7 +460,8 @@ async fn terminal_test_errors_close_without_retries() -> Result<()> {
     Ok(())
 }
 
-#[tokio::test(flavor = "current_thread")]
+#[hibana_runtime::main]
+#[test]
 #[ignore = "requires real WASI and original normal domain delays, without barriers"]
 async fn normal_delays_allow_two_disjoint_actual_wasi_commits() -> Result<()> {
     let directory = output("codebase-rust-normal-delays")?;

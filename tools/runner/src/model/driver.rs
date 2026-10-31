@@ -1,26 +1,26 @@
 //! JSON-RPC correlation and concurrent tool replies, without task authority.
 use super::{Conversation, EFFORT, MODEL};
-use crate::{evidence::Result, wire::Wire};
-use serde_json::{Value, json};
-use std::collections::BTreeMap;
-use tokio::{
-    io::{AsyncRead, AsyncWrite},
-    task::JoinSet,
+use crate::{
+    evidence::Result,
+    process::Guest,
+    wire::{self, Wire},
 };
+use hibana_runtime::{host::notification, race};
+use serde_json::{Value, json};
+use std::{collections::BTreeMap, sync::mpsc};
 
-pub(super) async fn run<W, R, F, Fut>(
-    wire: &mut Wire<W, R>,
+enum Incoming {
+    Frame(Value),
+    Reply(Value, Result<Value>),
+}
+
+pub(super) async fn run(
+    wire: &mut Wire,
     people: &mut [Conversation],
     completed: &mut Vec<Value>,
     tool_limit: u64,
-    dispatch: F,
-) -> Result<()>
-where
-    W: AsyncWrite + Unpin,
-    R: AsyncRead + Unpin,
-    F: Fn(String, String) -> Fut + Clone + Send + 'static,
-    Fut: Future<Output = Result<Value>> + Send + 'static,
-{
+    guest: &Guest,
+) -> Result<()> {
     wire.request(1,"initialize",json!({"clientInfo":{"name":"choreofix","title":"ChoreoFix","version":"0.1.0"},"capabilities":{"experimentalApi":true}})).await?;
     wire.send(&json!({"method":"initialized"})).await?;
     let mut threads = BTreeMap::new();
@@ -73,18 +73,26 @@ where
         person.trace.record("send", &request)?;
         wire.send(&request).await?;
     }
-    let mut calls: JoinSet<Result<(Value, usize, Value)>> = JoinSet::new();
-    let mut pending = BTreeMap::new();
+    let (replies, receive) = mpsc::channel::<(Value, Result<Value>)>();
+    let (notify, mut ready) = notification()?;
+    let mut pending = BTreeMap::<String, usize>::new();
     while !threads.is_empty() {
-        let message = tokio::select! {
-            message = wire.next() => message?,
-            Some(reply) = calls.join_next(), if !calls.is_empty() => {
-                let (id,index,outcome) = reply??;
-                if pending.remove(&id.to_string()) != Some(index) {
-                    return Err("tool reply has no matching request".into());
-                }
-                let reply=json!({"id":id,"result":{"success":true,"contentItems":[{"type":"inputText","text":outcome.to_string()}]}});
-                people[index].trace.record("send",&reply)?;
+        let incoming = race(async { wire.next().await.map(Incoming::Frame) }, async {
+            let (id, result) = wire::receive(&receive, &mut ready)
+                .await?
+                .ok_or("tool response direction closed")?;
+            Ok::<Incoming, Box<dyn std::error::Error + Send + Sync>>(Incoming::Reply(id, result))
+        })
+        .await?;
+        let message = match incoming {
+            Incoming::Frame(message) => message,
+            Incoming::Reply(id, outcome) => {
+                let index = pending
+                    .remove(&id.to_string())
+                    .ok_or("tool reply has no matching request")?;
+                let outcome = outcome?;
+                let reply = json!({"id":id,"result":{"success":true,"contentItems":[{"type":"inputText","text":outcome.to_string()}]}});
+                people[index].trace.record("send", &reply)?;
                 wire.send(&reply).await?;
                 continue;
             }
@@ -148,16 +156,19 @@ where
                     wire.send(&reply).await?;
                 } else {
                     let command = arguments["command"].as_str().unwrap().to_owned();
-                    let dispatch = dispatch.clone();
-                    let agent = person.participant.agent.clone();
-                    calls.spawn(async move {
-                        let outcome = if command.len() > 4096 {
-                            json!({"status":"script_too_long","limit_utf8_bytes":4096})
-                        } else {
-                            dispatch(agent, command).await?
-                        };
-                        Ok::<_, Box<dyn std::error::Error + Send + Sync>>((id, index, outcome))
-                    });
+                    let reply = (replies.clone(), notify.try_clone()?);
+                    if command.len() > 4096 {
+                        wire::respond(
+                            &reply,
+                            id,
+                            Ok(json!({"status":"script_too_long","limit_utf8_bytes":4096})),
+                        )?;
+                    } else {
+                        guest.send(
+                            json!({"id":id,"agent":person.participant.agent,"command":command}),
+                            reply,
+                        )?;
+                    }
                 }
             }
             Some("thread/tokenUsage/updated") => {

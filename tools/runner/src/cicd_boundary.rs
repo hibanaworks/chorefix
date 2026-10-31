@@ -20,7 +20,7 @@ fn response(value: &Value) -> Result<Value> {
         .ok_or("empty result")?
         .map_err(Into::into)
 }
-async fn participant(guest: process::Guest, actor: Value) -> Result<()> {
+async fn participant(guest: &process::Guest, actor: Value) -> Result<()> {
     let agent = actor["agent"].as_str().ok_or("participant")?;
     let call = &actor["calls"][0];
     let tool = call["tool"].as_str().ok_or("tool")?;
@@ -186,7 +186,8 @@ while [ "$n" -lt 3 ]; do printf '%s\n' "$n"; expr "$n" + 1 | read n; done
     Ok(())
 }
 
-#[tokio::test(flavor = "current_thread")]
+#[hibana_runtime::main]
+#[test]
 #[ignore = "requires the source-qualified CI/CD binary, actual wash and unchanged upstream simulator"]
 async fn real_wasi_cicd_uses_resource_endpoints_and_keeps_shell_freedom() -> Result<()> {
     std::env::set_current_dir(
@@ -222,23 +223,26 @@ async fn real_wasi_cicd_uses_resource_endpoints_and_keeps_shell_freedom() -> Res
         )?;
         let (guest, runtime_loop) =
             process::guest(&runtime, wasm, "16E", &output, trace, simulator.clone())?;
-        let mut jobs = tokio::task::JoinSet::new();
-        for actor in fixture["fixtures"]
+        let actors: [Value; 3] = fixture["fixtures"]
             .as_array()
             .ok_or("original participants")?
-        {
-            jobs.spawn(participant(guest.clone(), actor.clone()));
-        }
-        drop(guest);
-        let (result, ()) = tokio::time::timeout(Duration::from_secs(90), async {
-            tokio::try_join!(runtime_loop, async {
-                while let Some(job) = jobs.join_next().await {
-                    job??;
+            .clone()
+            .try_into()
+            .map_err(|_| "CI/CD participant count")?;
+        let result = hibana_runtime::race(
+            async {
+                let guest = &guest;
+                #[localside]
+                let result = runtime_loop;
+                #[localside]
+                for actor in actors {
+                    participant(guest, actor).await?;
                 }
-                Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
-            })
-        })
-        .await??;
+                Ok(result)
+            },
+            hibana_runtime::host::deadline(Duration::from_secs(90)),
+        )
+        .await?;
         assert_eq!(result["runtime_exit_code"], 0, "{result}");
         assert_eq!(result["protocol"]["status"], "complete");
         assert_eq!(result["score"]["complete"], true);
@@ -260,7 +264,8 @@ async fn real_wasi_cicd_uses_resource_endpoints_and_keeps_shell_freedom() -> Res
     Ok(())
 }
 
-#[tokio::test(flavor = "current_thread")]
+#[hibana_runtime::main]
+#[test]
 #[ignore = "requires the source-qualified CI/CD binary and actual wash; verifies rejection before any original effect"]
 async fn real_wasi_cicd_early_exit_has_no_domain_effect() -> Result<()> {
     std::env::set_current_dir(
@@ -296,11 +301,17 @@ async fn real_wasi_cicd_early_exit_has_no_domain_effect() -> Result<()> {
     )?;
     let (guest, runtime_loop) =
         process::guest(&runtime, module, "16E", &output, trace, simulator.clone())?;
-    let (command, result) = tokio::time::timeout(Duration::from_secs(10), async {
-        tokio::join!(guest.command("DEVELOPER", "exit 0".into()), runtime_loop)
-    })
+    let (command, result) = hibana_runtime::race(
+        async {
+            #[localside]
+            let command = async { Ok(guest.command("DEVELOPER", "exit 0".into()).await) };
+            #[localside]
+            let result = runtime_loop;
+            Ok((command, result))
+        },
+        hibana_runtime::host::deadline(Duration::from_secs(10)),
+    )
     .await?;
-    let result = result?;
     assert!(command.is_err());
     assert_eq!(result["protocol"]["status"], "failed", "{result}");
     assert_eq!(result["runtime_exit_code"], 1);

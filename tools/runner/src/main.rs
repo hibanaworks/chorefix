@@ -29,13 +29,13 @@ mod writing_audit;
 mod writing_boundary;
 
 use evidence::{Result, Trace, save};
+use hibana_runtime::{host::deadline, race};
 use serde_json::{Value, json};
 use std::{
     fs,
     path::Path,
     time::{Duration, Instant},
 };
-use tokio::task::JoinSet;
 
 fn prompt(source: &Path, task: &str, actor: &Value) -> Result<String> {
     let agent = actor["agent"].as_str().ok_or("participant name")?;
@@ -181,6 +181,7 @@ fn trial_error(outcomes: &[Value]) -> Option<String> {
         })
 }
 
+#[hibana_runtime::localside]
 async fn run(task: &str, depth: u8, output: &Path) -> Result<Value> {
     if ![
         "1E", "1M", "1H", "2E", "2M", "2H", "6E", "8E", "9E", "9M", "9H", "16E",
@@ -213,12 +214,6 @@ async fn run(task: &str, depth: u8, output: &Path) -> Result<Value> {
         trace,
         simulator,
     )?;
-    let mut jobs = JoinSet::new();
-    jobs.spawn(async move {
-        guest_loop
-            .await
-            .map(|value| json!({"kind":"guest_runtime","result":value}))
-    });
     let mut people = Vec::new();
     for actor in fixture["fixtures"].as_array().ok_or("actor fixtures")? {
         let agent = actor["agent"].as_str().ok_or("actor name")?.to_owned();
@@ -230,50 +225,59 @@ async fn run(task: &str, depth: u8, output: &Path) -> Result<Value> {
             instructions,
         });
     }
-    jobs.spawn(async move {
-        model::run(
-            people,
-            model::Limits {
-                timeout: Duration::from_secs(seconds),
-                tool_calls: budget,
-            },
-            move |agent, command| {
-                let guest = guest.clone();
-                async move { guest.command(&agent, command).await }
-            },
-        )
-        .await
-        .map(|results| json!({"kind":"model_participants","results":results}))
-    });
-    let mut outcomes = Vec::new();
-    let finished = tokio::time::timeout(Duration::from_secs(seconds + 20), async {
-        while let Some(result) = jobs.join_next().await {
-            match result {
-                Ok(Ok(value)) if value["kind"] == "model_participants" => {
-                    for participant in value["results"].as_array().ok_or("model results")? {
-                        outcomes.push(json!({"kind":"model_participant","result":participant}));
-                    }
-                }
-                Ok(Ok(value)) => outcomes.push(value),
-                Ok(Err(error)) => {
-                    outcomes.push(json!({"status":"harness_error","error":error.to_string()}))
-                }
-                Err(error) => {
-                    outcomes.push(json!({"status":"harness_error","error":error.to_string()}))
-                }
-            }
-            save(&output.join("outcomes.json"), &json!(outcomes))?;
-        }
-        Ok::<_, Box<dyn std::error::Error + Send + Sync>>(())
-    })
+    let finished: Result<()> = race(
+        async {
+            async {
+                let result = match guest_loop.await {
+                    Ok(value) => json!({"kind":"guest_runtime","result":value}),
+                    Err(error) => json!({"status":"harness_error","error":error.to_string()}),
+                };
+                save(&output.join("guest-outcome.json"), &result)?;
+            };
+            async {
+                let result = match model::run(
+                    people,
+                    model::Limits {
+                        timeout: Duration::from_secs(seconds),
+                        tool_calls: budget,
+                    },
+                    &guest,
+                )
+                .await
+                {
+                    Ok(results) => json!(
+                        results
+                            .into_iter()
+                            .map(|result| json!({"kind":"model_participant","result":result}))
+                            .collect::<Vec<_>>()
+                    ),
+                    Err(error) => json!([{"status":"harness_error","error":error.to_string()}]),
+                };
+                save(&output.join("model-outcomes.json"), &result)?;
+            };
+            Ok(())
+        },
+        deadline(Duration::from_secs(seconds + 20)),
+    )
     .await;
+    // These files are experiment reports, including partial reports after a
+    // timeout. They never decide which participant or Endpoint may progress.
+    let mut outcomes = Vec::new();
+    match fs::read(output.join("guest-outcome.json")) {
+        Ok(bytes) => outcomes.push(serde_json::from_slice(&bytes)?),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error.into()),
+    }
+    match fs::read(output.join("model-outcomes.json")) {
+        Ok(bytes) => outcomes.extend(serde_json::from_slice::<Vec<Value>>(&bytes)?),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error.into()),
+    }
+    save(&output.join("outcomes.json"), &json!(outcomes))?;
     let error = match finished {
-        Ok(Ok(())) => trial_error(&outcomes),
-        Ok(Err(e)) => Some(e.to_string()),
-        Err(_) => Some("case timeout; incomplete work retained".to_owned()),
+        Ok(()) => trial_error(&outcomes),
+        Err(error) => Some(error.to_string()),
     };
-    jobs.abort_all();
-    while jobs.join_next().await.is_some() {}
     let result = json!({"task":task,"depth":depth,"kind":"unscored_direct_wasi_model_preflight",
         "scored_benchmark":false,"error":error,"elapsed_seconds":started.elapsed().as_secs_f64(),
         "versions":versions,"outcomes":outcomes,"events_sha256":evidence::digest(&output.join("events.jsonl"))?});
@@ -281,7 +285,7 @@ async fn run(task: &str, depth: u8, output: &Path) -> Result<Value> {
     Ok(result)
 }
 
-#[tokio::main(flavor = "current_thread")]
+#[hibana_runtime::main]
 async fn main() -> Result<()> {
     let args: Vec<_> = std::env::args().skip(1).collect();
     match args.as_slice() {

@@ -40,8 +40,8 @@ fn count(events: &[Value], agent: &str, tool: &str) -> usize {
 }
 
 async fn developer(
-    guest: process::Guest,
-    simulator: oracle::Simulator,
+    guest: &process::Guest,
+    simulator: &oracle::Simulator,
     agent: &str,
     feature: &str,
     branch: &str,
@@ -153,8 +153,8 @@ async fn developer(
 }
 
 async fn reviewer(
-    guest: process::Guest,
-    simulator: oracle::Simulator,
+    guest: &process::Guest,
+    simulator: &oracle::Simulator,
     first: &str,
     schedule: ReviewSchedule,
 ) -> Result<()> {
@@ -239,7 +239,8 @@ async fn reviewer(
     Ok(())
 }
 
-#[tokio::test(flavor = "current_thread")]
+#[hibana_runtime::main]
+#[test]
 #[ignore = "uses the built WASI runtime, real wash and unchanged upstream simulator"]
 async fn real_wasi_reviews_reconsider_and_interleave_with_unchanged_upstream() -> Result<()> {
     let mut cases = Vec::new();
@@ -274,7 +275,8 @@ async fn real_wasi_reviews_reconsider_and_interleave_with_unchanged_upstream() -
     run_cases(cases).await
 }
 
-#[tokio::test(flavor = "current_thread")]
+#[hibana_runtime::main]
+#[test]
 #[ignore = "uses the built WASI runtime and additional unscored upstream failure injection"]
 async fn repeated_rejections_require_a_fresh_revision() -> Result<()> {
     let mut cases = Vec::new();
@@ -305,6 +307,7 @@ struct ReviewCase {
     extra_failures: &'static [u32],
 }
 
+#[hibana_runtime::localside]
 async fn run_cases(cases: Vec<ReviewCase>) -> Result<()> {
     std::env::set_current_dir(
         Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -363,31 +366,33 @@ async fn run_cases(cases: Vec<ReviewCase>) -> Result<()> {
         let (simulator, _) = oracle::Simulator::new("6E", depth, delay, trace.clone(), &failures)?;
         let (guest, runtime_loop) =
             process::guest(&runtime, module, "6E", &case, trace, simulator.clone())?;
-        let (a, b, review, result) = tokio::time::timeout(Duration::from_secs(60), async {
-            tokio::join!(
-                developer(
-                    guest.clone(),
-                    simulator.clone(),
+        let (a, b, result) = hibana_runtime::race(
+            async {
+                #[localside]
+                let a = developer(
+                    &guest,
+                    &simulator,
                     "DEVELOPER_A",
                     "user_authentication",
-                    "dev_a_feature"
-                ),
-                developer(
-                    guest.clone(),
-                    simulator.clone(),
+                    "dev_a_feature",
+                );
+                #[localside]
+                let b = developer(
+                    &guest,
+                    &simulator,
                     "DEVELOPER_B",
                     "notification_feature",
-                    "dev_b_feature"
-                ),
-                reviewer(guest.clone(), simulator.clone(), review_first, schedule),
-                runtime_loop,
-            )
-        })
+                    "dev_b_feature",
+                );
+                #[localside]
+                reviewer(&guest, &simulator, review_first, schedule);
+                #[localside]
+                let result = runtime_loop;
+                Ok((a, b, result))
+            },
+            hibana_runtime::host::deadline(Duration::from_secs(60)),
+        )
         .await?;
-        let a = a?;
-        let b = b?;
-        review?;
-        let result = result?;
         assert_eq!(
             result["protocol"],
             json!({"type":"run_result","status":"complete"})

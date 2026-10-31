@@ -20,7 +20,7 @@ fn response(reply: &Value) -> Result<Value> {
         .ok_or("empty result")?
         .map_err(Into::into)
 }
-async fn participant(guest: process::Guest, actor: Value, terminal: bool) -> Result<()> {
+async fn participant(guest: &process::Guest, actor: Value, terminal: bool) -> Result<()> {
     let agent = actor["agent"].as_str().ok_or("agent")?;
     let early = guest
         .command(agent, "echo '{}' > /service/write_to_document".into())
@@ -107,7 +107,21 @@ async fn participant(guest: process::Guest, actor: Value, terminal: bool) -> Res
     );
     Ok(())
 }
-#[tokio::test(flavor = "current_thread")]
+#[hibana_runtime::localside]
+async fn inputs<const N: usize>(
+    guest: &process::Guest,
+    actors: [Value; N],
+    terminal: bool,
+) -> Result<()> {
+    #[localside]
+    for actor in actors {
+        participant(guest, actor, terminal).await?;
+    }
+    Ok(())
+}
+
+#[hibana_runtime::main]
+#[test]
 #[ignore = "requires source-qualified writing binary, actual wash and unchanged 3/5/7-person simulators"]
 async fn all_writing_levels_use_actual_section_endpoints() -> Result<()> {
     std::env::set_current_dir(
@@ -159,20 +173,48 @@ async fn all_writing_levels_use_actual_section_endpoints() -> Result<()> {
             )?;
             let (guest, runtime_loop) =
                 process::guest(&runtime, wasm, task, &output, trace, simulator)?;
-            let mut jobs = tokio::task::JoinSet::new();
-            for actor in fixture["fixtures"].as_array().ok_or("actors")? {
-                jobs.spawn(participant(guest.clone(), actor.clone(), terminal));
-            }
-            drop(guest);
-            let (result, ()) = tokio::time::timeout(Duration::from_secs(120), async {
-                tokio::try_join!(runtime_loop, async {
-                    while let Some(job) = jobs.join_next().await {
-                        job??;
-                    }
-                    Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
-                })
-            })
-            .await??;
+            let actors = fixture["fixtures"].as_array().ok_or("actors")?.clone();
+            let result = hibana_runtime::race(
+                async {
+                    #[localside]
+                    let result = runtime_loop;
+                    async {
+                        match task {
+                            "2E" => {
+                                inputs(
+                                    &guest,
+                                    <[Value; 3]>::try_from(actors)
+                                        .map_err(|_| "writing actor count")?,
+                                    terminal,
+                                )
+                                .await?
+                            }
+                            "2M" => {
+                                inputs(
+                                    &guest,
+                                    <[Value; 5]>::try_from(actors)
+                                        .map_err(|_| "writing actor count")?,
+                                    terminal,
+                                )
+                                .await?
+                            }
+                            "2H" => {
+                                inputs(
+                                    &guest,
+                                    <[Value; 7]>::try_from(actors)
+                                        .map_err(|_| "writing actor count")?,
+                                    terminal,
+                                )
+                                .await?
+                            }
+                            _ => return Err("unknown writing task".into()),
+                        };
+                    };
+                    Ok(result)
+                },
+                hibana_runtime::host::deadline(Duration::from_secs(120)),
+            )
+            .await?;
             assert_eq!(result["runtime_exit_code"], 0, "{result}");
             assert_eq!(result["protocol"]["status"], "complete");
             assert_eq!(result["score"]["complete"], !terminal);

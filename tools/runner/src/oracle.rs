@@ -1,14 +1,17 @@
 //! One I/O thread owns the original environment and starts its asynchronous calls.
-use crate::evidence::{Result, Trace};
+use crate::{
+    evidence::{Result, Trace},
+    wire::{self, Reply},
+};
+use hibana_runtime::host::notification;
 use pyo3::{
     prelude::*,
     types::{PyCFunction, PyDict, PyModule, PyType},
 };
 use serde_json::{Value, json};
-use std::{fs, path::Path, time::Instant};
-use tokio::sync::mpsc;
+use std::{fs, path::Path, sync::mpsc, time::Instant};
 
-type Request = (Value, mpsc::Sender<Result<Value>>);
+type Request = (Value, Reply);
 
 pub fn interpreter_identity() -> Result<Value> {
     if std::env::var("PYTHONHASHSEED").as_deref() != Ok("0") {
@@ -94,7 +97,7 @@ struct Environment {
 }
 
 #[derive(Clone)]
-pub struct Simulator(mpsc::UnboundedSender<(Value, mpsc::Sender<Result<Value>>)>);
+pub struct Simulator(mpsc::Sender<Request>);
 
 impl Simulator {
     pub fn new(
@@ -218,7 +221,7 @@ impl Simulator {
             trace,
             started: Instant::now(),
         };
-        let (send, mut receive) = mpsc::unbounded_channel::<Request>();
+        let (send, receive) = mpsc::channel::<Request>();
         std::thread::Builder::new()
             .name("original-environment".into())
             .spawn(move || {
@@ -229,7 +232,7 @@ impl Simulator {
                     std::collections::BTreeSet<String>,
                     Vec<Request>,
                 )> = None;
-                while let Some((message, reply)) = receive.blocking_recv() {
+                while let Ok((message, reply)) = receive.recv() {
                     #[cfg(test)]
                     {
                         if message["type"] == "hold_disjoint_commits" {
@@ -257,7 +260,8 @@ impl Simulator {
                                 }
                                 _ => Err("invalid or duplicate test commit gate".into()),
                             };
-                            let _ = reply.try_send(configured);
+                            wire::respond(&reply, message["id"].clone(), configured)
+                                .expect("notify configured test I/O");
                             continue;
                         }
                         if message["type"] == "execute"
@@ -271,14 +275,20 @@ impl Simulator {
                                 .iter()
                                 .any(|(prior, _)| prior["agent"] == message["agent"])
                             {
-                                let _ = reply.try_send(Err("duplicate held commit".into()));
+                                wire::respond(
+                                    &reply,
+                                    message["id"].clone(),
+                                    Err("duplicate held commit".into()),
+                                )
+                                .expect("notify duplicate test I/O");
                                 continue;
                             }
                             if let Err(error) = environment.trace.record(
                                 "test_control",
                                 &json!({"type":"commit_held","request":message}),
                             ) {
-                                let _ = reply.try_send(Err(error));
+                                wire::respond(&reply, message["id"].clone(), Err(error))
+                                    .expect("notify failed test I/O");
                                 continue;
                             }
                             held.push((message, reply));
@@ -288,8 +298,13 @@ impl Simulator {
                                     "test_control",
                                     &json!({"type":"commits_released","agents":agents}),
                                 ) {
-                                    for (_, reply) in held {
-                                        let _ = reply.try_send(Err(error.to_string().into()));
+                                    for (message, reply) in held {
+                                        wire::respond(
+                                            &reply,
+                                            message["id"].clone(),
+                                            Err(error.to_string().into()),
+                                        )
+                                        .expect("notify failed held I/O");
                                     }
                                     continue;
                                 }
@@ -307,14 +322,23 @@ impl Simulator {
     }
 
     pub async fn call(&self, message: Value) -> Result<Value> {
-        let (send, mut receive) = mpsc::channel(1);
+        let (send, receive) = mpsc::channel();
+        let (notify, mut ready) = notification()?;
+        let id = message["id"].clone();
+        self.send(message, (send, notify))?;
+        let (received_id, result) = wire::receive(&receive, &mut ready)
+            .await?
+            .ok_or("upstream reply closed without a result")?;
+        if received_id != id {
+            return Err("upstream reply id mismatch".into());
+        }
+        result
+    }
+
+    pub(crate) fn send(&self, message: Value, reply: Reply) -> Result<()> {
         self.0
-            .send((message, send))
-            .map_err(|_| "upstream environment closed")?;
-        receive
-            .recv()
-            .await
-            .ok_or("upstream reply direction closed")?
+            .send((message, reply))
+            .map_err(|_| "upstream environment closed".into())
     }
 
     #[cfg(test)]
@@ -325,21 +349,25 @@ impl Simulator {
 }
 
 impl Environment {
-    fn serve(&self, message: Value, reply: mpsc::Sender<Result<Value>>) {
+    fn serve(&self, message: Value, reply: Reply) {
+        let id = message["id"].clone();
         let result = match message["type"].as_str() {
-            Some("execute") => match self.execute(message, reply.clone()) {
-                Ok(()) => return,
-                Err(error) => Err(error),
+            Some("execute") => match reply.1.try_clone() {
+                Ok(notify) => match self.execute(message, (reply.0.clone(), notify)) {
+                    Ok(()) => return,
+                    Err(error) => Err(error),
+                },
+                Err(error) => Err(error.into()),
             },
             Some("score") => self.score(),
             #[cfg(test)]
             Some("observed_events") => self.observed_events().map(Value::Array),
             _ => Err("unknown upstream request".into()),
         };
-        let _ = reply.try_send(result);
+        wire::respond(&reply, id, result).expect("notify upstream result");
     }
 
-    fn execute(&self, message: Value, reply: mpsc::Sender<Result<Value>>) -> Result<()> {
+    fn execute(&self, message: Value, reply: Reply) -> Result<()> {
         let tool = message["tool"].as_str().ok_or("upstream tool name")?;
         let agent = message["agent"].as_str().ok_or("upstream agent")?;
         let arguments = serde_json::to_string(&message["arguments"])?;
@@ -385,12 +413,9 @@ impl Environment {
                         trace.record("simulator", &response)?;
                         Ok(response)
                     })();
-                    match reply.try_send(result) {
-                        Ok(()) | Err(mpsc::error::TrySendError::Closed(_)) => Ok(()),
-                        Err(mpsc::error::TrySendError::Full(_)) => Err(
-                            pyo3::exceptions::PyRuntimeError::new_err("duplicate upstream reply"),
-                        ),
-                    }
+                    wire::respond(&reply, id.clone(), result).map_err(|error| {
+                        pyo3::exceptions::PyRuntimeError::new_err(error.to_string())
+                    })
                 },
             )?;
             future.call_method1("add_done_callback", (callback,))?;

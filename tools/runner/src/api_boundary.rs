@@ -20,7 +20,7 @@ fn response(reply: &Value) -> Result<Value> {
         .map_err(Into::into)
 }
 
-async fn participant(guest: process::Guest, actor: Value, depth: u8) -> Result<Value> {
+async fn participant(guest: &process::Guest, actor: Value, depth: u8) -> Result<Value> {
     let agent = actor["agent"].as_str().ok_or("original participant")?;
     if agent != "TESTER" {
         let early = guest
@@ -75,7 +75,8 @@ async fn participant(guest: process::Guest, actor: Value, depth: u8) -> Result<V
     Ok(json!({"agent":agent,"operation":result,"outcome":outcome}))
 }
 
-#[tokio::test(flavor = "current_thread")]
+#[hibana_runtime::main]
+#[test]
 #[ignore = "requires the source-qualified API binary and actual wash module"]
 async fn real_wasi_outcome_metadata_preserves_all_original_results() -> Result<()> {
     std::env::set_current_dir(
@@ -127,15 +128,26 @@ async fn real_wasi_outcome_metadata_preserves_all_original_results() -> Result<(
             .iter()
             .find(|actor| actor["agent"] == "TESTER")
             .ok_or("tester")?;
-        let mut jobs = tokio::task::JoinSet::new();
-        for actor in actors.iter().filter(|actor| actor["agent"] != "TESTER") {
-            jobs.spawn(participant(guest.clone(), actor.clone(), depth));
-        }
-        let (runtime_result, participants) = tokio::time::timeout(Duration::from_secs(60), async {
-            tokio::try_join!(runtime_loop, async {
-                // Hold only the scripted tester input. Both actual WASI reads
-                // must wait at the file owner until the test result exists.
-                tokio::time::timeout(Duration::from_secs(10), async {
+        let [first, second]: [&Value; 2] = actors
+            .iter()
+            .filter(|actor| actor["agent"] != "TESTER")
+            .collect::<Vec<_>>()
+            .try_into()
+            .map_err(|_| "API worker count")?;
+        let (runtime_result, participants) = hibana_runtime::race(
+            async {
+                #[localside]
+                let first = participant(&guest, first.clone(), depth);
+                #[localside]
+                let second = participant(&guest, second.clone(), depth);
+                #[localside]
+                let runtime_result = runtime_loop;
+                #[localside]
+                let tester =
+                    async {
+                        // Hold only the scripted tester input. Both actual WASI reads
+                        // must wait at the file owner until the test result exists.
+                        hibana_runtime::race(async {
                     loop {
                         let bytes = fs::read(output.join("events.jsonl"))?;
                         let rows = bytes
@@ -152,10 +164,6 @@ async fn real_wasi_outcome_metadata_preserves_all_original_results() -> Result<(
                                     && message["target"] == owner
                             })
                         }) {
-                            assert!(
-                                jobs.try_join_next().is_none(),
-                                "outcome read completed before testing"
-                            );
                             assert!(!rows.iter().any(|row| {
                                 let message = &row["message"];
                                 message["type"] == "execute"
@@ -193,17 +201,15 @@ async fn real_wasi_outcome_metadata_preserves_all_original_results() -> Result<(
                         );
                     }
                     Ok::<_, Box<dyn std::error::Error + Send + Sync>>(())
-                })
-                .await??;
-                jobs.spawn(participant(guest.clone(), tester.clone(), depth));
-                let mut replies = Vec::new();
-                while let Some(reply) = jobs.join_next().await {
-                    replies.push(reply??);
-                }
-                Ok::<_, Box<dyn std::error::Error + Send + Sync>>(replies)
-            })
-        })
-        .await??;
+                }, hibana_runtime::host::deadline(Duration::from_secs(10)))
+                .await?;
+                        participant(&guest, tester.clone(), depth).await
+                    };
+                Ok((runtime_result, [first, second, tester]))
+            },
+            hibana_runtime::host::deadline(Duration::from_secs(60)),
+        )
+        .await?;
         assert_eq!(runtime_result["runtime_exit_code"], 0, "{runtime_result}");
         assert_eq!(runtime_result["protocol"]["status"], "complete");
         assert_eq!(runtime_result["score"]["complete"], depth == 0);
