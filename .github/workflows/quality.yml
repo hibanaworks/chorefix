@@ -85,7 +85,13 @@ jobs:
           cargo +stable run --locked --bin philosophers-boundary -- 9H philosophers-boundary-9H
           cargo +stable run --locked --bin philosophers-boundary -- --check-mutants philosophers-boundary-9H/events.jsonl philosophers-boundary-9H-mutants
           CHOREOFIX_WRITING_RUNTIME="$PWD/target/debug/writing-wasi" cargo +stable test --locked --manifest-path tools/runner/Cargo.toml original_simulator_overlaps -- --ignored --nocapture
+          jq -n \
+            --arg binary_sha256 "$(sha256sum target/debug/review-wasi | cut -d ' ' -f 1)" \
+            --arg source_manifest_sha256 "$(sha256sum cicd-source-after.sha256 | cut -d ' ' -f 1)" \
+            '{binary_sha256:$binary_sha256,source_manifest:"cicd-source-after.sha256",source_manifest_sha256:$source_manifest_sha256,source_unchanged:true,scored_benchmark:false}' > review-build-receipt.json
           CHOREOFIX_REVIEW_WASI_BINARY="$PWD/target/debug/review-wasi" \
+            CHOREOFIX_REVIEW_BUILD_RECEIPT="$PWD/review-build-receipt.json" \
+            CHOREOFIX_EVIDENCE_ROOT="$PWD/output/review-boundary" \
             cargo +stable test --locked --manifest-path tools/runner/Cargo.toml review_boundary:: -- --ignored --test-threads=1 --nocapture
           cargo +stable run --locked --manifest-path tools/inputs/Cargo.toml -- verify
           cargo +stable run --locked --manifest-path tools/inputs/Cargo.toml -- matrix --check
@@ -107,4 +113,6 @@ jobs:
             output/cicd-boundary/
             cicd-source-*.sha256
             cicd-build-receipt.json
+            output/review-boundary/
+            review-build-receipt.json
           if-no-files-found: ignore

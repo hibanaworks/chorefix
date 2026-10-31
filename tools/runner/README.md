@@ -16,6 +16,10 @@ arguments, simulator requests and results, approval before merging, and guest
 exits. Each review uses distinct intent deliveries, a request, an argument-file
 close and five result deliveries. Repeated arguments cannot reuse earlier
 occurrences. A repeated review also requires a new completed implementation.
+Wire labels and lanes are currently checked for consistency between observations
+of the same frame, but are not yet matched against a compiled projection artifact.
+Consistent changes to those fields can therefore pass this auditor. This limitation
+concerns the record audit; it does not disable Hibana's Endpoint checks.
 The auditor reports overlapping domain operations and runs without models:
 
 ```sh
@@ -23,8 +27,12 @@ cargo +stable run --locked --manifest-path tools/runner/Cargo.toml -- --audit-re
 cargo +stable run --locked --manifest-path tools/runner/Cargo.toml -- --check-review-mutants EVENTS.jsonl NEW_DIRECTORY
 ```
 
-The review regression uses the actual built runtime selected by
-`CHOREOFIX_REVIEW_WASI_BINARY`. It covers failure conditions 0/1/2, both first
+The review regression requires `CHOREOFIX_REVIEW_WASI_BINARY`,
+`CHOREOFIX_REVIEW_BUILD_RECEIPT` and `CHOREOFIX_EVIDENCE_ROOT`. The receipt binds
+the binary to its unchanged build-source manifest. Each run saves that manifest,
+the receipt, runtime and harness hashes, traces and mutation verdicts under the
+evidence root. The workflow runs both ignored review tests and retains these files.
+It covers failure conditions 0/1/2, both first
 review targets and repeated or alternating reviews. Eight additional cases use
 the original delays and require observed overlap, for 26 cases in total.
 Eight separate mechanism cases inject third and fourth rejections through the

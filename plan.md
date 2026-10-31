@@ -214,7 +214,7 @@ ChoreoFixのmanifest/lockは本体
 | --- | --- | --- |
 | 1E/1M/1H | 実資源Endpointの要求・結果・返却。1Hは7人が実結果で再考。実Endpoint・実Wasm試験と実モデルの予備記録あり | source固定後の全条件の認定と比較 |
 | 2E/2M/2H | 両sectionの実Endpoint要求・結果・返却。実Wasm15条件と3/5/7人のLuna予備試験が通過 | source固定後の全条件の認定と比較 |
-| 6E | 実Repo Endpointによるglobal。各拒否後に修正・再レビューを行い、承認後の並行な後続へ進む | 通常Git pinで実Wasm通常26条件と追加8条件が成功、違反0、826記録変異を拒否。現版のモデル認定は未完 |
+| 6E | 実Repo Endpointによるglobal。各拒否後に修正・再レビューを行い、承認後の並行な後続へ進む | 通常Git pinで実Wasm通常26条件と追加8条件、3人の実モデル予備試験が成功。wire label・laneの独立監査と全条件の認定は未完 |
 | 8E | DB・test環境の実Endpoint委譲、単独所有の結果ファイル、実Wasm3条件、Luna成功・終端失敗の予備試験 | source固定後の認定と比較 |
 | 9E/9M/9H | 実fork Endpointを両方受け取り、実要求・結果・返却。3/5/7人の実Wasm・実モデル予備試験あり | source固定後の認定と比較 |
 | 16E | build/deploy環境の実Endpoint委譲。実Wasm3条件、早期終了拒否、3人のLuna予備試験あり | source固定後の認定と比較 |
@@ -239,8 +239,27 @@ compile時間の改善は確認していない。36 native試験、アプリとr
 同じ通常Git pinとbinaryで、1E/1Mの9条件、1Hの5条件、レビュー34条件が実Wasmで成功した。
 1Hは元の障害0/1/2、追加の2回失敗、通常遅延を含む。通常遅延では独立commitが3件重なり、
 違反0だった。coding各記録の10変異、計140件と、レビューの826記録変異を拒否した。
-これらはモデル呼出し0の機構試験で、比較の採点数は増やさない。現在sourceのモデル試験は
-別途認定する。旧Python接続・監査の残存分、未移行課題、比較接続とT3/T4の合成は残る。
+これらはモデル呼出し0の機構試験で、比較の採点数は増やさない。
+
+ChoreoFix `252b821cffcec3a5f172aa64e018db8e709cc8da`のbinaryと通常Git依存で、
+1Hの7人と6Eの3人のLuna xhighを、ChatGPT subscriptionから実Wasmで実行した。
+1Hは79.57秒、inclusive 1,820,465tokens。各人が実際のテストに2回失敗した後で成功し、
+資源要求・返却各42件、独立commitの同時実行2件、元score完了・監査違反0だった。
+6Eは30.29秒、inclusive 284,702tokens。4回のレビュー、資源要求・返却各6件で完走し、
+実装/レビューの重なり3組、merge/レビューの重なり1組を観測した。
+raw、各参加者のusage、binary/source receiptは
+`output/canonical-model-qualification/subscription-1H-1793407820497950000`と
+`subscription-6E-1793408026651117000`に保持する。
+これらは2件の非採点pilotで、全課題・全条件の認定や比較上の優位性ではない。
+
+レビュー監査は要求・close・結果の出現を一対一で照合する。ただし同じframeの全観測で
+wire labelまたはlaneを一斉に変えても受理する不足を、上記6E記録で再現した。
+実行した投影から取り出すwire対応表との照合は未実装で、独立監査が投影全体を保証したとは言わない。
+旧Python接続・監査の残存分、未移行課題、比較接続とT3/T4の合成も残る。
+
+### 以前の版の予備試験
+
+以下は個別の移行時点の記録であり、現在の全source・全依存版の認定とは区別する。
 
 直近の16E変更では全target build、native56件、Clippy、fmtとsource前後hash一致が成功した。
 全子孫の最大memoryは1,418,739,712bytes。実Wasmの元障害条件0/1/2はすべて元score成功・
@@ -348,7 +367,8 @@ effort、usageを確認し、inclusive tokensは360,770だった。実モデル�
 16個のscript記録と1個のモデル記録は別processでも同じauditorを実行し、組み込み監査と一致した。
 監査アルゴリズム自体は同じである。使用binary、Wasm、runtime source、モデル記録を保持した。
 これらはローカルcore修正を選ぶ予備試験である。前版のモデル記録を変更後sourceのモデル認定へ
-流用しない。通常Git pinの認定と現版のモデル接続確認は未完であり、採点済みとは数えない。
+流用しない。当時は通常Git pinと変更後sourceのモデル接続確認が未完だった。
+現在の1H・6Eの確認範囲は上段の記録に従い、これらの旧試験を採点済みとは数えない。
 
 効果入口の契約と12課題・6familyの受信処理を[一覧](benchmark/effect-boundaries.md)に整理した。
 6Eの実受信処理を別runtime間で直接動かし、引数のすり替え・対象違いの拒否と、
@@ -365,7 +385,7 @@ effort、usageを確認し、inclusive tokensは360,770だった。実モデル�
 build前後のアプリ・core・WASI・washのsource hashは一致した。
 buildは306秒、全子孫の最大memoryは1,088,407,040bytesだった。
 これらはローカルcore修正での機構試験で、model呼出し・採点実験は0件である。
-T3/T4の一般的な合成と、レビュー以外の通常Git pinでの最終認定は未完である。
+この19条件を現在の通常Git pinで認定し直す作業と、T3/T4の一般的な合成は残る。
 
 1Hの委譲版には、通常のmodule localsideを動かさず、現在のglobalを公開`project`で
 直接駆動する排他試験を追加した。A/Bそれぞれのdesign・implementationを完了し、
@@ -377,7 +397,8 @@ AがDB用Endpointを保持する間はBの受信がPendingとなり、Aの実要
 旧native RPC、専用CLIと小型shellは削除済み。実験用transportは一つの値がqueueとbindingを
 所有し、runtimeが借用する。現行の外部JSON接続は`ExternalIo`がstdin/stdoutと応答対応を所有する。
 API結果ファイルはファイル担当が内容・offsetを所有し、metadataもglobalの要求・応答で処理する。
-残る旧native codebaseの要求queue、試験用journal、runnerの記録・callbackの共有は整理する。
+旧native codebaseの要求queueとrunnerの共有記録・callbackは`252b821`で除去した。
+残る旧Python接続・監査と未移行課題は、現行の実Wasm経路へ統一する。
 
 ## 本体・統合の保証
 
@@ -415,7 +436,7 @@ CI待ちの間も独立した実装作業は続ける。
 | --- | --- | --- |
 | M0 比較の固定 | 基準SHA、構文範囲、native表現監査、課題と接続、指標・精度・再実行規則を固定する | 更新計画を記録。新競合と精度設計は未認定 |
 | M1 意味論 | T1–T6の定義・前提・反例・必要補題と、既存core定理の対応表。評価に使うpar/roll/委譲を含む | T3/T4の最小効果ケースを先行する |
-| M2 実装と証明 | 効果入口一覧、実行時の負例、Leanと実装照合、必要なcore/WASI gate。通常Git pinでレビューと1Hを認定する | 通常Git pinの実Wasmはレビュー34条件・1H5条件が成功。現版のモデル認定、全効果入口とT3/T4の一般合成は未完 |
+| M2 実装と証明 | 効果入口一覧、実行時の負例、Leanと実装照合、必要なcore/WASI gate。通常Git pinでレビューと1Hを認定する | 通常Git pinの実Wasmはレビュー34条件・1H5条件、実モデルは1H7人・6E3人のpilotが成功。wire監査、全条件・全効果入口とT3/T4の一般合成は未完 |
 | M3 課題と接続 | 全48課題と採用追加課題のglobal/localside・実Wasm・元採点・接続を認定する | 一部familyの予備記録あり。残るportと比較clientは未完 |
 | M4 本比較 | A1の864件を先に実行し、A2とB–Eを認定後に実行する。全identityにrawと終了理由を残す | 採点0件 |
 | M5 原因と分析 | F/G、8課題の変更負担、cluster対応集計、負例と不確実性を整理する | 未実行 |

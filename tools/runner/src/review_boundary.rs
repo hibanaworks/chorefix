@@ -311,14 +311,35 @@ async fn run_cases(cases: Vec<ReviewCase>) -> Result<()> {
             .join("../..")
             .canonicalize()?,
     )?;
-    let directory = Path::new("output").join(format!(
+    let root = std::path::PathBuf::from(
+        std::env::var_os("CHOREOFIX_EVIDENCE_ROOT").ok_or("review evidence root missing")?,
+    );
+    fs::create_dir_all(&root)?;
+    let directory = root.join(format!(
         "review-rust-boundary-{}",
         SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos()
     ));
     fs::create_dir(&directory)?;
-    let runtime = std::env::var_os("CHOREOFIX_REVIEW_WASI_BINARY")
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(|| "target/debug/review-wasi".into());
+    let runtime = std::path::PathBuf::from(
+        std::env::var_os("CHOREOFIX_REVIEW_WASI_BINARY").ok_or("review binary missing")?,
+    );
+    let receipt_path = std::path::PathBuf::from(
+        std::env::var_os("CHOREOFIX_REVIEW_BUILD_RECEIPT").ok_or("review build receipt missing")?,
+    );
+    let receipt: Value = serde_json::from_slice(&fs::read(&receipt_path)?)?;
+    if receipt["binary_sha256"] != digest(&runtime)? || receipt["source_unchanged"] != true {
+        return Err("review binary differs from its build receipt".into());
+    }
+    let manifest = receipt_path.parent().ok_or("receipt directory")?.join(
+        receipt["source_manifest"]
+            .as_str()
+            .ok_or("source manifest path")?,
+    );
+    if receipt["source_manifest_sha256"] != digest(&manifest)? {
+        return Err("review source manifest differs from its build receipt".into());
+    }
+    fs::copy(&manifest, directory.join("build-source.sha256"))?;
+    save(&directory.join("build-receipt.json"), &receipt)?;
     let module = Path::new("vendor/hibana-wash/target/wasm32-wasip1/release/hibana-wash.wasm");
     let mut outcomes = Vec::new();
     for ReviewCase {
@@ -343,8 +364,11 @@ async fn run_cases(cases: Vec<ReviewCase>) -> Result<()> {
             &json!({"task":"6E","depth":depth,"review_first":review_first,"schedule":format!("{schedule:?}"),"delay_multiplier":delay,
                 "kind":"deterministic_rust_wasi_regression","model_calls":0,"scored_benchmark":false,"failure_overrides":failures,
                 "test_barriers":"none",
-                "source_qualification":"This fixture does not qualify the recorded root Git dependencies",
+                "build":receipt,
                 "runtime_binary_sha256":digest(&runtime)?,"guest_wasm_sha256":digest(module)?,
+                "harness_binary_sha256":digest(&std::env::current_exe()?)?,
+                "harness_source_sha256":digest(Path::new("tools/runner/src/review_boundary.rs"))?,
+                "audit_source_sha256":digest(Path::new("tools/runner/src/review_audit.rs"))?,
                 "root_lock_sha256":digest(Path::new("Cargo.lock"))?,"runner_lock_sha256":digest(Path::new("tools/runner/Cargo.lock"))?,
                 "simulator_source_sha256":digest(Path::new("vendor/tracefix/benchmark/environments/6E/sim.py"))?}),
         )?;

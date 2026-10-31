@@ -406,6 +406,14 @@ record the exact correspondence and assumptions for T5/T6. Ghost ownership and
 occurrence histories belong in the model, never in a new application authority
 table. Do not expand completion into a proof of arbitrary Rust or all failures.
 
+After a core change, run the complete local gate set, including protocol fuzz,
+on the final source. A consumer-discovered core defect needs an actual Endpoint
+regression and coverage of its structure, repeated message contracts and schedule
+in generated tests. Check sensitivity by removing only that fix. Identify whether
+the formal model omitted the execution or the implementation correspondence was
+unchecked, and strengthen that boundary. Individual proofs or fixtures are not a
+successful complete gate.
+
 Audit every effect entry: WASI imports, host APIs, argument codecs and physical
 bindings. `Domain::execute` is ordinary host Rust. Its agreement with the
 received request, exact arguments and required resource Endpoints is an explicit
