@@ -349,6 +349,7 @@ async fn run_cases(cases: Vec<ReviewCase>) -> Result<()> {
             "depth{depth}-{review_first}-{schedule:?}-delay{delay}-extra{extra_failures:?}"
         ));
         fs::create_dir(&case)?;
+        let projection = crate::projection::archive(&runtime, &case)?;
         save(
             &case.join("case.json"),
             &json!({"task":"6E","depth":depth,"review_first":review_first,"schedule":format!("{schedule:?}"),"delay_multiplier":delay,
@@ -356,12 +357,17 @@ async fn run_cases(cases: Vec<ReviewCase>) -> Result<()> {
                 "test_barriers":"none",
                 "build":receipt,
                 "runtime_binary_sha256":digest(&runtime)?,"guest_wasm_sha256":digest(module)?,
+                "compiled_projection_sha256":digest(&case.join("projection.json"))?,
                 "harness_binary_sha256":digest(&std::env::current_exe()?)?,
                 "harness_source_sha256":digest(Path::new("tools/runner/src/review_boundary.rs"))?,
                 "audit_source_sha256":digest(Path::new("tools/runner/src/review_audit.rs"))?,
                 "root_lock_sha256":digest(Path::new("Cargo.lock"))?,"runner_lock_sha256":digest(Path::new("tools/runner/Cargo.lock"))?,
                 "simulator_source_sha256":digest(Path::new("vendor/tracefix/benchmark/environments/6E/sim.py"))?}),
         )?;
+        assert_eq!(
+            projection["runtime_binary_sha256"],
+            receipt["binary_sha256"]
+        );
         let trace = Trace::create(&case.join("events.jsonl"))?;
         let (simulator, _) = oracle::Simulator::new("6E", depth, delay, trace.clone(), &failures)?;
         let (guest, runtime_loop) =
@@ -498,7 +504,7 @@ async fn run_cases(cases: Vec<ReviewCase>) -> Result<()> {
             &case.join("events.jsonl"),
             &case.join("resource-mutants"),
         )?;
-        assert_eq!(mutants["count"], if rejected == 0 { 22 } else { 25 });
+        assert_eq!(mutants["count"], if rejected == 0 { 25 } else { 28 });
         if delay == 1.0 {
             for pair in ["code_review+implement_feature", "code_review+merge_code"] {
                 assert!(

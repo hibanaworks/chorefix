@@ -1,0 +1,166 @@
+use super::*;
+
+fn artifact() -> Value {
+    let mut programs = Vec::new();
+    for role in [0, 1, 2, 5, 6, 7, 8, 9, 10, 13] {
+        let actor = if role == 13 { 7 } else { role };
+        let mut rows = Vec::new();
+        let actor_word = actor << 8 | role;
+        if role == 0 {
+            rows.push(json!([0, SEND, actor_word, 2 << 8 | 7, 1 << 16]));
+            rows.push(json!([
+                1,
+                RECV,
+                actor_word,
+                256 << 16 | 3 << 8 | 10,
+                7 << 24 | 1 << 8 | 13
+            ]));
+        } else if role == 1 {
+            rows.push(json!([0, RECV, actor_word, 2 << 8 | 7, 1 << 16]));
+        } else if role == 7 || role == 13 {
+            rows.push(json!([
+                0,
+                SEND,
+                actor_word,
+                256 << 16 | 3 << 8 | 10,
+                7 << 24 | 1 << 8 | 13
+            ]));
+        }
+        programs.push(json!({"role":role,"rows":rows}));
+    }
+    json!({"format_version":1,"runtime_binary_sha256":"a".repeat(64),
+        "compiled":{"type":"compiled_projection","format_version":1,"task":"6E","programs":programs}})
+}
+
+fn rows(artifact: &Value) -> Vec<Value> {
+    vec![
+        json!({"direction":"runtime","message":artifact["compiled"]}),
+        json!({"direction":"runtime","message":{"type":"protocol_frame","action":"send","frame_id":8,
+            "session":6,"frame_label":0,"lane":2,"source":0,"target":1,"payload":[1,2,3]}}),
+        json!({"direction":"runtime","message":{"type":"protocol_frame","action":"receive","frame_id":8,
+            "session":6,"frame_label":0,"lane":2,"source":0,"target":1,"payload":[1,2,3]}}),
+    ]
+}
+
+#[test]
+fn matching_observations_cannot_hide_a_wrong_compiled_header() -> Result<()> {
+    let artifact = artifact();
+    let original = rows(&artifact);
+    assert_eq!(frames(&artifact, &original)?, BTreeMap::from([(8, 7)]));
+    for (field, value) in [
+        ("frame_label", 65535),
+        ("lane", 3),
+        ("source", 7),
+        ("target", 10),
+    ] {
+        let mut changed = original.clone();
+        for row in &mut changed[1..] {
+            row["message"][field] = json!(value);
+        }
+        let mut send = changed[1]["message"].clone();
+        let mut receive = changed[2]["message"].clone();
+        send.as_object_mut().unwrap().remove("action");
+        receive.as_object_mut().unwrap().remove("action");
+        assert_eq!(send, receive, "the old identity-only condition still holds");
+        assert!(frames(&artifact, &changed).is_err(), "accepted {field}");
+    }
+    Ok(())
+}
+
+#[test]
+fn an_owned_payload_preserves_the_full_occurrence_and_resource() -> Result<()> {
+    let artifact = artifact();
+    let mut rows = rows(&artifact);
+    for row in &mut rows[1..] {
+        let message = &mut row["message"];
+        message["frame_label"] = json!(256);
+        message["lane"] = json!(3);
+        message["source"] = json!(7);
+        message["target"] = json!(0);
+        message["payload"] = json!([13, 1, 0]);
+    }
+    assert_eq!(frames(&artifact, &rows)?, BTreeMap::from([(8, 10)]));
+    for payload in [json!([13, 0, 0]), json!([12, 1, 0]), json!([13, 1, 0, 0])] {
+        let mut changed = rows.clone();
+        for row in &mut changed[1..] {
+            row["message"]["payload"] = payload.clone();
+        }
+        assert!(frames(&artifact, &changed).is_err());
+    }
+    Ok(())
+}
+
+#[test]
+fn programs_must_cover_both_directions_and_preserve_actor_aliases() -> Result<()> {
+    let original = artifact();
+    let mut missing = original.clone();
+    missing["compiled"]["programs"]
+        .as_array_mut()
+        .unwrap()
+        .pop();
+    assert!(contracts(&missing["compiled"]).is_err());
+    let mut wrong_actor = original.clone();
+    wrong_actor["compiled"]["programs"][9]["rows"][0][2] = json!(0x0d0d);
+    assert!(contracts(&wrong_actor["compiled"]).is_err());
+    let mut missing_receive = original.clone();
+    missing_receive["compiled"]["programs"][1]["rows"] = json!([]);
+    assert!(contracts(&missing_receive["compiled"]).is_err());
+    let mut conflicting = original.clone();
+    conflicting["compiled"]["programs"][9]["rows"][0][3] = json!(256 << 16 | 4 << 8 | 10);
+    assert!(contracts(&conflicting["compiled"]).is_err());
+    assert_eq!(contracts(&original["compiled"])?.len(), 2);
+    Ok(())
+}
+
+#[test]
+fn runtime_observation_must_match_the_separately_frozen_projection() -> Result<()> {
+    let artifact = artifact();
+    let original = rows(&artifact);
+    let mut changed = original.clone();
+    changed[0]["message"]["programs"][0]["rows"][0][3] = json!(3 << 8 | 7);
+    assert!(frames(&artifact, &changed).is_err());
+    assert!(frames(&artifact, &original[1..]).is_err());
+    let mut duplicate = original.clone();
+    duplicate.insert(1, duplicate[0].clone());
+    assert!(frames(&artifact, &duplicate).is_err());
+    let mut late = original.clone();
+    late.swap(0, 1);
+    assert!(frames(&artifact, &late).is_err());
+    Ok(())
+}
+
+#[test]
+fn the_projection_artifact_must_match_the_saved_run_receipt() -> Result<()> {
+    let directory = std::env::temp_dir().join(format!(
+        "choreofix-projection-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_nanos()
+    ));
+    fs::create_dir(&directory)?;
+    let artifact = artifact();
+    let path = directory.join("projection.json");
+    fs::write(&path, serde_json::to_vec(&artifact)?)?;
+    let receipt = json!({"runtime_binary_sha256":artifact["runtime_binary_sha256"],
+        "compiled_projection_sha256":digest(&path)?});
+    fs::write(directory.join("case.json"), serde_json::to_vec(&receipt)?)?;
+    let events = directory.join("events.jsonl");
+    assert_eq!(load(&events)?, artifact);
+    let mut wrong = receipt.clone();
+    wrong["runtime_binary_sha256"] = json!("b".repeat(64));
+    fs::write(directory.join("case.json"), serde_json::to_vec(&wrong)?)?;
+    assert!(load(&events).is_err());
+    fs::remove_file(directory.join("case.json"))?;
+    let versions = json!({"binaries":{"runtime":receipt["runtime_binary_sha256"]},
+        "compiled_projection_sha256":receipt["compiled_projection_sha256"]});
+    fs::write(
+        directory.join("versions.json"),
+        serde_json::to_vec(&versions)?,
+    )?;
+    assert_eq!(load(&events)?, artifact);
+    fs::write(&path, b"{}")?;
+    assert!(load(&events).is_err());
+    fs::remove_dir_all(directory)?;
+    Ok(())
+}

@@ -148,6 +148,15 @@ pub fn freeze(task: &str, output: &Path) -> Result<Value> {
     if binaries["runtime"] != receipt["binary_sha256"] {
         return Err("runtime changed while archiving its build".into());
     }
+    let projection = if task == "6E" {
+        let projection = crate::projection::archive(&output.join("runtime"), output)?;
+        if projection["runtime_binary_sha256"] != binaries["runtime"] {
+            return Err("compiled projection executable differs from the snapshot".into());
+        }
+        json!(digest(&output.join("projection.json"))?)
+    } else {
+        Value::Null
+    };
     let versions = json!({
         "format_version":4,
         "consumer":command("git", &["rev-parse", "HEAD"])?,
@@ -159,6 +168,7 @@ pub fn freeze(task: &str, output: &Path) -> Result<Value> {
         "upstream_interpreter":crate::oracle::interpreter_identity()?,
         "binaries":binaries,
         "source_manifest_sha256":digest(&output.join("source-manifest.json"))?,
+        "compiled_projection_sha256":projection,
     });
     fs::write(
         output.join("dependency-tree.txt"),

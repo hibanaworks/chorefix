@@ -163,7 +163,7 @@ async fn runtime_loop(
                 Input::Frame(message) => {
                     trace.record("runtime", &message)?;
                     match message["type"].as_str() {
-                        Some("protocol_frame") => {},
+                        Some("protocol_frame" | "compiled_projection") => {},
                         Some("execute") => {
                             let id = message["id"].as_u64().ok_or("effect request id")?;
                             if admitted.contains(&id) { return Err("duplicate effect request id".into()); }

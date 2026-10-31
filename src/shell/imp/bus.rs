@@ -119,6 +119,11 @@ impl Bus {
         }
     }
 
+    /// Queue an immutable diagnostic observation with the I/O owner.
+    pub fn observe(&self, value: Value) {
+        self.enqueue(vec![value], None);
+    }
+
     fn respond(&self, id: u64, value: Value) -> ShellResult<()> {
         let wake = self.connection(|connection| {
             let (result, wake) = connection

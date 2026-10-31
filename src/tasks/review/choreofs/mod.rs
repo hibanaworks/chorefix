@@ -24,6 +24,7 @@ async fn run_guests(
     use global::*;
     use hibana_wasip1_runtime::{GuestMemory, HibanaWasiGuestStorage};
     let p = programs();
+    bus.observe(p.observation());
     let review_a_result = ReviewInput::default();
     let review_b_result = ReviewInput::default();
     let selected_review = imp::ReviewTarget::default();
@@ -103,4 +104,9 @@ pub async fn run_stdio(module: &[u8]) -> ShellResult<()> {
         Err(error)=>reader.emit(&bus,serde_json::json!({"type":"run_result","status":"failed","error":error.to_string()})).await?,
     }
     result
+}
+
+/// Compiled communication metadata for the standalone audit artifact.
+pub fn projection() -> serde_json::Value {
+    global::programs().observation()
 }

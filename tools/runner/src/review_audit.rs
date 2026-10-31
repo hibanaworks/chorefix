@@ -10,6 +10,7 @@ use std::{
 };
 
 struct Frame {
+    logical_label: u8,
     identity: Value,
     bytes: Vec<u8>,
     sent: usize,
@@ -150,7 +151,8 @@ fn check_close_pairs(frames: &BTreeMap<u64, Frame>) -> Result<()> {
     Ok(())
 }
 
-fn check(rows: &[Value]) -> Result<Value> {
+fn check(rows: &[Value], projection: &Value) -> Result<Value> {
+    let labels = crate::projection::frames(projection, rows)?;
     let fixture = &rows.first().ok_or("empty evidence")?["message"];
     if fixture["type"] != "fixtures"
         || fixture["task"] != "6E"
@@ -202,6 +204,7 @@ fn check(rows: &[Value]) -> Result<Value> {
                             .insert(
                                 id,
                                 Frame {
+                                    logical_label: *labels.get(&id).ok_or("unmapped frame")?,
                                     identity,
                                     bytes,
                                     sent: index,
@@ -580,6 +583,15 @@ fn check(rows: &[Value]) -> Result<Value> {
             after = frame.sent;
         }
         let request = submitted[5];
+        let intent_label = submitted[0].logical_label;
+        if !matches!(intent_label, 80..=89 | 92..=95)
+            || submitted[..5]
+                .iter()
+                .any(|frame| frame.logical_label != intent_label)
+            || !(if service == 5 { [71, 77] } else { [171, 177] }).contains(&request.logical_label)
+        {
+            return Err("compiled review message differs from intent or request".into());
+        }
         if request.received()? >= call.emitted {
             return Err("review effect before request receipt".into());
         }
@@ -611,6 +623,16 @@ fn check(rows: &[Value]) -> Result<Value> {
                     && f.sent < next
                     && f.value().is_ok_and(|v| v == *result)
             }))?;
+            let label = match (service, result["success"].as_bool()) {
+                (5, Some(true)) => 30,
+                (5, Some(false)) => 31,
+                (6, Some(true)) => 40,
+                (6, Some(false)) => 41,
+                _ => return Err("review result has no boolean success".into()),
+            };
+            if reply.logical_label != label {
+                return Err("compiled review reply differs from actual result".into());
+            }
             if !used_review_results.insert(reply.sent) {
                 return Err("review result reused for another effect".into());
             }
@@ -664,8 +686,19 @@ fn check(rows: &[Value]) -> Result<Value> {
     )
 }
 pub fn audit(path: &Path) -> Result<Value> {
-    let mut result = check(&records(path)?)?;
+    let projection = crate::projection::load(path)?;
+    let mut result = check(&records(path)?, &projection)?;
     result["source_events_sha256"] = json!(digest(path)?);
+    result["compiled_projection_sha256"] = json!(digest(
+        &path
+            .parent()
+            .ok_or("event directory")?
+            .join("projection.json")
+    )?);
+    result["runtime_binary_sha256"] = projection["runtime_binary_sha256"].clone();
+    result["wire_validation"] = json!(
+        "static compiled header membership and review message contracts; dynamic eligibility is not replayed"
+    );
     Ok(result)
 }
 
@@ -743,7 +776,8 @@ fn review_occurrence_frames(rows: &[Value], repeated: bool) -> Result<(u64, u64,
 fn a_repeated_review_cannot_reuse_an_earlier_request() -> Result<()> {
     let path = std::env::var_os("CHOREOFIX_REVIEW_TRACE").ok_or("review trace path")?;
     let mut rows = records(Path::new(&path))?;
-    check(&rows)?;
+    let projection = crate::projection::load(Path::new(&path))?;
+    check(&rows, &projection)?;
     let (id, _, _) = review_occurrence_frames(&rows, true)?;
     rows.retain(|row| {
         !(row["message"]["type"] == "protocol_frame" && row["message"]["frame_id"] == id)
@@ -756,7 +790,7 @@ fn a_repeated_review_cannot_reuse_an_earlier_request() -> Result<()> {
         fs::write(output, lines.join("\n") + "\n")?;
     }
     assert!(
-        check(&rows).is_err(),
+        check(&rows, &projection).is_err(),
         "the earlier identical request was reused"
     );
     Ok(())
@@ -766,10 +800,14 @@ pub fn check_mutants(path: &Path, output: &Path) -> Result<Value> {
     audit(path)?;
     fs::create_dir(output)?;
     let rows = records(path)?;
+    let projection = crate::projection::load(path)?;
     let mut verdicts = Vec::new();
     let mut kinds = vec![
         "missing_loan",
         "wrong_resource",
+        "wrong_frame_label",
+        "wrong_lane",
+        "wrong_review_message",
         "missing_admission",
         "wrong_admission",
         "missing_request",
@@ -825,6 +863,65 @@ pub fn check_mutants(path: &Path, output: &Path) -> Result<Value> {
             }
         };
         match kind {
+            "wrong_review_message" => {
+                let (request, _, _) = review_occurrence_frames(&changed, false)?;
+                let message = &changed
+                    .iter()
+                    .find(|row| {
+                        row["message"]["type"] == "protocol_frame"
+                            && row["message"]["frame_id"] == request
+                    })
+                    .ok_or("review request to mutate")?["message"];
+                let source = message["source"].as_u64().ok_or("review source")?;
+                let target = message["target"].as_u64().ok_or("review target")?;
+                let replacement = projection["compiled"]["programs"]
+                    .as_array()
+                    .ok_or("projection programs")?
+                    .iter()
+                    .flat_map(|program| program["rows"].as_array().into_iter().flatten())
+                    .filter(|row| row[1] == 0x0301)
+                    .find(|row| {
+                        let peers = row[4].as_u64().unwrap_or(0);
+                        let packed = row[3].as_u64().unwrap_or(0);
+                        peers >> 24 == source
+                            && (peers >> 16) & 0xff == target
+                            && matches!(packed & 0xff, 80..=89 | 92..=95)
+                    })
+                    .ok_or("compiled intent sharing the review request's peers")?;
+                let packed = replacement[3].as_u64().ok_or("compiled intent fields")?;
+                for row in changed.iter_mut().filter(|row| {
+                    row["message"]["type"] == "protocol_frame"
+                        && row["message"]["frame_id"] == request
+                }) {
+                    row["message"]["frame_label"] = json!(packed >> 16);
+                    row["message"]["lane"] = json!((packed >> 8) & 0xff);
+                }
+                // The replacement is a real static wire contract with matching
+                // peers and payload. Business-message checks must still reject it.
+                crate::projection::frames(&projection, &changed)?;
+            }
+            "wrong_frame_label" | "wrong_lane" => {
+                let first = changed
+                    .iter()
+                    .find(|row| row["message"]["type"] == "protocol_frame")
+                    .ok_or("frame for wire mutation")?;
+                let id = first["message"]["frame_id"].clone();
+                let field = if kind == "wrong_lane" {
+                    "lane"
+                } else {
+                    "frame_label"
+                };
+                let value = if kind == "wrong_lane" {
+                    (first["message"][field].as_u64().ok_or("frame lane")? + 1) % 256
+                } else {
+                    u64::from(u16::MAX)
+                };
+                for row in changed.iter_mut().filter(|row| {
+                    row["message"]["type"] == "protocol_frame" && row["message"]["frame_id"] == id
+                }) {
+                    row["message"][field] = json!(value);
+                }
+            }
             "missing_review_request"
             | "extra_review_request"
             | "missing_review_close"
@@ -1002,7 +1099,7 @@ pub fn check_mutants(path: &Path, output: &Path) -> Result<Value> {
             }
         }
         let hash = format!("{:x}", Sha256::digest(serde_json::to_vec(&changed)?));
-        let rejection = check(&changed)
+        let rejection = check(&changed, &projection)
             .err()
             .ok_or_else(|| format!("undetected review mutation {kind}"))?;
         verdicts.push(json!({"kind":kind,"status":"rejected","parsed_records_sha256":hash,"reason":rejection.to_string()}));

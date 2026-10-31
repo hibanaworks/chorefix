@@ -406,6 +406,12 @@ pub fn run(root: &Path) -> Result<Value> {
         "9E" | "9M" | "9H" => crate::philosophers_audit::audit(&root.join("events.jsonl"))?,
         _ => return Err("task has no delegated WASI implementation".into()),
     };
+    if task == "6E"
+        && (protocol["compiled_projection_sha256"] != versions["compiled_projection_sha256"]
+            || protocol["runtime_binary_sha256"] != versions["binaries"]["runtime"])
+    {
+        return Err("review projection differs from the frozen executable and artifact".into());
+    }
     let runtime = result["outcomes"]
         .as_array()
         .ok_or("run outcomes")?

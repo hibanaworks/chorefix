@@ -80,10 +80,15 @@ arguments, simulator requests and results, approval before merging, and guest
 exits. Each review uses distinct intent deliveries, a request, an argument-file
 close and five result deliveries. Repeated arguments cannot reuse earlier
 occurrences. A repeated review also requires a new completed implementation.
-Wire labels and lanes are currently checked for consistency between observations
-of the same frame, but are not yet matched against a compiled projection artifact.
-Consistent changes to those fields can therefore pass this auditor. This limitation
-concerns the record audit; it does not disable Hibana's Endpoint checks.
+Every review-task frame is matched against `projection.json`, exported from the
+selected executable before the run. Its hash and executable hash are recorded in
+the case or model-run receipt. The runtime records the same compiled data from
+the programs it actually attaches. Checks include full wire labels, lanes, peers,
+delegated resource envelopes and the review messages' logical labels.
+This checks static wire contracts and business-event correspondence. Dynamic
+branch and iteration eligibility need separate checks. Other task auditors
+retain their documented checks. Keep the projection and receipt beside
+`EVENTS.jsonl`.
 The auditor reports overlapping domain operations and runs without models:
 
 ```sh

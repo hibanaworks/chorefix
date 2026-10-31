@@ -19,6 +19,7 @@ mod philosophers_audit;
 #[cfg(test)]
 mod philosophers_boundary;
 mod process;
+mod projection;
 mod review_audit;
 #[cfg(test)]
 mod review_boundary;

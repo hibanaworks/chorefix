@@ -212,11 +212,13 @@ Globalを唯一の連携仕様にし、localsideへEndpointの操作を直接書
 ## 現在のsourceと検証範囲
 
 ChoreoFixのmanifest/lockは本体
-`e139912e07fe4cd5ba599dd3749d6e03ce9d1ee1`、WASI
-`6b62998b614e2b68feecd2d94042adbcc614693d`を選択している。
+`b7d65518b07226a3d69a140bbaf17d4c80fb65a8`、WASI
+`77f5bbd1075402da8f67b86c7a70fbb5937bdf79`を選択している。
 アプリと実験runnerは`hibana-runtime`の
 `dc0a13a2fdd551fa0835a813dd46aace90016bfb`を選択する。
 通常のGit依存を使い、診断用のpath patchを認定へ流用しない。
+本体の全gateは検査一覧の総数を訂正した`f1bce718`で実行する。`src/`とLeanモデルは
+選択中の`b7d65518`とbyte単位で同じで、321件のharness・入力・assertionを維持している。
 
 runtimeの中核はno_std・割当なし・caller-owned storageである。参加者は借用した値や
 所有値で直接宣言し、runtimeがFutureの配置・poll・キャンセル・子の終了待ちを担当する。
@@ -239,26 +241,33 @@ macro変換全体や任意のRustの詳細化証明ではない。
 | 現在の構成 | 同じsourceで確認した範囲 |
 | --- | --- |
 | アプリ | 全targetのRust40試験、Clippy、全依存treeのTokio/mio/socket2不在 |
-| runner | Rust22試験、Clippy、全依存treeのTokio/mio/socket2不在 |
+| runner | Rust27試験、Clippy、全依存treeのTokio/mio/socket2不在 |
 | 移行済み12課題 | 実Wasm75条件。74条件がprotocol完了・監査違反0件。CI/CDの早期終了1条件は共有効果0件 |
 | handoff検証crate | native11試験。handoffの5試験に含まれる10ケース、RPCの4試験、入れ子の選択2試験 |
 | handoffのMiri | 同じ10ケースを含む5試験。受信futureをPendingから再開する経路も維持 |
 
 アプリとrunnerは同じruntime pinを使う。実Wasmの各binary・source manifest・build receiptを
 保存し、buildと試験の前後でsource hashが一致することを確認した。
-全子孫の最大memoryは1,630,699,520bytesで、2,750,000,000bytesの停止上限内だった。
-記録は`output/review-occurrence-qualification/tokio-free-final-source`に保持する。
-監査対象74記録への変異1,307件をすべて拒否した。これは記録監査の検出力であり、
-実行時攻撃1,307件の阻止ではない。モデル呼出し・採点済み実験への算入は0件である。
+全子孫の最大memoryは1,658,519,552bytesで、2,750,000,000bytesの停止上限内だった。
+記録は`output/review-occurrence-qualification/projected-wire-contract/final-source`に保持する。
+監査対象74記録への変異1,409件をすべて拒否した。これは記録監査の検出力であり、
+実行時攻撃1,409件の阻止ではない。モデル呼出し・採点済み実験への算入は0件である。
 各条件の業務結果は元scoreへ別に記録する。
+
+6Eの監査は、実行binaryの`--projection`から保存した不変の通信情報と、実際にattachした
+programからの観測を照合する。全frameの16-bit wire label、lane、logical peer、委譲の
+resource/event envelopeを検査し、レビューのintent・要求・実結果の返信もlogical labelで
+区別する。34条件で928記録変異を拒否した。全観測を同じ不正label/laneへ変える変異と、
+同じpeer間の別の合法な通信へ要求を差し替える変異を含む。静的な通信対応の検査であり、
+動的なroute/rollの実行可能性を再生する検査とは区別する。アプリの進行管理は増やしていない。
 
 runnerは、独立要求、同じ参加者の並列要求、turn/start応答前の要求、guest終了後の
 接続切断・timeout、部分JSON行の受信キャンセルを実I/Oで検査した。
 終了・失敗後も、受理済みの実要求への応答を確認してから元scoreを取得する。
 MiriはmacOS kqueueに対応しないため、handoffでは検証用のpolling clockを使い、
 同じEndpoint・受信・実効果の試験本体を実行する。OSのwake配送はMiriの検査対象へ含めない。
-Miriを含む検証crateの全子孫最大memoryは411,648,000bytesだった。
-記録は`output/review-occurrence-qualification/tokio-free-handoff`に保持する。
+Miriを含む検証crateの全子孫最大memoryは1,378,172,928bytesだった。
+記録は`output/review-occurrence-qualification/projected-wire-contract/handoff`に保持する。
 
 1Hの通常遅延でcommitの重なりが2件になった記録は保持する。parは同時実行を許すが、
 実装の完了時刻が異なる通常実行で必ず3件が重なるとはしない。独立したA/C/Eの実要求を
@@ -266,15 +275,16 @@ Endpointで受理した後、試験用I/O境界で3件がそろうまで保留�
 返答なしで3件が受理され、解放後の実commitも3件重なった。globalとlocalsideは変更していない。
 この開始条件を制御する機構試験を、通常の性能測定や実モデルの並行性へ混ぜない。
 
-本体の最新pinへの更新、wire label/lane監査、具体的な全効果入口への定理適用、残る36課題の
-委譲移行は未完である。比較接続の開発は保留し、利用可能な条件でChoreoFix自身の実験を進める。
+本体の最終sourceでのKani・protocol fuzzを含む全gate、他familyの投影に基づくwire監査、
+具体的な全効果入口への定理適用、残る36課題の委譲移行は未完である。
+比較接続の開発は保留し、利用可能な条件でChoreoFix自身の実験を進める。
 元の比較実装は変更しない。
 
 | 対象 | 現状 | 残る確認・変更 |
 | --- | --- | --- |
 | 1E/1M/1H | 実資源Endpointの要求・結果・返却。1Hは7人が実結果で再考。実Endpoint・実Wasm試験と実モデルの予備記録あり | source固定後の全条件の認定と比較 |
 | 2E/2M/2H | 両sectionの実Endpoint要求・結果・返却。実Wasm15条件と3/5/7人のLuna予備試験が通過 | source固定後の全条件の認定と比較 |
-| 6E | 実Repo Endpointによるglobal。各拒否後に修正・再レビューを行い、承認後の並行な後続へ進む | 通常Git pinで実Wasm通常26条件と追加8条件、3人の実モデル予備試験が成功。wire label・laneの独立監査と全条件の認定は未完 |
+| 6E | 実Repo Endpointによるglobal。各拒否後に修正・再レビューを行い、承認後の並行な後続へ進む | 通常Git pinで実Wasm34条件、投影に基づくwire監査と928記録変異の拒否。旧sourceの3人の実モデル予備試験あり。現版の実モデル・全条件の認定は未完 |
 | 8E | DB・test環境の実Endpoint委譲、単独所有の結果ファイル、実Wasm3条件、Luna成功・終端失敗の予備試験 | source固定後の認定と比較 |
 | 9E/9M/9H | 実fork Endpointを両方受け取り、実要求・結果・返却。3/5/7人の実Wasm・実モデル予備試験あり | source固定後の認定と比較 |
 | 16E | build/deploy環境の実Endpoint委譲。実Wasm3条件、早期終了拒否、3人のLuna予備試験あり | source固定後の認定と比較 |
@@ -313,8 +323,9 @@ raw、各参加者のusage、binary/source receiptは
 これらは2件の非採点pilotで、全課題・全条件の認定や比較上の優位性ではない。
 
 レビュー監査は要求・close・結果の出現を一対一で照合する。ただし同じframeの全観測で
-wire labelまたはlaneを一斉に変えても受理する不足を、上記6E記録で再現した。
-実行した投影から取り出すwire対応表との照合は未実装で、独立監査が投影全体を保証したとは言わない。
+当時の6E監査には、wire labelまたはlaneを一斉に変えても受理する不足があり、上記記録で
+再現した。現在は実行binaryの投影と照合し、34条件で同じ種類の変異を拒否している。
+動的なsource実行全体を再構築したという意味ではない。
 未移行36課題と、T3/T4の最小合成を具体的な全効果入口へ適用する認定も残る。
 
 ### 以前の版の予備試験
