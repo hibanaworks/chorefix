@@ -2,6 +2,11 @@
 
 ## Local validation memory budget
 
+Do not use Docker or start Docker Desktop, a daemon or a VM for measurement.
+The measurement core must use no_std, no heap allocation and caller-supplied
+storage. Keep host reporting separate. Distinguish CPU instructions, logical
+work counts and elapsed time; do not require Linux to validate the kernel.
+
 The user's Mac must not be driven over 4 GB by our validation workloads.
 Run builds and checks through Hibana's `.github/scripts/lib/resource_guard.sh`.
 It serializes local workloads, measures all descendants including CBMC/LLVM,

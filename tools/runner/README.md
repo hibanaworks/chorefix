@@ -32,6 +32,8 @@ The review regression requires `CHOREOFIX_REVIEW_WASI_BINARY`,
 the binary to its unchanged build-source manifest. Each run saves that manifest,
 the receipt, runtime and harness hashes, traces and mutation verdicts under the
 evidence root. The workflow runs both ignored review tests and retains these files.
+The saved receipt names the manifest relative to its evidence bundle, so moving
+the bundle preserves the reference. The original input receipt is saved with its hash.
 It covers failure conditions 0/1/2, both first
 review targets and repeated or alternating reviews. Eight additional cases use
 the original delays and require observed overlap, for 26 cases in total.
