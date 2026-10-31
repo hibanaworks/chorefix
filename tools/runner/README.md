@@ -109,19 +109,18 @@ ChatGPT subscription limits still apply. Raw model events, tool calls and
 inclusive token usage are recorded for each participant. Reasoning tokens are
 part of output tokens and are not counted twice. Missing usage remains unknown.
 
-The original comparison runtimes use Chat Completions. Their subscription
-connection has not been qualified. Scored comparisons must wait until that
-connection preserves the original prompts, visible history, schemas, tool-call
-order, compression and execution engines. A long-lived Codex conversation must
-not silently restore history that an original client removed.
+ChoreoFix experiments use the available subscription connection and record its
+model, settings and execution conditions. Comparison connection development is
+deferred. An unavailable comparator is recorded as unexecuted and does not block
+ChoreoFix runs. Results with different conditions are not reported as matched
+comparisons. Keep the original comparison implementations unchanged.
 
 `thread/inject_items` can supply role-bearing messages and function-call history
 to a fresh App Server thread. The converter retains message roles, exact text,
 call IDs, argument strings and result order. The HTTP fixtures also save this
 input as `app-server-history.json`, including the original clients' trimmed
 history. This is input preparation, not a qualified comparison connection.
-Output-token limits, tool choice, parallel-call policy, schema strictness and
-the boundary of one model response must also be checked before scoring.
+These fixtures do not establish a live comparison result.
 
 ## Comparison client fixtures
 
@@ -162,12 +161,6 @@ cargo +stable test --locked --manifest-path tools/runner/Cargo.toml \
 
 RPC acceptance does not establish which history or generation settings a model
 request actually used. Live connection qualification remains required.
-
-`thread/sample` is not the comparison completion interface. The inspected
-0.166.0 schema requires an existing source turn and does not return function-call
-IDs or argument strings; its text may be null when a tool is called. It also
-provides no fields for the required output cap or tool policy. No model request
-was made to evaluate that schema, and this check does not qualify a connection.
 
 Builds and verification must run under Hibana's resource guard with one Cargo
 job and the existing 3 GB stop. PyO3 loads the unchanged external comparison

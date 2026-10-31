@@ -115,9 +115,12 @@ decision's input; it must not become another workflow cursor or completion table
 Model participants use the existing ChatGPT subscription through Codex App
 Server, with `gpt-6-luna` and `xhigh` checked explicitly. Require ChatGPT login
 and never fall back to API-key billing, a paid provider, or another model.
-Do not request an API key. Keep the comparison runtimes unchanged and qualify
-their model connection separately before scoring. Local response fixtures do
-not establish that a live comparison connection works.
+Do not request an API key. Keep the comparison runtimes unchanged. Do not spend
+development time building a comparison connection or reproducing its response
+boundary. Complete Hibana and ChoreoFix first; run ChoreoFix experiments under
+the available conditions and record them. An unavailable comparison remains
+unexecuted and does not block ChoreoFix's own experiments. Local response
+fixtures do not establish that a live connection works.
 
 Hibana global protocols are the only source of coordination rules in the Hibana
 condition. The projected runtime owns protocol progress. Do not add a second state machine,
