@@ -235,14 +235,31 @@ async fn old_approval_wrong_target_and_changed_arguments_never_publish()
                             async {
                                 let result = async {
                                     #[localside]
-                                    let first = localside::initial(
-                                        &mut a,
-                                        r,
-                                        Artifact {
-                                            value: 1,
-                                            ..initial
-                                        },
-                                    );
+                                    let first = async {
+                                        let mut r = r;
+                                        r.send::<Prepare>(
+                                            &Artifact {
+                                                value: 1,
+                                                ..initial
+                                            }
+                                            .bytes(),
+                                        )
+                                        .await?;
+                                        let prepared = r.recv::<Prepared>().await?;
+                                        r.send::<Inspect>(&prepared).await?;
+                                        let checked = r.recv::<Inspected>().await?;
+                                        a.send::<Context>(&checked).await?;
+                                        a.send::<LoanR>(r).await?;
+                                        let checked = a.recv::<CandidateReady>().await?;
+                                        let mut r = a.recv::<LoanR>().await?;
+                                        a.send::<CandidateReady>(&checked).await?;
+                                        r.offer().await?.recv::<CommitReady>().await?;
+                                        r.send::<CommitR>(&first.bytes()).await?;
+                                        let published = r.recv::<CommittedR>().await?;
+                                        Err::<Artifact, _>(crate::shell::ShellError::message(
+                                            format!("forged commit materialized: {published:?}"),
+                                        ))
+                                    };
                                     #[localside]
                                     let second = async {
                                         let context =
@@ -260,19 +277,11 @@ async fn old_approval_wrong_target_and_changed_arguments_never_publish()
                                         r.send::<Reinspect>(&artifact).await?;
                                         let checked = r.offer().await?.recv::<Passed>().await?;
                                         r.send::<CandidateReady>(&checked).await?;
-                                        r.offer().await?.recv::<CommitReady>().await?;
+                                        b.send::<LoanR>(r).await?;
+                                        b.offer().await?.recv::<CommitReady>().await?;
                                         let mut s = b.recv::<LoanS>().await?;
-                                        let first = first.bytes();
-                                        let second = second.bytes();
-                                        async {
-                                            #[localside]
-                                            let first = r.send::<CommitR>(&first);
-                                            #[localside]
-                                            let second = s.send::<CommitS>(&second);
-                                            Ok((first, second))
-                                        }
-                                        .await?;
-                                        let published = r.recv::<CommittedR>().await?;
+                                        s.send::<CommitS>(&second.bytes()).await?;
+                                        let published = s.recv::<CommittedS>().await?;
                                         Err::<(), _>(crate::shell::ShellError::message(format!(
                                             "forged commit materialized: {published:?}"
                                         )))
@@ -363,21 +372,26 @@ async fn a_missing_second_request_keeps_the_effect_pending_then_can_complete()
         published: Vec::new(),
         observations: &observations,
     };
-    let (actual, (), _, (), (), ()) = hibana_runtime::race(
+    let (actual, _, (), (), ()) = hibana_runtime::race(
         async {
             Ok::<_, std::io::Error>(
                 async {
                     #[localside]
-                    let first = localside::initial(
-                        &mut a,
-                        r,
-                        Artifact {
-                            value: 1,
-                            ..initial
-                        },
-                    );
-                    #[localside]
-                    let second = async {
+                    let actual = async {
+                        let mut r = r;
+                        r.send::<Prepare>(
+                            &Artifact {
+                                value: 1,
+                                ..initial
+                            }
+                            .bytes(),
+                        )
+                        .await?;
+                        let prepared = r.recv::<Prepared>().await?;
+                        r.send::<Inspect>(&prepared).await?;
+                        let checked = r.recv::<Inspected>().await?;
+                        a.send::<Context>(&checked).await?;
+                        a.send::<LoanR>(r).await?;
                         let context = Verification::decode(b.recv::<Context>().await?)?;
                         let mut r = b.recv::<LoanR>().await?;
                         r.send::<Revise>(
@@ -392,7 +406,12 @@ async fn a_missing_second_request_keeps_the_effect_pending_then_can_complete()
                         r.send::<Reinspect>(&artifact).await?;
                         let checked = r.offer().await?.recv::<Passed>().await?;
                         r.send::<CandidateReady>(&checked).await?;
+                        let declared = a.recv::<CandidateReady>().await?;
+                        b.send::<LoanR>(r).await?;
+                        let mut r = a.recv::<LoanR>().await?;
+                        a.send::<CandidateReady>(&declared).await?;
                         r.offer().await?.recv::<CommitReady>().await?;
+                        b.offer().await?.recv::<CommitReady>().await?;
                         let mut s = b.recv::<LoanS>().await?;
                         r.send::<CommitR>(&checked).await?;
                         let mut response = Box::pin(r.recv::<CommittedR>());
@@ -419,19 +438,23 @@ async fn a_missing_second_request_keeps_the_effect_pending_then_can_complete()
                         .await?;
                         assert_eq!(first, second);
                         b.send::<LoanS>(s).await?;
-                        b.send::<LoanR>(r).await?;
-                        b.send::<Report>(&first).await?;
-                        Ok(())
+                        b.send::<Report>(&second).await?;
+                        let reported = a.recv::<Report>().await?;
+                        assert_eq!(reported, first);
+                        let actual = Artifact::decode(first);
+                        r.send::<Audit>(&actual.target).await?;
+                        assert_eq!(r.recv::<Audited>().await?, first);
+                        Ok(actual)
                     };
                     #[localside]
-                    let third = localside::independent(&mut c, 10);
+                    let independent = localside::independent(&mut c, 10);
                     #[localside]
-                    let fourth = localside::service(&mut store, &mut repository, &result);
+                    let service = localside::service(&mut store, &mut repository, &result);
                     #[localside]
-                    let fifth = localside::auxiliary(&mut aux);
+                    let auxiliary = localside::auxiliary(&mut aux);
                     #[localside]
-                    let sixth = localside::second_owner(&mut owner, s);
-                    Ok((first, second, third, fourth, fifth, sixth))
+                    let owner = localside::second_owner(&mut owner, s);
+                    Ok((actual, independent, service, auxiliary, owner))
                 }
                 .await,
             )
@@ -541,7 +564,8 @@ async fn claiming_approval_without_repair_does_not_replace_the_actual_failure()
                                         ..context
                                     };
                                     r.send::<CandidateReady>(&forged.bytes()).await?;
-                                    let approval = r.recv::<CommitReady>().await?;
+                                    b.send::<LoanR>(r).await?;
+                                    let approval = b.recv::<CommitReady>().await?;
                                     Err::<(), _>(crate::shell::ShellError::message(format!(
                                         "unverified approval: {approval:?}"
                                     )))
@@ -653,11 +677,11 @@ async fn a_real_negative_result_can_finish_without_publication_or_forced_repair(
                                 assert!(!context.passed);
                                 let mut r = b.recv::<LoanR>().await?;
                                 r.send::<CandidateReady>(&context.bytes()).await?;
+                                b.send::<LoanR>(r).await?;
                                 let actual = Verification::decode(
-                                    r.offer().await?.recv::<CommitDenied>().await?,
+                                    b.offer().await?.recv::<CommitDenied>().await?,
                                 )?;
                                 assert_eq!(actual, context);
-                                b.send::<LoanR>(r).await?;
                                 Ok::<(), crate::shell::ShellError>(())
                             }
                             .await)
@@ -697,4 +721,110 @@ async fn a_real_negative_result_can_finish_without_publication_or_forced_repair(
     assert!(observations.take().is_empty());
 
     Ok(())
+}
+
+#[cfg_attr(not(miri), hibana_runtime::main)]
+#[cfg_attr(miri, hibana_runtime::main(clock::Clock))]
+#[test]
+async fn candidate_ready_seals_rework_before_the_publication_requests() {
+    let programs = programs();
+    let session = SessionId::new(303);
+    let (bus, _, _) = Bus::open([], [(session, R), (session, S)]);
+    let mut slab = vec![0; 1024 * 1024];
+    let mut storage = SessionKitStorage::uninit();
+    let kit = storage.init();
+    let rv = kit.rendezvous(&mut slab, &bus.transport).unwrap();
+    let mut peer_slab = vec![0; 1024 * 1024];
+    let mut peer_storage = SessionKitStorage::uninit();
+    let peer_kit = peer_storage.init();
+    let peer = peer_kit.rendezvous(&mut peer_slab, &bus.transport).unwrap();
+    rv.set_resolver(
+        &programs.store,
+        ResolverRef::<VERIFY>::decision_state(&(), |_| {
+            Ok(hibana::runtime::resolver::DecisionArm::Left)
+        }),
+    )
+    .unwrap();
+    rv.set_resolver(
+        &programs.store,
+        ResolverRef::<COMMIT_DECISION>::decision_state(&(), |_| {
+            Ok(hibana::runtime::resolver::DecisionArm::Left)
+        }),
+    )
+    .unwrap();
+    let mut a = rv.enter(session, &programs.a).unwrap();
+    let mut r = rv.enter(session, &programs.r).unwrap();
+    let mut b = peer.enter(session, &programs.b).unwrap();
+    let mut c = rv.enter(session, &programs.c).unwrap();
+    let mut store = rv.enter(session, &programs.store).unwrap();
+    let mut aux = rv.enter(session, &programs.aux).unwrap();
+    let mut owner = rv.enter(session, &programs.s_owner).unwrap();
+    let s = rv.enter(session, &programs.s).unwrap();
+    let artifact = [0; 24];
+    let mut checked = [0; 25];
+    checked[24] = 1;
+
+    r.send::<Prepare>(&artifact).await.unwrap();
+    store.recv::<Prepare>().await.unwrap();
+    store.send::<Prepared>(&artifact).await.unwrap();
+    r.recv::<Prepared>().await.unwrap();
+    r.send::<Inspect>(&artifact).await.unwrap();
+    store.recv::<Inspect>().await.unwrap();
+    store.send::<Inspected>(&checked).await.unwrap();
+    r.recv::<Inspected>().await.unwrap();
+    a.send::<Context>(&checked).await.unwrap();
+    b.recv::<Context>().await.unwrap();
+    a.send::<LoanR>(r).await.unwrap();
+    let mut r = b.recv::<LoanR>().await.unwrap();
+
+    owner.send::<LoanS>(s).await.unwrap();
+    let mut s = c.recv::<LoanS>().await.unwrap();
+    s.send::<Work>(&3).await.unwrap();
+    aux.recv::<Work>().await.unwrap();
+    aux.send::<Worked>(&9).await.unwrap();
+    s.recv::<Worked>().await.unwrap();
+    c.send::<LoanS>(s).await.unwrap();
+    let s = owner.recv::<LoanS>().await.unwrap();
+    c.send::<WorkReport>(&9).await.unwrap();
+    store.recv::<WorkReport>().await.unwrap();
+
+    r.send::<CandidateReady>(&checked).await.unwrap();
+    let declared = a.recv::<CandidateReady>().await.unwrap();
+    b.send::<LoanR>(r).await.unwrap();
+    let mut r = a.recv::<LoanR>().await.unwrap();
+    a.send::<CandidateReady>(&declared).await.unwrap();
+    let branch = store.offer().await.unwrap();
+    assert_eq!(branch.label(), 25);
+    branch.recv::<CandidateReady>().await.unwrap();
+    store.send::<CommitReady>(&checked).await.unwrap();
+    r.recv::<CommitReady>().await.unwrap();
+    store.send::<CommitReady>(&checked).await.unwrap();
+    owner.recv::<CommitReady>().await.unwrap();
+    store.send::<CommitReady>(&checked).await.unwrap();
+    b.recv::<CommitReady>().await.unwrap();
+    owner.send::<LoanS>(s).await.unwrap();
+    let _second = b.recv::<LoanS>().await.unwrap();
+
+    let prefix = bus.transport.take_observations();
+    let result = hibana_runtime::race(
+        async { Ok::<_, std::io::Error>(r.send::<Revise>(&artifact).await) },
+        deadline(Duration::from_secs(2)),
+    )
+    .await
+    .expect("the probe remained pending rather than accepting or rejecting rework");
+    assert!(
+        result.is_err(),
+        "CandidateReady did not seal rework: {result:?}; carrier tail: {}",
+        serde_json::json!(
+            prefix
+                .into_iter()
+                .rev()
+                .take(6)
+                .collect::<Vec<_>>()
+        )
+    );
+    assert!(
+        bus.transport.take_observations().is_empty(),
+        "rejected rework reached the transport"
+    );
 }

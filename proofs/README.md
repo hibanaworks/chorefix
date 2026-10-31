@@ -37,6 +37,12 @@ handoff after a failed candidate, further reconsideration, two-resource admissio
 old approval, changed targets and arguments, and resuming a pending receive after
 the missing request arrives. It is not a remote-network or model-call experiment.
 
+B sends its final verification to A and returns R before A forwards that
+verification to the publication receiver. A then uses R for the first publication
+request while B uses S for the second. This transfer removes B's ability to
+repeat its earlier R operations. The receiver continues to check both requests
+against the actual verification and current artifact before publishing.
+
 The native tests use the host event queue. Miri runs the same Endpoint and receiver
 scenarios with a polling validation clock because it cannot execute macOS kqueue.
 These checks cover Rust memory safety; OS wake delivery is checked by native tests.

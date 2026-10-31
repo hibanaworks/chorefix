@@ -57,7 +57,7 @@ pub fn programs() -> Programs {
         g::seq(
             g::send::<STORE, S_OWNER, CommitReady>(),
             g::seq(
-                g::send::<STORE, A, CommitReady>(),
+                g::send::<STORE, B, CommitReady>(),
                 g::seq(
                     g::send::<S_OWNER, B, LoanS>(),
                     g::seq(
@@ -73,13 +73,10 @@ pub fn programs() -> Programs {
                             g::seq(
                                 g::send::<B, S_OWNER, LoanS>(),
                                 g::seq(
-                                    g::send::<B, A, LoanR>(),
+                                    g::send::<B, A, Report>(),
                                     g::seq(
-                                        g::send::<B, A, Report>(),
-                                        g::seq(
-                                            g::send::<R, STORE, Audit>(),
-                                            g::send::<STORE, R, Audited>(),
-                                        ),
+                                        g::send::<R, STORE, Audit>(),
+                                        g::send::<STORE, R, Audited>(),
                                     ),
                                 ),
                             ),
@@ -93,10 +90,7 @@ pub fn programs() -> Programs {
         g::send::<STORE, R, CommitDenied>(),
         g::seq(
             g::send::<STORE, S_OWNER, CommitDenied>(),
-            g::seq(
-                g::send::<STORE, A, CommitDenied>(),
-                g::send::<B, A, LoanR>(),
-            ),
+            g::send::<STORE, B, CommitDenied>(),
         ),
     );
     let revise = g::seq(
@@ -110,7 +104,14 @@ pub fn programs() -> Programs {
             ),
         ),
     );
-    let reconsider = g::route(revise, g::send::<R, STORE, CandidateReady>()).roll();
+    let ready = g::seq(
+        g::send::<R, A, CandidateReady>(),
+        g::seq(
+            g::send::<B, A, LoanR>(),
+            g::send::<A, STORE, CandidateReady>(),
+        ),
+    );
+    let reconsider = g::route(g::seq(revise.roll(), ready), ready);
     let handoff = g::seq(
         g::send::<R, STORE, Prepare>(),
         g::seq(

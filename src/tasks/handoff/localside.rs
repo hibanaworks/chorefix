@@ -17,20 +17,24 @@ pub async fn initial<'r>(
     let checked = resource.recv::<Inspected>().await?;
     endpoint.send::<Context>(&checked).await?;
     endpoint.send::<LoanR>(resource).await?;
-    let branch = endpoint.offer().await?;
-    match branch.label() {
-        26 => {
-            branch.recv::<CommitReady>().await?;
-        }
+    let checked = endpoint.recv::<CandidateReady>().await?;
+    let mut resource = endpoint.recv::<LoanR>().await?;
+    endpoint.send::<CandidateReady>(&checked).await?;
+    let branch = resource.offer().await?;
+    let checked = match branch.label() {
+        26 => branch.recv::<CommitReady>().await?,
         27 => {
             branch.recv::<CommitDenied>().await?;
-            let _resource = endpoint.recv::<LoanR>().await?;
             return Err(ShellError::message("candidate verification failed"));
         }
         _ => return Err(ShellError::message("unexpected final verification branch")),
-    }
-    let mut resource = endpoint.recv::<LoanR>().await?;
+    };
+    resource.send::<CommitR>(&checked).await?;
+    let committed = Artifact::decode(resource.recv::<CommittedR>().await?);
     let reported = Artifact::decode(endpoint.recv::<Report>().await?);
+    if committed != reported {
+        return Err(ShellError::message("resource results differ"));
+    }
     resource.send::<Audit>(&reported.target).await?;
     let actual = Artifact::decode(resource.recv::<Audited>().await?);
     if actual != reported {
@@ -71,42 +75,23 @@ pub async fn recover(
         }
     };
     resource.send::<CandidateReady>(&checked.bytes()).await?;
-    let branch = resource.offer().await?;
+    endpoint.send::<LoanR>(resource).await?;
+    let branch = endpoint.offer().await?;
     match branch.label() {
         26 => {
             branch.recv::<CommitReady>().await?;
         }
         27 => {
             branch.recv::<CommitDenied>().await?;
-            endpoint.send::<LoanR>(resource).await?;
             return Err(ShellError::message("candidate verification failed"));
         }
         _ => return Err(ShellError::message("unexpected commit branch")),
     }
     let mut second = endpoint.recv::<LoanS>().await?;
     let payload = checked.bytes();
-    async {
-        #[localside]
-        resource.send::<CommitR>(&payload);
-        #[localside]
-        second.send::<CommitS>(&payload);
-        Ok(())
-    }
-    .await?;
-    let (first, second_result) = async {
-        #[localside]
-        let first = resource.recv::<CommittedR>();
-        #[localside]
-        let second_result = second.recv::<CommittedS>();
-        Ok((first, second_result))
-    }
-    .await?;
-    if first != second_result {
-        return Err(ShellError::message("resource results differ"));
-    }
-    let published = Artifact::decode(first);
+    second.send::<CommitS>(&payload).await?;
+    let published = Artifact::decode(second.recv::<CommittedS>().await?);
     endpoint.send::<LoanS>(second).await?;
-    endpoint.send::<LoanR>(resource).await?;
     endpoint.send::<Report>(&published.bytes()).await?;
     Ok(published)
 }

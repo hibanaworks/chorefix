@@ -28,7 +28,8 @@
 ## 最初の技術判断点: T3/T4と実効果
 
 主ケースは、Aが資源Rで候補v1を作り、独立したCが資源Sで作業し、失敗後にAが
-同じEndpointをBへ渡し、Bが候補v2の検証と実結果の受信を経てcommitする手順とする。
+同じEndpointをBへ渡し、Bが候補v2を検証してRをAへ返す。AのR要求とBのS要求が
+そろった後に公開する手順とする。
 旧A、v1の承認、別の引数、片方しかない資源で実効果を起こせないことを確認する。
 競合が通常のbroker、lease、proxyや再計画で同じ業務を完了しても成功と数える。
 
@@ -38,16 +39,20 @@
 直接のEndpoint操作で行い、資源の現在版・検証結果・公開物は物理サービスが所有する。
 これはnativeのmemory-backed fixtureであり、実Wasm、実モデル、実成果物Gや採点実験ではない。
 
-通常の再考、旧承認・別対象・引数変更・負の検証結果・左右の資源要求の不一致6種類、
-片方の要求だけを送ったPendingからの継続、未修正候補への承認偽装、実際の否定結果による
-修正なしの失敗終了、計10ケースが通過した。
-引数違反では公開0件と初期bindingの再発行拒否、正常系では同じEndpointのA→B→Aと
-正しい版の公開を確認した。通常Git pinの個別fixtureでは5試験に含まれる10ケースとClippyが成功した。
-再修正／候補確定はglobalの明示的routeであり、localsideのofferはその選択を観測する。
-同じGit pinの10ケースをstrict provenanceのMiriでも確認した。Miriの実行は240.71秒、
-その後のLean照合を含む検証process全体の最大memoryは705,691,648bytesだった。
-検証用の時間枠は計装コストを含む60秒で、実験のdeadlineやmemory上限とは別である。
-このケースの追加で本体の挙動は変更していない。
+候補確定後もBがRを保持していた旧globalでは、受信側が再修正の受信を終えた後に
+`Revise`を送信できた。`roll`の後続へ進んでも再訪は許されるため、globalの修正対象とした。
+現在はBが検証結果をAへ送り、Rを返してから、Aがその結果を公開側へ送る。
+AはR、BはSから公開要求を送り、受信側で両要求と実際の検証結果・現在版を照合する。
+資源の保持者表、終了flag、localsideによる操作順の回避は追加していない。
+
+通常の再考、旧承認・別対象・引数変更・負の検証結果・左右の要求不一致6種類、
+片方の要求だけでPendingになる経路、承認偽装、実際の否定結果による修正なしの終了に加え、
+候補確定後の再修正の拒否を確認した。handoffの6試験に含まれる11ケースと、RPC4試験・
+入れ子の選択2試験の計12 native試験、Clippyが成功した。同じ11ケースを含む6試験の
+strict-provenance Miriも成功した（255.70秒、最大431,669,248bytes）。拒否された再修正は
+transportへframeを渡さず、公開0件の既存の不正要求試験も維持した。通常Git pinを使用し、
+source hashと元の反例を`output/review-occurrence-qualification/runtime-array-input/handoff-post-ready`へ保持する。
+本体の挙動は変更していない。この個別検証をアプリ全体の最終認定とは扱わない。
 
 [Lean](proofs/README.md)では、任意のtarget・版・値について、両要求と実検証結果・現在版が
 一致することと公開判定の同値性を証明した。既存coreのsource実行から操作点の重複がないことも
@@ -220,7 +225,10 @@ ChoreoFixのmanifest/lockは本体
 本体の`8792e63`ではKani321件が成功し、全子孫の最大memoryは2,248,671,568bytesだった。
 この版はlane mismatchの観測値の説明を訂正し、tap記録の標準変換を追加した。
 EPFはフィールド解釈を複製せずに完全な記録を読める。
-protocol fuzz、Miri等を含む残るgateは、この最終sourceで継続する。
+この全gateは生成した不合法sourceへ二つの異なる拒否理由を要求する検査側の誤りで停止した。
+生成器を修正した本体`77c54e6`では、修正前に回帰試験が失敗し、修正後の88試験と
+停止した分割が成功した。174形・616,608操作試行でruntime-only/model-onlyは0、
+120件の実コンパイル拒否を確認した。最終sourceでの全gate完了とは扱わない。
 
 runtimeの`61ae78b`は、配列localside宣言の入力式内のasync scopeも変換する。
 修正前に成功・子のエラー・借用値の3試験がすべて失敗することを確認し、同じ試験を修正後に
@@ -255,13 +263,16 @@ Miri57試験、Lean16定理/Z3、no_std/Pico linkを含む全gateが同じsource
 hostのOS呼出しはnativeで検査する。Lean/Z3はschedulerとstorageの性質を扱い、
 macro変換全体や任意のRustの詳細化証明ではない。
 
-| 現在の構成 | 同じsourceで確認した範囲 |
+アプリ・runner・12課題の行は前回の全体認定であり、今回のhandoff変更を含む全targetの
+再認定は別途行う。handoffの2行は今回の変更後の個別検証である。
+
+| 構成 | sourceを対応付けて確認した範囲 |
 | --- | --- |
 | アプリ | 全targetのRust40試験、Clippy、全依存treeのTokio/mio/socket2不在 |
 | runner | Rust27試験、Clippy、全依存treeのTokio/mio/socket2不在 |
 | 移行済み12課題 | 実Wasm75条件。74条件がprotocol完了・監査違反0件。CI/CDの早期終了1条件は共有効果0件 |
-| handoff検証crate | native11試験。handoffの5試験に含まれる10ケース、RPCの4試験、入れ子の選択2試験 |
-| handoffのMiri | 同じ10ケースを含む5試験。受信futureをPendingから再開する経路も維持 |
+| handoff検証crate | native12試験。handoffの6試験に含まれる11ケース、RPCの4試験、入れ子の選択2試験 |
+| handoffのMiri | 同じ11ケースを含む6試験。候補確定後の再修正拒否と、Pendingからの再開を含む |
 
 アプリとrunnerは同じruntime pinを使う。実Wasmの各binary・source manifest・build receiptを
 保存し、buildと試験の前後でsource hashが一致することを確認した。
