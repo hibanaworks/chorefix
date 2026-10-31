@@ -158,6 +158,31 @@ reply, do not call shell again. Leaving before doing the work fails the run.
     ))
 }
 
+fn trial_error(outcomes: &[Value]) -> Option<String> {
+    outcomes
+        .iter()
+        .find_map(|outcome| match outcome["kind"].as_str() {
+            Some("model_participant") => {
+                let result = &outcome["result"];
+                (result["status"] != "completed" || !result["error"].is_null()).then(|| {
+                    format!(
+                        "model participant {}: status={}, error={}",
+                        result["participant"], result["status"], result["error"]
+                    )
+                })
+            }
+            Some("guest_runtime") => {
+                let result = &outcome["result"];
+                (!result["error"].is_null()
+                    || result["runtime_exit_code"] != 0
+                    || result["protocol"]["status"] != "complete"
+                    || result["backend_errors"] != json!([]))
+                .then(|| format!("guest runtime failed: {result}"))
+            }
+            _ => Some(format!("trial job failed: {outcome}")),
+        })
+}
+
 async fn run(task: &str, depth: u8, output: &Path) -> Result<Value> {
     if ![
         "1E", "1M", "1H", "2E", "2M", "2H", "6E", "8E", "9E", "9M", "9H", "16E",
@@ -245,16 +270,7 @@ async fn run(task: &str, depth: u8, output: &Path) -> Result<Value> {
     })
     .await;
     let error = match finished {
-        Ok(Ok(())) => outcomes
-            .iter()
-            .find(|value| value["status"] == "harness_error")
-            .map(|value| {
-                value["error"]
-                    .as_str()
-                    .ok_or("missing harness error")
-                    .map(str::to_owned)
-            })
-            .transpose()?,
+        Ok(Ok(())) => trial_error(&outcomes),
         Ok(Err(e)) => Some(e.to_string()),
         Err(_) => Some("case timeout; incomplete work retained".to_owned()),
     };

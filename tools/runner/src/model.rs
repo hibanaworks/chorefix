@@ -147,15 +147,23 @@ where
         ),
     )
     .await;
+    let _ = child.kill().await;
+    let _ = child.wait().await;
+    finish_reports(&conversations, completed, outcome)
+}
+
+fn finish_reports(
+    conversations: &[Conversation],
+    mut completed: Vec<Value>,
+    outcome: std::result::Result<Result<()>, tokio::time::error::Elapsed>,
+) -> Result<Vec<Value>> {
     let error = match outcome {
         Ok(Ok(())) => None,
         Ok(Err(error)) => Some(("harness_error", error.to_string())),
         Err(_) => Some(("timeout", "participant group timeout".to_owned())),
     };
-    let _ = child.kill().await;
-    let _ = child.wait().await;
     if let Some((status, error)) = error {
-        for conversation in &conversations {
+        for conversation in conversations {
             if !completed
                 .iter()
                 .any(|result| result["participant"] == conversation.participant.agent)

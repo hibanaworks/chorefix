@@ -46,6 +46,9 @@ checks those files, each model's actual tool exchanges and usage, the task's
 Endpoint messages, and its original simulator outcome. A negative domain result
 is preserved as a domain result. It is not changed into successful work by a
 completed protocol. The same runner audits each migrated task's records.
+Model errors or timeouts, runtime errors, nonzero runtime exits and failed
+backend jobs set the run's `error` and produce a nonzero CLI exit. A completed
+model response cannot hide an error reported with that response.
 `--check-run-mutants RUN NEW_DIRECTORY` checks the saved model records against
 deliberately altered records without making model calls.
 

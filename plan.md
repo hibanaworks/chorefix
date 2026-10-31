@@ -440,6 +440,15 @@ codebaseは1Hの再考、1E／1Mの正常な業務失敗、早すぎるcommit、
 全子孫の最大memoryは704,987,136bytes。モデル呼出しと採点比較への算入は0件である。
 記録は`output/review-occurrence-qualification/rust-boundary-unification`に保持する。
 
+通常runnerの終了判定で、内側のparticipant結果に保存したtimeout／接続errorを
+集約しない欠陥を修正した。guestの完了後でもモデル参加者が失敗すれば、記録のerrorと
+CLIの失敗終了へ反映する。runtimeのerror・異常終了・backend失敗も同じ集約で確認する。
+正常に完了したprotocolとモデルが返す業務失敗は、引き続き元scoreの失敗として区別する。
+実際のbyte-stream driverへ成功したguest終了応答を返した後、接続切断／timeoutを起こす
+2回帰試験が成功した。旧集約だけへ戻すと両試験が失敗し、復元後はrunner全28試験・
+Clippy・buildが成功した。最大memoryは705,511,424bytes、モデル呼出し0件だった。
+記録は`output/review-occurrence-qualification/participant-result-qualification`に保持する。
+
 ## 本体・統合の保証
 
 本体は`feature/endpoint-delegation`で開発し、mainの変更・リリースはレビュー後に扱う。
