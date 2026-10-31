@@ -42,6 +42,15 @@ Preserve atomicity and safety; do not weaken checks or tests to simplify a desig
 **No helper/wrapper hiding of localside flow. No separate state machine. No
 task progress flags. No duplicate coordination or completion management.**
 
+Do not add extra structs, enums, managers, registries or wrappers to coordinate
+the application. A new type needs a concrete data-ownership responsibility that
+existing types, borrows and moves cannot express. Never duplicate progress,
+permission or completion already owned by the global and Hibana kernel.
+Keep each participant's send/recv/offer/par, branches, loops and concurrent
+completion boundaries directly in its localside body. Do not extract protocol
+steps into helper functions or chains of wrappers. Codecs, data validation,
+cryptography, buffer operations and actual I/O are separate from protocol flow.
+
 Never work around a core, projection or runtime-checking defect by arranging the
 localside differently. Reordering operations, adding notifications or receives,
 special-case branches, serialization, helpers or flags to make a legal global
@@ -78,6 +87,14 @@ approved/done boolean, owner record, or disguised equivalent.
 Low-level codecs, buffers, and object materialization belong in `imp/`; they do
 not acquire choreography authority by being placed there. Review this rule in
 the live source and verification evidence before reporting completion.
+
+Use hibana-wasip1-runtime's ChoreoFS for WASI file operations. Pass the request
+received through Endpoint to ChoreoFS and apply its result to the owned data.
+Do not add another filesystem, file-permission table, admission check or bypass
+beside it. Names, contents, offsets and required I/O data may be stored without
+becoming a second coordination specification. Keep ChoreoFS calls visible at
+the localside's receive/effect/reply boundary. Prefer ChoreoFix's correct design
+over reproducing TraceFix's existing file-operation procedure.
 
 Build task globals from actual business requests, resource Endpoint transfers,
 results and returns. Write their localsides from that global. Do not retain a
@@ -165,8 +182,8 @@ During delegation completion the provisional runtime stack budget is 5 KiB
 (5,120 bytes). Defer detailed stack tuning and final Pico qualification until
 delegation works; keep the required semantics and concurrent execution intact.
 This does not change the separate 4 GB validation ceiling or its 3 GB stop.
-Tokio, owned model requests, `Vec` and host-side queues belong only to this
-application, tests or integrations. They must not move into core. Qualify core
+Owned model requests, `Vec` and host-side I/O queues belong only to the
+application or integrations. They must not move into core. Qualify core
 repairs with no-default-feature host and the selected Pico target builds,
 including the embedded projection example. The current checked target is still
 thumbv6m; Pico 2 is permitted, not yet selected or qualified. Keep the
