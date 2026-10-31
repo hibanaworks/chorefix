@@ -56,9 +56,12 @@ The proofs establish that every publication has both correctly bound source
 receipts and matching data, that distinct resource roles require distinct
 receipts, and that neither receipt can authorize a second publication. Receipt
 uniqueness follows from Hibana's source execution; an injective effect assignment
-is not assumed. `custody_and_effect_receipts_compose` adds affine custody from
-the core history on that same source word. The permitted axioms remain `propext`
-and `Quot.sound`.
+is not assumed. `resources_and_effect_receipts_compose` applies custody to both
+distinct resource roles and ties each request's sender to its resource. The two
+custody histories must project to the same source word as the receiver trace.
+It gives an authority bound for each resource, distinct receipts for the two
+requests, and no receipt reuse across publications. The permitted axioms remain
+`propext` and `Quot.sound`.
 
 After building the pinned Hibana Lean package, check all three modules together:
 

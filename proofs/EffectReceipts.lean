@@ -136,31 +136,51 @@ theorem source_execution_prevents_reusing_either_effect_request
   have received := publication_anchors_are_received_once receiver
   exact ⟨List.Nodup.sublist received.1 unique, List.Nodup.sublist received.2 unique⟩
 
-/-- Custody and effect correspondence use the same source word. The adapter
-contract supplies actual receives and values; the core supplies affine custody
-and source occurrence uniqueness. No injective effect assignment is assumed. -/
-theorem custody_and_effect_receipts_compose
-    (custody : OwnedCallHistory.History images resource choreo value events cut)
+/-- Both resource histories project to the same source word as the receiver.
+The requests originate from those distinct logical resources. Physical binding
+identity and the Rust receiver's actual receives and values remain adapter
+obligations; no injective effect assignment is assumed. -/
+theorem resources_and_effect_receipts_compose
+    (firstCustody : OwnedCallHistory.History images firstResource choreo
+      firstValue firstEvents firstCut)
+    (secondCustody : OwnedCallHistory.History images secondResource choreo
+      secondValue secondEvents secondCut)
+    (sameSource : OwnedCallHistory.sourceWord firstEvents =
+      OwnedCallHistory.sourceWord secondEvents)
     (trace : SourceOccurrenceTrace images choreo plan
-      (OwnedCallHistory.sourceWord events) calls points)
+      (OwnedCallHistory.sourceWord firstEvents) calls points)
+    (firstRole : firstMessage.sender = firstResource)
+    (secondRole : secondMessage.sender = secondResource)
+    (different : firstResource ≠ secondResource)
     (receiver : ReceiverEffects plan firstMessage secondMessage points effects) :
-    cut.custody.authorityCount ≤ 1 ∧
+    firstCut.custody.authorityCount ≤ 1 ∧ secondCut.custody.authorityCount ≤ 1 ∧
       (effects.map fun effect => effect.first.point).Nodup ∧
       (effects.map fun effect => effect.second.point).Nodup ∧
       ∀ effect ∈ effects,
+        effect.first.point ≠ effect.second.point ∧
         effect.first.point ∈ points ∧ effect.second.point ∈ points ∧
         effect.first.matches plan firstMessage ∧ effect.second.matches plan secondMessage ∧
         effect.artifact = effect.current ∧ effect.checked.passed = true ∧
         effect.checked.artifact = effect.current ∧
         effect.first.value = effect.checked ∧ effect.second.value = effect.checked := by
-  have execution := a_source_occurrence_trace_is_its_reconstructed_execution trace
+  have secondTrace : SourceOccurrenceTrace images choreo plan
+      (OwnedCallHistory.sourceWord secondEvents) calls points := sameSource ▸ trace
+  have execution := a_source_occurrence_trace_is_its_reconstructed_execution secondTrace
   have unique := source_execution_prevents_reusing_either_effect_request execution receiver
-  exact ⟨(a_joint_call_history_preserves_affine_custody custody).1, unique.1, unique.2,
-    every_publication_has_both_source_receipts_and_matching_data receiver⟩
+  refine ⟨(a_joint_call_history_preserves_affine_custody firstCustody).1,
+    (a_joint_call_history_preserves_affine_custody secondCustody).1,
+    unique.1, unique.2, ?_⟩
+  intro effect present
+  have data := every_publication_has_both_source_receipts_and_matching_data
+    receiver effect present
+  have senders : firstMessage.sender ≠ secondMessage.sender := by
+    simpa only [firstRole, secondRole] using different
+  exact ⟨different_resources_have_different_receipts senders data.2.2.1 data.2.2.2.1,
+    data⟩
 
 #print axioms every_publication_has_both_source_receipts_and_matching_data
 #print axioms different_resources_have_different_receipts
 #print axioms source_execution_prevents_reusing_either_effect_request
-#print axioms custody_and_effect_receipts_compose
+#print axioms resources_and_effect_receipts_compose
 
 end ChoreoFix
