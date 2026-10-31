@@ -215,10 +215,27 @@ ChoreoFixのmanifest/lockは本体
 `b7d65518b07226a3d69a140bbaf17d4c80fb65a8`、WASI
 `77f5bbd1075402da8f67b86c7a70fbb5937bdf79`を選択している。
 アプリと実験runnerは`hibana-runtime`の
-`dc0a13a2fdd551fa0835a813dd46aace90016bfb`を選択する。
+`61ae78bbde9d77148fa38f86f8f63ab4cf45a314`を選択する。
 通常のGit依存を使い、診断用のpath patchを認定へ流用しない。
-本体の全gateは検査一覧の総数を訂正した`f1bce718`で実行する。`src/`とLeanモデルは
-選択中の`b7d65518`とbyte単位で同じで、321件のharness・入力・assertionを維持している。
+本体の`f1bce718`ではKani321件が成功し、全子孫の最大memoryは2,489,090,816bytesだった。
+その後の`cb00f1b`はlane mismatchの観測値の説明だけを訂正した。`8792e63`はtap記録の
+標準変換を追加し、EPFがフィールド解釈を複製せずに完全な記録を読むための入口を整えた。
+全gateはこの最終sourceで再実行する。321件のharness・入力・assertionは変わっていない。
+
+runtimeの`61ae78b`は、配列localside宣言の入力式内のasync scopeも変換する。
+修正前に成功・子のエラー・借用値の3試験がすべて失敗することを確認し、同じ試験を修正後に
+通した。native89試験、compile入力13件、strict-provenance Miri60試験、Lean/Z3、
+no_std/Pico linkを含む全gateが同じsourceで成功した。全子孫最大memoryは699,056,128bytes。
+下記の75条件は従来のruntime `dc0a13a`での認定であり、修正版のconsumer再認定とは区別する。
+修正版を通常のGit pinで選択したconsumerでは、アプリ40試験・runner27試験とClippy、
+6Eの実Wasm34条件を再実行した。protocol完了・監査違反0件、928件の記録変異を拒否した。
+全子孫最大memoryは1,705,820,160bytes。binaryとsource manifestを
+`output/review-occurrence-qualification/runtime-array-input/consumer`へ対応付けて保持する。
+モデル呼出し・採点算入は0件。残るfamilyの旧認定を、この修正版の認定へ読み替えない。
+handoffも同じruntime pinでnative11試験とClippy、同じ10ケースを含む5試験の
+strict-provenance Miriを再実行した。最大memoryは426,508,288bytesで、試験前後のsourceは一致した。
+
+
 
 runtimeの中核はno_std・割当なし・caller-owned storageである。参加者は借用した値や
 所有値で直接宣言し、runtimeがFutureの配置・poll・キャンセル・子の終了待ちを担当する。
@@ -260,6 +277,22 @@ resource/event envelopeを検査し、レビューのintent・要求・実結果
 区別する。34条件で928記録変異を拒否した。全観測を同じ不正label/laneへ変える変異と、
 同じpeer間の別の合法な通信へ要求を差し替える変異を含む。静的な通信対応の検査であり、
 動的なroute/rollの実行可能性を再生する検査とは区別する。アプリの進行管理は増やしていない。
+
+動的なprotocol監査はhibana-epfへ集約する。アプリの連携仕様をEPF用に書き直さず、
+実行binaryに含まれるsealed RoleProgramの不変情報と、同じ実行の出現記録を照合する。
+受理・送信commit・受信commit、route選択とrollのvisit、委譲前後のactorを区別し、
+欠落した記録や一意に対応づかない出現から適合を認定しない。監査の履歴は操作権を与えない。
+EPFの`7c52d871582198af195bbfecc2b2d2848dd9efe3`（`feature/dynamic-audit`）は、
+本体`8792e63`の標準16-byte記録を使い、入力のEOFを待たずに1件ずつ観測を出力する。
+実Endpointの左右のresolver選択とroll再訪をEPFで読み、連番・lane・16-bit wire labelの
+保持を検査した。native27試験、strict-provenance Miri23試験、Clippy、no_std hostと
+thumbv6mのlibrary buildが同じsourceで成功した。EOF待ちだけを戻す変異ではライブ観測の
+回帰試験が失敗した。raw/sourceと結果は`runtime-array-input/epf/final`と`epf/compact-storage`に保持する。
+未使用のscratch・内部history・raw storage構築経路も除去し、容量引数を二つにした。
+全子孫最大memoryは251,789,312bytes。実行中の観測に対応した段階であり、動的適合の認定や
+ChoreoFixの効果監査との接続はまだ含まない。
+現EPFは診断VMであり、この動的再生は未実装。現在のtapだけでは全commitと動的出現を
+一意に結ぶ情報が不足するため、先に観測契約とcompilerからの読み取りを補う。
 
 runnerは、独立要求、同じ参加者の並列要求、turn/start応答前の要求、guest終了後の
 接続切断・timeout、部分JSON行の受信キャンセルを実I/Oで検査した。

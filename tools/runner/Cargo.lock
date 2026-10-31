@@ -78,7 +78,7 @@ dependencies = [
 [[package]]
 name = "hibana-runtime"
 version = "0.1.0"
-source = "git+https://github.com/hibanaworks/hibana-runtime?rev=dc0a13a2fdd551fa0835a813dd46aace90016bfb#dc0a13a2fdd551fa0835a813dd46aace90016bfb"
+source = "git+https://github.com/hibanaworks/hibana-runtime?rev=61ae78bbde9d77148fa38f86f8f63ab4cf45a314#61ae78bbde9d77148fa38f86f8f63ab4cf45a314"
 dependencies = [
  "hibana-runtime-macros",
 ]
@@ -86,7 +86,7 @@ dependencies = [
 [[package]]
 name = "hibana-runtime-macros"
 version = "0.1.0"
-source = "git+https://github.com/hibanaworks/hibana-runtime?rev=dc0a13a2fdd551fa0835a813dd46aace90016bfb#dc0a13a2fdd551fa0835a813dd46aace90016bfb"
+source = "git+https://github.com/hibanaworks/hibana-runtime?rev=61ae78bbde9d77148fa38f86f8f63ab4cf45a314#61ae78bbde9d77148fa38f86f8f63ab4cf45a314"
 dependencies = [
  "proc-macro2",
  "quote",
