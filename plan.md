@@ -217,10 +217,10 @@ ChoreoFixのmanifest/lockは本体
 アプリと実験runnerは`hibana-runtime`の
 `61ae78bbde9d77148fa38f86f8f63ab4cf45a314`を選択する。
 通常のGit依存を使い、診断用のpath patchを認定へ流用しない。
-本体の`f1bce718`ではKani321件が成功し、全子孫の最大memoryは2,489,090,816bytesだった。
-その後の`cb00f1b`はlane mismatchの観測値の説明だけを訂正した。`8792e63`はtap記録の
-標準変換を追加し、EPFがフィールド解釈を複製せずに完全な記録を読むための入口を整えた。
-全gateはこの最終sourceで再実行する。321件のharness・入力・assertionは変わっていない。
+本体の`8792e63`ではKani321件が成功し、全子孫の最大memoryは2,248,671,568bytesだった。
+この版はlane mismatchの観測値の説明を訂正し、tap記録の標準変換を追加した。
+EPFはフィールド解釈を複製せずに完全な記録を読める。
+protocol fuzz、Miri等を含む残るgateは、この最終sourceで継続する。
 
 runtimeの`61ae78b`は、配列localside宣言の入力式内のasync scopeも変換する。
 修正前に成功・子のエラー・借用値の3試験がすべて失敗することを確認し、同じ試験を修正後に
@@ -278,18 +278,29 @@ resource/event envelopeを検査し、レビューのintent・要求・実結果
 同じpeer間の別の合法な通信へ要求を差し替える変異を含む。静的な通信対応の検査であり、
 動的なroute/rollの実行可能性を再生する検査とは区別する。アプリの進行管理は増やしていない。
 
+16Eも同じcompiled projection監査を使う。実際にattachする13個のprogramから通信情報を
+書き出し、実行前に保存したbinary・projectionのhashと照合する。actorの対応は投影に
+含まれる情報から求める。元課題の深さ0/1/2の実Wasm3条件が完走し、各条件の16記録変異、
+計48件を拒否した。同一frameの全観測のwire labelまたはlaneを一斉に変更する変異を含む。
+早期終了の別条件では共有効果は0件だった。native40試験・runner29試験と両Clippyも通過した。
+記録は`runtime-array-input/cicd-wire`に保持する。これらはモデル呼出し0件の機構試験であり、
+採点比較や動的な分岐・反復の再生には数えない。
+
 動的なprotocol監査はhibana-epfへ集約する。アプリの連携仕様をEPF用に書き直さず、
 実行binaryに含まれるsealed RoleProgramの不変情報と、同じ実行の出現記録を照合する。
 受理・送信commit・受信commit、route選択とrollのvisit、委譲前後のactorを区別し、
 欠落した記録や一意に対応づかない出現から適合を認定しない。監査の履歴は操作権を与えない。
-EPFの`7c52d871582198af195bbfecc2b2d2848dd9efe3`（`feature/dynamic-audit`）は、
+EPFの`10b7f69e61ed0207840dd9a6184f8b86869f9532`（`feature/dynamic-audit`）は、
 本体`8792e63`の標準16-byte記録を使い、入力のEOFを待たずに1件ずつ観測を出力する。
 実Endpointの左右のresolver選択とroll再訪をEPFで読み、連番・lane・16-bit wire labelの
-保持を検査した。native27試験、strict-provenance Miri23試験、Clippy、no_std hostと
-thumbv6mのlibrary buildが同じsourceで成功した。EOF待ちだけを戻す変異ではライブ観測の
-回帰試験が失敗した。raw/sourceと結果は`runtime-array-input/epf/final`と`epf/compact-storage`に保持する。
+保持を検査した。native31試験、strict-provenance Miri26試験、Clippy、no_std hostと
+thumbv6mのlibrary buildが同じsourceで成功した。失敗したload・存在しないpolicyのunload・
+revertが設定枠を消費する3経路は、修正前sourceで再現し、修正後に同じ試験を通した。
+観測CLIへpolicyを指定しても既定の観測へ黙って切り替えず、入力エラーを返す。
+raw/source、修正前の入力と結果は`runtime-array-input/epf/atomic-configuration`に保持する。
+EOF待ちだけを戻す変異によるライブ観測の検出力は、`epf/final`に保持する以前のsourceで確認した。
 未使用のscratch・内部history・raw storage構築経路も除去し、容量引数を二つにした。
-全子孫最大memoryは251,789,312bytes。実行中の観測に対応した段階であり、動的適合の認定や
+全子孫最大memoryは468,893,696bytes。実行中の観測に対応した段階であり、動的適合の認定や
 ChoreoFixの効果監査との接続はまだ含まない。
 現EPFは診断VMであり、この動的再生は未実装。現在のtapだけでは全commitと動的出現を
 一意に結ぶ情報が不足するため、先に観測契約とcompilerからの読み取りを補う。

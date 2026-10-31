@@ -217,9 +217,10 @@ async fn real_wasi_cicd_uses_resource_endpoints_and_keeps_shell_freedom() -> Res
         fs::create_dir(&output)?;
         let trace = Trace::create(&output.join("events.jsonl"))?;
         let (simulator, fixture) = oracle::Simulator::new("16E", depth, 0.01, trace.clone(), &[])?;
+        let projection = crate::projection::archive(&runtime, &output, "16E")?;
         save(
             &output.join("case.json"),
-            &json!({"task":"16E","depth":depth,"model_calls":0,"scored_benchmark":false,"build":receipt,"wasm_sha256":digest(wasm)?,"harness_binary_sha256":digest(&std::env::current_exe()?)?,"harness_source_sha256":digest(Path::new("tools/runner/src/cicd_boundary.rs"))?,"oracle_source_sha256":digest(Path::new("tools/runner/src/oracle.rs"))?,"audit_source_sha256":digest(Path::new("tools/runner/src/cicd_audit.rs"))?}),
+            &json!({"task":"16E","depth":depth,"model_calls":0,"runtime_binary_sha256":projection["runtime_binary_sha256"],"compiled_projection_sha256":digest(&output.join("projection.json"))?,"scored_benchmark":false,"build":receipt,"wasm_sha256":digest(wasm)?,"harness_binary_sha256":digest(&std::env::current_exe()?)?,"harness_source_sha256":digest(Path::new("tools/runner/src/cicd_boundary.rs"))?,"oracle_source_sha256":digest(Path::new("tools/runner/src/oracle.rs"))?,"audit_source_sha256":digest(Path::new("tools/runner/src/cicd_audit.rs"))?}),
         )?;
         let (guest, runtime_loop) =
             process::guest(&runtime, wasm, "16E", &output, trace, simulator.clone())?;
@@ -251,7 +252,7 @@ async fn real_wasi_cicd_uses_resource_endpoints_and_keeps_shell_freedom() -> Res
         let audit = cicd_audit::audit(&output.join("events.jsonl"))?;
         let mutants =
             cicd_audit::check_mutants(&output.join("events.jsonl"), &output.join("mutants"))?;
-        assert_eq!(mutants["mutants"].as_array().ok_or("mutants")?.len(), 14);
+        assert_eq!(mutants["mutants"].as_array().ok_or("mutants")?.len(), 16);
         save(&output.join("audit.json"), &audit)?;
         save(&output.join("result.json"), &result)?;
         outcomes.push(json!({"depth":depth,"runtime":result,"audit":audit,"mutants":mutants}));

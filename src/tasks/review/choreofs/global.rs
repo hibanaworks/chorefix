@@ -564,11 +564,7 @@ pub struct Programs {
 impl Programs {
     /// Static observations of the same programs passed to `enter`.
     pub(crate) fn observation(&self) -> serde_json::Value {
-        fn rows<const ROLE: u8>(program: &RoleProgram<ROLE>) -> serde_json::Value {
-            serde_json::json!({"role":ROLE,"rows":hibana::runtime::tap::projected(program)
-                .map(|row| [row.ts(), u32::from(row.id()), u32::from(row.causal_key()), row.arg0(), row.arg1()])
-                .collect::<Vec<_>>()})
-        }
+        use crate::imp::projection::rows;
         serde_json::json!({"type":"compiled_projection","format_version":1,"task":"6E",
             "programs":[rows(&self.a_wasi), rows(&self.b_wasi), rows(&self.review_wasi),
             rows(&self.review_a), rows(&self.review_b), rows(&self.repo), rows(&self.repo_endpoint),

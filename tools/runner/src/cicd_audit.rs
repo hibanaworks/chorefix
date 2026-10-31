@@ -1,5 +1,5 @@
 //! Offline checks of actual CI/CD resource transfers and unchanged simulator results.
-use crate::evidence::Result;
+use crate::evidence::{Result, digest};
 use serde_json::{Value, json};
 use std::{collections::BTreeMap, fs, path::Path};
 
@@ -39,6 +39,26 @@ pub fn audit(path: &Path) -> Result<Value> {
         .lines()
         .map(serde_json::from_str)
         .collect::<std::result::Result<_, _>>()?;
+    let projection = crate::projection::load(path)?;
+    let mut result = check(&records, &projection)?;
+    result["source_events_sha256"] = json!(digest(path)?);
+    result["compiled_projection_sha256"] = json!(digest(
+        &path
+            .parent()
+            .ok_or("event directory")?
+            .join("projection.json")
+    )?);
+    result["runtime_binary_sha256"] = projection["runtime_binary_sha256"].clone();
+    result["wire_validation"] =
+        json!("static compiled header membership; dynamic eligibility is not replayed");
+    Ok(result)
+}
+
+fn check(records: &[Value], projection: &Value) -> Result<Value> {
+    crate::projection::frames(projection, records)?;
+    if projection["compiled"]["task"] != "16E" {
+        return Err("CI/CD compiled protocol task".into());
+    }
     let fixture = &records.first().ok_or("empty evidence")?["message"];
     if fixture["type"] != "fixtures"
         || fixture["task"] != "16E"
@@ -254,6 +274,7 @@ pub fn audit(path: &Path) -> Result<Value> {
 
 pub fn check_mutants(path: &Path, output: &Path) -> Result<Value> {
     audit(path)?;
+    let projection = crate::projection::load(path)?;
     fs::create_dir(output)?;
     let rows: Vec<Value> = fs::read_to_string(path)?
         .lines()
@@ -275,9 +296,35 @@ pub fn check_mutants(path: &Path, output: &Path) -> Result<Value> {
         "forged_original_result",
         "missing_exit",
         "false_score",
+        "wrong_frame_label",
+        "wrong_lane",
     ] {
         let mut copy = rows.clone();
         match kind {
+            "wrong_frame_label" | "wrong_lane" => {
+                let selected = copy
+                    .iter()
+                    .find(|row| row["message"]["type"] == "protocol_frame")
+                    .ok_or("header mutation frame")?["message"]["frame_id"]
+                    .clone();
+                let field = if kind == "wrong_frame_label" {
+                    "frame_label"
+                } else {
+                    "lane"
+                };
+                let changed = if kind == "wrong_frame_label" {
+                    65535
+                } else {
+                    255
+                };
+                for row in copy.iter_mut().filter(|row| {
+                    row["message"]["type"] == "protocol_frame"
+                        && row["message"]["frame_id"] == selected
+                }) {
+                    row["message"][field] = json!(changed);
+                }
+                // Change every observation together: send/receive equality alone still holds.
+            }
             "missing_loan"
             | "wrong_loan_resource"
             | "missing_request"
@@ -400,12 +447,12 @@ pub fn check_mutants(path: &Path, output: &Path) -> Result<Value> {
         let mutant = output.join(format!("{kind}.jsonl"));
         use std::io::Write;
         let mut file = fs::File::create_new(&mutant)?;
-        for row in copy {
-            serde_json::to_writer(&mut file, &row)?;
+        for row in &copy {
+            serde_json::to_writer(&mut file, row)?;
             writeln!(file)?;
         }
         drop(file);
-        let error = audit(&mutant)
+        let error = check(&copy, &projection)
             .err()
             .ok_or_else(|| format!("accepted mutant {kind}"))?;
         results.push(json!({"kind":kind,"status":"rejected","error":error.to_string()}));

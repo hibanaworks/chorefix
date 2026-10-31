@@ -22,6 +22,7 @@ async fn run_guests(
     use global::*;
     use hibana_wasip1_runtime::{GuestMemory, HibanaWasiGuestStorage};
     let programs = programs();
+    bus.observe(programs.observation());
     let compile = Validation::new();
     let test = Validation::new();
     let deploy = Validation::new();
@@ -110,6 +111,11 @@ pub async fn run_stdio(module: &[u8]) -> ShellResult<()> {
         Err(error) => reader.emit(&bus,serde_json::json!({"type":"run_result", "status":"failed", "error":error.to_string()})).await?,
     }
     result
+}
+
+/// Static observations of the programs that the CI/CD runtime attaches.
+pub fn projection() -> serde_json::Value {
+    global::programs().observation()
 }
 
 #[cfg(test)]

@@ -164,3 +164,109 @@ fn the_projection_artifact_must_match_the_saved_run_receipt() -> Result<()> {
     fs::remove_dir_all(directory)?;
     Ok(())
 }
+
+fn cicd_artifact() -> Value {
+    let mut programs = Vec::new();
+    for role in 0..=12 {
+        let actor = match role {
+            11 => 6,
+            12 => 7,
+            role => role,
+        };
+        let mut rows = Vec::new();
+        let context = actor << 8 | role;
+        if role == 0 {
+            rows.push(json!([0, SEND, context, 2 << 8 | 7, 3 << 16]));
+            rows.push(json!([
+                1,
+                RECV,
+                context,
+                256 << 16 | 3 << 8 | 10,
+                6 << 24 | 1 << 8 | 11
+            ]));
+        } else if role == 3 {
+            rows.push(json!([0, RECV, context, 2 << 8 | 7, 3 << 16]));
+        } else if actor == 6 {
+            rows.push(json!([
+                0,
+                SEND,
+                context,
+                256 << 16 | 3 << 8 | 10,
+                6 << 24 | 1 << 8 | 11
+            ]));
+        } else if actor == 7 {
+            rows.push(json!([
+                0,
+                SEND,
+                context,
+                257 << 16 | 4 << 8 | 10,
+                7 << 24 | 2 << 16 | 1 << 8 | 12
+            ]));
+        } else if role == 2 {
+            rows.push(json!([
+                0,
+                RECV,
+                context,
+                257 << 16 | 4 << 8 | 10,
+                7 << 24 | 2 << 16 | 1 << 8 | 12
+            ]));
+        }
+        programs.push(json!({"role":role,"rows":rows}));
+    }
+    json!({"format_version":1,"runtime_binary_sha256":"a".repeat(64),
+        "compiled":{"type":"compiled_projection","format_version":1,"task":"16E","programs":programs}})
+}
+
+#[test]
+fn cicd_frames_use_both_compiled_resource_bindings_and_reject_coherent_header_changes() -> Result<()>
+{
+    let artifact = cicd_artifact();
+    let mut original = rows(&artifact);
+    for row in &mut original[1..] {
+        row["message"]["session"] = json!(16);
+        row["message"]["target"] = json!(3);
+    }
+    assert_eq!(frames(&artifact, &original)?, BTreeMap::from([(8, 7)]));
+    for (wire, lane, source, target, resource) in [(256, 3, 6, 0, 11), (257, 4, 7, 2, 12)] {
+        let mut delegated = original.clone();
+        for row in &mut delegated[1..] {
+            let frame = &mut row["message"];
+            frame["frame_label"] = json!(wire);
+            frame["lane"] = json!(lane);
+            frame["source"] = json!(source);
+            frame["target"] = json!(target);
+            frame["payload"] = json!([resource, 1, wire & 255]);
+        }
+        assert_eq!(frames(&artifact, &delegated)?, BTreeMap::from([(8, 10)]));
+        for (field, value) in [("frame_label", 65535), ("lane", 255)] {
+            let mut changed = delegated.clone();
+            for row in &mut changed[1..] {
+                row["message"][field] = json!(value);
+            }
+            assert!(frames(&artifact, &changed).is_err());
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn actor_images_are_checked_from_exported_rows_without_a_second_owner_map() -> Result<()> {
+    let original = cicd_artifact();
+    assert_eq!(contracts(&original["compiled"])?.len(), 3);
+    let mut changed = original.clone();
+    changed["compiled"]["programs"][11]["rows"][0][2] = json!(11 << 8 | 11);
+    assert!(contracts(&changed["compiled"]).is_err());
+    changed = original.clone();
+    changed["compiled"]["programs"][11]["rows"][0][3] = json!(256 << 16 | 3 << 8 | 99);
+    assert!(contracts(&changed["compiled"]).is_err());
+    changed = original.clone();
+    changed["compiled"]["programs"][11]["rows"] = json!([]);
+    assert!(contracts(&changed["compiled"]).is_err());
+    changed = original.clone();
+    changed["compiled"]["programs"]
+        .as_array_mut()
+        .unwrap()
+        .pop();
+    assert!(contracts(&changed["compiled"]).is_err());
+    Ok(())
+}

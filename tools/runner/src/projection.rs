@@ -18,13 +18,17 @@ const RECV: u64 = 0x0302;
 fn contracts(compiled: &Value) -> Result<BTreeMap<u16, [u8; 6]>> {
     if compiled["type"] != "compiled_projection"
         || compiled["format_version"] != 1
-        || compiled["task"] != "6E"
+        || !matches!(compiled["task"].as_str(), Some("6E" | "16E"))
     {
         return Err("unknown compiled projection format or task".into());
     }
     let mut roles = BTreeSet::new();
     let mut headers = BTreeMap::new();
     let mut directions = BTreeMap::<u16, BTreeSet<u64>>::new();
+    let mut images = BTreeMap::<u64, Vec<[u64; 4]>>::new();
+    let mut owners = BTreeSet::new();
+    let mut resources = BTreeSet::new();
+    let mut represented = BTreeSet::new();
     for program in compiled["programs"].as_array().ok_or("compiled programs")? {
         let role = program["role"]
             .as_u64()
@@ -33,7 +37,8 @@ fn contracts(compiled: &Value) -> Result<BTreeMap<u16, [u8; 6]>> {
         if !roles.insert(role) {
             return Err("duplicate compiled program".into());
         }
-        let actor = if role == 13 { 7 } else { role };
+        let mut actor_rows = Vec::new();
+        let mut actor = None;
         let mut seen = BTreeSet::new();
         for (ordinal, row) in program["rows"]
             .as_array()
@@ -45,24 +50,28 @@ fn contracts(compiled: &Value) -> Result<BTreeMap<u16, [u8; 6]>> {
                 .as_array()
                 .filter(|row| row.len() == 5)
                 .ok_or("compiled row layout")?;
-            let values: Vec<_> = row
-                .iter()
-                .map(|value| {
-                    value
-                        .as_u64()
-                        .filter(|value| *value <= u64::from(u32::MAX))
-                        .ok_or("compiled row word")
-                })
-                .collect::<std::result::Result<_, _>>()?;
-            let [at, kind, actors, packed, peers] = values[..] else {
-                unreachable!()
-            };
+            let mut words = [0; 5];
+            for (value, word) in row.iter().zip(&mut words) {
+                *word = value
+                    .as_u64()
+                    .filter(|value| *value <= u64::from(u32::MAX))
+                    .ok_or("compiled row word")?;
+            }
+            let [at, kind, actors, packed, peers] = words;
             if at != ordinal as u64
-                || actors != actor << 8 | role
+                || actors > u64::from(u16::MAX)
+                || actors & 255 != role
+                || actor.is_some_and(|actor| actor != actors >> 8)
                 || !matches!(kind, LOCAL | SEND | RECV)
             {
                 return Err("invalid compiled row identity or direction".into());
             }
+            actor = Some(actors >> 8);
+            represented.insert(role);
+            if actors >> 8 == role {
+                owners.insert(role);
+            }
+            actor_rows.push([at, kind, packed, peers]);
             let wire = (packed >> 16) as u16;
             let header = [
                 (packed >> 8) as u8,
@@ -72,6 +81,9 @@ fn contracts(compiled: &Value) -> Result<BTreeMap<u16, [u8; 6]>> {
                 (peers >> 8) as u8,
                 peers as u8,
             ];
+            if header[4] == 1 {
+                resources.insert(u64::from(header[5]));
+            }
             if !seen.insert((wire, kind))
                 || header[4] > 1
                 || (header[4] == 0 && header[5] != 0)
@@ -87,8 +99,31 @@ fn contracts(compiled: &Value) -> Result<BTreeMap<u16, [u8; 6]>> {
             }
             directions.entry(wire).or_default().insert(kind);
         }
+        if let Some(actor) = actor {
+            match images.entry(actor) {
+                std::collections::btree_map::Entry::Vacant(entry) => {
+                    entry.insert(actor_rows);
+                }
+                std::collections::btree_map::Entry::Occupied(entry) => {
+                    if entry.get() != &actor_rows {
+                        return Err("compiled views of one actor disagree".into());
+                    }
+                }
+            }
+        }
     }
-    if roles != BTreeSet::from([0, 1, 2, 5, 6, 7, 8, 9, 10, 13]) || headers.is_empty() {
+    let expected = match compiled["task"].as_str() {
+        Some("6E") => BTreeSet::from([0, 1, 2, 5, 6, 7, 8, 9, 10, 13]),
+        Some("16E") => (0..=12).collect(),
+        _ => unreachable!(),
+    };
+    if roles != expected
+        || headers.is_empty()
+        || images
+            .keys()
+            .any(|actor| !owners.contains(actor) || resources.contains(actor))
+        || !resources.is_subset(&represented)
+    {
         return Err("incomplete compiled program inventory".into());
     }
     for (wire, directions) in directions {
@@ -102,7 +137,7 @@ fn contracts(compiled: &Value) -> Result<BTreeMap<u16, [u8; 6]>> {
 }
 
 /// Freeze static metadata before starting the selected runtime's guest.
-pub fn archive(runtime: &Path, output: &Path) -> Result<Value> {
+pub fn archive(runtime: &Path, output: &Path, task: &str) -> Result<Value> {
     let before = digest(runtime)?;
     let result = Command::new(runtime).arg("--projection").output()?;
     if !result.status.success() || !result.stderr.is_empty() || before != digest(runtime)? {
@@ -110,6 +145,9 @@ pub fn archive(runtime: &Path, output: &Path) -> Result<Value> {
     }
     let compiled: Value = serde_json::from_slice(&result.stdout)?;
     contracts(&compiled)?;
+    if compiled["task"] != task {
+        return Err("compiled projection belongs to a different task".into());
+    }
     let artifact = json!({"format_version":1,"runtime_binary_sha256":before,"compiled":compiled});
     let mut file = File::options()
         .write(true)

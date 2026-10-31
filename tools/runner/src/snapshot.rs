@@ -148,8 +148,8 @@ pub fn freeze(task: &str, output: &Path) -> Result<Value> {
     if binaries["runtime"] != receipt["binary_sha256"] {
         return Err("runtime changed while archiving its build".into());
     }
-    let projection = if task == "6E" {
-        let projection = crate::projection::archive(&output.join("runtime"), output)?;
+    let projection = if matches!(task, "6E" | "16E") {
+        let projection = crate::projection::archive(&output.join("runtime"), output, task)?;
         if projection["runtime_binary_sha256"] != binaries["runtime"] {
             return Err("compiled projection executable differs from the snapshot".into());
         }

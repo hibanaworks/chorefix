@@ -66,6 +66,18 @@ pub struct Programs {
     pub deploy_io: RoleProgram<DEPLOY_IO>,
 }
 
+impl Programs {
+    pub(crate) fn observation(&self) -> serde_json::Value {
+        use crate::imp::projection::rows;
+        serde_json::json!({"type":"compiled_projection","format_version":1,"task":"16E",
+            "programs":[rows(&self.dev_wasi), rows(&self.test_wasi), rows(&self.deploy_wasi),
+            rows(&self.developer), rows(&self.tester), rows(&self.deployer),
+            rows(&self.build_owner), rows(&self.build_server),
+            rows(&self.deploy_owner), rows(&self.deploy_env),
+            rows(&self.dev_io), rows(&self.test_io), rows(&self.deploy_io)]})
+    }
+}
+
 // The owner validates the received WASI request before handing it back to the guest.
 fn service<const VM: u8, const OWNER: u8, const CHECK: u16>() -> impl Projectable {
     let requests = g::seq(

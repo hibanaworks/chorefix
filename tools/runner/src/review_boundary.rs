@@ -349,7 +349,7 @@ async fn run_cases(cases: Vec<ReviewCase>) -> Result<()> {
             "depth{depth}-{review_first}-{schedule:?}-delay{delay}-extra{extra_failures:?}"
         ));
         fs::create_dir(&case)?;
-        let projection = crate::projection::archive(&runtime, &case)?;
+        let projection = crate::projection::archive(&runtime, &case, "6E")?;
         save(
             &case.join("case.json"),
             &json!({"task":"6E","depth":depth,"review_first":review_first,"schedule":format!("{schedule:?}"),"delay_multiplier":delay,

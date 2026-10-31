@@ -152,6 +152,9 @@ fn check_close_pairs(frames: &BTreeMap<u64, Frame>) -> Result<()> {
 }
 
 fn check(rows: &[Value], projection: &Value) -> Result<Value> {
+    if projection["compiled"]["task"] != "6E" {
+        return Err("review compiled protocol task".into());
+    }
     let labels = crate::projection::frames(projection, rows)?;
     let fixture = &rows.first().ok_or("empty evidence")?["message"];
     if fixture["type"] != "fixtures"
