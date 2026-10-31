@@ -38,93 +38,114 @@ impl Domain for NoEffects {
     }
 }
 
-#[tokio::test(flavor = "current_thread")]
-async fn repository_receiver_rejects_substitution_and_wrong_target_before_effect() {
+#[hibana_runtime::main]
+#[test]
+async fn repository_receiver_rejects_substitution_and_wrong_target_before_effect()
+-> Result<(), crate::shell::ShellError> {
     for (admitted, actual) in [
         (FEATURE_A, FEATURE_B),
         (FEATURE_B, FEATURE_B),
         (FEATURE_A, "user_authentication "),
     ] {
-        tokio::time::timeout(std::time::Duration::from_secs(5), async {
-            let p = programs();
-            let session = SessionId::new(6201);
-            let (bus, _reader, _terminals) = Bus::open(
-                ["DEVELOPER_A", "DEVELOPER_B", "REVIEWER"],
-                [(session, REPO_ENDPOINT)],
-            );
-            let target = super::imp::ReviewTarget::default();
-            target.record(FEATURE_A);
-            let mut owner_slab = vec![0; 1024 * 1024];
-            let mut owner_storage = SessionKitStorage::uninit();
-            let owner = owner_storage
-                .init()
-                .rendezvous(&mut owner_slab, &bus.transport)
-                .unwrap();
-            let mut guest_slab = vec![0; 1024 * 1024];
-            let mut guest_storage = SessionKitStorage::uninit();
-            let guest = guest_storage
-                .init()
-                .rendezvous(&mut guest_slab, &bus.transport)
-                .unwrap();
-            guest
-                .set_resolver(
-                    &p.review_wasi,
-                    ResolverRef::<SELECT_REVIEW>::decision_state(
-                        &target,
-                        super::imp::ReviewTarget::decide,
-                    ),
-                )
-                .unwrap();
-            let mut service = owner.enter(session, &p.repo).unwrap();
-            let repository = owner.enter(session, &p.repo_endpoint).unwrap();
-            let mut a = guest.enter(session, &p.a_wasi).unwrap();
-            let mut reviewer = guest.enter(session, &p.review_wasi).unwrap();
-            let [mut review, _review_private] = reviewer.par().unwrap();
-            let [mut task, _private] = a.par().unwrap();
-            let selected = RepositoryArguments::<3>::from_bytes(
-                &serde_json::to_vec(&json!({"pr_id":FEATURE_A})).unwrap(),
-            )
-            .unwrap();
-            review.send::<FirstA>(&selected).await.unwrap();
-            review.send::<FirstA>(&selected).await.unwrap();
-            review.send::<FirstA>(&selected).await.unwrap();
-            review.send::<FirstA>(&selected).await.unwrap();
-            review.send::<FirstA>(&selected).await.unwrap();
-            task.recv::<FirstA>().await.unwrap();
-            let admitted = RepositoryArguments::<1>::from_bytes(
-                &serde_json::to_vec(&json!({"feature_name":admitted})).unwrap(),
-            )
-            .unwrap();
-            let substituted = RepositoryArguments::<1>::from_bytes(
-                &serde_json::to_vec(&json!({"feature_name":actual})).unwrap(),
-            )
-            .unwrap();
+        hibana_runtime::race(
+            async {
+                {
+                    async {
+                        let p = programs();
+                        let session = SessionId::new(6201);
+                        let (bus, _reader, _terminals) = Bus::open(
+                            ["DEVELOPER_A", "DEVELOPER_B", "REVIEWER"],
+                            [(session, REPO_ENDPOINT)],
+                        );
+                        let target = super::imp::ReviewTarget::default();
+                        target.record(FEATURE_A);
+                        let mut owner_slab = vec![0; 1024 * 1024];
+                        let mut owner_storage = SessionKitStorage::uninit();
+                        let owner = owner_storage
+                            .init()
+                            .rendezvous(&mut owner_slab, &bus.transport)
+                            .unwrap();
+                        let mut guest_slab = vec![0; 1024 * 1024];
+                        let mut guest_storage = SessionKitStorage::uninit();
+                        let guest = guest_storage
+                            .init()
+                            .rendezvous(&mut guest_slab, &bus.transport)
+                            .unwrap();
+                        guest
+                            .set_resolver(
+                                &p.review_wasi,
+                                ResolverRef::<SELECT_REVIEW>::decision_state(
+                                    &target,
+                                    super::imp::ReviewTarget::decide,
+                                ),
+                            )
+                            .unwrap();
+                        let mut service = owner.enter(session, &p.repo).unwrap();
+                        let repository = owner.enter(session, &p.repo_endpoint).unwrap();
+                        let mut a = guest.enter(session, &p.a_wasi).unwrap();
+                        let mut reviewer = guest.enter(session, &p.review_wasi).unwrap();
+                        let [mut review, _review_private] = reviewer.par().unwrap();
+                        let [mut task, _private] = a.par().unwrap();
+                        let selected = RepositoryArguments::<3>::from_bytes(
+                            &serde_json::to_vec(&json!({"pr_id":FEATURE_A})).unwrap(),
+                        )
+                        .unwrap();
+                        review.send::<FirstA>(&selected).await.unwrap();
+                        review.send::<FirstA>(&selected).await.unwrap();
+                        review.send::<FirstA>(&selected).await.unwrap();
+                        review.send::<FirstA>(&selected).await.unwrap();
+                        review.send::<FirstA>(&selected).await.unwrap();
+                        task.recv::<FirstA>().await.unwrap();
+                        let admitted = RepositoryArguments::<1>::from_bytes(
+                            &serde_json::to_vec(&json!({"feature_name":admitted})).unwrap(),
+                        )
+                        .unwrap();
+                        let substituted = RepositoryArguments::<1>::from_bytes(
+                            &serde_json::to_vec(&json!({"feature_name":actual})).unwrap(),
+                        )
+                        .unwrap();
 
-            let (result, held) = tokio::join!(
-                localside::repo::run(&mut service, repository, &NoEffects),
-                async {
-                    task.send::<ImplementA>(&admitted).await.unwrap();
-                    let mut repository = task.recv::<RepoLoan>().await.unwrap();
-                    assert!(owner.enter(session, &p.repo_endpoint).is_err());
-                    assert!(guest.enter(session, &p.repo_endpoint).is_err());
-                    repository
-                        .send::<ImplementOnRepo>(&substituted)
+                        let (result, held) = async {
+                            #[localside]
+                            let first =
+                                async {
+                                    Ok(localside::repo::run(&mut service, repository, &NoEffects)
+                                        .await)
+                                };
+                            #[localside]
+                            let second = async {
+                                task.send::<ImplementA>(&admitted).await.unwrap();
+                                let mut repository = task.recv::<RepoLoan>().await.unwrap();
+                                assert!(owner.enter(session, &p.repo_endpoint).is_err());
+                                assert!(guest.enter(session, &p.repo_endpoint).is_err());
+                                repository
+                                    .send::<ImplementOnRepo>(&substituted)
+                                    .await
+                                    .unwrap();
+                                Ok(repository)
+                            };
+                            Ok((first, second))
+                        }
                         .await
                         .unwrap();
-                    repository
+                        assert_eq!(
+                            result.unwrap_err().to_string(),
+                            "repository implementation arguments differ"
+                        );
+                        assert!(owner.enter(session, &p.repo_endpoint).is_err());
+                        assert!(guest.enter(session, &p.repo_endpoint).is_err());
+                        drop(held);
+                    }
+                    .await;
+                    Ok::<_, std::io::Error>(())
                 }
-            );
-            assert_eq!(
-                result.unwrap_err().to_string(),
-                "repository implementation arguments differ"
-            );
-            assert!(owner.enter(session, &p.repo_endpoint).is_err());
-            assert!(guest.enter(session, &p.repo_endpoint).is_err());
-            drop(held);
-        })
+            },
+            hibana_runtime::host::deadline(std::time::Duration::from_secs(5)),
+        )
         .await
         .expect("repository rejection stalled");
     }
+    Ok(())
 }
 
 struct EchoEffect;
@@ -141,78 +162,103 @@ impl Domain for EchoEffect {
     }
 }
 
-#[tokio::test(flavor = "current_thread")]
-async fn repository_receiver_executes_the_exact_received_request_and_returns_its_result() {
-    tokio::time::timeout(std::time::Duration::from_secs(5), async {
-        let p = programs();
-        let session = SessionId::new(6202);
-        let (bus, _reader, _terminals) = Bus::open(
-            ["DEVELOPER_A", "DEVELOPER_B", "REVIEWER"],
-            [(session, REPO_ENDPOINT)],
-        );
-        let target = super::imp::ReviewTarget::default();
-        target.record(FEATURE_A);
-        let mut owner_slab = vec![0; 1024 * 1024];
-        let mut owner_storage = SessionKitStorage::uninit();
-        let owner = owner_storage
-            .init()
-            .rendezvous(&mut owner_slab, &bus.transport)
-            .unwrap();
-        let mut guest_slab = vec![0; 1024 * 1024];
-        let mut guest_storage = SessionKitStorage::uninit();
-        let guest = guest_storage
-            .init()
-            .rendezvous(&mut guest_slab, &bus.transport)
-            .unwrap();
-        guest
-            .set_resolver(
-                &p.review_wasi,
-                ResolverRef::<SELECT_REVIEW>::decision_state(
-                    &target,
-                    super::imp::ReviewTarget::decide,
-                ),
-            )
-            .unwrap();
-        let mut service = owner.enter(session, &p.repo).unwrap();
-        let repository = owner.enter(session, &p.repo_endpoint).unwrap();
-        let mut a = guest.enter(session, &p.a_wasi).unwrap();
-        let mut reviewer = guest.enter(session, &p.review_wasi).unwrap();
-        let [mut review, _review_private] = reviewer.par().unwrap();
-        let [mut task, _private] = a.par().unwrap();
-        let selected = RepositoryArguments::<3>::from_bytes(
-            &serde_json::to_vec(&json!({"pr_id":FEATURE_A})).unwrap(),
-        )
-        .unwrap();
-        review.send::<FirstA>(&selected).await.unwrap();
-        review.send::<FirstA>(&selected).await.unwrap();
-        review.send::<FirstA>(&selected).await.unwrap();
-        review.send::<FirstA>(&selected).await.unwrap();
-        review.send::<FirstA>(&selected).await.unwrap();
-        task.recv::<FirstA>().await.unwrap();
-        let arguments = RepositoryArguments::<1>::from_bytes(
-            &serde_json::to_vec(&json!({"feature_name":FEATURE_A})).unwrap(),
-        )
-        .unwrap();
+#[hibana_runtime::main]
+#[test]
+async fn repository_receiver_executes_the_exact_received_request_and_returns_its_result()
+-> Result<(), crate::shell::ShellError> {
+    hibana_runtime::race(
+        async {
+            {
+                async {
+                    let p = programs();
+                    let session = SessionId::new(6202);
+                    let (bus, _reader, _terminals) = Bus::open(
+                        ["DEVELOPER_A", "DEVELOPER_B", "REVIEWER"],
+                        [(session, REPO_ENDPOINT)],
+                    );
+                    let target = super::imp::ReviewTarget::default();
+                    target.record(FEATURE_A);
+                    let mut owner_slab = vec![0; 1024 * 1024];
+                    let mut owner_storage = SessionKitStorage::uninit();
+                    let owner = owner_storage
+                        .init()
+                        .rendezvous(&mut owner_slab, &bus.transport)
+                        .unwrap();
+                    let mut guest_slab = vec![0; 1024 * 1024];
+                    let mut guest_storage = SessionKitStorage::uninit();
+                    let guest = guest_storage
+                        .init()
+                        .rendezvous(&mut guest_slab, &bus.transport)
+                        .unwrap();
+                    guest
+                        .set_resolver(
+                            &p.review_wasi,
+                            ResolverRef::<SELECT_REVIEW>::decision_state(
+                                &target,
+                                super::imp::ReviewTarget::decide,
+                            ),
+                        )
+                        .unwrap();
+                    let mut service = owner.enter(session, &p.repo).unwrap();
+                    let repository = owner.enter(session, &p.repo_endpoint).unwrap();
+                    let mut a = guest.enter(session, &p.a_wasi).unwrap();
+                    let mut reviewer = guest.enter(session, &p.review_wasi).unwrap();
+                    let [mut review, _review_private] = reviewer.par().unwrap();
+                    let [mut task, _private] = a.par().unwrap();
+                    let selected = RepositoryArguments::<3>::from_bytes(
+                        &serde_json::to_vec(&json!({"pr_id":FEATURE_A})).unwrap(),
+                    )
+                    .unwrap();
+                    review.send::<FirstA>(&selected).await.unwrap();
+                    review.send::<FirstA>(&selected).await.unwrap();
+                    review.send::<FirstA>(&selected).await.unwrap();
+                    review.send::<FirstA>(&selected).await.unwrap();
+                    review.send::<FirstA>(&selected).await.unwrap();
+                    task.recv::<FirstA>().await.unwrap();
+                    let arguments = RepositoryArguments::<1>::from_bytes(
+                        &serde_json::to_vec(&json!({"feature_name":FEATURE_A})).unwrap(),
+                    )
+                    .unwrap();
 
-        tokio::select! {
-            result = localside::repo::run(&mut service, repository, &EchoEffect) => {
-                panic!("repository owner stopped before the checked prefix: {result:?}");
+                    hibana_runtime::race(
+                        async {
+                            let result =
+                                localside::repo::run(&mut service, repository, &EchoEffect).await;
+                            Err::<(), crate::shell::ShellError>(crate::shell::ShellError::message(
+                                format!(
+                                    "repository owner stopped before the checked prefix: {result:?}"
+                                ),
+                            ))
+                        },
+                        async {
+                            let result = async {
+                                task.send::<ImplementA>(&arguments).await?;
+                                let mut repository = task.recv::<RepoLoan>().await?;
+                                repository.send::<ImplementOnRepo>(&arguments).await?;
+                                let response = repository.recv::<RepoResult>().await?.to_vec();
+                                assert_eq!(serde_json::from_slice::<Value>(&response).unwrap(), json!({
+                                    "success":true,"agent":"DEVELOPER_A","tool":"implement_feature",
+                                    "arguments":{"feature_name":FEATURE_A}
+                                }));
+                                task.send::<RepoLoan>(repository).await?;
+                                task.send::<ReadyA>(&response.as_slice()).await?;
+                                Ok::<_, crate::shell::ShellError>(())
+                            }.await;
+                            result.unwrap();
+                            Ok::<(), crate::shell::ShellError>(())
+                        },
+                    )
+                    .await
+                    .unwrap();
+                }
+                .await;
+                Ok::<_, std::io::Error>(())
             }
-            result = async {
-                task.send::<ImplementA>(&arguments).await?;
-                let mut repository = task.recv::<RepoLoan>().await?;
-                repository.send::<ImplementOnRepo>(&arguments).await?;
-                let response = repository.recv::<RepoResult>().await?.to_vec();
-                assert_eq!(serde_json::from_slice::<Value>(&response).unwrap(), json!({
-                    "success":true,"agent":"DEVELOPER_A","tool":"implement_feature",
-                    "arguments":{"feature_name":FEATURE_A}
-                }));
-                task.send::<RepoLoan>(repository).await?;
-                task.send::<ReadyA>(&response.as_slice()).await?;
-                Ok::<_, crate::shell::ShellError>(())
-            } => result.unwrap(),
-        }
-    })
+        },
+        hibana_runtime::host::deadline(std::time::Duration::from_secs(5)),
+    )
     .await
     .expect("repository effect/result prefix stalled");
+
+    Ok(())
 }

@@ -10,19 +10,15 @@ use hibana::{
     runtime::{SessionKitStorage, ids::SessionId},
 };
 use hibana_wasip1_runtime::protocol;
-use std::cell::{Cell, RefCell};
+use std::{cell::Cell, future::poll_fn, task::Poll};
 
 #[derive(Default)]
 struct Effects {
-    calls: RefCell<Vec<(&'static str, &'static str)>>,
-    active: RefCell<Vec<Vec<String>>>,
+    calls: Cell<Vec<(&'static str, &'static str)>>,
+    active: Cell<Vec<Vec<String>>>,
     peak: Cell<usize>,
     test_results: &'static [bool],
     concurrent_agents: &'static [&'static str],
-    // Test-only external delay: both disjoint commits must reach the effect.
-    concurrent_pair: Option<tokio::sync::Barrier>,
-    // Test-only delay: A's first test and B's first commit must overlap.
-    test_commit_overlap: Option<tokio::sync::Barrier>,
 }
 
 impl Domain for Effects {
@@ -32,13 +28,18 @@ impl Domain for Effects {
         tool: &'static str,
         arguments: serde_json::Value,
     ) -> Result<serde_json::Value, String> {
-        self.calls.borrow_mut().push((agent, tool));
-        let visit = self
-            .calls
-            .borrow()
+        let mut calls = self.calls.take();
+        calls.push((agent, tool));
+        let visit = calls
             .iter()
             .filter(|entry| **entry == (agent, tool))
             .count();
+        self.calls.set(calls);
+        poll_fn(|cx| {
+            cx.waker().wake_by_ref();
+            Poll::Ready(())
+        })
+        .await;
         if tool == "commit_changes" {
             let modules: Vec<_> = arguments["modules"]
                 .as_str()
@@ -46,37 +47,66 @@ impl Domain for Effects {
                 .split(',')
                 .map(str::to_owned)
                 .collect();
+            let mut active = self.active.take();
             assert!(
-                self.active
-                    .borrow()
+                active
                     .iter()
                     .all(|other| other.iter().all(|name| !modules.contains(name))),
                 "concurrent commits used the same module"
             );
-            self.active.borrow_mut().push(modules.clone());
-            self.peak
-                .set(self.peak.get().max(self.active.borrow().len()));
-            if let Some(barrier) = &self.concurrent_pair
-                && self.concurrent_agents.contains(&agent)
-                && visit == 1
-            {
-                barrier.wait().await;
+            active.push(modules.clone());
+            self.peak.set(self.peak.get().max(active.len()));
+            self.active.set(active);
+            if self.concurrent_agents.contains(&agent) && visit == 1 {
+                poll_fn(|_| {
+                    let calls = self.calls.take();
+                    let ready = self
+                        .concurrent_agents
+                        .iter()
+                        .all(|who| calls.contains(&(*who, "commit_changes")));
+                    self.calls.set(calls);
+                    if ready {
+                        Poll::Ready(())
+                    } else {
+                        Poll::Pending
+                    }
+                })
+                .await;
             }
-            if agent == "DEVELOPER_B"
-                && visit == 1
-                && let Some(barrier) = &self.test_commit_overlap
-            {
-                barrier.wait().await;
+            if agent == "DEVELOPER_B" && visit == 1 && !self.test_results.is_empty() {
+                poll_fn(|_| {
+                    let calls = self.calls.take();
+                    let ready = calls.contains(&("DEVELOPER_A", "run_local_tests"));
+                    self.calls.set(calls);
+                    if ready {
+                        Poll::Ready(())
+                    } else {
+                        Poll::Pending
+                    }
+                })
+                .await;
             }
-            tokio::task::yield_now().await;
-            self.active.borrow_mut().retain(|pair| *pair != modules);
+            hibana_runtime::yield_now().await;
+            let mut active = self.active.take();
+            active.retain(|pair| *pair != modules);
+            self.active.set(active);
         }
         if agent == "DEVELOPER_A"
             && tool == "run_local_tests"
             && visit == 1
-            && let Some(barrier) = &self.test_commit_overlap
+            && !self.test_results.is_empty()
         {
-            barrier.wait().await;
+            poll_fn(|_| {
+                let calls = self.calls.take();
+                let ready = calls.contains(&("DEVELOPER_B", "commit_changes"));
+                self.calls.set(calls);
+                if ready {
+                    Poll::Ready(())
+                } else {
+                    Poll::Pending
+                }
+            })
+            .await;
         }
         let success = if tool != "run_local_tests" {
             true
@@ -92,6 +122,7 @@ impl Domain for Effects {
     }
 }
 
+#[hibana_runtime::localside]
 async fn client<
     const TASK: u8,
     const SUBJECT: u8,
@@ -131,31 +162,35 @@ async fn client<
     )?;
     let (mut first, mut second) = {
         let [mut first_loan, mut second_loan] = task.par()?;
-        tokio::try_join!(
-            async {
+        async {
+            #[localside]
+            let first = async {
                 let mut resource = first_loan.recv::<Loan<FIRST>>().await?;
                 resource
                     .send::<CommitRequest<TASK, SUBJECT, FIRST>>(&commit)
                     .await?;
-                Ok::<_, hibana::EndpointError>(resource)
-            },
-            async {
+                Ok(resource)
+            };
+            #[localside]
+            let second = async {
                 let mut resource = second_loan.recv::<Loan<SECOND>>().await?;
                 resource
                     .send::<CommitRequest<TASK, SUBJECT, SECOND>>(&commit)
                     .await?;
-                Ok::<_, hibana::EndpointError>(resource)
-            },
-        )?
+                Ok(resource)
+            };
+            Ok((first, second))
+        }
+        .await?
     };
-    let (first_result, second_result) = tokio::try_join!(
-        async {
-            Ok::<_, hibana::EndpointError>(first.recv::<CommitCompleted<FIRST>>().await?.to_vec())
-        },
-        async {
-            Ok::<_, hibana::EndpointError>(second.recv::<CommitCompleted<SECOND>>().await?.to_vec())
-        },
-    )?;
+    let (first_result, second_result) = async {
+        #[localside]
+        let first = async { Ok(first.recv::<CommitCompleted<FIRST>>().await?.to_vec()) };
+        #[localside]
+        let second = async { Ok(second.recv::<CommitCompleted<SECOND>>().await?.to_vec()) };
+        Ok((first, second))
+    }
+    .await?;
     assert_eq!(first_result, second_result);
     assert_eq!(
         serde_json::from_slice::<serde_json::Value>(&first_result).unwrap()["tool"],
@@ -163,10 +198,14 @@ async fn client<
     );
     {
         let [mut first_return, mut second_return] = task.par()?;
-        tokio::try_join!(
-            first_return.send::<Loan<FIRST>>(first),
-            second_return.send::<Loan<SECOND>>(second)
-        )?;
+        async {
+            #[localside]
+            let first = first_return.send::<Loan<FIRST>>(first);
+            #[localside]
+            let second = second_return.send::<Loan<SECOND>>(second);
+            Ok((first, second))
+        }
+        .await?;
     }
     let test = Close::<TASK, SUBJECT, TEST>::new(
         close,
@@ -182,12 +221,13 @@ async fn client<
     Ok(())
 }
 
-// Expand attachment and test joining only. Production operations stay in localside.
+// Attach fixture roles and declare their production participants.
 macro_rules! fixture {
     ($test:ident, $project:ident, $roles:ident, $task:ident, $peak:expr;
      agents [$(($service:ident, $subject:ident, $vm:ident, $vm_role:ident, $io:ident, $io_role:ident, $first:ident, $second:ident, $name:literal)),+];
      resources [$(($owner:ident, $owner_role:ident, $resource:ident, $resource_role:ident)),+]) => {
-        #[tokio::test(flavor = "current_thread")]
+        #[hibana_runtime::main]
+        #[test]
         async fn $test() -> ShellResult<()> {
             use super::global::$roles::*;
             let programs = $project();
@@ -202,28 +242,29 @@ macro_rules! fixture {
             $(let mut $owner = runtime.enter(session, &programs.$owner)?;
               let $resource = runtime.enter(session, &programs.$resource)?;)+
             let effects = Effects {
-                concurrent_pair: ($peak == 2).then(|| tokio::sync::Barrier::new(2)),
-                concurrent_agents: &["DEVELOPER_A", "DEVELOPER_C"],
+                concurrent_agents: if $peak == 2 { &["DEVELOPER_A", "DEVELOPER_C"] } else { &[] },
                 ..Effects::default()
             };
-            tokio::time::timeout(std::time::Duration::from_secs(5), async {
-                tokio::try_join!(
-                    $(localside::developer::run::<$task, $subject, $first, $second>(&mut $service, &effects),
-                      client::<$task, $subject, $vm_role, $first, $second>(&mut $vm),
-                      async {
-                          assert_eq!($io.offer().await?.recv::<Exit>().await?, 0);
-                          Ok::<_, crate::shell::ShellError>(())
-                      },)+
-                    $(localside::module::run::<$owner_role, $resource_role>(&mut $owner, $resource),)+
-                )?;
-                Ok::<_, crate::shell::ShellError>(())
-            }).await.expect("projected module operations stalled")?;
-            let calls = effects.calls.borrow();
+            hibana_runtime::race(async {
+                $(
+                    #[localside]
+                    localside::developer::run::<$task, $subject, $first, $second>(&mut $service, &effects);
+                    #[localside]
+                    client::<$task, $subject, $vm_role, $first, $second>(&mut $vm);
+                    async { assert_eq!($io.offer().await?.recv::<Exit>().await?, 0); };
+                )+
+                $(
+                    #[localside]
+                    localside::module::run::<$owner_role, $resource_role>(&mut $owner, $resource);
+                )+
+                Ok(())
+            }, hibana_runtime::host::deadline(std::time::Duration::from_secs(5))).await?;
+            let calls = effects.calls.take();
             $(for tool in ["design_feature", "implement_code", "commit_changes", "run_local_tests"] {
                 assert_eq!(calls.iter().filter(|entry| **entry == ($name, tool)).count(), 1);
             })+
             assert_eq!(effects.peak.get(), $peak);
-            assert!(effects.active.borrow().is_empty());
+            assert!(effects.active.take().is_empty());
             Ok(())
         }
     };
@@ -248,6 +289,7 @@ fixture!(five_guests_commit_disjoint_modules_concurrently, project_1m, roles1m, 
                (api,API,api_resource,API_RESOURCE),
                (payment,PAYMENT,payment_resource,PAYMENT_RESOURCE),
                (notify,NOTIFY,notify_resource,NOTIFY_RESOURCE)]);
+#[hibana_runtime::localside]
 async fn revising_client<
     const TASK: u8,
     const SUBJECT: u8,
@@ -288,35 +330,35 @@ async fn revising_client<
         )?;
         let (mut first, mut second) = {
             let [mut first_loan, mut second_loan] = task.par()?;
-            tokio::try_join!(
-                async {
+            async {
+                #[localside]
+                let first = async {
                     let mut resource = first_loan.recv::<Loan<FIRST>>().await?;
                     resource
                         .send::<CommitRequest<TASK, SUBJECT, FIRST>>(&commit)
                         .await?;
-                    Ok::<_, hibana::EndpointError>(resource)
-                },
-                async {
+                    Ok(resource)
+                };
+                #[localside]
+                let second = async {
                     let mut resource = second_loan.recv::<Loan<SECOND>>().await?;
                     resource
                         .send::<CommitRequest<TASK, SUBJECT, SECOND>>(&commit)
                         .await?;
-                    Ok::<_, hibana::EndpointError>(resource)
-                },
-            )?
+                    Ok(resource)
+                };
+                Ok((first, second))
+            }
+            .await?
         };
-        let (first_result, second_result) = tokio::try_join!(
-            async {
-                Ok::<_, hibana::EndpointError>(
-                    first.recv::<CommitCompleted<FIRST>>().await?.to_vec(),
-                )
-            },
-            async {
-                Ok::<_, hibana::EndpointError>(
-                    second.recv::<CommitCompleted<SECOND>>().await?.to_vec(),
-                )
-            },
-        )?;
+        let (first_result, second_result) = async {
+            #[localside]
+            let first = async { Ok(first.recv::<CommitCompleted<FIRST>>().await?.to_vec()) };
+            #[localside]
+            let second = async { Ok(second.recv::<CommitCompleted<SECOND>>().await?.to_vec()) };
+            Ok((first, second))
+        }
+        .await?;
         assert_eq!(first_result, second_result);
         assert_eq!(
             serde_json::from_slice::<serde_json::Value>(&first_result).unwrap()["tool"],
@@ -324,10 +366,14 @@ async fn revising_client<
         );
         {
             let [mut first_return, mut second_return] = task.par()?;
-            tokio::try_join!(
-                first_return.send::<Loan<FIRST>>(first),
-                second_return.send::<Loan<SECOND>>(second)
-            )?;
+            async {
+                #[localside]
+                let first = first_return.send::<Loan<FIRST>>(first);
+                #[localside]
+                let second = second_return.send::<Loan<SECOND>>(second);
+                Ok((first, second))
+            }
+            .await?;
         }
         let test = Close::<TASK, SUBJECT, TEST>::new(
             close,
@@ -359,7 +405,8 @@ async fn revising_client<
 macro_rules! revising_fixture {
     (agents [$(($service:ident,$subject:ident,$vm:ident,$vm_role:ident,$io:ident,$io_role:ident,$first:ident,$second:ident,$result:ident,$check:ident,$name:literal)),+];
      resources [$(($owner:ident,$owner_role:ident,$resource:ident,$resource_role:ident,$first_owner:ident,$first_resource:ident,$second_owner:ident,$second_resource:ident)),+])=>{
-        #[tokio::test(flavor="current_thread")]
+        #[hibana_runtime::main]
+        #[test]
         async fn seven_developers_reconsider_twice_and_commit_disjoint_modules_in_parallel()->ShellResult<()> {
             use super::global::roles1h::*;
             use hibana::runtime::resolver::ResolverRef;
@@ -376,28 +423,39 @@ macro_rules! revising_fixture {
               let mut $io=runtime.enter(session,&programs.$io)?;)+
             $(let mut $owner=runtime.enter(session,&programs.$owner)?;
               let $resource=runtime.enter(session,&programs.$resource)?;)+
-            let effects=Effects{test_results:&[false,false,true],concurrent_pair:Some(tokio::sync::Barrier::new(3)),concurrent_agents:&["DEVELOPER_A","DEVELOPER_C","DEVELOPER_E"],test_commit_overlap:Some(tokio::sync::Barrier::new(2)),..Effects::default()};
-            let outcome=tokio::time::timeout(std::time::Duration::from_secs(10),async {
-                tokio::try_join!(
-                    $(async {localside::developer_reconsider::run::<HARD,$subject,$first,$second,{$first-21},{$second-21}>(&mut $service,&effects,&$result).await.map_err(|error|crate::shell::ShellError::message(format!("service {}: {error:?}",$name)))},
-                      async {revising_client::<HARD,$subject,$vm_role,$first,$second>(&mut $vm).await.map_err(|error|crate::shell::ShellError::message(format!("guest {}: {error:?}",$name)))},
-                      async {assert_eq!($io.offer().await?.recv::<Exit>().await?,0);Ok::<_,crate::shell::ShellError>(())},)+
-                    $(async {localside::module_reconsider::run::<$owner_role,$resource_role,$first_owner,$first_resource,$second_owner,$second_resource>(&mut $owner,$resource).await.map_err(|error|crate::shell::ShellError::message(format!("module {}: {error:?}",$owner_role)))},)+
-                )?;
-                Ok::<_,crate::shell::ShellError>(())
-            }).await.expect("reconsideration protocol stalled");
+            let effects=Effects{test_results:&[false,false,true],concurrent_agents:&["DEVELOPER_A","DEVELOPER_C","DEVELOPER_E"],..Effects::default()};
+            let outcome = hibana_runtime::race(async {
+                $(
+                    async {
+                        localside::developer_reconsider::run::<HARD,$subject,$first,$second,{$first-21},{$second-21}>(&mut $service,&effects,&$result).await
+                            .map_err(|error|crate::shell::ShellError::message(format!("service {}: {error:?}",$name)))?;
+                    };
+                    async {
+                        revising_client::<HARD,$subject,$vm_role,$first,$second>(&mut $vm).await
+                            .map_err(|error|crate::shell::ShellError::message(format!("guest {}: {error:?}",$name)))?;
+                    };
+                    async { assert_eq!($io.offer().await?.recv::<Exit>().await?,0); };
+                )+
+                $(
+                    async {
+                        localside::module_reconsider::run::<$owner_role,$resource_role,$first_owner,$first_resource,$second_owner,$second_resource>(&mut $owner,$resource).await
+                            .map_err(|error|crate::shell::ShellError::message(format!("module {}: {error:?}",$owner_role)))?;
+                    };
+                )+
+                Ok(())
+            }, hibana_runtime::host::deadline(std::time::Duration::from_secs(10))).await;
             if outcome.is_err() {
-                eprintln!("effects: {:?}",effects.calls.borrow());
+                eprintln!("effects: {:?}",effects.calls.take());
                 for event in runtime.tap() {eprintln!("tap: {event:?}");}
                 for frame in bus.transport.take_observations() {eprintln!("frame: {frame}");}
             }
             outcome?;
-            let calls=effects.calls.borrow();
+            let calls=effects.calls.take();
             $(for (tool,expected) in [("design_feature",1),("implement_code",3),("commit_changes",3),("run_local_tests",3)] {
                 assert_eq!(calls.iter().filter(|entry| **entry==($name,tool)).count(),expected,"wrong attempts for {} {tool}",$name);
             })+
             assert_eq!(effects.peak.get(),3);
-            assert!(effects.active.borrow().is_empty());
+            assert!(effects.active.take().is_empty());
             Ok(())
         }
     };

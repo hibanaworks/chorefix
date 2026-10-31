@@ -275,6 +275,7 @@ impl ExternalIo {
 }
 
 #[cfg(test)]
+#[path = "bus/tests.rs"]
 mod tests;
 
 impl Terminal {

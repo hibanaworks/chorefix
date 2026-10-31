@@ -17,7 +17,6 @@ pub mod shell {
         pub use crate::{bus, service};
     }
 }
-
 #[cfg(test)]
 #[path = "../../../src/tasks/handoff/mod.rs"]
 mod handoff;

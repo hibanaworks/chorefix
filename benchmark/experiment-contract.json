@@ -17,10 +17,10 @@
     "first_technical_gate": "T3/T4: compose unique resource ownership and its remaining protocol with actual effects; define the adapter trust boundary and test old owners, duplicate transfers and argument substitution before scored comparisons",
     "theorem_scope_and_milestones": "plan.md",
     "effect_boundary_contract_and_inventory": "benchmark/effect-boundaries.md",
-    "effect_boundary_status": "Minimum T3/T4 composition is proved under the consuming receiver contract: both source receipts match actual verification data and cannot be reused for another effect. Concrete R/S binding and receipt correspondence, all effect entries and argument types, remaining task ports and final-source qualification remain pending. Normal Git-pin review and 1H checks and pilots are recorded separately in plan.md; older CI/CD and writing checks used a local core patch and do not qualify the final source.",
+    "effect_boundary_status": "Minimum T3/T4 composition is proved under the consuming receiver contract: both source receipts match actual verification data and cannot be reused for another effect. Concrete R/S binding and receipt correspondence, all effect entries and argument types, remaining task ports and final-source qualification remain pending. Twelve migrated tasks have actual-Wasm checks under ordinary Git pins; live pilots and their exact source versions are recorded separately in plan.md. Latest core-pin integration and compiled wire-label/lane auditing remain pending.",
     "minimum_handoff_case": {
       "source": "src/tasks/handoff",
-      "scope": "Native Tokio mechanism fixture with two independent runtimes and the application's actual Endpoint transport; not a remote-network, Wasm or model experiment",
+      "scope": "Native hibana-runtime mechanism fixture with two independent runtimes and the application's actual Endpoint transport; not a remote-network, Wasm or model experiment",
       "mechanism_cases": 10,
       "scored_benchmark": false,
       "model_calls": 0,

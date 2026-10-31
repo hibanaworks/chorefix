@@ -32,11 +32,24 @@ local core patch separately. The full application tests remain a separate gate.
 cargo +stable test --manifest-path proofs/endpoint-handoff/Cargo.toml
 ```
 
-The fixture uses one native Tokio executor and an in-process transport. It checks
+The fixture uses hibana-runtime and an in-process transport. It checks
 handoff after a failed candidate, further reconsideration, two-resource admission,
 old approval, changed targets and arguments, and resuming a pending receive after
 the missing request arrives. It is not a remote-network or model-call experiment.
-The auxiliary computation's 20 ms delay is a labeled scheduling fixture.
+
+The native tests use the host event queue. Miri runs the same Endpoint and receiver
+scenarios with a polling validation clock because it cannot execute macOS kqueue.
+These checks cover Rust memory safety; OS wake delivery is checked by native tests.
+
+```sh
+MIRIFLAGS=-Zmiri-strict-provenance cargo +nightly-2026-10-12 miri test \
+  --locked --manifest-path proofs/endpoint-handoff/Cargo.toml --lib handoff:: \
+  -- --test-threads=1
+```
+
+`tests/nested_choice.rs` checks that a nested choice neither previews nor consumes
+a later receive before its visible predecessor. It uses the current dependency
+pins and the application's actual transport.
 
 `SourceOccurrences.lean` imports Hibana's actual `SourceOccurrenceExecution` and
 proves that every executed point remains observed and that no dynamic source

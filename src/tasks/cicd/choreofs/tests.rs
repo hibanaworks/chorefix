@@ -9,10 +9,10 @@ use hibana::{
     Endpoint,
     runtime::{SessionKitStorage, ids::SessionId, resolver::ResolverRef},
 };
+use hibana_runtime::host::notification;
 use hibana_wasip1_runtime::protocol;
 use serde_json::{Value, json};
 use std::{cell::Cell, time::Duration};
-use tokio::sync::Notify;
 
 #[derive(Default)]
 struct Journal(Cell<Vec<(&'static str, &'static str, Value)>>);
@@ -63,8 +63,10 @@ impl Journal {
     }
 }
 
-#[tokio::test(flavor = "current_thread")]
-async fn replacing_an_admitted_compile_argument_is_rejected_before_the_effect() {
+#[hibana_runtime::main]
+#[test]
+async fn replacing_an_admitted_compile_argument_is_rejected_before_the_effect()
+-> Result<(), crate::shell::ShellError> {
     let p = programs();
     let validation = Validation::new();
     let journal = Journal::default();
@@ -86,36 +88,81 @@ async fn replacing_an_admitted_compile_argument_is_rejected_before_the_effect() 
     let mut owner = rv.enter(session, &p.build_owner).unwrap();
     let build = rv.enter(session, &p.build_server).unwrap();
 
-    tokio::time::timeout(Duration::from_secs(3), async {
-        tokio::select! {
-            result = localside::developer::run(&mut developer, &journal, &validation) => {
-                assert_eq!(result.unwrap_err().to_string(), "compile arguments differ from the admitted request");
+    hibana_runtime::race(
+        async {
+            {
+                async {
+                    hibana_runtime::race(
+                        async {
+                            let result =
+                                localside::developer::run(&mut developer, &journal, &validation)
+                                    .await;
+                            {
+                                assert_eq!(
+                                    result.unwrap_err().to_string(),
+                                    "compile arguments differ from the admitted request"
+                                );
+                            };
+                            Ok::<(), crate::shell::ShellError>(())
+                        },
+                        async {
+                            let _ = async {
+                                assert_eq!(open(&mut guest, b"service/compile_and_test").await, 0);
+                                write(&mut guest, json!({"component":"reviewed_candidate"})).await;
+                                guest.recv::<RequestReady>().await.unwrap();
+                                guest
+                                    .send::<Commit>(&protocol::FdCloseReq(
+                                        protocol::FdRequest::new(SERVICE_FD),
+                                    ))
+                                    .await
+                                    .unwrap();
+                                assert_eq!(
+                                    serde_json::from_slice::<Value>(
+                                        guest.recv::<Admitted>().await.unwrap()
+                                    )
+                                    .unwrap(),
+                                    json!({"component":"reviewed_candidate"})
+                                );
+                                owner.send::<Loan<BUILD_SERVER>>(build).await.unwrap();
+                                let mut build = guest.recv::<Loan<BUILD_SERVER>>().await.unwrap();
+                                let substituted = Arguments::<1>::from_bytes(
+                                    br#"{"component":"unreviewed_candidate"}"#,
+                                )
+                                .unwrap();
+                                build.send::<CompileRequest>(&substituted).await.unwrap();
+                                let response = build.recv::<CompileResult>().await.unwrap();
+                                panic!(
+                                    "substituted argument caused an effect: {:?}; reply: {:?}",
+                                    journal.events(),
+                                    response
+                                );
+                            }
+                            .await;
+                            Err::<(), crate::shell::ShellError>(crate::shell::ShellError::message(
+                                "rejected request completed unexpectedly",
+                            ))
+                        },
+                    )
+                    .await
+                    .unwrap();
+                    assert!(journal.events().is_empty());
+                }
+                .await;
+                Ok::<_, std::io::Error>(())
             }
-            _ = async {
-                assert_eq!(open(&mut guest, b"service/compile_and_test").await, 0);
-                write(&mut guest, json!({"component":"reviewed_candidate"})).await;
-                guest.recv::<RequestReady>().await.unwrap();
-                guest.send::<Commit>(&protocol::FdCloseReq(protocol::FdRequest::new(SERVICE_FD))).await.unwrap();
-                assert_eq!(
-                    serde_json::from_slice::<Value>(guest.recv::<Admitted>().await.unwrap()).unwrap(),
-                    json!({"component":"reviewed_candidate"})
-                );
-                owner.send::<Loan<BUILD_SERVER>>(build).await.unwrap();
-                let mut build = guest.recv::<Loan<BUILD_SERVER>>().await.unwrap();
-                let substituted = Arguments::<1>::from_bytes(br#"{"component":"unreviewed_candidate"}"#).unwrap();
-                build.send::<CompileRequest>(&substituted).await.unwrap();
-                let response = build.recv::<CompileResult>().await.unwrap();
-                panic!("substituted argument caused an effect: {:?}; reply: {:?}", journal.events(), response);
-            } => unreachable!(),
-        }
-        assert!(journal.events().is_empty());
-    })
+        },
+        hibana_runtime::host::deadline(Duration::from_secs(3)),
+    )
     .await
     .expect("argument substitution test stalled");
+
+    Ok(())
 }
 
-#[tokio::test(flavor = "current_thread")]
-async fn wasi_roles_reach_the_service_owners_only_through_projected_messages() {
+#[hibana_runtime::main]
+#[test]
+async fn wasi_roles_reach_the_service_owners_only_through_projected_messages()
+-> Result<(), crate::shell::ShellError> {
     let p = programs();
     let compile = Validation::new();
     let test = Validation::new();
@@ -152,12 +199,13 @@ async fn wasi_roles_reach_the_service_owners_only_through_projected_messages() {
     let build = rv.enter(session, &p.build_server).unwrap();
     let mut deploy_owner = rv.enter(session, &p.deploy_owner).unwrap();
     let env = rv.enter(session, &p.deploy_env).unwrap();
-    let test_requested = Notify::new();
-    let developer_closed = Notify::new();
+    let (test_requested, mut test_ready) = notification().unwrap();
+    let (developer_closed, mut closed) = notification().unwrap();
     let clients = async {
-        tokio::join!(
-            async {
-                test_requested.notified().await;
+        async {
+            #[localside]
+            let first = async {
+                assert_eq!(test_ready.read(&mut [0; 1]).await.unwrap(), 1);
                 assert_ne!(open(&mut a, b"service/deploy_application").await, 0);
                 assert_eq!(open(&mut a, b"service/compile_and_test").await, 0);
                 write(&mut a, json!({"wrong":"application"})).await;
@@ -190,20 +238,28 @@ async fn wasi_roles_reach_the_service_owners_only_through_projected_messages() {
                 assert_eq!(open(&mut a, b"service/compile_and_test").await, 8);
                 // Closed-service errors must not wait for downstream effects.
                 assert_eq!(journal.events().len(), 1);
-                developer_closed.notify_one();
+                developer_closed.notify().unwrap();
                 a.recv::<RequestReady>().await.unwrap();
                 a.send::<ServiceExit>(&0).await.unwrap();
-            },
-            async {
-                let mut ready = Box::pin(b.recv::<RequestReady>());
-                assert!(
-                    tokio::time::timeout(Duration::from_millis(10), &mut ready)
+
+                Ok(())
+            };
+            #[localside]
+            let second = async {
+                {
+                    let mut ready = std::pin::pin!(b.recv::<RequestReady>());
+                    assert!(
+                        hibana_runtime::race(
+                            async { Ok::<_, std::io::Error>((&mut ready).await) },
+                            hibana_runtime::host::deadline(Duration::from_millis(10))
+                        )
                         .await
-                        .is_err()
-                );
-                assert!(journal.events().is_empty());
-                test_requested.notify_one();
-                ready.await.unwrap();
+                        .is_err_and(|error| error.kind() == std::io::ErrorKind::TimedOut)
+                    );
+                    assert!(journal.events().is_empty());
+                    test_requested.notify().unwrap();
+                    ready.await.unwrap();
+                }
                 b.send::<Open>(&protocol::PathOpenReq(
                     protocol::PathOpen::new(3, 1 << 6, b"service/run_integration_tests")
                         .unwrap()
@@ -213,7 +269,7 @@ async fn wasi_roles_reach_the_service_owners_only_through_projected_messages() {
                 .await
                 .unwrap();
                 assert_eq!(b.recv::<Opened>().await.unwrap().0.errno(), 0);
-                developer_closed.notified().await;
+                assert_eq!(closed.read(&mut [0; 1]).await.unwrap(), 1);
                 write(&mut b, json!({"suite":"integration"})).await;
                 b.recv::<RequestReady>().await.unwrap();
                 b.send::<Commit>(&protocol::FdCloseReq(protocol::FdRequest::new(SERVICE_FD)))
@@ -233,8 +289,11 @@ async fn wasi_roles_reach_the_service_owners_only_through_projected_messages() {
                 b.send::<Loan<BUILD_SERVER>>(resource).await.unwrap();
                 b.recv::<RequestReady>().await.unwrap();
                 b.send::<ServiceExit>(&0).await.unwrap();
-            },
-            async {
+
+                Ok(())
+            };
+            #[localside]
+            let third = async {
                 assert_eq!(open(&mut c, b"service/deploy_application").await, 0);
                 write(&mut c, json!({"target":"production"})).await;
                 c.recv::<RequestReady>().await.unwrap();
@@ -255,20 +314,38 @@ async fn wasi_roles_reach_the_service_owners_only_through_projected_messages() {
                 c.send::<Loan<DEPLOY_ENV>>(resource).await.unwrap();
                 c.recv::<RequestReady>().await.unwrap();
                 c.send::<ServiceExit>(&0).await.unwrap();
-            },
-        );
-        Ok(())
+
+                Ok(())
+            };
+            Ok((first, second, third))
+        }
+        .await
+        .unwrap();
+        Ok::<(), crate::shell::ShellError>(())
     };
-    tokio::time::timeout(Duration::from_secs(3), async {
-        tokio::try_join!(
-            clients,
-            localside::developer::run(&mut developer, &journal, &compile),
-            localside::tester::run(&mut tester, &journal, &test),
-            localside::deployer::run(&mut deployer, &journal, &deploy),
-            localside::infrastructure::build_server(&mut build_owner, build),
-            localside::infrastructure::deploy_env(&mut deploy_owner, env),
-        )
-    })
+    hibana_runtime::race(
+        async {
+            Ok::<_, std::io::Error>(
+                async {
+                    #[localside]
+                    let first = clients;
+                    #[localside]
+                    let second = localside::developer::run(&mut developer, &journal, &compile);
+                    #[localside]
+                    let third = localside::tester::run(&mut tester, &journal, &test);
+                    #[localside]
+                    let fourth = localside::deployer::run(&mut deployer, &journal, &deploy);
+                    #[localside]
+                    let fifth = localside::infrastructure::build_server(&mut build_owner, build);
+                    #[localside]
+                    let sixth = localside::infrastructure::deploy_env(&mut deploy_owner, env);
+                    Ok((first, second, third, fourth, fifth, sixth))
+                }
+                .await,
+            )
+        },
+        hibana_runtime::host::deadline(Duration::from_secs(3)),
+    )
     .await
     .unwrap()
     .unwrap();
@@ -280,4 +357,6 @@ async fn wasi_roles_reach_the_service_owners_only_through_projected_messages() {
             "deploy_application"
         ]
     );
+
+    Ok(())
 }

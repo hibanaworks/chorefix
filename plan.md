@@ -1,6 +1,6 @@
 # ChoreoFix 研究開発計画
 
-更新: 2026-10-31。受領した「ChoreoFix 研究開発計画」計画版1.0を反映した。
+更新: 2026-11-01。受領した「ChoreoFix 研究開発計画」計画版1.0を反映した。
 入力文書のSHA-256は[実験契約](benchmark/experiment-contract.json)に記録する。
 研究の中心は、**実資源の唯一の操作権、残存手順、実際の共有効果を結ぶ保証**である。
 委譲、投影、並行処理、prefix safety、版の照合をそれぞれ単独の新規性とはしない。
@@ -218,43 +218,47 @@ ChoreoFixのmanifest/lockは本体
 `dc0a13a2fdd551fa0835a813dd46aace90016bfb`を選択する。
 通常のGit依存を使い、診断用のpath patchを認定へ流用しない。
 
-runtimeの中核はno_std・割当なし・caller-owned storageである。12課題の起動処理から
-joinツリーとguest/I/Oの二重の終了値回収を除去し、
-I/O参加者がファイル内容と最終I/Oを所有して終了する形に変更した。全メッセージ型の
-使用箇所で推論できるlifetimeを省略し、型定義の借用関係は維持した。
+runtimeの中核はno_std・割当なし・caller-owned storageである。参加者は借用した値や
+所有値で直接宣言し、runtimeがFutureの配置・poll・キャンセル・子の終了待ちを担当する。
+12課題とrunnerから起動joinツリー、task登録・終了回収、guest/I/Oの二重の終了値管理を
+除去した。各localsideにはEndpointの貸出・要求・結果・返却をそのまま記述する。
+I/O担当はファイル内容、descriptor、部分JSON行とRPC IDを所有し、連携手順の権限を持たない。
+アプリ・runner・試験・検証crateの全依存からTokioを除去した。
+全メッセージ型の使用箇所で推論できるlifetimeを省略し、型定義の借用関係を維持した。
+
 選択中のruntimeは、Futureを最終のinline slotに置いてから参照の平衡木を一度だけ構築する。
-既存Futureを値で繰り返し移動するstorage構築と、入力を二重に保持するawait wrapperを除去した。
-利用側のpin操作やstack増量、heap割当は追加しない。
-同じ入力とstack予算で旧実装がoverflowし、修正後が通過する実行試験と感度検査を追加した。
-runtimeの`dc0a13a`はnative85試験、compile入力13件、strict-provenance Miri57試験、
-Lean16定理/Z3、no_std/Pico linkを含む全gateが同じsourceで成功した。
-配列からのlocalside宣言、所有する子processのI/O・終了待機・破棄、外部callbackの通知を検査した。\n通知はOS descriptorを所有し、scoped Futureへのpointerを保持しない。full socketでもproducerを\n止めず、通知の合流、最後のproducer後のEOF、closed reader、Rust割当0件をnativeで確認した。
-hostのOS呼出しはnativeで検査し、Miri成功件数へ含めない。Lean/Z3はschedulerとstorageの性質を扱い、
+既存Futureの繰り返しコピーと入力を二重に保持するawait wrapperを除去し、利用側へ
+pin操作やstack増量を要求しない。同じ入力とstack予算で旧実装のoverflowを検出する
+感度検査がある。runtimeの`dc0a13a`はnative85試験、compile入力13件、strict-provenance
+Miri57試験、Lean16定理/Z3、no_std/Pico linkを含む全gateが同じsourceで成功した。
+外部通知はOS descriptorを所有し、scoped Futureへのpointerを保持しない。
+通知の合流、full socket、最後のproducer後のEOF、closed reader、Rust割当0件をnativeで検査した。
+hostのOS呼出しはnativeで検査する。Lean/Z3はschedulerとstorageの性質を扱い、
 macro変換全体や任意のRustの詳細化証明ではない。
 
-アプリの外部I/Oと6つの実行入口からTokioを除去したsourceで、12課題の実Wasm74条件が
-protocol完了し、監査違反は0件だった。
-別のCI/CD早期終了1条件では共有効果0件を確認した。記録変異1,307件をすべて拒否した。
-この実行の全binary build、アプリのClippyと検査前後のsource hash照合は成功した。
-記録は`output/review-occurrence-qualification/tokio-host-io`に保持する。
-handoff fixtureの計算に入れていた固定20msの遅延は除去した。
-アプリのruntime pinをrunnerと同じ版へ更新し、食事課題の試験も参加者を直接宣言する形へ
-変更した。貸出・要求・返却はその場に記述し、3/5/7人の独立動作と保留中の別資源の進行を維持した。
-同じsourceでアプリ全targetのRust40試験とClippyが通過した。最大memoryは1,595,785,216bytes。
-記録は`output/review-occurrence-qualification/direct-core-tests`に保持する。
-protocolの依存関係や受信・公開の検査は変更していない。
-runnerからTokioとspawn/JoinSet、task登録・終了回収を除去した。guestとmodel接続は
-借用した値で直接宣言する。外部simulatorは受理済み要求を並行に開始し、実応答をI/O担当へ
-返す。記録とRPC IDの対応付けは実データであり、globalの進行や権限を記録しない。
-終了・失敗後にも受理済みの実要求への応答を確認してから元scoreを取得する。
-通常22試験とClippy、全依存treeのTokio/mio/socket2不在を確認した。
-別の参加者の待機中の独立要求、同じ参加者の並列要求、turn/start応答前の要求、
-guest終了後の接続切断・timeout、部分JSON行の受信キャンセルを実I/Oで検査した。
-アプリがruntime `01a861b`を選択するbuildに対し、このrunnerで12課題の実Wasm75条件を再実行し、74条件のprotocol完了・監査違反0件、
-早期終了1条件の共有効果0件、記録変異1,307件の拒否を確認した。各sourceの前後hashは一致し、
-全子孫最大memoryは628,572,160bytesだった。記録は
-`output/review-occurrence-qualification/structured-runner`に保持する。
-モデル呼出し・採点済み実験への算入は0件であり、各条件の業務結果は元scoreへ別に記録する。
+| 現在の構成 | 同じsourceで確認した範囲 |
+| --- | --- |
+| アプリ | 全targetのRust40試験、Clippy、全依存treeのTokio/mio/socket2不在 |
+| runner | Rust22試験、Clippy、全依存treeのTokio/mio/socket2不在 |
+| 移行済み12課題 | 実Wasm75条件。74条件がprotocol完了・監査違反0件。CI/CDの早期終了1条件は共有効果0件 |
+| handoff検証crate | native11試験。handoffの5試験に含まれる10ケース、RPCの4試験、入れ子の選択2試験 |
+| handoffのMiri | 同じ10ケースを含む5試験。受信futureをPendingから再開する経路も維持 |
+
+アプリとrunnerは同じruntime pinを使う。実Wasmの各binary・source manifest・build receiptを
+保存し、buildと試験の前後でsource hashが一致することを確認した。
+全子孫の最大memoryは1,630,699,520bytesで、2,750,000,000bytesの停止上限内だった。
+記録は`output/review-occurrence-qualification/tokio-free-final-source`に保持する。
+監査対象74記録への変異1,307件をすべて拒否した。これは記録監査の検出力であり、
+実行時攻撃1,307件の阻止ではない。モデル呼出し・採点済み実験への算入は0件である。
+各条件の業務結果は元scoreへ別に記録する。
+
+runnerは、独立要求、同じ参加者の並列要求、turn/start応答前の要求、guest終了後の
+接続切断・timeout、部分JSON行の受信キャンセルを実I/Oで検査した。
+終了・失敗後も、受理済みの実要求への応答を確認してから元scoreを取得する。
+MiriはmacOS kqueueに対応しないため、handoffでは検証用のpolling clockを使い、
+同じEndpoint・受信・実効果の試験本体を実行する。OSのwake配送はMiriの検査対象へ含めない。
+Miriを含む検証crateの全子孫最大memoryは411,648,000bytesだった。
+記録は`output/review-occurrence-qualification/tokio-free-handoff`に保持する。
 
 1Hの通常遅延でcommitの重なりが2件になった記録は保持する。parは同時実行を許すが、
 実装の完了時刻が異なる通常実行で必ず3件が重なるとはしない。独立したA/C/Eの実要求を
@@ -262,12 +266,9 @@ Endpointで受理した後、試験用I/O境界で3件がそろうまで保留�
 返答なしで3件が受理され、解放後の実commitも3件重なった。globalとlocalsideは変更していない。
 この開始条件を制御する機構試験を、通常の性能測定や実モデルの並行性へ混ぜない。
 
-アプリの通常依存とrunnerの全依存にはTokioがない。アプリの試験依存は撤去中であり、\nプロジェクト全体の完全除去は未完である。統一したruntime pinでの実Wasm全条件の再認定も残る。
-依存の削除に加え、タスク登録・回収、起動joinツリー、独自の実行管理を残さず、
-各参加者の借用とEndpoint操作を直接宣言する構成への移行を完了条件とする。
-必要な物理I/OのバッファとRPC対応付けを、連携手順や完了管理へ流用しない。
-この移行と同一sourceでの全体認定を先に完了し、その後でAI予備実験へ進む。
-比較接続用の未使用bridgeとHTTP依存を削除した。元の比較実装は変更していない。
+本体の最新pinへの更新、wire label/lane監査、具体的な全効果入口への定理適用、残る36課題の
+委譲移行は未完である。比較接続の開発は保留し、利用可能な条件でChoreoFix自身の実験を進める。
+元の比較実装は変更しない。
 
 | 対象 | 現状 | 残る確認・変更 |
 | --- | --- | --- |

@@ -6,7 +6,8 @@ use hibana::{
 };
 use hibana_wasip1_runtime::protocol;
 
-#[tokio::test(flavor = "current_thread")]
+#[hibana_runtime::main]
+#[test]
 async fn metadata_is_served_by_the_file_owner_before_and_after_the_result() -> ShellResult<()> {
     let publication = g::seq(
         g::par(
@@ -57,59 +58,73 @@ async fn metadata_is_served_by_the_file_owner_before_and_after_the_result() -> S
         let mut file = OutcomeFile::new();
         let bytes =
             serde_json::to_vec(&serde_json::json!({"success":success})).expect("test result JSON");
-        tokio::time::timeout(std::time::Duration::from_secs(3), async {
-            tokio::try_join!(
-                localside::outcome::admin::admin(&mut owner, &mut file),
-                async {
-                    let stat = protocol::PathFilestatGetReq(protocol::PathFilestatGet::new(
-                        3,
-                        0,
-                        OUTCOME_PATH,
-                    )?);
-                    io.send::<OutcomePathStat>(&stat).await?;
-                    let empty = io.recv::<OutcomePathStatDone>().await?;
-                    assert_eq!(empty.0.errno(), 0);
-                    assert_eq!(empty.0.size(), 0);
-                    let open =
-                        protocol::PathOpenReq(protocol::PathOpen::new(3, 1 << 1, OUTCOME_PATH)?);
-                    vm.send::<OutcomeOpen>(&open).await?;
-                    io.send::<OutcomePathStat>(&stat).await?;
-                    let waiting = io.recv::<OutcomePathStatDone>().await?;
-                    assert_eq!(waiting.0.errno(), 0);
-                    assert_eq!(waiting.0.size(), 0);
-                    if success {
-                        tester.send::<PassedAdmin>(&bytes.as_slice()).await?;
-                    } else {
-                        tester.send::<FailedAdmin>(&bytes.as_slice()).await?;
-                    }
-                    loop {
-                        io.send::<OutcomePathStat>(&stat).await?;
-                        let published = io.recv::<OutcomePathStatDone>().await?;
-                        assert_eq!(published.0.errno(), 0);
-                        if published.0.size() == bytes.len() as u64 {
-                            break;
+        hibana_runtime::race(
+            async {
+                Ok::<_, std::io::Error>(
+                    async {
+                        async {
+                            #[localside]
+                            let first = localside::outcome::admin::admin(&mut owner, &mut file);
+                            #[localside]
+                            let second = async {
+                                let stat = protocol::PathFilestatGetReq(
+                                    protocol::PathFilestatGet::new(3, 0, OUTCOME_PATH)?,
+                                );
+                                io.send::<OutcomePathStat>(&stat).await?;
+                                let empty = io.recv::<OutcomePathStatDone>().await?;
+                                assert_eq!(empty.0.errno(), 0);
+                                assert_eq!(empty.0.size(), 0);
+                                let open = protocol::PathOpenReq(protocol::PathOpen::new(
+                                    3,
+                                    1 << 1,
+                                    OUTCOME_PATH,
+                                )?);
+                                vm.send::<OutcomeOpen>(&open).await?;
+                                io.send::<OutcomePathStat>(&stat).await?;
+                                let waiting = io.recv::<OutcomePathStatDone>().await?;
+                                assert_eq!(waiting.0.errno(), 0);
+                                assert_eq!(waiting.0.size(), 0);
+                                if success {
+                                    tester.send::<PassedAdmin>(&bytes.as_slice()).await?;
+                                } else {
+                                    tester.send::<FailedAdmin>(&bytes.as_slice()).await?;
+                                }
+                                loop {
+                                    io.send::<OutcomePathStat>(&stat).await?;
+                                    let published = io.recv::<OutcomePathStatDone>().await?;
+                                    assert_eq!(published.0.errno(), 0);
+                                    if published.0.size() == bytes.len() as u64 {
+                                        break;
+                                    }
+                                    assert_eq!(published.0.size(), 0);
+                                    hibana_runtime::yield_now().await;
+                                }
+                                let opened = vm.recv::<OutcomeOpened>().await?;
+                                assert_eq!(opened.0.fd(), OUTCOME_FD);
+                                assert_eq!(opened.0.errno(), 0);
+                                io.send::<OutcomePathStat>(&stat).await?;
+                                let ready = io.recv::<OutcomePathStatDone>().await?;
+                                assert_eq!(ready.0.errno(), 0);
+                                assert_eq!(ready.0.size(), bytes.len() as u64);
+                                let read =
+                                    protocol::FdReadReq(protocol::FdRead::new(OUTCOME_FD, 64)?);
+                                vm.send::<OutcomeRead>(&read).await?;
+                                let content = vm.recv::<OutcomeReadDone>().await?;
+                                assert_eq!(content.0.errno(), 0);
+                                assert_eq!(content.0.as_bytes(), bytes);
+                                io.send::<OutcomeExit>(&0).await?;
+                                Ok::<_, crate::shell::ShellError>(())
+                            };
+                            Ok((first, second))
                         }
-                        assert_eq!(published.0.size(), 0);
-                        tokio::task::yield_now().await;
+                        .await?;
+                        Ok::<_, crate::shell::ShellError>(())
                     }
-                    let opened = vm.recv::<OutcomeOpened>().await?;
-                    assert_eq!(opened.0.fd(), OUTCOME_FD);
-                    assert_eq!(opened.0.errno(), 0);
-                    io.send::<OutcomePathStat>(&stat).await?;
-                    let ready = io.recv::<OutcomePathStatDone>().await?;
-                    assert_eq!(ready.0.errno(), 0);
-                    assert_eq!(ready.0.size(), bytes.len() as u64);
-                    let read = protocol::FdReadReq(protocol::FdRead::new(OUTCOME_FD, 64)?);
-                    vm.send::<OutcomeRead>(&read).await?;
-                    let content = vm.recv::<OutcomeReadDone>().await?;
-                    assert_eq!(content.0.errno(), 0);
-                    assert_eq!(content.0.as_bytes(), bytes);
-                    io.send::<OutcomeExit>(&0).await?;
-                    Ok::<_, crate::shell::ShellError>(())
-                },
-            )?;
-            Ok::<_, crate::shell::ShellError>(())
-        })
+                    .await,
+                )
+            },
+            hibana_runtime::host::deadline(std::time::Duration::from_secs(3)),
+        )
         .await
         .unwrap_or_else(|_| panic!("file owner stalled: {:?}", transport.take_observations()))?;
         assert_eq!(file.bytes, bytes);

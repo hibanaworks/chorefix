@@ -6,7 +6,7 @@ permissions:
   contents: read
 jobs:
   boundary:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     timeout-minutes: 45
     env:
       CARGO_INCREMENTAL: '0'
@@ -43,59 +43,66 @@ jobs:
           cargo +stable test --locked --manifest-path vendor/hibana-wash/Cargo.toml --lib
           cargo +stable test --locked
           cargo +stable clippy --locked --all-targets -- -D warnings
+          cargo +stable test --locked --manifest-path proofs/endpoint-handoff/Cargo.toml --all-targets
+          cargo +stable clippy --locked --manifest-path proofs/endpoint-handoff/Cargo.toml --all-targets -- -D warnings
           cargo +stable clippy --locked --manifest-path vendor/hibana-wash/Cargo.toml --target wasm32-wasip1 --release -- -D warnings
+      - name: Check the actual receiver under Miri
+        run: |
+          rustup toolchain install nightly-2026-10-12 --profile minimal --component miri --component rust-src
+          MIRIFLAGS=-Zmiri-strict-provenance cargo +nightly-2026-10-12 miri test --locked --manifest-path proofs/endpoint-handoff/Cargo.toml --lib handoff:: -- --test-threads=1
       - name: Check the actual WASI and task effect boundary
         run: |
-          find src tests -type f -name '*.rs' -print0 | sort -z | xargs -0 sha256sum > cicd-source-before.sha256
-          sha256sum Cargo.toml Cargo.lock >> cicd-source-before.sha256
+          find src tests -type f -name '*.rs' -print0 | sort -z | xargs -0 shasum -a 256 > cicd-source-before.sha256
+          shasum -a 256 Cargo.toml Cargo.lock >> cicd-source-before.sha256
           bash tools/build_shell.sh
-          find src tests -type f -name '*.rs' -print0 | sort -z | xargs -0 sha256sum > cicd-source-after.sha256
-          sha256sum Cargo.toml Cargo.lock >> cicd-source-after.sha256
+          find src tests -type f -name '*.rs' -print0 | sort -z | xargs -0 shasum -a 256 > cicd-source-after.sha256
+          shasum -a 256 Cargo.toml Cargo.lock >> cicd-source-after.sha256
           cmp cicd-source-before.sha256 cicd-source-after.sha256
           jq -n \
-            --arg binary_sha256 "$(sha256sum target/debug/cicd-wasi | cut -d ' ' -f 1)" \
-            --arg source_manifest_sha256 "$(sha256sum cicd-source-after.sha256 | cut -d ' ' -f 1)" \
+            --arg binary_sha256 "$(shasum -a 256 target/debug/cicd-wasi | cut -d ' ' -f 1)" \
+            --arg source_manifest_sha256 "$(shasum -a 256 cicd-source-after.sha256 | cut -d ' ' -f 1)" \
             '{binary_sha256:$binary_sha256,source_manifest:"cicd-source-after.sha256",source_manifest_sha256:$source_manifest_sha256,source_unchanged:true,scored_benchmark:false}' > cicd-build-receipt.json
           CHOREOFIX_CICD_WASI_BINARY="$PWD/target/debug/cicd-wasi" \
             CHOREOFIX_CICD_BUILD_RECEIPT="$PWD/cicd-build-receipt.json" \
             CHOREOFIX_EVIDENCE_ROOT="$PWD/output/cicd-boundary" \
             cargo +stable test --locked --manifest-path tools/runner/Cargo.toml cicd_boundary:: -- --ignored --test-threads=1 --nocapture
           jq -n \
-            --arg binary_sha256 "$(sha256sum target/debug/api-wasi | cut -d ' ' -f 1)" \
-            --arg source_manifest_sha256 "$(sha256sum cicd-source-after.sha256 | cut -d ' ' -f 1)" \
+            --arg binary_sha256 "$(shasum -a 256 target/debug/api-wasi | cut -d ' ' -f 1)" \
+            --arg source_manifest_sha256 "$(shasum -a 256 cicd-source-after.sha256 | cut -d ' ' -f 1)" \
             '{binary_sha256:$binary_sha256,source_manifest:"cicd-source-after.sha256",source_manifest_sha256:$source_manifest_sha256,source_unchanged:true,scored_benchmark:false}' > api-build-receipt.json
           CHOREOFIX_API_WASI_BINARY="$PWD/target/debug/api-wasi" \
             CHOREOFIX_API_BUILD_RECEIPT="$PWD/api-build-receipt.json" \
             CHOREOFIX_EVIDENCE_ROOT="$PWD/output/api-boundary" \
             cargo +stable test --locked --manifest-path tools/runner/Cargo.toml api_boundary:: -- --ignored --test-threads=1 --nocapture
           jq -n \
-            --arg binary_sha256 "$(sha256sum target/debug/codebase-wasi | cut -d ' ' -f 1)" \
-            --arg source_manifest_sha256 "$(sha256sum cicd-source-after.sha256 | cut -d ' ' -f 1)" \
+            --arg binary_sha256 "$(shasum -a 256 target/debug/codebase-wasi | cut -d ' ' -f 1)" \
+            --arg source_manifest_sha256 "$(shasum -a 256 cicd-source-after.sha256 | cut -d ' ' -f 1)" \
             '{binary_sha256:$binary_sha256,source_manifest:"cicd-source-after.sha256",source_manifest_sha256:$source_manifest_sha256,source_unchanged:true,scored_benchmark:false}' > codebase-build-receipt.json
           CHOREOFIX_CODEBASE_WASI_BINARY="$PWD/target/debug/codebase-wasi" \
             CHOREOFIX_CODEBASE_BUILD_RECEIPT="$PWD/codebase-build-receipt.json" \
             CHOREOFIX_EVIDENCE_ROOT="$PWD/output/codebase-boundary" \
             cargo +stable test --locked --manifest-path tools/runner/Cargo.toml codebase_boundary:: -- --ignored --test-threads=1 --nocapture
           jq -n \
-            --arg binary_sha256 "$(sha256sum target/debug/writing-wasi | cut -d ' ' -f 1)" \
-            --arg source_manifest_sha256 "$(sha256sum cicd-source-after.sha256 | cut -d ' ' -f 1)" \
+            --arg binary_sha256 "$(shasum -a 256 target/debug/writing-wasi | cut -d ' ' -f 1)" \
+            --arg source_manifest_sha256 "$(shasum -a 256 cicd-source-after.sha256 | cut -d ' ' -f 1)" \
             '{binary_sha256:$binary_sha256,source_manifest:"cicd-source-after.sha256",source_manifest_sha256:$source_manifest_sha256,source_unchanged:true,scored_benchmark:false}' > writing-build-receipt.json
           CHOREOFIX_WRITING_WASI_BINARY="$PWD/target/debug/writing-wasi" \
             CHOREOFIX_WRITING_BUILD_RECEIPT="$PWD/writing-build-receipt.json" \
             CHOREOFIX_EVIDENCE_ROOT="$PWD/output/writing-boundary" \
             cargo +stable test --locked --manifest-path tools/runner/Cargo.toml writing_boundary:: -- --ignored --test-threads=1 --nocapture
           jq -n \
-            --arg binary_sha256 "$(sha256sum target/debug/philosophers-wasi | cut -d ' ' -f 1)" \
-            --arg source_manifest_sha256 "$(sha256sum cicd-source-after.sha256 | cut -d ' ' -f 1)" \
+            --arg binary_sha256 "$(shasum -a 256 target/debug/philosophers-wasi | cut -d ' ' -f 1)" \
+            --arg source_manifest_sha256 "$(shasum -a 256 cicd-source-after.sha256 | cut -d ' ' -f 1)" \
             '{binary_sha256:$binary_sha256,source_manifest:"cicd-source-after.sha256",source_manifest_sha256:$source_manifest_sha256,source_unchanged:true,scored_benchmark:false}' > philosophers-build-receipt.json
           CHOREOFIX_PHILOSOPHERS_WASI_BINARY="$PWD/target/debug/philosophers-wasi" \
             CHOREOFIX_PHILOSOPHERS_BUILD_RECEIPT="$PWD/philosophers-build-receipt.json" \
             CHOREOFIX_EVIDENCE_ROOT="$PWD/output/philosophers-boundary" \
             cargo +stable test --locked --manifest-path tools/runner/Cargo.toml philosophers_boundary:: -- --ignored --test-threads=1 --nocapture
-          CHOREOFIX_WRITING_RUNTIME="$PWD/target/debug/writing-wasi" cargo +stable test --locked --manifest-path tools/runner/Cargo.toml original_simulator_overlaps -- --ignored --nocapture
+          cargo +stable test --locked --manifest-path tools/runner/Cargo.toml oracle::tests::original_tool_exception_reaches_rust_without_effects_or_a_hung_reply -- --ignored --test-threads=1 --nocapture
+          cargo +stable test --locked --manifest-path tools/runner/Cargo.toml oracle::tests::codebase_simulator_allows_independent_work_and_reports_shared_module_overlap -- --ignored --test-threads=1 --nocapture
           jq -n \
-            --arg binary_sha256 "$(sha256sum target/debug/review-wasi | cut -d ' ' -f 1)" \
-            --arg source_manifest_sha256 "$(sha256sum cicd-source-after.sha256 | cut -d ' ' -f 1)" \
+            --arg binary_sha256 "$(shasum -a 256 target/debug/review-wasi | cut -d ' ' -f 1)" \
+            --arg source_manifest_sha256 "$(shasum -a 256 cicd-source-after.sha256 | cut -d ' ' -f 1)" \
             '{binary_sha256:$binary_sha256,source_manifest:"cicd-source-after.sha256",source_manifest_sha256:$source_manifest_sha256,source_unchanged:true,scored_benchmark:false}' > review-build-receipt.json
           CHOREOFIX_REVIEW_WASI_BINARY="$PWD/target/debug/review-wasi" \
             CHOREOFIX_REVIEW_BUILD_RECEIPT="$PWD/review-build-receipt.json" \

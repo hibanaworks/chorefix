@@ -9,7 +9,7 @@ operations before those operations reach the task simulator.
 Each model has its own [hibana-wash](https://github.com/hibanaworks/hibana-wash)
 Wasm instance. WASI requests pass through Hibana endpoints to ChoreoFS. Each
 instance has a separate, caller-supplied 2 MiB memory region. Participants run
-concurrently on Tokio.
+concurrently on [hibana-runtime](https://github.com/hibanaworks/hibana-runtime).
 
 ## Experiment
 
@@ -44,6 +44,7 @@ Participants use `gpt-6-luna` with `xhigh` through the existing ChatGPT login
 and Codex App Server. The runner checks the returned model, effort and login
 type. The comparison clients' subscription connection must be qualified while
 preserving their original prompts, history, tool schemas and execution order.
+That qualification is separate from ChoreoFix's own experiments.
 
 ## Status
 
@@ -54,8 +55,8 @@ The next research gate connects unique endpoint ownership and its remaining
 protocol to actual effects, with explicit adapter assumptions and runtime
 counterexamples, before starting the scored comparison.
 
-Current qualifications include actual Wasm guests and subscription model
-participants for three/five/seven-person Dining, seven-person collaborative
+The twelve migrated tasks have actual Wasm qualifications for
+three/five/seven-person Dining, seven-person collaborative
 coding with reconsideration, collaborative writing at three/five/seven participants,
 and the three-person API, CI/CD and code-review tasks. Code review includes
 revisions after rejected reviews. The API checks
@@ -63,6 +64,9 @@ preserve both the original successful outcome and terminal test failure.
 Audits check resource transfers, requests, returned results, shared effects,
 file reads and guest exits. Record mutations check that the audits reject
 missing or altered operations.
+
+The plan records unscored subscription pilots with their exact sources and
+binaries. They do not qualify later revisions or establish benchmark success rates.
 
 The [work plan](plan.md) distinguishes implemented ports, verified paths,
 remaining tasks and scored results. [The paper draft](paper/choreofix.tex)
@@ -92,7 +96,8 @@ domain effects and outcomes.
 ## Build and validation
 
 Use the current stable Rust toolchain, the `wasm32-wasip1` target and the pinned
-hibana-wash submodule. The Rust [input tool](tools/inputs) restores and verifies
+hibana-wash submodule. The host runner currently uses macOS's event queue.
+The Rust [input tool](tools/inputs) restores and verifies
 the two unchanged upstream source archives. Python dependencies in
 `requirements.lock` support those upstream simulators and comparison clients.
 

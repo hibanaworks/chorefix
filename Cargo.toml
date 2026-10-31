@@ -12,9 +12,6 @@ hibana = { git = "https://github.com/hibanaworks/hibana", rev = "e139912e07fe4cd
 hibana-wasip1-runtime = { git = "https://github.com/hibanaworks/hibana-wasip1-runtime", rev = "6b62998b614e2b68feecd2d94042adbcc614693d" }
 serde_json = "1.0.154"
 
-[dev-dependencies]
-tokio = { version = "1.53.3", features = ["rt", "macros", "sync", "time"] }
-
 [lints.rust]
 unsafe_code = "deny"
 long_running_const_eval = "forbid"

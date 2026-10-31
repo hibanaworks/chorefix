@@ -6,12 +6,21 @@ use super::{
 use crate::{imp::transport::InMemoryTransport, shell::imp::bus::Bus};
 use hibana::runtime::{SessionKitStorage, ids::SessionId, resolver::ResolverRef};
 use std::{cell::Cell, time::Duration};
+#[cfg(miri)]
+mod clock;
+#[cfg(miri)]
+use clock::deadline;
+#[cfg(not(miri))]
+use hibana_runtime::host::deadline;
 
 // The same schedules run under Miri; this is a validation budget, not a protocol deadline.
 const VALIDATION_TIMEOUT: Duration = Duration::from_secs(60);
 
-#[tokio::test(flavor = "current_thread")]
-async fn a_failed_candidate_moves_to_b_and_both_resources_guard_the_actual_commit() {
+#[cfg_attr(not(miri), hibana_runtime::main)]
+#[cfg_attr(miri, hibana_runtime::main(clock::Clock))]
+#[test]
+async fn a_failed_candidate_moves_to_b_and_both_resources_guard_the_actual_commit()
+-> Result<(), crate::shell::ShellError> {
     let programs = programs();
     let session = SessionId::new(301);
     let (bus, _, _) = Bus::open([], [(session, R), (session, S)]);
@@ -57,23 +66,36 @@ async fn a_failed_candidate_moves_to_b_and_both_resources_guard_the_actual_commi
         published: Vec::new(),
         observations: &observations,
     };
-    let execution = tokio::time::timeout(VALIDATION_TIMEOUT, async {
-        tokio::try_join!(
-            localside::initial(
-                &mut a,
-                r,
-                Artifact {
-                    value: 1,
-                    ..initial
+    let execution = hibana_runtime::race(
+        async {
+            Ok::<_, std::io::Error>(
+                async {
+                    #[localside]
+                    let first = localside::initial(
+                        &mut a,
+                        r,
+                        Artifact {
+                            value: 1,
+                            ..initial
+                        },
+                    );
+                    #[localside]
+                    let second = localside::recover(&mut b, [3, 6]);
+                    #[localside]
+                    let third = localside::independent(&mut c, 10);
+                    #[localside]
+                    let fourth = localside::service(&mut store, &mut repository, &result);
+                    #[localside]
+                    let fifth = localside::auxiliary(&mut aux);
+                    #[localside]
+                    let sixth = localside::second_owner(&mut owner, s);
+                    Ok((first, second, third, fourth, fifth, sixth))
                 }
-            ),
-            localside::recover(&mut b, [3, 6]),
-            localside::independent(&mut c, 10),
-            localside::service(&mut store, &mut repository, &result),
-            localside::auxiliary(&mut aux),
-            localside::second_owner(&mut owner, s),
-        )
-    })
+                .await,
+            )
+        },
+        deadline(VALIDATION_TIMEOUT),
+    )
     .await;
     if execution.is_err() {
         for frame in bus
@@ -100,10 +122,15 @@ async fn a_failed_candidate_moves_to_b_and_both_resources_guard_the_actual_commi
     assert_eq!(independent, 100);
     assert_eq!(repository.published, [(actual, 100)]);
     assert_eq!(observations.take(), [actual]);
+
+    Ok(())
 }
 
-#[tokio::test(flavor = "current_thread")]
-async fn old_approval_wrong_target_and_changed_arguments_never_publish() {
+#[cfg_attr(not(miri), hibana_runtime::main)]
+#[cfg_attr(miri, hibana_runtime::main(clock::Clock))]
+#[test]
+async fn old_approval_wrong_target_and_changed_arguments_never_publish()
+-> Result<(), crate::shell::ShellError> {
     let initial = Artifact {
         target: 42,
         revision: 0,
@@ -188,47 +215,109 @@ async fn old_approval_wrong_target_and_changed_arguments_never_publish() {
             observations: &observations,
         };
         assert_eq!(repository.verify(initial).unwrap(), old);
-        tokio::time::timeout(VALIDATION_TIMEOUT, async {
-            tokio::select! {
-                result = localside::service(&mut store, &mut repository, &result) => {
-                    assert_eq!(result.unwrap_err().to_string(), "commit differs from the actual verified artifact", "{name}");
+        hibana_runtime::race(
+            async {
+                {
+                    async {
+                        hibana_runtime::race(
+                            async {
+                                let result =
+                                    localside::service(&mut store, &mut repository, &result).await;
+                                {
+                                    assert_eq!(
+                                        result.unwrap_err().to_string(),
+                                        "commit differs from the actual verified artifact",
+                                        "{name}"
+                                    );
+                                };
+                                Ok::<(), crate::shell::ShellError>(())
+                            },
+                            async {
+                                let result = async {
+                                    #[localside]
+                                    let first = localside::initial(
+                                        &mut a,
+                                        r,
+                                        Artifact {
+                                            value: 1,
+                                            ..initial
+                                        },
+                                    );
+                                    #[localside]
+                                    let second = async {
+                                        let context =
+                                            Verification::decode(b.recv::<Context>().await?)?;
+                                        let mut r = b.recv::<LoanR>().await?;
+                                        r.send::<Revise>(
+                                            &Artifact {
+                                                value: 2,
+                                                ..context.artifact
+                                            }
+                                            .bytes(),
+                                        )
+                                        .await?;
+                                        let artifact = r.recv::<Revised>().await?;
+                                        r.send::<Reinspect>(&artifact).await?;
+                                        let checked = r.offer().await?.recv::<Passed>().await?;
+                                        r.send::<CandidateReady>(&checked).await?;
+                                        r.offer().await?.recv::<CommitReady>().await?;
+                                        let mut s = b.recv::<LoanS>().await?;
+                                        let first = first.bytes();
+                                        let second = second.bytes();
+                                        async {
+                                            #[localside]
+                                            let first = r.send::<CommitR>(&first);
+                                            #[localside]
+                                            let second = s.send::<CommitS>(&second);
+                                            Ok((first, second))
+                                        }
+                                        .await?;
+                                        let published = r.recv::<CommittedR>().await?;
+                                        Err::<(), _>(crate::shell::ShellError::message(format!(
+                                            "forged commit materialized: {published:?}"
+                                        )))
+                                    };
+                                    #[localside]
+                                    let third = localside::independent(&mut c, 10);
+                                    #[localside]
+                                    let fourth = localside::auxiliary(&mut aux);
+                                    #[localside]
+                                    let fifth = localside::second_owner(&mut owner, s);
+                                    Ok((first, second, third, fourth, fifth))
+                                }
+                                .await;
+                                Err::<(), crate::shell::ShellError>(
+                                    crate::shell::ShellError::message(format!(
+                                        "{name}: unexpected client completion: {result:?}"
+                                    )),
+                                )
+                            },
+                        )
+                        .await
+                        .unwrap();
+                    }
+                    .await;
+                    Ok::<_, std::io::Error>(())
                 }
-                result = async {
-                    tokio::try_join!(
-                        localside::initial(&mut a, r, Artifact { value: 1, ..initial }),
-                        async {
-                            let context = Verification::decode(b.recv::<Context>().await?)?;
-                            let mut r = b.recv::<LoanR>().await?;
-                            r.send::<Revise>(&Artifact { value: 2, ..context.artifact }.bytes()).await?;
-                            let artifact = r.recv::<Revised>().await?;
-                            r.send::<Reinspect>(&artifact).await?;
-                            let checked = r.offer().await?.recv::<Passed>().await?;
-                            r.send::<CandidateReady>(&checked).await?;
-                            r.offer().await?.recv::<CommitReady>().await?;
-                            let mut s = b.recv::<LoanS>().await?;
-                            let first = first.bytes();
-                            let second = second.bytes();
-                            tokio::try_join!(r.send::<CommitR>(&first), s.send::<CommitS>(&second))?;
-                            let published = r.recv::<CommittedR>().await?;
-                            Err::<(), _>(crate::shell::ShellError::message(format!("forged commit materialized: {published:?}")))
-                        },
-                        localside::independent(&mut c, 10),
-                        localside::auxiliary(&mut aux),
-                        localside::second_owner(&mut owner, s),
-                    )
-                } => panic!("{name}: unexpected client completion: {result:?}"),
-            }
-        }).await.expect("forged commit test stalled");
+            },
+            deadline(VALIDATION_TIMEOUT),
+        )
+        .await
+        .expect("forged commit test stalled");
         assert!(repository.published.is_empty(), "{name}");
         assert!(observations.take().is_empty(), "{name}");
         assert!(rv.enter(session, &programs.r).is_err());
         assert!(rv.enter(session, &programs.s).is_err());
         eprintln!("{name}: rejected before publication");
     }
+    Ok(())
 }
 
-#[tokio::test(flavor = "current_thread")]
-async fn a_missing_second_request_keeps_the_effect_pending_then_can_complete() {
+#[cfg_attr(not(miri), hibana_runtime::main)]
+#[cfg_attr(miri, hibana_runtime::main(clock::Clock))]
+#[test]
+async fn a_missing_second_request_keeps_the_effect_pending_then_can_complete()
+-> Result<(), crate::shell::ShellError> {
     let programs = programs();
     let session = SessionId::new(303);
     let (bus, _, _) = Bus::open([], [(session, R), (session, S)]);
@@ -274,58 +363,81 @@ async fn a_missing_second_request_keeps_the_effect_pending_then_can_complete() {
         published: Vec::new(),
         observations: &observations,
     };
-    let (actual, (), _, (), (), ()) = tokio::time::timeout(VALIDATION_TIMEOUT, async {
-        tokio::try_join!(
-            localside::initial(
-                &mut a,
-                r,
-                Artifact {
-                    value: 1,
-                    ..initial
+    let (actual, (), _, (), (), ()) = hibana_runtime::race(
+        async {
+            Ok::<_, std::io::Error>(
+                async {
+                    #[localside]
+                    let first = localside::initial(
+                        &mut a,
+                        r,
+                        Artifact {
+                            value: 1,
+                            ..initial
+                        },
+                    );
+                    #[localside]
+                    let second = async {
+                        let context = Verification::decode(b.recv::<Context>().await?)?;
+                        let mut r = b.recv::<LoanR>().await?;
+                        r.send::<Revise>(
+                            &Artifact {
+                                value: 2,
+                                ..context.artifact
+                            }
+                            .bytes(),
+                        )
+                        .await?;
+                        let artifact = r.recv::<Revised>().await?;
+                        r.send::<Reinspect>(&artifact).await?;
+                        let checked = r.offer().await?.recv::<Passed>().await?;
+                        r.send::<CandidateReady>(&checked).await?;
+                        r.offer().await?.recv::<CommitReady>().await?;
+                        let mut s = b.recv::<LoanS>().await?;
+                        r.send::<CommitR>(&checked).await?;
+                        let mut response = Box::pin(r.recv::<CommittedR>());
+                        assert!(
+                            hibana_runtime::race(
+                                async { Ok::<_, std::io::Error>((&mut response).await) },
+                                deadline(Duration::from_millis(10))
+                            )
+                            .await
+                            .is_err_and(|error| error.kind() == std::io::ErrorKind::TimedOut)
+                        );
+                        assert!(
+                            observations.take().is_empty(),
+                            "effect occurred without the S request"
+                        );
+                        s.send::<CommitS>(&checked).await?;
+                        let (first, second) = async {
+                            #[localside]
+                            let first = response;
+                            #[localside]
+                            let second = s.recv::<CommittedS>();
+                            Ok((first, second))
+                        }
+                        .await?;
+                        assert_eq!(first, second);
+                        b.send::<LoanS>(s).await?;
+                        b.send::<LoanR>(r).await?;
+                        b.send::<Report>(&first).await?;
+                        Ok(())
+                    };
+                    #[localside]
+                    let third = localside::independent(&mut c, 10);
+                    #[localside]
+                    let fourth = localside::service(&mut store, &mut repository, &result);
+                    #[localside]
+                    let fifth = localside::auxiliary(&mut aux);
+                    #[localside]
+                    let sixth = localside::second_owner(&mut owner, s);
+                    Ok((first, second, third, fourth, fifth, sixth))
                 }
-            ),
-            async {
-                let context = Verification::decode(b.recv::<Context>().await?)?;
-                let mut r = b.recv::<LoanR>().await?;
-                r.send::<Revise>(
-                    &Artifact {
-                        value: 2,
-                        ..context.artifact
-                    }
-                    .bytes(),
-                )
-                .await?;
-                let artifact = r.recv::<Revised>().await?;
-                r.send::<Reinspect>(&artifact).await?;
-                let checked = r.offer().await?.recv::<Passed>().await?;
-                r.send::<CandidateReady>(&checked).await?;
-                r.offer().await?.recv::<CommitReady>().await?;
-                let mut s = b.recv::<LoanS>().await?;
-                r.send::<CommitR>(&checked).await?;
-                let mut response = Box::pin(r.recv::<CommittedR>());
-                assert!(
-                    tokio::time::timeout(Duration::from_millis(10), &mut response)
-                        .await
-                        .is_err()
-                );
-                assert!(
-                    observations.take().is_empty(),
-                    "effect occurred without the S request"
-                );
-                s.send::<CommitS>(&checked).await?;
-                let (first, second) = tokio::try_join!(response, s.recv::<CommittedS>())?;
-                assert_eq!(first, second);
-                b.send::<LoanS>(s).await?;
-                b.send::<LoanR>(r).await?;
-                b.send::<Report>(&first).await?;
-                Ok(())
-            },
-            localside::independent(&mut c, 10),
-            localside::service(&mut store, &mut repository, &result),
-            localside::auxiliary(&mut aux),
-            localside::second_owner(&mut owner, s),
-        )
-    })
+                .await,
+            )
+        },
+        deadline(VALIDATION_TIMEOUT),
+    )
     .await
     .expect("partial-resource test stalled")
     .unwrap();
@@ -339,10 +451,15 @@ async fn a_missing_second_request_keeps_the_effect_pending_then_can_complete() {
     );
     assert_eq!(repository.published, [(actual, 100)]);
     assert_eq!(observations.take(), [actual]);
+
+    Ok(())
 }
 
-#[tokio::test(flavor = "current_thread")]
-async fn claiming_approval_without_repair_does_not_replace_the_actual_failure() {
+#[cfg_attr(not(miri), hibana_runtime::main)]
+#[cfg_attr(miri, hibana_runtime::main(clock::Clock))]
+#[test]
+async fn claiming_approval_without_repair_does_not_replace_the_actual_failure()
+-> Result<(), crate::shell::ShellError> {
     let programs = programs();
     let session = SessionId::new(304);
     let (bus, _, _) = Bus::open([], [(session, R), (session, S)]);
@@ -388,35 +505,85 @@ async fn claiming_approval_without_repair_does_not_replace_the_actual_failure() 
         published: Vec::new(),
         observations: &observations,
     };
-    tokio::time::timeout(VALIDATION_TIMEOUT, async {
-        tokio::select! {
-            result = localside::service(&mut store, &mut repository, &result) => {
-                assert_eq!(result.unwrap_err().to_string(), "final verification differs from the actual result");
+    hibana_runtime::race(
+        async {
+            {
+                async {
+                    hibana_runtime::race(
+                        async {
+                            let result =
+                                localside::service(&mut store, &mut repository, &result).await;
+                            {
+                                assert_eq!(
+                                    result.unwrap_err().to_string(),
+                                    "final verification differs from the actual result"
+                                );
+                            };
+                            Ok::<(), crate::shell::ShellError>(())
+                        },
+                        async {
+                            let result = async {
+                                #[localside]
+                                let first = localside::initial(
+                                    &mut a,
+                                    r,
+                                    Artifact {
+                                        value: 1,
+                                        ..initial
+                                    },
+                                );
+                                #[localside]
+                                let second = async {
+                                    let context = Verification::decode(b.recv::<Context>().await?)?;
+                                    let mut r = b.recv::<LoanR>().await?;
+                                    let forged = Verification {
+                                        passed: true,
+                                        ..context
+                                    };
+                                    r.send::<CandidateReady>(&forged.bytes()).await?;
+                                    let approval = r.recv::<CommitReady>().await?;
+                                    Err::<(), _>(crate::shell::ShellError::message(format!(
+                                        "unverified approval: {approval:?}"
+                                    )))
+                                };
+                                #[localside]
+                                let third = localside::independent(&mut c, 10);
+                                #[localside]
+                                let fourth = localside::auxiliary(&mut aux);
+                                #[localside]
+                                let fifth = localside::second_owner(&mut owner, s);
+                                Ok((first, second, third, fourth, fifth))
+                            }
+                            .await;
+                            Err::<(), crate::shell::ShellError>(crate::shell::ShellError::message(
+                                format!(
+                                    "verification skipped: unexpected client completion: {result:?}"
+                                ),
+                            ))
+                        },
+                    )
+                    .await
+                    .unwrap();
+                }
+                .await;
+                Ok::<_, std::io::Error>(())
             }
-            result = async {
-                tokio::try_join!(
-                    localside::initial(&mut a, r, Artifact { value: 1, ..initial }),
-                    async {
-                        let context = Verification::decode(b.recv::<Context>().await?)?;
-                        let mut r = b.recv::<LoanR>().await?;
-                        let forged = Verification { passed: true, ..context };
-                        r.send::<CandidateReady>(&forged.bytes()).await?;
-                        let approval = r.recv::<CommitReady>().await?;
-                        Err::<(), _>(crate::shell::ShellError::message(format!("unverified approval: {approval:?}")))
-                    },
-                    localside::independent(&mut c, 10),
-                    localside::auxiliary(&mut aux),
-                    localside::second_owner(&mut owner, s),
-                )
-            } => panic!("verification skipped: unexpected client completion: {result:?}"),
-        }
-    }).await.expect("skipped verification test stalled");
+        },
+        deadline(VALIDATION_TIMEOUT),
+    )
+    .await
+    .expect("skipped verification test stalled");
     assert!(repository.published.is_empty());
     assert!(observations.take().is_empty());
+
+    Ok(())
 }
 
-#[tokio::test(flavor = "current_thread")]
-async fn a_real_negative_result_can_finish_without_publication_or_forced_repair() {
+#[cfg_attr(not(miri), hibana_runtime::main)]
+#[cfg_attr(miri, hibana_runtime::main(clock::Clock))]
+#[test]
+async fn a_real_negative_result_can_finish_without_publication_or_forced_repair()
+-> Result<(), crate::shell::ShellError> {
     let programs = programs();
     let session = SessionId::new(305);
     let (bus, _, _) = Bus::open([], [(session, R), (session, S)]);
@@ -462,36 +629,61 @@ async fn a_real_negative_result_can_finish_without_publication_or_forced_repair(
         published: Vec::new(),
         observations: &observations,
     };
-    let (a_result, b_result, independent, service, auxiliary, owner) =
-        tokio::time::timeout(VALIDATION_TIMEOUT, async {
-            tokio::join!(
-                localside::initial(
-                    &mut a,
-                    r,
-                    Artifact {
-                        value: 1,
-                        ..initial
-                    }
-                ),
+    let (a_result, b_result, independent, service, auxiliary, owner) = hibana_runtime::race(
+        async {
+            Ok::<_, std::io::Error>(
                 async {
-                    let context = Verification::decode(b.recv::<Context>().await?)?;
-                    assert!(!context.passed);
-                    let mut r = b.recv::<LoanR>().await?;
-                    r.send::<CandidateReady>(&context.bytes()).await?;
-                    let actual =
-                        Verification::decode(r.offer().await?.recv::<CommitDenied>().await?)?;
-                    assert_eq!(actual, context);
-                    b.send::<LoanR>(r).await?;
-                    Ok::<(), crate::shell::ShellError>(())
-                },
-                localside::independent(&mut c, 10),
-                localside::service(&mut store, &mut repository, &result),
-                localside::auxiliary(&mut aux),
-                localside::second_owner(&mut owner, s),
+                    async {
+                        #[localside]
+                        let first = async {
+                            Ok(localside::initial(
+                                &mut a,
+                                r,
+                                Artifact {
+                                    value: 1,
+                                    ..initial
+                                },
+                            )
+                            .await)
+                        };
+                        #[localside]
+                        let second = async {
+                            Ok(async {
+                                let context = Verification::decode(b.recv::<Context>().await?)?;
+                                assert!(!context.passed);
+                                let mut r = b.recv::<LoanR>().await?;
+                                r.send::<CandidateReady>(&context.bytes()).await?;
+                                let actual = Verification::decode(
+                                    r.offer().await?.recv::<CommitDenied>().await?,
+                                )?;
+                                assert_eq!(actual, context);
+                                b.send::<LoanR>(r).await?;
+                                Ok::<(), crate::shell::ShellError>(())
+                            }
+                            .await)
+                        };
+                        #[localside]
+                        let third = async { Ok(localside::independent(&mut c, 10).await) };
+                        #[localside]
+                        let fourth = async {
+                            Ok(localside::service(&mut store, &mut repository, &result).await)
+                        };
+                        #[localside]
+                        let fifth = async { Ok(localside::auxiliary(&mut aux).await) };
+                        #[localside]
+                        let sixth = async { Ok(localside::second_owner(&mut owner, s).await) };
+                        Ok((first, second, third, fourth, fifth, sixth))
+                    }
+                    .await
+                    .unwrap()
+                }
+                .await,
             )
-        })
-        .await
-        .expect("explicit failure completion stalled");
+        },
+        deadline(VALIDATION_TIMEOUT),
+    )
+    .await
+    .expect("explicit failure completion stalled");
     assert_eq!(
         a_result.unwrap_err().to_string(),
         "candidate verification failed"
@@ -503,4 +695,6 @@ async fn a_real_negative_result_can_finish_without_publication_or_forced_repair(
     owner.unwrap();
     assert!(repository.published.is_empty());
     assert!(observations.take().is_empty());
+
+    Ok(())
 }

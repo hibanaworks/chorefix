@@ -1,8 +1,10 @@
 use choreofix::tasks::research_report::{self as report, Domain, Operation, Request};
 use serde_json::{Value, json};
 use std::{
-    cell::RefCell,
+    cell::Cell,
     collections::{BTreeMap, VecDeque},
+    future::poll_fn,
+    task::Poll,
 };
 // Same carrier as the integrated native implementation.
 #[path = "../src/imp/transport.rs"]
@@ -18,8 +20,8 @@ impl Request for Call {
     }
 }
 struct Input {
-    calls: RefCell<BTreeMap<&'static str, VecDeque<Call>>>,
-    events: RefCell<Vec<(&'static str, Operation, Value)>>,
+    calls: Cell<BTreeMap<&'static str, VecDeque<Call>>>,
+    events: Cell<Vec<(&'static str, Operation, Value)>>,
 }
 impl Input {
     fn new(a: usize, b: usize) -> Self {
@@ -56,35 +58,35 @@ impl Input {
         });
         calls.insert("EDITOR", editor);
         Self {
-            calls: RefCell::new(calls),
-            events: RefCell::default(),
+            calls: Cell::new(calls),
+            events: Cell::default(),
         }
     }
 }
 impl Domain for Input {
     type Call = Call;
     async fn request(&self, agent: &'static str) -> Result<Call, String> {
-        self.calls
-            .borrow_mut()
-            .get_mut(agent)
-            .unwrap()
-            .pop_front()
-            .ok_or_else(|| format!("no pending call for {agent}"))
+        let mut calls = self.calls.take();
+        let call = calls.get_mut(agent).unwrap().pop_front();
+        self.calls.set(calls);
+        call.ok_or_else(|| format!("no pending call for {agent}"))
     }
     async fn execute(&self, agent: &'static str, call: Call) -> Result<Value, String> {
-        self.events
-            .borrow_mut()
-            .push((agent, call.operation, call.result.clone()));
+        let mut events = self.events.take();
+        events.push((agent, call.operation, call.result.clone()));
+        self.events.set(events);
         Ok(call.result)
     }
 }
 
-#[tokio::test(flavor = "current_thread")]
-async fn independent_request_futures_and_admitted_effects_have_overlapping_intervals() {
+#[hibana_runtime::main]
+#[test]
+async fn independent_request_futures_and_admitted_effects_have_overlapping_intervals()
+-> Result<(), choreofix::shell::ShellError> {
     struct AsyncInput {
         input: Input,
         origin: std::time::Instant,
-        intervals: RefCell<Vec<Value>>,
+        intervals: Cell<Vec<Value>>,
     }
     impl Domain for AsyncInput {
         type Call = Call;
@@ -92,11 +94,15 @@ async fn independent_request_futures_and_admitted_effects_have_overlapping_inter
             let start = self.origin.elapsed().as_nanos();
             let call = self.input.request(agent).await?;
             if call.operation == Operation::Research || call.operation == Operation::ReviewA {
-                tokio::time::sleep(std::time::Duration::from_millis(25)).await;
-                self.intervals.borrow_mut().push(json!({
+                hibana_runtime::host::sleep(std::time::Duration::from_millis(25))
+                    .await
+                    .expect("test timer");
+                let mut intervals = self.intervals.take();
+                intervals.push(json!({
                     "kind":"request", "agent":agent, "start_ns":start,
                     "end_ns":self.origin.elapsed().as_nanos()
                 }));
+                self.intervals.set(intervals);
             }
             Ok(call)
         }
@@ -105,11 +111,15 @@ async fn independent_request_futures_and_admitted_effects_have_overlapping_inter
             if (agent == "RESEARCHER_A" && call.operation == Operation::References)
                 || (agent == "RESEARCHER_B" && call.operation == Operation::Write)
             {
-                tokio::time::sleep(std::time::Duration::from_millis(25)).await;
-                self.intervals.borrow_mut().push(json!({
+                hibana_runtime::host::sleep(std::time::Duration::from_millis(25))
+                    .await
+                    .expect("test timer");
+                let mut intervals = self.intervals.take();
+                intervals.push(json!({
                     "kind":"effect", "agent":agent, "operation":format!("{:?}",call.operation),
                     "start_ns":start, "end_ns":self.origin.elapsed().as_nanos()
                 }));
+                self.intervals.set(intervals);
             }
             self.input.execute(agent, call).await
         }
@@ -117,13 +127,16 @@ async fn independent_request_futures_and_admitted_effects_have_overlapping_inter
     let input = AsyncInput {
         input: Input::new(0, 0),
         origin: std::time::Instant::now(),
-        intervals: RefCell::default(),
+        intervals: Cell::default(),
     };
-    let frames = tokio::time::timeout(std::time::Duration::from_secs(3), report::run_3e(&input))
-        .await
-        .expect("independent futures were not polled")
-        .unwrap();
-    let intervals = input.intervals.borrow();
+    let frames = hibana_runtime::race(
+        async { Ok::<_, std::io::Error>(report::run_3e(&input).await) },
+        hibana_runtime::host::deadline(std::time::Duration::from_secs(3)),
+    )
+    .await
+    .expect("independent futures were not polled")
+    .unwrap();
+    let intervals = input.intervals.take();
     for kind in ["request", "effect"] {
         let spans: Vec<_> = intervals.iter().filter(|v| v["kind"] == kind).collect();
         assert_eq!(spans.len(), if kind == "request" { 3 } else { 2 });
@@ -144,22 +157,29 @@ async fn independent_request_futures_and_admitted_effects_have_overlapping_inter
     println!(
         "native_async_evidence={}",
         json!({
-            "task":"3E", "runtime":"Tokio current_thread", "model_calls":false,
+            "task":"3E", "runtime":"hibana-runtime scoped", "model_calls":false,
             "stimulus":"25 ms asynchronous test domain, no barrier", "intervals":*intervals,
             "frames":frames
         })
     );
+
+    Ok(())
 }
-#[tokio::test(flavor = "current_thread")]
-async fn both_original_authors_reconsider_until_their_actual_reviews_pass() {
+#[hibana_runtime::main]
+#[test]
+async fn both_original_authors_reconsider_until_their_actual_reviews_pass()
+-> Result<(), choreofix::shell::ShellError> {
     for (a, b) in [(0, 0), (2, 1), (1, 2)] {
         let input = Input::new(a, b);
-        tokio::time::timeout(std::time::Duration::from_secs(3), report::run_3e(&input))
-            .await
-            .expect("report protocol stalled")
-            .unwrap();
-        assert!(input.calls.borrow().values().all(VecDeque::is_empty));
-        let events = input.events.borrow();
+        hibana_runtime::race(
+            async { Ok::<_, std::io::Error>(report::run_3e(&input).await) },
+            hibana_runtime::host::deadline(std::time::Duration::from_secs(3)),
+        )
+        .await
+        .expect("report protocol stalled")
+        .unwrap();
+        assert!(input.calls.take().values().all(VecDeque::is_empty));
+        let events = input.events.take();
         assert_eq!(
             events.iter().filter(|e| e.1 == Operation::Revise).count(),
             a + b
@@ -170,12 +190,15 @@ async fn both_original_authors_reconsider_until_their_actual_reviews_pass() {
         );
         assert_eq!(events.len(), 9 + 2 * (a + b));
     }
+    Ok(())
 }
-#[tokio::test(flavor = "current_thread")]
-async fn document_write_and_other_authors_reference_update_overlap() {
+#[hibana_runtime::main]
+#[test]
+async fn document_write_and_other_authors_reference_update_overlap()
+-> Result<(), choreofix::shell::ShellError> {
     struct Concurrent {
         input: Input,
-        both: tokio::sync::Barrier,
+        started: Cell<Vec<(&'static str, Operation)>>,
     }
     impl Domain for Concurrent {
         type Call = Call;
@@ -186,26 +209,56 @@ async fn document_write_and_other_authors_reference_update_overlap() {
             if (agent == "RESEARCHER_A" && call.operation == Operation::References)
                 || (agent == "RESEARCHER_B" && call.operation == Operation::Write)
             {
-                self.both.wait().await;
+                let mut started = self.started.take();
+                started.push((agent, call.operation));
+                self.started.set(started);
+                poll_fn(|cx| {
+                    cx.waker().wake_by_ref();
+                    Poll::Ready(())
+                })
+                .await;
+                poll_fn(|_| {
+                    let started = self.started.take();
+                    let ready = [
+                        ("RESEARCHER_A", Operation::References),
+                        ("RESEARCHER_B", Operation::Write),
+                    ]
+                    .iter()
+                    .all(|item| started.contains(item));
+                    self.started.set(started);
+                    if ready {
+                        Poll::Ready(())
+                    } else {
+                        Poll::Pending
+                    }
+                })
+                .await;
             }
             self.input.execute(agent, call).await
         }
     }
     let domain = Concurrent {
         input: Input::new(0, 0),
-        both: tokio::sync::Barrier::new(2),
+        started: Cell::default(),
     };
-    tokio::time::timeout(std::time::Duration::from_secs(3), report::run_3e(&domain))
-        .await
-        .expect("independent resource effects were serialized")
-        .unwrap();
+    hibana_runtime::race(
+        async { Ok::<_, std::io::Error>(report::run_3e(&domain).await) },
+        hibana_runtime::host::deadline(std::time::Duration::from_secs(3)),
+    )
+    .await
+    .expect("independent resource effects were serialized")
+    .unwrap();
+
+    Ok(())
 }
-#[tokio::test(flavor = "current_thread")]
-async fn section_review_and_revision_do_not_wait_for_unrelated_work() {
+#[hibana_runtime::main]
+#[test]
+async fn section_review_and_revision_do_not_wait_for_unrelated_work()
+-> Result<(), choreofix::shell::ShellError> {
     struct IndependentEffects {
         input: Input,
         pair: [(&'static str, Operation); 2],
-        both: tokio::sync::Barrier,
+        started: Cell<Vec<(&'static str, Operation)>>,
     }
     impl Domain for IndependentEffects {
         type Call = Call;
@@ -214,7 +267,25 @@ async fn section_review_and_revision_do_not_wait_for_unrelated_work() {
         }
         async fn execute(&self, agent: &'static str, call: Call) -> Result<Value, String> {
             if self.pair.contains(&(agent, call.operation)) {
-                self.both.wait().await;
+                let mut started = self.started.take();
+                started.push((agent, call.operation));
+                self.started.set(started);
+                poll_fn(|cx| {
+                    cx.waker().wake_by_ref();
+                    Poll::Ready(())
+                })
+                .await;
+                poll_fn(|_| {
+                    let started = self.started.take();
+                    let ready = self.pair.iter().all(|item| started.contains(item));
+                    self.started.set(started);
+                    if ready {
+                        Poll::Ready(())
+                    } else {
+                        Poll::Pending
+                    }
+                })
+                .await;
             }
             self.input.execute(agent, call).await
         }
@@ -238,45 +309,54 @@ async fn section_review_and_revision_do_not_wait_for_unrelated_work() {
         let domain = IndependentEffects {
             input: Input::new(revisions, 0),
             pair,
-            both: tokio::sync::Barrier::new(2),
+            started: Cell::default(),
         };
-        tokio::time::timeout(std::time::Duration::from_secs(3), report::run_3e(&domain))
-            .await
-            .unwrap_or_else(|_| panic!("independent effects serialized: {pair:?}"))
-            .unwrap();
-        assert!(domain.input.calls.borrow().values().all(VecDeque::is_empty));
+        hibana_runtime::race(
+            async { Ok::<_, std::io::Error>(report::run_3e(&domain).await) },
+            hibana_runtime::host::deadline(std::time::Duration::from_secs(3)),
+        )
+        .await
+        .unwrap_or_else(|_| panic!("independent effects serialized: {pair:?}"))
+        .unwrap();
+        assert!(domain.input.calls.take().values().all(VecDeque::is_empty));
     }
+    Ok(())
 }
 
-#[tokio::test(flavor = "current_thread")]
-async fn early_combine_has_no_domain_effect() {
+#[hibana_runtime::main]
+#[test]
+async fn early_combine_has_no_domain_effect() -> Result<(), choreofix::shell::ShellError> {
     let input = Input::new(0, 0);
-    input
-        .calls
-        .borrow_mut()
-        .get_mut("EDITOR")
-        .unwrap()
-        .push_front(Call {
-            operation: Operation::Combine,
-            result: json!({"success":true}),
-        });
+    let mut calls = input.calls.take();
+    calls.get_mut("EDITOR").unwrap().push_front(Call {
+        operation: Operation::Combine,
+        result: json!({"success":true}),
+    });
+    input.calls.set(calls);
     assert!(
-        tokio::time::timeout(std::time::Duration::from_secs(3), report::run_3e(&input))
-            .await
-            .unwrap()
-            .is_err()
+        hibana_runtime::race(
+            async { Ok::<_, std::io::Error>((report::run_3e(&input)).await) },
+            hibana_runtime::host::deadline(std::time::Duration::from_secs(3))
+        )
+        .await
+        .unwrap()
+        .is_err()
     );
     assert!(
         input
             .events
-            .borrow()
+            .take()
             .iter()
             .all(|e| e.1 != Operation::Combine)
     );
+
+    Ok(())
 }
 
-#[tokio::test(flavor = "current_thread")]
-async fn global_blocks_second_document_loan_before_first_return() {
+#[hibana_runtime::main]
+#[test]
+async fn global_blocks_second_document_loan_before_first_return()
+-> Result<(), choreofix::shell::ShellError> {
     use hibana::runtime::{SessionKitStorage, ids::SessionId};
     use report::global::{self as g, author_a as a, author_b as b};
     let p = g::project_3e();
@@ -301,10 +381,14 @@ async fn global_blocks_second_document_loan_before_first_return() {
         "global allowed another DOCUMENT loan before the first return"
     );
     assert!(!transport.take_observations().is_empty());
+
+    Ok(())
 }
 
-#[tokio::test(flavor = "current_thread")]
-async fn global_blocks_second_database_loan_before_first_return() {
+#[hibana_runtime::main]
+#[test]
+async fn global_blocks_second_database_loan_before_first_return()
+-> Result<(), choreofix::shell::ShellError> {
     use hibana::runtime::{SessionKitStorage, ids::SessionId};
     use report::global::{self as g, author_a as a, author_b as b};
     let p = g::project_3e();
@@ -338,4 +422,6 @@ async fn global_blocks_second_database_loan_before_first_return() {
         database.send::<b::RefsAvailable>(&()).await.is_err(),
         "global allowed another DATABASE loan before the first return"
     );
+
+    Ok(())
 }
