@@ -10,6 +10,7 @@ use crate::{
 };
 use hibana::runtime::{SessionKitStorage, ids::SessionId, resolver::ResolverRef};
 
+#[hibana_runtime::localside]
 async fn run_guests(
     module: &[u8],
     bus: &crate::shell::imp::bus::Bus,
@@ -70,31 +71,35 @@ async fn run_guests(
     let mut review_store = HibanaWasiGuestStorage::uninit();
     let review_guest =
         review_store.init(module, GuestMemory::new(&mut review_memory), bindings())?;
-    tokio::try_join!(
+    async {
         async {
             localside::reviewer_a::run(&mut review_a, bus, &review_a_result)
                 .await
                 .map_err(|error| ShellError::message(format!("review A: {error}")))
-        },
+        };
         async {
             localside::reviewer_b::run(&mut review_b, bus, &review_b_result)
                 .await
                 .map_err(|error| ShellError::message(format!("review B: {error}")))
-        },
+        };
         async {
             localside::repo::run(&mut repo, repository, bus)
                 .await
                 .map_err(|error| ShellError::message(format!("repository: {error}")))
-        },
+        };
         async {
-            let (vm, io) = tokio::try_join!(
-                async {
+            let (vm, io) = async {
+                #[localside]
+                let vm = async {
                     localside::developer_wasi::run::<A_WASI>(a_guest, &mut a_wasi)
                         .await
                         .map_err(|error| ShellError::message(format!("developer A: {error}")))
-                },
-                private_io::run(&mut a_io, &mut a_fs)
-            )?;
+                };
+                #[localside]
+                let io = private_io::run(&mut a_io, &mut a_fs);
+                Ok((vm, io))
+            }
+            .await?;
             if vm != io {
                 return Err(ShellError::message("developer A guest/IO status differs"));
             }
@@ -102,16 +107,20 @@ async fn run_guests(
                 .finish(bus, vm, std::mem::take(&mut a_fs.output))
                 .await?;
             Ok(())
-        },
+        };
         async {
-            let (vm, io) = tokio::try_join!(
-                async {
+            let (vm, io) = async {
+                #[localside]
+                let vm = async {
                     localside::developer_wasi::run::<B_WASI>(b_guest, &mut b_wasi)
                         .await
                         .map_err(|error| ShellError::message(format!("developer B: {error}")))
-                },
-                private_io::run(&mut b_io, &mut b_fs)
-            )?;
+                };
+                #[localside]
+                let io = private_io::run(&mut b_io, &mut b_fs);
+                Ok((vm, io))
+            }
+            .await?;
             if vm != io {
                 return Err(ShellError::message("developer B guest/IO status differs"));
             }
@@ -119,16 +128,20 @@ async fn run_guests(
                 .finish(bus, vm, std::mem::take(&mut b_fs.output))
                 .await?;
             Ok(())
-        },
+        };
         async {
-            let (vm, io) = tokio::try_join!(
-                async {
+            let (vm, io) = async {
+                #[localside]
+                let vm = async {
                     localside::reviewer_wasi::run(review_guest, &mut review_wasi, &selected_review)
                         .await
                         .map_err(|error| ShellError::message(format!("reviewer guest: {error}")))
-                },
-                private_io::run(&mut review_io, &mut review_fs)
-            )?;
+                };
+                #[localside]
+                let io = private_io::run(&mut review_io, &mut review_fs);
+                Ok((vm, io))
+            }
+            .await?;
             if vm != io {
                 return Err(ShellError::message("reviewer guest/IO status differs"));
             }
@@ -137,8 +150,10 @@ async fn run_guests(
                 .finish(bus, vm, std::mem::take(&mut review_fs.output))
                 .await?;
             Ok(())
-        },
-    )?;
+        };
+        Ok(())
+    }
+    .await?;
     Ok(())
 }
 
@@ -147,10 +162,7 @@ pub async fn run_stdio(module: &[u8]) -> ShellResult<()> {
         ["DEVELOPER_A", "DEVELOPER_B", "REVIEWER"],
         [(SessionId::new(6), global::REPO_ENDPOINT)],
     );
-    let result = tokio::select! {
-        result=run_guests(module,&bus,terminals)=>result,
-        result=reader.run(&bus)=>result,
-    };
+    let result = hibana_runtime::race(run_guests(module, &bus, terminals), reader.run(&bus)).await;
     match &result {
         Ok(())=>reader.emit(&bus,serde_json::json!({"type":"run_result","status":"complete"})).await?,
         Err(error)=>reader.emit(&bus,serde_json::json!({"type":"run_result","status":"failed","error":error.to_string()})).await?,

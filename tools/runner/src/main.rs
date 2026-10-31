@@ -8,8 +8,6 @@ mod cicd_boundary;
 mod codebase_audit;
 #[cfg(test)]
 mod codebase_boundary;
-#[cfg(test)]
-mod completion_api;
 mod evidence;
 mod model;
 #[cfg(test)]

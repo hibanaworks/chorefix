@@ -194,7 +194,8 @@ Globalを唯一の連携仕様にし、localsideへEndpointの操作を直接書
 資源の実体を保存するbufferと、資源の操作権・進行を区別する。
 
 - Global: `seq`、`send`、`route`、resolver、`par`、`roll`。
-- Localside: `send`、`recv`、`offer`、`par`を直接記述し、独立した操作をTokioで並行駆動する。
+- Localside: `send`、`recv`、`offer`、`par`を直接記述する。`hibana-runtime`が
+  借用したfutureの保存・poll・dropを担当し、通信の進行・所有権はHibana本体が検査する。
 - 共有操作に必要な実Endpointを所有値で渡す。そのEndpointで実引数を送り、
   実結果を受けて同じEndpointを返す。空のgrantと別経路の操作権を併存させない。
 - 復旧可能な失敗は、実結果をresolverへ渡し、routeとrollで再考へつなぐ。
@@ -214,6 +215,20 @@ ChoreoFixのmanifest/lockは本体
 `e139912e07fe4cd5ba599dd3749d6e03ce9d1ee1`、WASI
 `6b62998b614e2b68feecd2d94042adbcc614693d`を選択している。
 通常のGit依存を使い、診断用のpath patchを認定へ流用しない。
+
+6Eの並行駆動は、公開した`hibana-runtime`
+`6321fb96bc706e2956d956260538f5f62f19495c`へ移した。globalは変更していない。
+runtimeの中核はno_std・割当なし・caller-owned storageで、生成する実行コードに
+外部async frameworkを使わない。runtime単体ではnative52試験、compile入力12件、
+Miri45試験、Lean/Z3、Picoのlink検査が成功した。Lean/Z3はschedulerの性質を扱い、
+任意のRustやmacro展開全体の詳細化証明ではない。
+同じGit依存のアプリ21試験、runner17試験、Clippy、全binaryのbuildと、6Eの実Wasm34条件が
+成功した。監査違反0、記録変異826件を拒否し、実装/レビューとmerge/レビューの重なりを確認した。
+sourceの前後hashは一致し、全子孫の最大memoryは1,659,109,376bytesだった。
+モデル呼出しと採点比較への算入は0件である。記録は
+`output/review-occurrence-qualification/runtime-6e`に保持する。
+Tokioは外部I/O、runner、他familyと試験に残っており、完全除去は未完である。
+比較接続用の未使用bridgeとHTTP依存を削除した。元の比較実装は変更していない。
 
 | 対象 | 現状 | 残る確認・変更 |
 | --- | --- | --- |
@@ -477,6 +492,8 @@ core `967a89bbbbb392387e70a74b579ecf39ec21b5c5`ではKani全319件が成功し�
 2,043,136操作試行でモデルと実行時の不一致0、2,240局所拒否、全感度controlが成功した。
 最大memoryは2,731,363,112bytesで、元と同じ2.75GB guard、forbid、最適化とassertionを維持した。
 この最終sourceの全gateをKaniから再実行中であり、全体成功とは扱わない。
+この版のKani全319件は成功し、全子孫の最大memoryは2,587,378,000bytesだった。
+protocol fuzz、Miri等を含む全gateの完了は別に確認する。
 アプリの通常Git pinは`e139912e`のままで、固定する本体版への更新と統合認定は残っている。
 旧pinのMiri生成木群は180秒で時間切れになっている。停止を成功へ変えず、必要な検査を通す。
 アプリ/executor/transportの前提とモデル定理、Rust実装の試験を区別し、任意Rust全体の完全証明を

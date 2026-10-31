@@ -12,6 +12,7 @@ use hibana_wasip1_runtime::{
 };
 use serde_json::{Value, json};
 
+#[hibana_runtime::localside]
 pub async fn run(
     guest: &mut HibanaWasiGuest<'_>,
     endpoint: &mut hibana::Endpoint<'_, REVIEW_WASI>,
@@ -162,10 +163,16 @@ pub async fn run(
                                             task.send::<FirstA>(&arguments).await?;
                                             task.recv::<ReadyA<'_>>().await?;
                                             let [mut review, mut other] = task.par()?;
-                                            tokio::try_join!(
-                                                review.send::<ReviewA>(&arguments),
-                                                other.recv::<ReadyB<'_>>()
-                                            )?;
+                                            async {
+                                                async {
+                                                    review.send::<ReviewA>(&arguments).await?;
+                                                };
+                                                async {
+                                                    other.recv::<ReadyB<'_>>().await?;
+                                                };
+                                                Ok(())
+                                            }
+                                            .await?;
                                         }
                                         81 if feature == FEATURE_B => {
                                             branch.send::<FirstB>(&arguments).await?;
@@ -175,10 +182,16 @@ pub async fn run(
                                             task.send::<FirstB>(&arguments).await?;
                                             task.recv::<ReadyB<'_>>().await?;
                                             let [mut review, mut other] = task.par()?;
-                                            tokio::try_join!(
-                                                review.send::<ReviewB>(&arguments),
-                                                other.recv::<ReadyA<'_>>()
-                                            )?;
+                                            async {
+                                                async {
+                                                    review.send::<ReviewB>(&arguments).await?;
+                                                };
+                                                async {
+                                                    other.recv::<ReadyA<'_>>().await?;
+                                                };
+                                                Ok(())
+                                            }
+                                            .await?;
                                         }
                                         82 if feature == FEATURE_A => {
                                             branch.send::<AgainABeforeB>(&arguments).await?;
@@ -196,10 +209,16 @@ pub async fn run(
                                             task.send::<BDuringARevision>(&arguments).await?;
                                             task.send::<BDuringARevision>(&arguments).await?;
                                             let [mut other, mut review] = task.par()?;
-                                            tokio::try_join!(
-                                                other.recv::<ReadyA<'_>>(),
-                                                review.send::<ReviewB>(&arguments)
-                                            )?;
+                                            async {
+                                                async {
+                                                    other.recv::<ReadyA<'_>>().await?;
+                                                };
+                                                async {
+                                                    review.send::<ReviewB>(&arguments).await?;
+                                                };
+                                                Ok(())
+                                            }
+                                            .await?;
                                         }
                                         84 if feature == FEATURE_B => {
                                             branch.send::<BAfterAMerge>(&arguments).await?;
@@ -233,10 +252,16 @@ pub async fn run(
                                             task.send::<ADuringBRevision>(&arguments).await?;
                                             task.send::<ADuringBRevision>(&arguments).await?;
                                             let [mut other, mut review] = task.par()?;
-                                            tokio::try_join!(
-                                                other.recv::<ReadyB<'_>>(),
-                                                review.send::<ReviewA>(&arguments)
-                                            )?;
+                                            async {
+                                                async {
+                                                    other.recv::<ReadyB<'_>>().await?;
+                                                };
+                                                async {
+                                                    review.send::<ReviewA>(&arguments).await?;
+                                                };
+                                                Ok(())
+                                            }
+                                            .await?;
                                         }
                                         88 if feature == FEATURE_A => {
                                             branch.send::<AAfterBMerge>(&arguments).await?;
@@ -269,10 +294,16 @@ pub async fn run(
                                             task.send::<AgainADuringBRevision>(&arguments).await?;
                                             task.send::<AgainADuringBRevision>(&arguments).await?;
                                             let [mut other, mut review] = task.par()?;
-                                            tokio::try_join!(
-                                                other.recv::<ReadyB<'_>>(),
-                                                review.send::<ReReviewA>(&arguments)
-                                            )?;
+                                            async {
+                                                async {
+                                                    other.recv::<ReadyB<'_>>().await?;
+                                                };
+                                                async {
+                                                    review.send::<ReReviewA>(&arguments).await?;
+                                                };
+                                                Ok(())
+                                            }
+                                            .await?;
                                         }
                                         93 if feature == FEATURE_B => {
                                             branch
@@ -283,10 +314,16 @@ pub async fn run(
                                             task.send::<AgainBDuringARevision>(&arguments).await?;
                                             task.send::<AgainBDuringARevision>(&arguments).await?;
                                             let [mut other, mut review] = task.par()?;
-                                            tokio::try_join!(
-                                                other.recv::<ReadyA<'_>>(),
-                                                review.send::<ReReviewB>(&arguments)
-                                            )?;
+                                            async {
+                                                async {
+                                                    other.recv::<ReadyA<'_>>().await?;
+                                                };
+                                                async {
+                                                    review.send::<ReReviewB>(&arguments).await?;
+                                                };
+                                                Ok(())
+                                            }
+                                            .await?;
                                         }
                                         94 if feature == FEATURE_B => {
                                             branch.send::<AgainBBeforeAReview>(&arguments).await?;
@@ -388,20 +425,35 @@ pub async fn run(
             }
             WasiBoundaryStep::BudgetExpired(_) => {
                 fuel_id = fuel_id.wrapping_add(1);
-                tokio::task::yield_now().await;
+                hibana_runtime::yield_now().await;
             }
             WasiBoundaryStep::Exit(exit) => {
                 let status = exit.status() as i32;
                 {
                     let [mut a, mut b] = task.par()?;
-                    tokio::try_join!(a.recv::<ExitA>(), b.recv::<ExitB>())?;
+                    async {
+                        async {
+                            a.recv::<ExitA>().await?;
+                        };
+                        async {
+                            b.recv::<ExitB>().await?;
+                        };
+                        Ok(())
+                    }
+                    .await?;
                 }
                 {
                     let [mut a, mut b] = task.par()?;
-                    tokio::try_join!(
-                        a.send::<ReviewExitA>(&status),
-                        b.send::<ReviewExitB>(&status)
-                    )?;
+                    async {
+                        async {
+                            a.send::<ReviewExitA>(&status).await?;
+                        };
+                        async {
+                            b.send::<ReviewExitB>(&status).await?;
+                        };
+                        Ok(())
+                    }
+                    .await?;
                 }
                 task.send::<RepoExit>(&status).await?;
                 private.send::<IoExit>(&status).await?;

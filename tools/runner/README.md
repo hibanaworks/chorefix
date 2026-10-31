@@ -170,56 +170,9 @@ deferred. An unavailable comparator is recorded as unexecuted and does not block
 ChoreoFix runs. Results with different conditions are not reported as matched
 comparisons. Keep the original comparison implementations unchanged.
 
-`thread/inject_items` can supply role-bearing messages and function-call history
-to a fresh App Server thread. The converter retains message roles, exact text,
-call IDs, argument strings and result order. The HTTP fixtures also save this
-input as `app-server-history.json`, including the original clients' trimmed
-history. This is input preparation, not a qualified comparison connection.
-These fixtures do not establish a live comparison result.
-
-## Comparison client fixtures
-
-The local HTTP fixtures call the five unchanged comparison clients and both
-original generators. They check two tool rounds, real context compression and
-JSON output in 16 requests. They use response fixtures and make no model calls.
-The conversion retains optional arguments, schema strictness, parallel-call
-settings, call IDs and result order. These tests qualify data conversion only.
-
-Output limits preserve partial text, raw call arguments and inclusive usage.
-`incomplete/max_output_tokens` becomes a `length` finish, and a content filter
-remains a distinct finish reason. Neither is converted to an HTTP transport
-failure that could cause an extra SDK retry. Failed responses and unknown
-incomplete reasons remain errors.
-
-Run the original-client checks:
-
-```sh
-PYTHONHASHSEED=0 PYTHONDONTWRITEBYTECODE=1 \
-  cargo +stable test --locked --manifest-path tools/runner/Cargo.toml \
-  original_sync_and_async_comparison_clients_replay_tool_rounds \
-  -- --ignored --test-threads=1
-PYTHONHASHSEED=0 PYTHONDONTWRITEBYTECODE=1 \
-  cargo +stable test --locked --manifest-path tools/runner/Cargo.toml \
-  original_pipeline_clients_keep_compressed_history_and_json_output \
-  -- --ignored --test-threads=1
-```
-
-The installed App Server history RPC can be checked without starting a model
-turn. This check requires ChatGPT login and preserves its RPC record under a
-new directory in `CHOREOFIX_EVIDENCE_ROOT`:
-
-```sh
-cargo +stable test --locked --manifest-path tools/runner/Cargo.toml \
-  installed_app_server_accepts_role_bearing_history_without_generation \
-  -- --ignored --test-threads=1
-```
-
-RPC acceptance does not establish which history or generation settings a model
-request actually used. Live connection qualification remains required.
-
-Builds and verification must run under Hibana's resource guard with one Cargo
-job and the existing 3 GB stop. PyO3 loads the unchanged external comparison
-clients and their OpenAI SDK; no Python adapter or evaluated snippet is used.
+Run builds and verification under Hibana’s resource guard with one Cargo job.
+PyO3 loads the unchanged upstream simulator; no Python adapter or evaluated
+snippet is used.
 
 See [Codex authentication](https://developers.openai.com/codex/auth) and
 [App Server](https://developers.openai.com/codex/app-server) for the login and

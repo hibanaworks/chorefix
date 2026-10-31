@@ -63,8 +63,11 @@ Write coordination with Hibana `seq`, `send`, `route`, resolvers, `par`, and
 permission; Endpoint is the affine view used to perform its logical role's steps.
 Keep the actual Endpoint operations directly visible in each localside.
 The globals use `par`, `route`, explicit resolvers, `roll`, `seq`, and `send`;
-the localsides use the published `offer`, `send`, and `recv` directly. Tokio
-current-thread async/await is the executor. Do not introduce a new API name or
+the localsides use the published `offer`, `send`, and `recv` directly.
+Use hibana-runtime for scoped localside execution. Remove Tokio from application,
+runner, tests and resolved dependencies; do not retain a compatibility module or
+a second executor. Host I/O owns descriptors, buffers and RPC correlation, never
+protocol progress. Do not introduce a new API name or
 move phase selection into a generic guest driver to work around an ambiguous
 rolled request. Distinguish the projected communication and ownership instead.
 Do not move ordering, authorization, retry, branch, or completion decisions into
