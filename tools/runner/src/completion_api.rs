@@ -5,6 +5,7 @@ use crate::{
 };
 use serde_json::{Value, json};
 
+mod history;
 pub mod http;
 
 fn assistant_items(message: &Value) -> Result<Vec<Value>> {

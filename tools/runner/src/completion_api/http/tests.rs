@@ -18,6 +18,33 @@ fn directory() -> Result<PathBuf> {
     Ok(directory)
 }
 
+fn check_recorded_history(directory: &Path, expected: &Value) -> Result<()> {
+    let saved: Value =
+        serde_json::from_slice(&fs::read(directory.join("app-server-history.json"))?)?;
+    let saved = saved["items"].as_array().ok_or("recorded history items")?;
+    let expected = expected.as_array().ok_or("original visible input")?;
+    assert_eq!(saved.len(), expected.len());
+    for (saved, expected) in saved.iter().zip(expected) {
+        if expected.get("role").is_some() {
+            assert_eq!(saved["type"], "message");
+            assert_eq!(saved["role"], expected["role"]);
+            assert_eq!(saved["content"].as_array().unwrap().len(), 1);
+            assert_eq!(saved["content"][0]["text"], expected["content"]);
+            assert_eq!(
+                saved["content"][0]["type"],
+                if expected["role"] == "assistant" {
+                    "output_text"
+                } else {
+                    "input_text"
+                }
+            );
+        } else {
+            assert_eq!(saved, expected);
+        }
+    }
+    Ok(())
+}
+
 async fn request(address: std::net::SocketAddr, value: Value) -> Result<(u16, Value)> {
     let mut stream = TcpStream::connect(address).await?;
     let body = value.to_string();
@@ -91,6 +118,7 @@ async fn independent_completions_run_while_another_request_waits() -> Result<()>
         for file in [
             "client-request.json",
             "responses-request.json",
+            "app-server-history.json",
             "responses-response.json",
             "client-response.json",
             "transport.json",
@@ -279,7 +307,8 @@ async fn original_sync_and_async_comparison_clients_replay_tool_rounds() -> Resu
     let output = directory()?;
     let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await?;
     let base_url = format!("http://{}/v1", listener.local_addr()?);
-    let forward = |request: Value, _: PathBuf| async move {
+    let forward = |request: Value, directory: PathBuf| async move {
+        check_recorded_history(&directory, &request["input"])?;
         let label = request["input"][0]["content"]
             .as_str()
             .ok_or("original prompt")?;
@@ -505,6 +534,10 @@ async fn original_pipeline_clients_keep_compressed_history_and_json_output() -> 
         assert_eq!(request["text"]["format"], expected["format"]);
         assert_eq!(request["reasoning"]["effort"], EFFORT);
         assert_eq!(request["store"], false);
+        check_recorded_history(
+            &output.join(format!("request-{:08}", index + 1)),
+            &expected["input"],
+        )?;
     }
     fs::remove_dir_all(output)?;
     Ok(())

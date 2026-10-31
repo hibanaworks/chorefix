@@ -455,6 +455,11 @@ M3では旧nativeの進行管理・不要な入口・自作Pythonを除去する
 元Pythonは既存Rust PyO3接続から使う。五つの比較clientと元generator、新競合について、
 実ChatGPT接続でprompt、schema、可視history、順序、圧縮を認定する。
 16要求のlocal HTTP fixtureや以前のモデル接続の成功だけで認定しない。
+App Serverの`thread/inject_items`へ渡す役割付き履歴も同じ入力から生成する。
+call ID・引数字列・結果の到着順と元clientの履歴圧縮を保つ。
+モデルを呼ばないRPC受入試験は、実生成の認定と区別する。
+比較接続には出力token上限、tool選択、並列call、schema strictness、
+一回のモデル応答の境界も必要であり、未対応の設定を黙って捨てない。
 
 各認定にはsource/lock/proof/compiler/binary/Wasm/model/configとbuild receiptを保存する。
 古いsnapshotの`.cargo/config.toml`前提やauditの呼出し数も最終経路で検査する。

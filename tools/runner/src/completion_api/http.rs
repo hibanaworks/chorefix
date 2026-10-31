@@ -83,6 +83,10 @@ where
             Err(error) => return Ok(failure(StatusCode::BAD_REQUEST, error)),
         };
         save(&directory.join("responses-request.json"), &prepared)?;
+        save(
+            &directory.join("app-server-history.json"),
+            &json!({"items":super::history::items(&prepared)?}),
+        )?;
         let (status, response) = forward(prepared, directory.clone()).await?;
         save(&directory.join("responses-response.json"), &response)?;
         save(

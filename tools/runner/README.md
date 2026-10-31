@@ -115,6 +115,14 @@ connection preserves the original prompts, visible history, schemas, tool-call
 order, compression and execution engines. A long-lived Codex conversation must
 not silently restore history that an original client removed.
 
+`thread/inject_items` can supply role-bearing messages and function-call history
+to a fresh App Server thread. The converter retains message roles, exact text,
+call IDs, argument strings and result order. The HTTP fixtures also save this
+input as `app-server-history.json`, including the original clients' trimmed
+history. This is input preparation, not a qualified comparison connection.
+Output-token limits, tool choice, parallel-call policy, schema strictness and
+the boundary of one model response must also be checked before scoring.
+
 ## Comparison client fixtures
 
 The local HTTP fixtures call the five unchanged comparison clients and both
@@ -133,6 +141,19 @@ PYTHONHASHSEED=0 PYTHONDONTWRITEBYTECODE=1 \
   original_pipeline_clients_keep_compressed_history_and_json_output \
   -- --ignored --test-threads=1
 ```
+
+The installed App Server history RPC can be checked without starting a model
+turn. This check requires ChatGPT login and preserves its RPC record under a
+new directory in `CHOREOFIX_EVIDENCE_ROOT`:
+
+```sh
+cargo +stable test --locked --manifest-path tools/runner/Cargo.toml \
+  installed_app_server_accepts_role_bearing_history_without_generation \
+  -- --ignored --test-threads=1
+```
+
+RPC acceptance does not establish which history or generation settings a model
+request actually used. Live connection qualification remains required.
 
 Builds and verification must run under Hibana's resource guard with one Cargo
 job and the existing 3 GB stop. PyO3 loads the unchanged external comparison
