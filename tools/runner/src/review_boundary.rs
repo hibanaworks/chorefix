@@ -9,7 +9,6 @@ use std::{
     collections::VecDeque,
     fs,
     path::Path,
-    sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
@@ -42,7 +41,7 @@ fn count(events: &[Value], agent: &str, tool: &str) -> usize {
 
 async fn developer(
     guest: process::Guest,
-    simulator: Arc<oracle::Simulator>,
+    simulator: oracle::Simulator,
     agent: &str,
     feature: &str,
     branch: &str,
@@ -59,7 +58,10 @@ async fn developer(
             .ok_or("early stdout")?
             .contains("wash:")
     );
-    assert_eq!(count(&simulator.observed_events()?, agent, "merge_code"), 0);
+    assert_eq!(
+        count(&simulator.observed_events().await?, agent, "merge_code"),
+        0
+    );
     guest
         .command(agent, "echo '{}' > /service/implement_feature".into())
         .await?;
@@ -73,7 +75,11 @@ async fn developer(
     let wrong = guest.command(agent, format!("echo '{{\"feature_name\":\"{other_feature}\"}}' > /service/implement_feature; cat /service/result")).await?;
     assert_eq!(response(&wrong)?["status"], "invalid_arguments");
     assert_eq!(
-        count(&simulator.observed_events()?, agent, "implement_feature"),
+        count(
+            &simulator.observed_events().await?,
+            agent,
+            "implement_feature"
+        ),
         0
     );
     let mut feedback = Vec::new();
@@ -100,11 +106,17 @@ async fn developer(
                 .ok_or("rejected merge stdout")?
                 .contains("wash:")
         );
-        assert_eq!(count(&simulator.observed_events()?, agent, "merge_code"), 0);
+        assert_eq!(
+            count(&simulator.observed_events().await?, agent, "merge_code"),
+            0
+        );
     }
     let wrong = guest.command(agent, format!("echo '{{\"branch\":\"{other_branch}\"}}' > /service/merge_code; cat /service/result")).await?;
     assert_eq!(response(&wrong)?["status"], "invalid_arguments");
-    assert_eq!(count(&simulator.observed_events()?, agent, "merge_code"), 0);
+    assert_eq!(
+        count(&simulator.observed_events().await?, agent, "merge_code"),
+        0
+    );
     let reply = guest
         .command(
             agent,
@@ -114,7 +126,7 @@ async fn developer(
         )
         .await?;
     assert_eq!(response(&reply)?["success"], true);
-    let before = simulator.observed_events()?;
+    let before = simulator.observed_events().await?;
     for (tool, arguments) in [
         ("implement_feature", json!({"feature_name":feature})),
         ("merge_code", json!({"branch":branch})),
@@ -129,7 +141,7 @@ async fn developer(
                 .contains("os error 8")
         );
         assert_eq!(
-            count(&simulator.observed_events()?, agent, tool),
+            count(&simulator.observed_events().await?, agent, tool),
             count(&before, agent, tool)
         );
     }
@@ -142,7 +154,7 @@ async fn developer(
 
 async fn reviewer(
     guest: process::Guest,
-    simulator: Arc<oracle::Simulator>,
+    simulator: oracle::Simulator,
     first: &str,
     schedule: ReviewSchedule,
 ) -> Result<()> {
@@ -158,10 +170,10 @@ async fn reviewer(
         } else {
             "user_authentication"
         };
-        let before = simulator.observed_events()?;
+        let before = simulator.observed_events().await?;
         let wrong = guest.command("REVIEWER", format!("echo '{{\"pr_id\":\"{other_feature}\"}}' > /service/code_review/{feature}; cat /service/result")).await?;
         assert_eq!(response(&wrong)?["status"], "invalid_arguments");
-        let after = simulator.observed_events()?;
+        let after = simulator.observed_events().await?;
         assert!(!after[before.len()..].iter().any(
             |event| event["tool"] == "code_review" && event["args"]["target"] == other_feature
         ));
@@ -198,7 +210,7 @@ async fn reviewer(
             }
             continue;
         }
-        let before = simulator.observed_events()?;
+        let before = simulator.observed_events().await?;
         let duplicate = guest
             .command(
                 "REVIEWER",
@@ -212,7 +224,11 @@ async fn reviewer(
                 .contains("os error 8")
         );
         assert_eq!(
-            count(&simulator.observed_events()?, "REVIEWER", "code_review"),
+            count(
+                &simulator.observed_events().await?,
+                "REVIEWER",
+                "code_review"
+            ),
             count(&before, "REVIEWER", "code_review")
         );
     }
@@ -332,7 +348,7 @@ async fn run_cases(cases: Vec<ReviewCase>) -> Result<()> {
                 "root_lock_sha256":digest(Path::new("Cargo.lock"))?,"runner_lock_sha256":digest(Path::new("tools/runner/Cargo.lock"))?,
                 "simulator_source_sha256":digest(Path::new("vendor/tracefix/benchmark/environments/6E/sim.py"))?}),
         )?;
-        let trace = Arc::new(Trace::create(&case.join("events.jsonl"))?);
+        let trace = Trace::create(&case.join("events.jsonl"))?;
         let (simulator, _) = oracle::Simulator::new("6E", depth, delay, trace.clone(), &failures)?;
         let (guest, runtime_loop) =
             process::guest(&runtime, module, "6E", &case, trace, simulator.clone())?;

@@ -1,6 +1,6 @@
 # ChoreoFix 研究開発計画
 
-更新: 2026-10-30。受領した「ChoreoFix 研究開発計画」計画版1.0を反映した。
+更新: 2026-10-31。受領した「ChoreoFix 研究開発計画」計画版1.0を反映した。
 入力文書のSHA-256は[実験契約](benchmark/experiment-contract.json)に記録する。
 研究の中心は、**実資源の唯一の操作権、残存手順、実際の共有効果を結ぶ保証**である。
 委譲、投影、並行処理、prefix safety、版の照合をそれぞれ単独の新規性とはしない。
@@ -206,8 +206,8 @@ Globalを唯一の連携仕様にし、localsideへEndpointの操作を直接書
 ## 現在のsourceと検証範囲
 
 ChoreoFixのmanifest/lockは本体
-`3e2220a85368e03b8b0fa099c39c7ec13557a200`、WASI
-`4df26995ae1affef6fd2d559cfeeac2c05833b5f`を選択している。
+`e139912e07fe4cd5ba599dd3749d6e03ce9d1ee1`、WASI
+`6b62998b614e2b68feecd2d94042adbcc614693d`を選択している。
 通常のGit依存を使い、診断用のpath patchを認定へ流用しない。
 
 | 対象 | 現状 | 残る確認・変更 |
@@ -223,6 +223,24 @@ ChoreoFixのmanifest/lockは本体
 
 同じ本体pinを使っていても、別sourceの予備記録を最終source全体の認定へ読み替えない。
 固定script、実モデル、元simulatorの完了、protocol完了を別々に報告する。
+
+移行済み6familyの旧native coordinator、専用のunit貸出broker、要求待ち行列と
+完了集計を除去した。置き換えられた経路だけを試すテストと古いPython試験も除去した。
+委譲版のglobalとlocalsideは前版からbyte単位で変更していない。実験runnerでは記録fileを
+一つのI/O threadが所有し、書き込み・flushの結果を返す。元simulatorの参照も一つのI/O
+threadが所有し、非同期の元toolを並行に開始する。共有FileのMutex、simulatorのArc、
+callbackのMutexは除去した。これらのI/O窓口は業務の進行や許可を判定しない。
+
+空targetから全実験binaryをbuildし、4分54秒、最大963,675,552bytesで成功した。
+compile時間の改善は確認していない。36 native試験、アプリとrunnerのClippy、runnerの
+14試験が通過した。元の48課題×3障害条件の初期化、独立操作と競合の感度、tool例外の返却も
+実simulatorで確認した。移行済みの課題数が48になったという意味ではない。
+
+同じ通常Git pinとbinaryで、1E/1Mの9条件、1Hの5条件、レビュー34条件が実Wasmで成功した。
+1Hは元の障害0/1/2、追加の2回失敗、通常遅延を含む。通常遅延では独立commitが3件重なり、
+違反0だった。coding各記録の10変異、計140件と、レビューの826記録変異を拒否した。
+これらはモデル呼出し0の機構試験で、比較の採点数は増やさない。現在sourceのモデル試験は
+別途認定する。旧Python接続・監査の残存分、未移行課題、比較接続とT3/T4の合成は残る。
 
 直近の16E変更では全target build、native56件、Clippy、fmtとsource前後hash一致が成功した。
 全子孫の最大memoryは1,418,739,712bytes。実Wasmの元障害条件0/1/2はすべて元score成功・
@@ -397,7 +415,7 @@ CI待ちの間も独立した実装作業は続ける。
 | --- | --- | --- |
 | M0 比較の固定 | 基準SHA、構文範囲、native表現監査、課題と接続、指標・精度・再実行規則を固定する | 更新計画を記録。新競合と精度設計は未認定 |
 | M1 意味論 | T1–T6の定義・前提・反例・必要補題と、既存core定理の対応表。評価に使うpar/roll/委譲を含む | T3/T4の最小効果ケースを先行する |
-| M2 実装と証明 | 効果入口一覧、実行時の負例、Leanと実装照合、必要なcore/WASI gate。通常Git pinでレビューと1Hを認定する | ローカルcore修正による予備試験まで。最終認定は未完 |
+| M2 実装と証明 | 効果入口一覧、実行時の負例、Leanと実装照合、必要なcore/WASI gate。通常Git pinでレビューと1Hを認定する | 通常Git pinの実Wasmはレビュー34条件・1H5条件が成功。現版のモデル認定、全効果入口とT3/T4の一般合成は未完 |
 | M3 課題と接続 | 全48課題と採用追加課題のglobal/localside・実Wasm・元採点・接続を認定する | 一部familyの予備記録あり。残るportと比較clientは未完 |
 | M4 本比較 | A1の864件を先に実行し、A2とB–Eを認定後に実行する。全identityにrawと終了理由を残す | 採点0件 |
 | M5 原因と分析 | F/G、8課題の変更負担、cluster対応集計、負例と不確実性を整理する | 未実行 |

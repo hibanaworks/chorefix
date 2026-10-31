@@ -2,25 +2,6 @@ use hibana::runtime::resolver::{DecisionArm, ResolverError};
 use serde_json::Value;
 use std::cell::Cell;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Operation {
-    Migrate,
-    Implement,
-    Test,
-}
-pub trait Request {
-    fn operation(&self) -> Operation;
-}
-pub trait Domain {
-    type Call: Request;
-    fn request(&self, agent: &'static str) -> impl Future<Output = Result<Self::Call, String>>;
-    fn execute(
-        &self,
-        agent: &'static str,
-        call: Self::Call,
-    ) -> impl Future<Output = Result<Value, String>>;
-}
-
 /// Only the unmodified test response is stored. Endpoint owns progress.
 #[derive(Default)]
 pub(crate) struct TestInput(Cell<Option<Value>>);

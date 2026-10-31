@@ -31,7 +31,6 @@ use serde_json::{Value, json};
 use std::{
     fs,
     path::Path,
-    sync::Arc,
     time::{Duration, Instant},
 };
 use tokio::task::JoinSet;
@@ -169,7 +168,7 @@ async fn run(task: &str, depth: u8, output: &Path) -> Result<Value> {
     let budget = config["participant_tool_call_limit"]
         .as_u64()
         .ok_or("tool budget")?;
-    let trace = Arc::new(Trace::create(&output.join("events.jsonl"))?);
+    let trace = Trace::create(&output.join("events.jsonl"))?;
     let started = Instant::now();
     let (simulator, fixture) = process::simulator(task, depth, output, trace.clone()).await?;
     let (guest, guest_loop) = process::guest(

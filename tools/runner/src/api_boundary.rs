@@ -7,7 +7,6 @@ use serde_json::{Value, json};
 use std::{
     fs,
     path::{Path, PathBuf},
-    sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
@@ -105,7 +104,7 @@ async fn real_wasi_outcome_metadata_preserves_all_original_results() -> Result<(
     for depth in 0..=2 {
         let output = directory.join(format!("depth-{depth}"));
         fs::create_dir(&output)?;
-        let trace = Arc::new(Trace::create(&output.join("events.jsonl"))?);
+        let trace = Trace::create(&output.join("events.jsonl"))?;
         let (simulator, fixture) = oracle::Simulator::new("8E", depth, 0.01, trace.clone(), &[])?;
         save(
             &output.join("case.json"),
@@ -146,7 +145,7 @@ async fn real_wasi_outcome_metadata_preserves_all_original_results() -> Result<(
                 assert_eq!(&reply["outcome"], tester);
             }
         }
-        let events = simulator.observed_events()?;
+        let events = simulator.observed_events().await?;
         assert_eq!(events.len(), 3);
         assert_eq!(
             events

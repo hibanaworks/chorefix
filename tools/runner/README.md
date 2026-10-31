@@ -5,6 +5,12 @@ permissions belong to the projected Endpoints, not this process interface.
 The direct-WASI command currently produces unscored qualification records.
 Use the experiment matrix and qualified task artifacts for scored comparisons.
 
+The trace file and original simulator each have one I/O owner. Callers send
+records or simulator requests through channels. A record returns after its
+write and flush complete, including any I/O error. The simulator starts the
+original asynchronous tools concurrently and returns each actual result on its
+request's reply channel.
+
 The completed code-review auditor checks the repository Endpoint, actual WASI
 arguments, simulator requests and results, approval before merging, and guest
 exits. Each review uses distinct intent deliveries, a request, an argument-file

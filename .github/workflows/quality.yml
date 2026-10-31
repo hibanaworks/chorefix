@@ -10,7 +10,7 @@ jobs:
     timeout-minutes: 45
     env:
       CARGO_INCREMENTAL: '0'
-      CARGO_BUILD_JOBS: '2'
+      CARGO_BUILD_JOBS: '1'
       PYTHONHASHSEED: '0'
       PYO3_PYTHON: ${{ github.workspace }}/.venv/bin/python
     steps:
@@ -85,8 +85,8 @@ jobs:
           cargo +stable run --locked --bin philosophers-boundary -- 9H philosophers-boundary-9H
           cargo +stable run --locked --bin philosophers-boundary -- --check-mutants philosophers-boundary-9H/events.jsonl philosophers-boundary-9H-mutants
           CHOREOFIX_WRITING_RUNTIME="$PWD/target/debug/writing-wasi" cargo +stable test --locked --manifest-path tools/runner/Cargo.toml original_simulator_overlaps -- --ignored --nocapture
-          .venv/bin/python -m py_compile tools/original_simulator.py tools/run_direct_wasi_preflight.py tools/audit_direct_wasi.py
-          PYTHONPATH=. .venv/bin/pytest -q tests
+          CHOREOFIX_REVIEW_WASI_BINARY="$PWD/target/debug/review-wasi" \
+            cargo +stable test --locked --manifest-path tools/runner/Cargo.toml review_boundary:: -- --ignored --test-threads=1 --nocapture
           cargo +stable run --locked --manifest-path tools/inputs/Cargo.toml -- verify
           cargo +stable run --locked --manifest-path tools/inputs/Cargo.toml -- matrix --check
       - name: Inspect hibana-wash imports and memory

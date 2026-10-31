@@ -7,7 +7,6 @@ use serde_json::{Value, json};
 use std::{
     fs,
     path::{Path, PathBuf},
-    sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 fn response(reply: &Value) -> Result<Value> {
@@ -144,7 +143,7 @@ async fn all_writing_levels_use_actual_section_endpoints() -> Result<()> {
         ] {
             let output = directory.join(format!("{task}-{name}"));
             fs::create_dir(&output)?;
-            let trace = Arc::new(Trace::create(&output.join("events.jsonl"))?);
+            let trace = Trace::create(&output.join("events.jsonl"))?;
             let failures = if terminal {
                 vec![("review_own_work", 0)]
             } else {

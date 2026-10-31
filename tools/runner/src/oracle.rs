@@ -1,18 +1,12 @@
-//! Calls to the unchanged upstream environment and scorer.
-//! No Endpoint, task permission or application progress is owned here.
+//! One I/O thread owns the original environment and starts its asynchronous calls.
 use crate::evidence::{Result, Trace};
 use pyo3::{
     prelude::*,
     types::{PyCFunction, PyDict, PyModule, PyType},
 };
 use serde_json::{Value, json};
-use std::{
-    fs,
-    path::Path,
-    sync::{Arc, Mutex},
-    time::Instant,
-};
-use tokio::sync::oneshot;
+use std::{fs, path::Path, time::Instant};
+use tokio::sync::mpsc;
 
 pub fn interpreter_identity() -> Result<Value> {
     if std::env::var("PYTHONHASHSEED").as_deref() != Ok("0") {
@@ -89,22 +83,25 @@ fn json_value(value: &Bound<'_, PyAny>) -> Result<Value> {
     Ok(serde_json::from_str(&encoded)?)
 }
 
-pub struct Simulator {
+struct Environment {
     simulator: Py<PyAny>,
     registry: Py<PyAny>,
     event_loop: EventLoop,
-    trace: Arc<Trace>,
+    trace: Trace,
     started: Instant,
 }
+
+#[derive(Clone)]
+pub struct Simulator(mpsc::UnboundedSender<(Value, mpsc::Sender<Result<Value>>)>);
 
 impl Simulator {
     pub fn new(
         task: &str,
         depth: u8,
         delay: f64,
-        trace: Arc<Trace>,
+        trace: Trace,
         failures: &[(&str, u32)],
-    ) -> Result<(Arc<Self>, Value)> {
+    ) -> Result<(Self, Value)> {
         if depth > 2
             || !delay.is_finite()
             || delay < 0.0
@@ -212,81 +209,115 @@ impl Simulator {
             json!(task.starts_with('2') && failures.contains(&("review_own_work", 0)));
         trace.record("simulator", &fixture)?;
         let event_loop = EventLoop::new()?;
-        Ok((
-            Arc::new(Self {
-                simulator,
-                registry,
-                event_loop,
-                trace,
-                started: Instant::now(),
-            }),
-            fixture,
-        ))
+        let environment = Environment {
+            simulator,
+            registry,
+            event_loop,
+            trace,
+            started: Instant::now(),
+        };
+        let (send, mut receive) = mpsc::unbounded_channel::<(Value, mpsc::Sender<Result<Value>>)>();
+        std::thread::Builder::new()
+            .name("original-environment".into())
+            .spawn(move || {
+                while let Some((message, reply)) = receive.blocking_recv() {
+                    environment.serve(message, reply);
+                }
+            })?;
+        Ok((Self(send), fixture))
     }
 
     pub async fn call(&self, message: Value) -> Result<Value> {
-        if message["type"] == "score" {
-            return self.score();
-        }
-        if message["type"] != "execute" {
-            return Err("unknown upstream request".into());
-        }
+        let (send, mut receive) = mpsc::channel(1);
+        self.0
+            .send((message, send))
+            .map_err(|_| "upstream environment closed")?;
+        receive
+            .recv()
+            .await
+            .ok_or("upstream reply direction closed")?
+    }
+
+    #[cfg(test)]
+    pub async fn observed_events(&self) -> Result<Vec<Value>> {
+        let result = self.call(json!({"type":"observed_events"})).await?;
+        Ok(result.as_array().ok_or("upstream event list")?.clone())
+    }
+}
+
+impl Environment {
+    fn serve(&self, message: Value, reply: mpsc::Sender<Result<Value>>) {
+        let result = match message["type"].as_str() {
+            Some("execute") => match self.execute(message, reply.clone()) {
+                Ok(()) => return,
+                Err(error) => Err(error),
+            },
+            Some("score") => self.score(),
+            #[cfg(test)]
+            Some("observed_events") => self.observed_events().map(Value::Array),
+            _ => Err("unknown upstream request".into()),
+        };
+        let _ = reply.try_send(result);
+    }
+
+    fn execute(&self, message: Value, reply: mpsc::Sender<Result<Value>>) -> Result<()> {
         let tool = message["tool"].as_str().ok_or("upstream tool name")?;
         let agent = message["agent"].as_str().ok_or("upstream agent")?;
         let arguments = serde_json::to_string(&message["arguments"])?;
         let started = u64::try_from(self.started.elapsed().as_nanos())?;
         self.trace.record("domain_start", &message)?;
-        let (send, receive) = oneshot::channel::<Result<Value>>();
-        let response = Mutex::new(Some(send));
+        let trace = self.trace.clone();
+        let clock = self.started;
+        let id = message["id"].clone();
+        let tool = tool.to_owned();
+        let agent = agent.to_owned();
         Python::attach(|py| -> Result<()> {
             let arguments = PyModule::import(py, "json")?
                 .call_method1("loads", (arguments,))?
                 .cast_into::<PyDict>()
                 .map_err(PyErr::from)?;
-            arguments.set_item("agent_id", agent)?;
+            arguments.set_item("agent_id", &agent)?;
             let coroutine =
                 self.registry
                     .bind(py)
-                    .call_method("call", (tool,), Some(&arguments))?;
+                    .call_method("call", (&tool,), Some(&arguments))?;
             let future = PyModule::import(py, "asyncio")?.call_method1(
                 "run_coroutine_threadsafe",
                 (coroutine, self.event_loop.object.bind(py)),
             )?;
-            let callback =
-                PyCFunction::new_closure(py, None, None, move |args, _kwargs| -> PyResult<()> {
+            let callback = PyCFunction::new_closure(
+                py,
+                None,
+                None,
+                move |args, _kwargs| -> PyResult<()> {
                     let result = (|| -> Result<Value> {
                         let result = args
                             .get_item(0)?
                             .call_method0("result")?
                             .call_method0("to_dict")?;
-                        json_value(&result)
+                        let result = json_value(&result)?;
+                        trace.record(
+                            "domain_end",
+                            &json!({"id":id,"agent":agent,"tool":tool,"result":result}),
+                        )?;
+                        let response = json!({"type":"simulator_result", "id":id,"result":result,
+                            "started_ns":started,"finished_ns":u64::try_from(clock.elapsed().as_nanos())?,
+                            "clock":"runner monotonic elapsed"});
+                        trace.record("simulator", &response)?;
+                        Ok(response)
                     })();
-                    if let Some(send) = response
-                        .lock()
-                        .map_err(|_| {
-                            pyo3::exceptions::PyRuntimeError::new_err(
-                                "upstream reply mutex poisoned",
-                            )
-                        })?
-                        .take()
-                    {
-                        let _ = send.send(result);
+                    match reply.try_send(result) {
+                        Ok(()) | Err(mpsc::error::TrySendError::Closed(_)) => Ok(()),
+                        Err(mpsc::error::TrySendError::Full(_)) => Err(
+                            pyo3::exceptions::PyRuntimeError::new_err("duplicate upstream reply"),
+                        ),
                     }
-                    Ok(())
-                })?;
+                },
+            )?;
             future.call_method1("add_done_callback", (callback,))?;
             Ok(())
         })?;
-        let result = receive.await??;
-        self.trace.record(
-            "domain_end",
-            &json!({"id":message["id"],"agent":agent,"tool":tool,"result":result}),
-        )?;
-        let reply = json!({"type":"simulator_result", "id":message["id"], "result":result,
-            "started_ns":started, "finished_ns":u64::try_from(self.started.elapsed().as_nanos())?,
-            "clock":"runner monotonic elapsed"});
-        self.trace.record("simulator", &reply)?;
-        Ok(reply)
+        Ok(())
     }
 
     fn score(&self) -> Result<Value> {

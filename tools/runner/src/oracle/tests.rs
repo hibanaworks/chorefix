@@ -29,7 +29,7 @@ async fn codebase_simulator_allows_independent_work_and_reports_shared_module_ov
     ] {
         let case = directory.join(name);
         fs::create_dir(&case)?;
-        let trace = Arc::new(Trace::create(&case.join("events.jsonl"))?);
+        let trace = Trace::create(&case.join("events.jsonl"))?;
         let (simulator, fixture) = Simulator::new("1H", 0, 1.0, trace, &[])?;
         let mut jobs = tokio::task::JoinSet::new();
         for (id, (agent, tool)) in calls.into_iter().enumerate() {
@@ -55,7 +55,7 @@ async fn codebase_simulator_allows_independent_work_and_reports_shared_module_ov
             .min()
             .unwrap();
         assert!(latest_start < earliest_end, "{name} calls did not overlap");
-        let score = simulator.score()?;
+        let score = simulator.call(json!({"type":"score"})).await?;
         let violations = score["violations"]
             .as_array()
             .ok_or("original violations")?;
@@ -95,25 +95,25 @@ async fn original_tool_exception_reaches_rust_without_effects_or_a_hung_reply() 
             .as_nanos()
     ));
     fs::create_dir(&directory)?;
-    let trace = Arc::new(Trace::create(&directory.join("events.jsonl"))?);
+    let trace = Trace::create(&directory.join("events.jsonl"))?;
     let (simulator, _) = Simulator::new("6E", 0, 0.0, trace, &[])?;
     let result = tokio::time::timeout(std::time::Duration::from_secs(5), simulator.call(json!({
         "type":"execute","id":1,"agent":"DEVELOPER_A","tool":"not_an_original_tool","arguments":{}
     }))).await?;
     assert!(result.is_err());
-    assert!(simulator.observed_events()?.is_empty());
+    assert!(simulator.observed_events().await?.is_empty());
     save(
         &directory.join("result.json"),
         &json!({"kind":"upstream_api_error_test","model_calls":0,"scored_benchmark":false,
-        "error":result.unwrap_err().to_string(),"events":simulator.observed_events()?}),
+        "error":result.unwrap_err().to_string(),"events":simulator.observed_events().await?}),
     )?;
     println!("{}", directory.display());
     Ok(())
 }
 
-#[test]
+#[tokio::test(flavor = "current_thread")]
 #[ignore = "initializes the unchanged upstream environments at all 144 task-depth combinations"]
-fn all_original_environment_classes_load_from_verified_sources() -> Result<()> {
+async fn all_original_environment_classes_load_from_verified_sources() -> Result<()> {
     std::env::set_current_dir(
         Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../..")
@@ -127,7 +127,7 @@ fn all_original_environment_classes_load_from_verified_sources() -> Result<()> {
             .as_nanos()
     ));
     fs::create_dir(&directory)?;
-    let trace = Arc::new(Trace::create(&directory.join("events.jsonl"))?);
+    let trace = Trace::create(&directory.join("events.jsonl"))?;
     let mut results = Vec::new();
     for task in manifest["tasks"].as_array().ok_or("48 task records")? {
         let id = task["id"].as_str().ok_or("task id")?;
@@ -150,7 +150,7 @@ fn all_original_environment_classes_load_from_verified_sources() -> Result<()> {
                     .ok_or("original agents")?
                     .clone()
             );
-            let score = simulator.score()?;
+            let score = simulator.call(json!({"type":"score"})).await?;
             assert_eq!(score["events"], json!([]));
             assert_eq!(score["violations"], json!([]));
             results.push(json!({"task":id,"depth":depth,"fixture":fixture,"initial_score":score}));

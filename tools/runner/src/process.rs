@@ -1,12 +1,11 @@
-//! Stdio correlation for the real guest process and original simulator.
-//! These queues carry model commands or already-admitted external effects.
-//! No task phase, ordering, resource owner or permission lives here.
+//! Correlate shell commands and already-admitted effects over child stdio.
 use crate::{
     evidence::{Result, Trace},
+    oracle::Simulator,
     wire,
 };
 use serde_json::{Value, json};
-use std::{collections::BTreeMap, fs::File, path::Path, process::Stdio, sync::Arc};
+use std::{collections::BTreeMap, fs::File, path::Path, process::Stdio};
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
     process::{Child, Command},
@@ -15,13 +14,12 @@ use tokio::{
 };
 
 type Request = (Value, oneshot::Sender<Value>);
-pub type Simulator = Arc<crate::oracle::Simulator>;
 
 pub async fn simulator(
     task: &str,
     depth: u8,
     output: &Path,
-    trace: Arc<Trace>,
+    trace: Trace,
 ) -> Result<(Simulator, Value)> {
     let config: Value = serde_json::from_slice(&std::fs::read("experiment.json")?)?;
     if config["python_hash_seed"] != 0 {
@@ -54,7 +52,7 @@ pub fn guest(
     module: &Path,
     task: &str,
     output: &Path,
-    trace: Arc<Trace>,
+    trace: Trace,
     simulator: Simulator,
 ) -> Result<(Guest, impl Future<Output = Result<Value>> + use<>)> {
     let mut child = Command::new(runtime)
@@ -79,7 +77,7 @@ async fn runtime_loop(
     mut input: tokio::process::ChildStdin,
     mut lines: tokio::io::Lines<BufReader<tokio::process::ChildStdout>>,
     mut commands: mpsc::UnboundedReceiver<Request>,
-    trace: Arc<Trace>,
+    trace: Trace,
     simulator: Simulator,
 ) -> Result<Value> {
     let mut backend = JoinSet::new();
@@ -168,7 +166,7 @@ mod tests {
         ));
         std::fs::create_dir_all(output.parent().ok_or("probe output parent")?)?;
         std::fs::create_dir(&output)?;
-        let trace = Arc::new(Trace::create(&output.join("events.jsonl"))?);
+        let trace = Trace::create(&output.join("events.jsonl"))?;
         let (simulator, fixture) = simulator("2M", 2, &output, trace.clone()).await?;
         let runtime = std::env::var_os("CHOREOFIX_WRITING_RUNTIME")
             .map(std::path::PathBuf::from)

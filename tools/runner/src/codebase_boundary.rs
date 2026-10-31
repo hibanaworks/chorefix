@@ -8,7 +8,6 @@ use serde_json::{Value, json};
 use std::{
     fs,
     path::Path,
-    sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tokio::task::JoinSet;
@@ -32,7 +31,7 @@ fn count(events: &[Value], agent: &str, tool: &str) -> usize {
 
 async fn developer(
     guest: process::Guest,
-    simulator: Arc<oracle::Simulator>,
+    simulator: oracle::Simulator,
     actor: Value,
     task: String,
 ) -> Result<Vec<Value>> {
@@ -50,7 +49,7 @@ async fn developer(
             .contains('6')
     );
     assert_eq!(
-        count(&simulator.observed_events()?, agent, "design_feature"),
+        count(&simulator.observed_events().await?, agent, "design_feature"),
         0
     );
     let early = guest
@@ -66,7 +65,7 @@ async fn developer(
             .contains("wash:")
     );
     assert_eq!(
-        count(&simulator.observed_events()?, agent, "commit_changes"),
+        count(&simulator.observed_events().await?, agent, "commit_changes"),
         0
     );
 
@@ -82,7 +81,7 @@ async fn developer(
                 "{\"feature_name\":\"another_participants_feature\"}".into()
             },
         ] {
-            let before = count(&simulator.observed_events()?, agent, tool);
+            let before = count(&simulator.observed_events().await?, agent, tool);
             let invalid = guest
                 .command(
                     agent,
@@ -90,7 +89,10 @@ async fn developer(
                 )
                 .await?;
             assert_eq!(response(&invalid)?["status"], "invalid_arguments");
-            assert_eq!(count(&simulator.observed_events()?, agent, tool), before);
+            assert_eq!(
+                count(&simulator.observed_events().await?, agent, tool),
+                before
+            );
         }
         // This exceeds one guest write chunk and exercises ABI normalization.
         let padding = " ".repeat(512);
@@ -108,7 +110,7 @@ async fn developer(
             assert_eq!(result["success"], true, "{agent}/{tool}: {result}");
         }
         feedback.push(result);
-        let before = count(&simulator.observed_events()?, agent, tool);
+        let before = count(&simulator.observed_events().await?, agent, tool);
         assert_eq!(before, 1, "{agent}/{tool} effect count");
         let duplicate = guest
             .command(
@@ -122,7 +124,10 @@ async fn developer(
                 .ok_or("duplicate stdout")?
                 .contains("wash:")
         );
-        assert_eq!(count(&simulator.observed_events()?, agent, tool), before);
+        assert_eq!(
+            count(&simulator.observed_events().await?, agent, tool),
+            before
+        );
     }
     if task == "1H" {
         while feedback.last().ok_or("test result")?["success"] == false {
@@ -131,7 +136,7 @@ async fn developer(
             assert_eq!(response(&private)?["status"], "invalid_arguments");
             for call in &calls[1..] {
                 let tool = call["tool"].as_str().ok_or("revision operation")?;
-                let before = count(&simulator.observed_events()?, agent, tool);
+                let before = count(&simulator.observed_events().await?, agent, tool);
                 let reply = guest
                     .command(
                         agent,
@@ -146,7 +151,7 @@ async fn developer(
                     assert_eq!(result["success"], true);
                 }
                 assert_eq!(
-                    count(&simulator.observed_events()?, agent, tool),
+                    count(&simulator.observed_events().await?, agent, tool),
                     before + 1
                 );
                 feedback.push(result);
@@ -206,7 +211,7 @@ async fn case(
         "root_lock_sha256":digest(Path::new("Cargo.lock"))?,"runner_lock_sha256":digest(Path::new("tools/runner/Cargo.lock"))?,
         "simulator_source_sha256":digest(&Path::new("vendor/tracefix/benchmark/environments").join(task).join("sim.py"))?}),
     )?;
-    let trace = Arc::new(Trace::create(&case.join("events.jsonl"))?);
+    let trace = Trace::create(&case.join("events.jsonl"))?;
     let (simulator, fixture) = oracle::Simulator::new(task, depth, delay, trace.clone(), failures)?;
     save(&case.join("simulator-fixture.json"), &fixture)?;
     let actors = fixture["fixtures"].as_array().ok_or("original actors")?;

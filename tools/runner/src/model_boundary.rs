@@ -8,7 +8,6 @@ use std::{
     fs,
     path::{Path, PathBuf},
     process::Stdio,
-    sync::Arc,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 use tokio::{process::Command, task::JoinSet};
@@ -153,7 +152,7 @@ async fn subscription_case(task: &str, depth: u8) -> Result<()> {
     let limit = config["participant_tool_call_limit"]
         .as_u64()
         .ok_or("tool limit")?;
-    let trace = Arc::new(Trace::create(&directory.join("events.jsonl"))?);
+    let trace = Trace::create(&directory.join("events.jsonl"))?;
     let (simulator, fixture) = oracle::Simulator::new(task, depth, 1.0, trace.clone(), &[])?;
     let audit_source = match task {
         "16E" => "tools/runner/src/cicd_audit.rs",

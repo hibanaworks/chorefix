@@ -74,6 +74,8 @@ the live source and verification evidence before reporting completion.
 Build task globals from actual business requests, resource Endpoint transfers,
 results and returns. Write their localsides from that global. Do not retain a
 token-era workflow and replace individual grants with Endpoint payloads.
+Remove replaced native coordinators and their admission tables; test the evaluated
+delegated protocol rather than keeping a second implementation for qualification.
 Private file operations remain in the WASI syscall choreography; completing a
 file operation or one rolled visit does not establish business completion.
 Place approval-dependent effects and successful termination inside the
