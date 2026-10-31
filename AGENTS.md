@@ -84,6 +84,16 @@ a helper, wrapper, driver, callback, filesystem, or transport layer.
 Do not recreate them as a stage enum, program counter, allowed-operation table,
 approved/done boolean, owner record, or disguised equivalent.
 
+Rewrite localsides for hibana-runtime's ownership and scoped execution model.
+Replacing Tokio macro, task or channel names while retaining their structure is
+forbidden. Declare participants directly, pass their borrowed or owned values,
+and write each participant through its termination in its localside. Remove
+startup join trees, task/result collection tables, duplicate completion checks,
+Tokio-shaped wrappers and application schedulers. The I/O participant owns its
+data and final I/O; hibana-runtime owns polling, cancellation and waiting for
+children. Improve hibana-runtime when natural direct code cannot express a
+required operation; never compensate with application adapters, helpers or flags.
+
 Low-level codecs, buffers, and object materialization belong in `imp/`; they do
 not acquire choreography authority by being placed there. Review this rule in
 the live source and verification evidence before reporting completion.
@@ -207,7 +217,7 @@ receive the actual request through each required resource Endpoint before it
 performs the effect. Use the real result as the reply before returning the
 Endpoints. Put those messages and their dependencies in the same task global,
 and write their send/recv operations directly in the localsides. Acquire and
-return independent Endpoints with par and Tokio. Do not replace the old resource
+return independent Endpoints with par and hibana-runtime. Do not replace the old resource
 broker with another permission token plus a separate effect path.
 
 Delegation projection must place an owned endpoint's operations and its
