@@ -448,6 +448,10 @@ CLIの失敗終了へ反映する。runtimeのerror・異常終了・backend失�
 2回帰試験が成功した。旧集約だけへ戻すと両試験が失敗し、復元後はrunner全28試験・
 Clippy・buildが成功した。最大memoryは705,511,424bytes、モデル呼出し0件だった。
 記録は`output/review-occurrence-qualification/participant-result-qualification`に保持する。
+全員の完了報告が揃った後のgroup errorも失わず、通常runnerへ返すよう修正した。
+未完了RPCを残して全員の完了通知を返すbyte-stream試験で、この経路の拒否を確認した。
+この修正だけを戻すと回帰試験が失敗し、復元後の全29試験・Clippy・buildが成功した。
+この追加検査の最大memoryは701,235,200bytes、モデル呼出し0件である。
 
 ## 本体・統合の保証
 

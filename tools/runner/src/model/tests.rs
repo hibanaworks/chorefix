@@ -66,7 +66,9 @@ async fn exchange(mode: &str) -> Result<(Vec<Conversation>, Vec<Value>)> {
                 serde_json::from_str(&incoming.next_line().await?.ok_or("turn missing")?)?;
             assert_eq!(turn["params"]["threadId"], format!("t{index}"));
             assert_eq!(turn["params"]["effort"], EFFORT);
-            wire::send(&mut server_write,&json!({"id":turn["id"],"result":{"turn":{"id":format!("turn-{index}"),"status":"inProgress"}}})).await?;
+            if mode != "missing_start_reply" {
+                wire::send(&mut server_write,&json!({"id":turn["id"],"result":{"turn":{"id":format!("turn-{index}"),"status":"inProgress"}}})).await?;
+            }
         }
         if mode == "native" {
             wire::send(&mut server_write,&json!({"method":"item/started","params":{"threadId":"t0","item":{"type":"commandExecution"}}})).await?;
@@ -138,9 +140,9 @@ async fn exchange(mode: &str) -> Result<(Vec<Conversation>, Vec<Value>)> {
     })
     .await?;
     server?;
-    let completed = finish_reports(&people, completed, result)?;
+    let completed = finish_reports(&people, completed, result);
     fs::remove_dir_all(root)?;
-    Ok((people, completed))
+    Ok((people, completed?))
 }
 
 fn shell_result(mode: &str, agent: &str, command: &str) -> Value {
@@ -256,6 +258,15 @@ async fn completed_model_and_terminal_domain_failure_remain_a_normal_trial() -> 
     ];
     assert_eq!(crate::trial_error(&outcomes), None);
     Ok(())
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn group_error_is_preserved_after_every_participant_reports_completion() {
+    let error = exchange("missing_start_reply")
+        .await
+        .err()
+        .expect("unfinished start RPC must fail the group");
+    assert!(error.to_string().contains("unfinished model RPC requests"));
 }
 
 #[test]

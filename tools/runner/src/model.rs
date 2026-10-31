@@ -163,6 +163,13 @@ fn finish_reports(
         Err(_) => Some(("timeout", "participant group timeout".to_owned())),
     };
     if let Some((status, error)) = error {
+        if conversations.iter().all(|conversation| {
+            completed
+                .iter()
+                .any(|result| result["participant"] == conversation.participant.agent)
+        }) {
+            return Err(format!("model participant group {status}: {error}").into());
+        }
         for conversation in conversations {
             if !completed
                 .iter()
