@@ -4,60 +4,68 @@ use crate::{
     shell::{ShellError, ShellResult},
 };
 use hibana::runtime::{ids::SessionId, transport::EndpointBinding};
+use hibana_runtime::host::Io;
 use serde_json::{Value, json};
-use std::collections::BTreeMap;
-use tokio::{
-    io::{AsyncBufReadExt, AsyncWriteExt, BufReader, Stdin, Stdout},
-    sync::{mpsc, oneshot},
+use std::{
+    cell::Cell,
+    collections::{BTreeMap, VecDeque},
+    future::poll_fn,
+    io::{Stdin, Stdout},
+    os::fd::AsFd,
+    task::{Poll, Waker},
 };
 
 pub struct Bus {
     pub(crate) transport: crate::imp::transport::InMemoryTransport,
-    outgoing: mpsc::UnboundedSender<Outbound>,
+    connection: Cell<Connection>,
 }
 
-/// Messages to the single owner of the external JSON connection.
-enum Outbound {
-    Events {
-        values: Vec<Value>,
-        flushed: oneshot::Sender<()>,
-    },
-    Execute {
-        observations: Vec<Value>,
-        agent: &'static str,
-        tool: &'static str,
-        arguments: Value,
-        reply: oneshot::Sender<Value>,
-    },
+type Commands = (VecDeque<(u64, String)>, Option<Waker>);
+type Response = (Option<Value>, Option<Waker>);
+
+/// Bytes and correlations of the external connection, not task permissions.
+#[derive(Default)]
+struct Connection {
+    sequence: u64,
+    outgoing: VecDeque<(Vec<Value>, Option<u64>)>,
+    output_waiter: Option<Waker>,
+    responses: BTreeMap<u64, Response>,
+    terminals: BTreeMap<&'static str, Option<Commands>>,
+}
+
+/// Own one outstanding RPC or output-flush receipt, including its cancellation.
+struct Reply<'a> {
+    bus: &'a Bus,
+    id: u64,
 }
 
 pub struct ExternalIo {
-    input: tokio::io::Lines<BufReader<Stdin>>,
+    input: Stdin,
     output: Stdout,
-    outgoing: mpsc::UnboundedReceiver<Outbound>,
-    sequence: u64,
-    replies: BTreeMap<u64, oneshot::Sender<Value>>,
-    terminals: BTreeMap<&'static str, mpsc::UnboundedSender<(u64, String)>>,
 }
+
 pub struct Terminal {
     pub agent: &'static str,
-    commands: mpsc::UnboundedReceiver<(u64, String)>,
     // The current command RPC identifier, not a task phase or permission.
     identifier: Option<u64>,
 }
+
 impl Bus {
     /// Open the sole connection to a fresh external simulator trial.
     pub fn open<const N: usize, const R: usize>(
         agents: [&'static str; N],
         resources: [(SessionId, u8); R],
     ) -> (Self, ExternalIo, [Terminal; N]) {
-        let mut senders = BTreeMap::new();
+        let mut connection = Connection::default();
         let terminals = agents.map(|agent| {
-            let (sender, commands) = mpsc::unbounded_channel();
-            senders.insert(agent, sender);
+            assert!(
+                connection
+                    .terminals
+                    .insert(agent, Some(Default::default()))
+                    .is_none()
+            );
             Terminal {
                 agent,
-                commands,
                 identifier: None,
             }
         });
@@ -69,100 +77,206 @@ impl Bus {
             let binding = unsafe { EndpointBinding::new() };
             (session, role, binding)
         });
-        let (outgoing, requests) = mpsc::unbounded_channel();
         (
             Self {
                 transport: crate::imp::transport::InMemoryTransport::new(bindings),
-                outgoing,
+                connection: Cell::new(connection),
             },
             ExternalIo {
-                input: BufReader::new(tokio::io::stdin()).lines(),
-                output: tokio::io::stdout(),
-                outgoing: requests,
-                sequence: 0,
-                replies: BTreeMap::new(),
-                terminals: senders,
+                input: std::io::stdin(),
+                output: std::io::stdout(),
             },
             terminals,
         )
     }
+
+    fn connection<T>(&self, apply: impl FnOnce(&mut Connection) -> T) -> T {
+        let mut connection = self.connection.take();
+        let result = apply(&mut connection);
+        self.connection.set(connection);
+        result
+    }
+
+    fn reply(&self) -> ShellResult<Reply<'_>> {
+        let id = self
+            .connection(|connection| {
+                let id = connection.sequence.checked_add(1)?;
+                connection.sequence = id;
+                assert!(connection.responses.insert(id, (None, None)).is_none());
+                Some(id)
+            })
+            .ok_or_else(|| ShellError::message("RPC id overflow"))?;
+        Ok(Reply { bus: self, id })
+    }
+
+    fn enqueue(&self, values: Vec<Value>, flushed: Option<u64>) {
+        let wake = self.connection(|connection| {
+            connection.outgoing.push_back((values, flushed));
+            connection.output_waiter.take()
+        });
+        if let Some(wake) = wake {
+            wake.wake();
+        }
+    }
+
+    fn respond(&self, id: u64, value: Value) -> ShellResult<()> {
+        let wake = self.connection(|connection| {
+            let (result, wake) = connection
+                .responses
+                .get_mut(&id)
+                .ok_or_else(|| ShellError::message("unexpected or cancelled RPC result"))?;
+            if result.is_some() {
+                return Err(ShellError::message("duplicate RPC result"));
+            }
+            *result = Some(value);
+            Ok(wake.take())
+        })?;
+        if let Some(wake) = wake {
+            wake.wake();
+        }
+        Ok(())
+    }
+
     pub async fn emit(&self, value: Value) -> ShellResult<()> {
         let mut values = self.transport.take_observations();
         values.push(value);
-        let (flushed, completion) = oneshot::channel();
-        self.outgoing
-            .send(Outbound::Events { values, flushed })
-            .map_err(|_| ShellError::message("external output closed"))?;
-        completion
-            .await
-            .map_err(|_| ShellError::message("external output was not flushed"))
+        let reply = self.reply()?;
+        self.enqueue(values, Some(reply.id));
+        reply.receive().await?;
+        Ok(())
     }
 }
+
+impl Reply<'_> {
+    async fn receive(self) -> ShellResult<Value> {
+        poll_fn(|cx| {
+            self.bus.connection(|connection| {
+                let (result, wake) = connection
+                    .responses
+                    .get_mut(&self.id)
+                    .expect("an owned RPC receipt remains registered");
+                if let Some(value) = result.take() {
+                    Poll::Ready(Ok(value))
+                } else {
+                    *wake = Some(cx.waker().clone());
+                    Poll::Pending
+                }
+            })
+        })
+        .await
+    }
+}
+
+impl Drop for Reply<'_> {
+    fn drop(&mut self) {
+        self.bus.connection(|connection| {
+            connection.responses.remove(&self.id);
+        });
+    }
+}
+
 impl ExternalIo {
     pub async fn emit(&mut self, bus: &Bus, value: Value) -> ShellResult<()> {
+        let mut output = Io::new(self.output.as_fd().try_clone_to_owned()?)?;
         let mut values = bus.transport.take_observations();
         values.push(value);
-        self.write(values).await
-    }
-
-    async fn write(&mut self, values: impl IntoIterator<Item = Value>) -> ShellResult<()> {
         for value in values {
             let mut bytes = serde_json::to_vec(&value)
                 .map_err(|error| ShellError::message(error.to_string()))?;
             bytes.push(b'\n');
-            self.output.write_all(&bytes).await?;
+            output.write_all(&bytes).await?;
         }
-        self.output.flush().await?;
         Ok(())
     }
 
+    #[hibana_runtime::localside]
     pub async fn run(&mut self, bus: &Bus) -> ShellResult<()> {
-        loop {
-            tokio::select! {
-                line = self.input.next_line() => {
-                    let line = line?.ok_or_else(|| ShellError::message("terminal transport closed before guest completion"))?;
-                    let value: Value = serde_json::from_str(&line)
+        let mut input = Io::new(self.input.as_fd().try_clone_to_owned()?)?;
+        let mut output = Io::new(self.output.as_fd().try_clone_to_owned()?)?;
+        async {
+            let mut buffered = Vec::new();
+            let mut bytes = [0; 4096];
+            loop {
+                let count = input.read(&mut bytes).await?;
+                if count == 0 {
+                    return Err(ShellError::message(
+                        "terminal transport closed before guest completion",
+                    ));
+                }
+                buffered.extend_from_slice(&bytes[..count]);
+                while let Some(end) = buffered.iter().position(|byte| *byte == b'\n') {
+                    let value: Value = serde_json::from_slice(&buffered[..end])
                         .map_err(|error| ShellError::message(error.to_string()))?;
-                    let id = value["id"].as_u64().ok_or_else(|| ShellError::message("RPC id missing"))?;
+                    buffered.drain(..=end);
+                    let id = value["id"]
+                        .as_u64()
+                        .ok_or_else(|| ShellError::message("RPC id missing"))?;
                     match value["type"].as_str() {
                         Some("command") => {
-                            let agent = value["agent"].as_str().ok_or_else(|| ShellError::message("RPC agent missing"))?;
-                            let command = value["command"].as_str().ok_or_else(|| ShellError::message("RPC command missing"))?;
-                            let terminal = self.terminals.get(agent).ok_or_else(|| ShellError::message("unknown terminal"))?;
-                            if terminal.send((id, command.to_owned())).is_err() {
-                                self.emit(bus, json!({"type":"terminal_closed", "id":id, "agent":agent})).await?;
+                            let agent = value["agent"]
+                                .as_str()
+                                .ok_or_else(|| ShellError::message("RPC agent missing"))?;
+                            let command = value["command"]
+                                .as_str()
+                                .ok_or_else(|| ShellError::message("RPC command missing"))?;
+                            let delivery = bus.connection(|connection| {
+                                let terminal = connection
+                                    .terminals
+                                    .get_mut(agent)
+                                    .ok_or_else(|| ShellError::message("unknown terminal"))?;
+                                Ok::<_, ShellError>(terminal.as_mut().map(|(commands, wake)| {
+                                    commands.push_back((id, command.to_owned()));
+                                    wake.take()
+                                }))
+                            })?;
+                            match delivery {
+                                Some(Some(wake)) => wake.wake(),
+                                Some(None) => {}
+                                None => {
+                                    bus.emit(
+                                        json!({"type":"terminal_closed", "id":id, "agent":agent}),
+                                    )
+                                    .await?
+                                }
                             }
                         }
-                        Some("simulator_result") => {
-                            self.replies.remove(&id)
-                                .ok_or_else(|| ShellError::message("unexpected simulator result"))?
-                                .send(value["result"].clone())
-                                .map_err(|_| ShellError::message("simulator result receiver closed"))?;
-                        }
+                        Some("simulator_result") => bus.respond(id, value["result"].clone())?,
                         _ => return Err(ShellError::message("unknown direct WASI RPC message")),
                     }
                 }
-                request = self.outgoing.recv() => {
-                    match request.ok_or_else(|| ShellError::message("external output closed"))? {
-                        Outbound::Events { values, flushed } => {
-                            self.write(values).await?;
-                            flushed.send(()).map_err(|_| ShellError::message("external output receiver closed"))?;
+            }
+        };
+        async {
+            loop {
+                let (values, flushed) = poll_fn(|cx| {
+                    bus.connection(|connection| {
+                        if let Some(values) = connection.outgoing.pop_front() {
+                            Poll::Ready(values)
+                        } else {
+                            connection.output_waiter = Some(cx.waker().clone());
+                            Poll::Pending
                         }
-                        Outbound::Execute { mut observations, agent, tool, arguments, reply } => {
-                            self.sequence = self.sequence.checked_add(1).ok_or_else(|| ShellError::message("RPC id overflow"))?;
-                            let id = self.sequence;
-                            if self.replies.insert(id, reply).is_some() {
-                                return Err(ShellError::message("duplicate simulator RPC id"));
-                            }
-                            observations.push(json!({"type":"execute", "id":id, "agent":agent, "tool":tool, "arguments":arguments}));
-                            self.write(observations).await?;
-                        }
-                    }
+                    })
+                })
+                .await;
+                for value in values {
+                    let mut bytes = serde_json::to_vec(&value)
+                        .map_err(|error| ShellError::message(error.to_string()))?;
+                    bytes.push(b'\n');
+                    output.write_all(&bytes).await?;
+                }
+                if let Some(id) = flushed {
+                    bus.respond(id, Value::Null)?;
                 }
             }
-        }
+        };
+        Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests;
+
 impl Terminal {
     pub async fn read_command(&mut self, bus: &Bus, output: Vec<u8>) -> ShellResult<String> {
         let stdout =
@@ -171,21 +285,40 @@ impl Terminal {
             json!({"type":"terminal", "agent":self.agent, "id":self.identifier, "stdout":stdout}),
         )
         .await?;
-        let (id, command) = self
-            .commands
-            .recv()
-            .await
-            .ok_or_else(|| ShellError::message("terminal input closed"))?;
+        let (id, command) = poll_fn(|cx| {
+            bus.connection(|connection| {
+                let (commands, wake) = connection
+                    .terminals
+                    .get_mut(self.agent)
+                    .and_then(Option::as_mut)
+                    .expect("an active terminal remains registered");
+                if let Some(command) = commands.pop_front() {
+                    Poll::Ready(command)
+                } else {
+                    *wake = Some(cx.waker().clone());
+                    Poll::Pending
+                }
+            })
+        })
+        .await;
         self.identifier = Some(id);
         Ok(command)
     }
+
     pub async fn finish(self, bus: &Bus, status: i32, output: Vec<u8>) -> ShellResult<()> {
         let stdout =
             String::from_utf8(output).map_err(|error| ShellError::message(error.to_string()))?;
-        drop(self.commands);
+        bus.connection(|connection| {
+            connection
+                .terminals
+                .get_mut(self.agent)
+                .expect("a terminal remains registered")
+                .take();
+        });
         bus.emit(json!({"type":"exit", "agent":self.agent, "id":self.identifier, "status":status, "stdout":stdout})).await
     }
 }
+
 impl Domain for Bus {
     async fn execute(
         &self,
@@ -193,18 +326,10 @@ impl Domain for Bus {
         tool: &'static str,
         arguments: Value,
     ) -> Result<Value, String> {
-        let (reply, completion) = oneshot::channel();
-        self.outgoing
-            .send(Outbound::Execute {
-                observations: self.transport.take_observations(),
-                agent,
-                tool,
-                arguments,
-                reply,
-            })
-            .map_err(|_| "external simulator connection closed".to_owned())?;
-        completion
-            .await
-            .map_err(|_| "simulator direction closed".to_owned())
+        let reply = self.reply().map_err(|error| error.to_string())?;
+        let mut values = self.transport.take_observations();
+        values.push(json!({"type":"execute", "id":reply.id, "agent":agent, "tool":tool, "arguments":arguments}));
+        self.enqueue(values, None);
+        reply.receive().await.map_err(|error| error.to_string())
     }
 }

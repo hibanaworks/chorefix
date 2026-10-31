@@ -7,11 +7,13 @@ publish = false
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-hibana-runtime = { git = "https://github.com/hibanaworks/hibana-runtime", rev = "55dca34e36fb48e9384881e50c9092822df1511c" }
+hibana-runtime = { git = "https://github.com/hibanaworks/hibana-runtime", rev = "01a861b918236c4ec8d7f933b2be430c4818efbe", features = ["host"] }
 hibana = { git = "https://github.com/hibanaworks/hibana", rev = "e139912e07fe4cd5ba599dd3749d6e03ce9d1ee1", version = "=0.10.0" }
 hibana-wasip1-runtime = { git = "https://github.com/hibanaworks/hibana-wasip1-runtime", rev = "6b62998b614e2b68feecd2d94042adbcc614693d" }
 serde_json = "1.0.154"
-tokio = { version = "1.53.3", features = ["rt", "macros", "io-std", "io-util", "sync", "time"] }
+
+[dev-dependencies]
+tokio = { version = "1.53.3", features = ["rt", "macros", "sync", "time"] }
 
 [lints.rust]
 unsafe_code = "deny"

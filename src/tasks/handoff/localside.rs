@@ -85,12 +85,22 @@ pub async fn recover(
     }
     let mut second = endpoint.recv::<LoanS>().await?;
     let payload = checked.bytes();
-    tokio::try_join!(
-        resource.send::<CommitR>(&payload),
-        second.send::<CommitS>(&payload)
-    )?;
-    let (first, second_result) =
-        tokio::try_join!(resource.recv::<CommittedR>(), second.recv::<CommittedS>())?;
+    async {
+        #[localside]
+        resource.send::<CommitR>(&payload);
+        #[localside]
+        second.send::<CommitS>(&payload);
+        Ok(())
+    }
+    .await?;
+    let (first, second_result) = async {
+        #[localside]
+        let first = resource.recv::<CommittedR>();
+        #[localside]
+        let second_result = second.recv::<CommittedS>();
+        Ok((first, second_result))
+    }
+    .await?;
     if first != second_result {
         return Err(ShellError::message("resource results differ"));
     }
@@ -107,70 +117,75 @@ pub async fn service(
     repository: &mut Repository,
     result: &VerificationInput,
 ) -> ShellResult<()> {
-    let (checked, independent) = {
+    let (checked, independent) = async {
         let [mut candidate, mut independent] = endpoint.par()?;
-        tokio::try_join!(
-            async {
-                let proposal = Artifact::decode(candidate.recv::<Prepare>().await?);
-                let artifact = repository.prepare(proposal)?;
-                candidate.send::<Prepared>(&artifact.bytes()).await?;
-                let requested = Artifact::decode(candidate.recv::<Inspect>().await?);
-                let checked = repository.verify(requested)?;
-                result.record(checked);
-                candidate.send::<Inspected>(&checked.bytes()).await?;
-                loop {
-                    let branch = candidate.offer().await?;
-                    match branch.label() {
-                        5 => {
-                            let proposal = Artifact::decode(branch.recv::<Revise>().await?);
-                            let artifact = repository.prepare(proposal)?;
-                            candidate.send::<Revised>(&artifact.bytes()).await?;
-                            let requested = Artifact::decode(candidate.recv::<Reinspect>().await?);
-                            let checked = repository.verify(requested)?;
-                            result.record(checked);
-                            let branch = candidate.offer().await?;
-                            match branch.label() {
-                                8 => {
-                                    branch.send::<Passed>(&checked.bytes()).await?;
-                                }
-                                9 => {
-                                    branch.send::<Failed>(&checked.bytes()).await?;
-                                }
-                                _ => {
-                                    return Err(ShellError::message(
-                                        "unexpected verifier decision",
-                                    ));
-                                }
+        #[localside]
+        let checked = async {
+            let proposal = Artifact::decode(candidate.recv::<Prepare>().await?);
+            let artifact = repository.prepare(proposal)?;
+            candidate.send::<Prepared>(&artifact.bytes()).await?;
+            let requested = Artifact::decode(candidate.recv::<Inspect>().await?);
+            let checked = repository.verify(requested)?;
+            result.record(checked);
+            candidate.send::<Inspected>(&checked.bytes()).await?;
+            loop {
+                let branch = candidate.offer().await?;
+                match branch.label() {
+                    5 => {
+                        let proposal = Artifact::decode(branch.recv::<Revise>().await?);
+                        let artifact = repository.prepare(proposal)?;
+                        candidate.send::<Revised>(&artifact.bytes()).await?;
+                        let requested = Artifact::decode(candidate.recv::<Reinspect>().await?);
+                        let checked = repository.verify(requested)?;
+                        result.record(checked);
+                        let branch = candidate.offer().await?;
+                        match branch.label() {
+                            8 => {
+                                branch.send::<Passed>(&checked.bytes()).await?;
+                            }
+                            9 => {
+                                branch.send::<Failed>(&checked.bytes()).await?;
+                            }
+                            _ => {
+                                return Err(ShellError::message("unexpected verifier decision"));
                             }
                         }
-                        25 => {
-                            let declared =
-                                Verification::decode(branch.recv::<CandidateReady>().await?)?;
-                            let actual = result.actual()?;
-                            if declared != actual {
-                                return Err(ShellError::message(
-                                    "final verification differs from the actual result",
-                                ));
-                            }
-                            break Ok(actual);
-                        }
-                        _ => return Err(ShellError::message("unexpected repository request")),
                     }
+                    25 => {
+                        let declared =
+                            Verification::decode(branch.recv::<CandidateReady>().await?)?;
+                        let actual = result.actual()?;
+                        if declared != actual {
+                            return Err(ShellError::message(
+                                "final verification differs from the actual result",
+                            ));
+                        }
+                        break Ok(actual);
+                    }
+                    _ => return Err(ShellError::message("unexpected repository request")),
                 }
-            },
-            async { Ok(independent.recv::<WorkReport>().await?) }
-        )?
-    };
+            }
+        };
+        #[localside]
+        let independent = async { Ok(independent.recv::<WorkReport>().await?) };
+        Ok((checked, independent))
+    }
+    .await?;
     let branch = endpoint.offer().await?;
     match branch.label() {
         26 => {
             branch.send::<CommitReady>(&checked.bytes()).await?;
             endpoint.send::<CommitReady>(&checked.bytes()).await?;
             endpoint.send::<CommitReady>(&checked.bytes()).await?;
-            let (first, second) = {
+            let (first, second) = async {
                 let [mut first, mut second] = endpoint.par()?;
-                tokio::try_join!(first.recv::<CommitR>(), second.recv::<CommitS>())?
-            };
+                #[localside]
+                let first = first.recv::<CommitR>();
+                #[localside]
+                let second = second.recv::<CommitS>();
+                Ok((first, second))
+            }
+            .await?;
             let first = Verification::decode(first)?;
             let second = Verification::decode(second)?;
             if first != checked
@@ -186,14 +201,16 @@ pub async fn service(
             let mut observations = repository.observations.take();
             observations.push(checked.artifact);
             repository.observations.set(observations);
-            {
+            async {
                 let bytes = checked.artifact.bytes();
                 let [mut first, mut second] = endpoint.par()?;
-                tokio::try_join!(
-                    first.send::<CommittedR>(&bytes),
-                    second.send::<CommittedS>(&bytes)
-                )?;
+                #[localside]
+                first.send::<CommittedR>(&bytes);
+                #[localside]
+                second.send::<CommittedS>(&bytes);
+                Ok(())
             }
+            .await?;
             let target = endpoint.recv::<Audit>().await?;
             let (published, _) = repository
                 .published
@@ -228,7 +245,6 @@ pub async fn independent(endpoint: &mut Endpoint<C>, input: u64) -> ShellResult<
 #[hibana_runtime::localside]
 pub async fn auxiliary(endpoint: &mut Endpoint<AUX>) -> ShellResult<()> {
     let value = endpoint.recv::<Work>().await?;
-    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
     endpoint.send::<Worked>(&value.wrapping_mul(value)).await?;
     Ok(())
 }

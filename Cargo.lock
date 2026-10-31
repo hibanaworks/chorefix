@@ -3,12 +3,6 @@
 version = 4
 
 [[package]]
-name = "bytes"
-version = "1.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04"
-
-[[package]]
 name = "choreofix"
 version = "0.1.0"
 dependencies = [
@@ -27,7 +21,7 @@ source = "git+https://github.com/hibanaworks/hibana?rev=e139912e07fe4cd5ba599dd3
 [[package]]
 name = "hibana-runtime"
 version = "0.1.0"
-source = "git+https://github.com/hibanaworks/hibana-runtime?rev=55dca34e36fb48e9384881e50c9092822df1511c#55dca34e36fb48e9384881e50c9092822df1511c"
+source = "git+https://github.com/hibanaworks/hibana-runtime?rev=01a861b918236c4ec8d7f933b2be430c4818efbe#01a861b918236c4ec8d7f933b2be430c4818efbe"
 dependencies = [
  "hibana-runtime-macros",
 ]
@@ -35,7 +29,7 @@ dependencies = [
 [[package]]
 name = "hibana-runtime-macros"
 version = "0.1.0"
-source = "git+https://github.com/hibanaworks/hibana-runtime?rev=55dca34e36fb48e9384881e50c9092822df1511c#55dca34e36fb48e9384881e50c9092822df1511c"
+source = "git+https://github.com/hibanaworks/hibana-runtime?rev=01a861b918236c4ec8d7f933b2be430c4818efbe#01a861b918236c4ec8d7f933b2be430c4818efbe"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -156,7 +150,6 @@ version = "1.53.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ce3335fa71841cda333a58d7615b03901380ecf09d59b3296d21f8bbac0dde4e"
 dependencies = [
- "bytes",
  "pin-project-lite",
  "tokio-macros",
 ]

@@ -214,7 +214,8 @@ Globalを唯一の連携仕様にし、localsideへEndpointの操作を直接書
 ChoreoFixのmanifest/lockは本体
 `e139912e07fe4cd5ba599dd3749d6e03ce9d1ee1`、WASI
 `6b62998b614e2b68feecd2d94042adbcc614693d`を選択している。
-executorは`hibana-runtime`の`55dca34e36fb48e9384881e50c9092822df1511c`を選択する。
+アプリは`hibana-runtime`の`01a861b918236c4ec8d7f933b2be430c4818efbe`、実験runnerは
+参加者の配列宣言を使う`349f45ec6297b169c6d6846486b4963917cb5397`を選択する。
 通常のGit依存を使い、診断用のpath patchを認定へ流用しない。
 
 runtimeの中核はno_std・割当なし・caller-owned storageである。12課題の起動処理から
@@ -225,15 +226,26 @@ I/O参加者がファイル内容と最終I/Oを所有して終了する形に�
 既存Futureを値で繰り返し移動するstorage構築と、入力を二重に保持するawait wrapperを除去した。
 利用側のpin操作やstack増量、heap割当は追加しない。
 同じ入力とstack予算で旧実装がoverflowし、修正後が通過する実行試験と感度検査を追加した。
-native59試験、compile入力12件、strict-provenance Miri51試験、Lean16定理/Z3、no_std/Pico linkを
-含む全runtime gateが同じsourceで成功した。Lean/Z3はschedulerとstorageの性質を扱い、
+runtimeの`349f45e`はnative81試験、compile入力13件、strict-provenance Miri57試験、
+Lean16定理/Z3、no_std/Pico linkを含む全gateが同じsourceで成功した。
+配列からのlocalside宣言と、所有する子processのI/O・終了待機・破棄を検査対象へ加えた。
+hostのOS呼出しはnativeで検査し、Miri成功件数へ含めない。Lean/Z3はschedulerとstorageの性質を扱い、
 macro変換全体や任意のRustの詳細化証明ではない。
 
-この通常Git pinで、12課題の実Wasm74条件がprotocol完了し、監査違反は0件だった。
+アプリの外部I/Oと6つの実行入口からTokioを除去したsourceで、12課題の実Wasm74条件が
+protocol完了し、監査違反は0件だった。
 別のCI/CD早期終了1条件では共有効果0件を確認した。記録変異1,307件をすべて拒否した。
-アプリ全targetのRust36試験、runner17試験とClippy、全binaryのbuildが通過し、
-アプリとrunnerの検査前後のsource hashは一致した。全子孫の最大memoryは1,525,792,768bytes。
-記録は`output/review-occurrence-qualification/choreofs-controlled-concurrency`に保持する。
+この実行の全binary build、アプリのClippyと検査前後のsource hash照合は成功した。
+記録は`output/review-occurrence-qualification/tokio-host-io`に保持する。
+handoff fixtureの計算に入れていた固定20msの遅延は除去し、現在のアプリ全targetのRust40試験が
+通過した。protocolの依存関係や受信・公開の検査は変更していない。
+runnerのコードベース条件では、タスク登録・回収を参加者の配列宣言へ置き換えた。
+feedbackは各参加者へ排他的に借用する返り値で、各Futureの完了はruntimeが管理する。
+通常17試験とClippy、実Wasmの5人の通常遅延条件と7人の制御条件を通過し、
+それぞれcommit2件・3件の重なりと監査違反0件を確認した。
+この限定した再検査は12課題全体の最終版認定とは区別する。
+記録は`output/review-occurrence-qualification/direct-participant-declarations`に保持する。
+これらの検証の全子孫最大memoryは1,570,848,768bytesだった。
 モデル呼出し・採点済み実験への算入は0件であり、各条件の業務結果は元scoreへ別に記録する。
 
 1Hの通常遅延でcommitの重なりが2件になった記録は保持する。parは同時実行を許すが、
@@ -242,8 +254,11 @@ Endpointで受理した後、試験用I/O境界で3件がそろうまで保留�
 返答なしで3件が受理され、解放後の実commitも3件重なった。globalとlocalsideは変更していない。
 この開始条件を制御する機構試験を、通常の性能測定や実モデルの並行性へ混ぜない。
 
-Tokioは外部I/O、runner、entry pointと試験に残っており、完全除去は未完である。
-次はTokioの完全除去を先に完了し、そのsourceを固定してからAI予備実験へ進む。
+アプリの通常依存にはTokioがない。runnerとアプリの試験依存には残っており、完全除去は未完である。
+依存の削除に加え、タスク登録・回収、起動joinツリー、独自の実行管理を残さず、
+各参加者の借用とEndpoint操作を直接宣言する構成への移行を完了条件とする。
+必要な物理I/OのバッファとRPC対応付けを、連携手順や完了管理へ流用しない。
+この移行と同一sourceでの全体認定を先に完了し、その後でAI予備実験へ進む。
 比較接続用の未使用bridgeとHTTP依存を削除した。元の比較実装は変更していない。
 
 | 対象 | 現状 | 残る確認・変更 |

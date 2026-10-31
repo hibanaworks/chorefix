@@ -1,4 +1,4 @@
-#[tokio::main(flavor = "current_thread")]
+#[hibana_runtime::main]
 async fn main() -> Result<(), String> {
     let module = std::fs::read(
         std::env::args()

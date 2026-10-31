@@ -101,6 +101,10 @@ Tokio-shaped wrappers and application schedulers. The I/O participant owns its
 data and final I/O; hibana-runtime owns polling, cancellation and waiting for
 children. Improve hibana-runtime when natural direct code cannot express a
 required operation; never compensate with application adapters, helpers or flags.
+Do not recreate Tokio's task or channel framework under different names in the
+application. Repeated participants are direct localside declarations from their
+actual inputs, without task handles or a result-collection loop. Keep physical
+I/O buffers and RPC correlations with their I/O owner, outside protocol authority.
 
 Low-level codecs, buffers, and object materialization belong in `imp/`; they do
 not acquire choreography authority by being placed there. Review this rule in

@@ -10,7 +10,6 @@ use std::{
     path::Path,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
-use tokio::task::JoinSet;
 
 fn response(reply: &Value) -> Result<Value> {
     let text = reply["stdout"].as_str().ok_or("terminal stdout")?;
@@ -30,10 +29,10 @@ fn count(events: &[Value], agent: &str, tool: &str) -> usize {
 }
 
 async fn developer(
-    guest: process::Guest,
-    simulator: oracle::Simulator,
+    guest: &process::Guest,
+    simulator: &oracle::Simulator,
     actor: Value,
-    task: String,
+    task: &str,
 ) -> Result<Vec<Value>> {
     let agent = actor["agent"].as_str().ok_or("original participant")?;
     let calls = actor["calls"].as_array().ok_or("original operations")?;
@@ -167,10 +166,10 @@ async fn developer(
 }
 
 async fn assigned_operations(
-    guest: process::Guest,
-    simulator: oracle::Simulator,
+    guest: &process::Guest,
+    simulator: &oracle::Simulator,
     actor: Value,
-    _task: String,
+    _task: &str,
 ) -> Result<Vec<Value>> {
     let agent = actor["agent"].as_str().ok_or("original participant")?;
     let calls = actor["calls"].as_array().ok_or("original operations")?;
@@ -218,18 +217,16 @@ fn output(label: &str) -> Result<std::path::PathBuf> {
     Ok(directory)
 }
 
-async fn case<F>(
+#[hibana_runtime::localside]
+async fn case<const N: usize>(
     directory: &Path,
     task: &str,
     depth: u8,
     delay: f64,
     failures: &[(&str, u32)],
-    drive: fn(process::Guest, oracle::Simulator, Value, String) -> F,
+    drive: impl AsyncFn(&process::Guest, &oracle::Simulator, Value, &str) -> Result<Vec<Value>>,
     held_commit_agents: &[&str],
-) -> Result<Value>
-where
-    F: Future<Output = Result<Vec<Value>>> + Send + 'static,
-{
+) -> Result<Value> {
     let case = directory.join(format!("{task}-depth{depth}"));
     fs::create_dir(&case)?;
     let versions = snapshot::freeze(task, &case)?;
@@ -238,7 +235,7 @@ where
         &json!({"task":task,"depth":depth,
         "kind":"deterministic_rust_wasi_boundary","model_calls":0,"scored_benchmark":false,"versions":versions,
         "test_barriers":held_commit_agents, "domain_delay_multiplier":delay,"external_failure_specs":failures,
-        "participant_driver":std::any::type_name::<F>(),
+        "participant_driver":std::any::type_name_of_val(&drive),
         }),
     )?;
     let trace = Trace::create(&case.join("events.jsonl"))?;
@@ -252,7 +249,12 @@ where
             "configured"
         );
     }
-    let actors = fixture["fixtures"].as_array().ok_or("original actors")?;
+    let actors: [Value; N] = fixture["fixtures"]
+        .as_array()
+        .ok_or("original actors")?
+        .clone()
+        .try_into()
+        .map_err(|_| "fixture participant count differs from the selected protocol")?;
     let (guest, runtime_loop) = process::guest(
         &case.join("runtime").canonicalize()?,
         &case.join("wash.wasm").canonicalize()?,
@@ -261,31 +263,25 @@ where
         trace,
         simulator.clone(),
     )?;
-    let mut participants = JoinSet::new();
-    for actor in actors {
-        participants.spawn(drive(
-            guest.clone(),
-            simulator.clone(),
-            actor.clone(),
-            task.to_owned(),
-        ));
-    }
-    let (participants, result) = tokio::time::timeout(Duration::from_secs(90), async {
-        tokio::join!(
-            async {
-                let mut feedback = Vec::new();
-                while let Some(result) = participants.join_next().await {
-                    feedback.push(result??);
-                }
-                Ok::<_, Box<dyn std::error::Error + Send + Sync>>(feedback)
-            },
-            runtime_loop
-        )
+    let mut feedback: [Vec<Value>; N] = core::array::from_fn(|_| Vec::new());
+    let mut actors = actors.into_iter();
+    let participants = feedback
+        .each_mut()
+        .map(|output| (actors.next().expect("one fixture per participant"), output));
+    let result = tokio::time::timeout(Duration::from_secs(90), async {
+        let drive = &drive;
+        let guest = &guest;
+        let simulator = &simulator;
+        #[localside]
+        let result = runtime_loop;
+        #[localside]
+        for (actor, output) in participants {
+            *output = drive(guest, simulator, actor, task).await?;
+        }
+        Ok(result)
     })
-    .await?;
-    let result = result?;
+    .await??;
     save(&case.join("result.json"), &result)?;
-    let feedback = participants?;
     let audit = crate::codebase_audit::audit(&case.join("events.jsonl"))?;
     save(&case.join("audit.json"), &audit)?;
     let mutants =
@@ -316,7 +312,7 @@ where
         }
     }
     Ok(
-        json!({"task":task,"depth":depth,"result":result,"feedback":feedback,"audit":audit,
+        json!({"task":task,"depth":depth,"result":result,"feedback":feedback.as_slice(),"audit":audit,
         "mutants":mutants,"events_sha256":digest(&case.join("events.jsonl"))?,
         "kind":"deterministic_rust_wasi_boundary","model_calls":0,"scored_benchmark":false}),
     )
@@ -328,12 +324,12 @@ async fn seven_guests_reconsider_failures_through_delegated_module_endpoints() -
     let directory = output("codebase-rust-reconsider")?;
     let mut outcomes = Vec::new();
     for depth in [0, 1, 2] {
-        outcomes.push(case(&directory, "1H", depth, 0.01, &[], developer, &[]).await?);
+        outcomes.push(case::<7>(&directory, "1H", depth, 0.01, &[], developer, &[]).await?);
         save(&directory.join("summary.json"), &json!(outcomes))?;
     }
     let repeated = directory.join("two-failed-tests");
     fs::create_dir(&repeated)?;
-    let outcome = case(
+    let outcome = case::<7>(
         &repeated,
         "1H",
         0,
@@ -353,11 +349,11 @@ async fn seven_guests_reconsider_failures_through_delegated_module_endpoints() -
     outcomes.push(outcome);
     let probes = directory.join("normal-delays-admission-probes");
     fs::create_dir(&probes)?;
-    outcomes.push(case(&probes, "1H", 0, 1.0, &[], developer, &[]).await?);
+    outcomes.push(case::<7>(&probes, "1H", 0, 1.0, &[], developer, &[]).await?);
     save(&directory.join("summary.json"), &json!(outcomes))?;
     let normal = directory.join("normal-delays");
     fs::create_dir(&normal)?;
-    outcomes.push(case(&normal, "1H", 0, 1.0, &[], assigned_operations, &[]).await?);
+    outcomes.push(case::<7>(&normal, "1H", 0, 1.0, &[], assigned_operations, &[]).await?);
     save(&directory.join("summary.json"), &json!(outcomes))?;
     println!("{}", directory.display());
     Ok(())
@@ -368,7 +364,7 @@ async fn seven_guests_reconsider_failures_through_delegated_module_endpoints() -
 async fn three_disjoint_commits_are_admitted_before_any_response() -> Result<()> {
     let directory = output("codebase-rust-held-commits")?;
     let agents = ["DEVELOPER_A", "DEVELOPER_C", "DEVELOPER_E"];
-    let outcome = case(&directory, "1H", 0, 1.0, &[], assigned_operations, &agents).await?;
+    let outcome = case::<7>(&directory, "1H", 0, 1.0, &[], assigned_operations, &agents).await?;
     let events = fs::read_to_string(directory.join("1H-depth0/events.jsonl"))?
         .lines()
         .map(serde_json::from_str)
@@ -404,7 +400,12 @@ async fn typed_requests_gate_effects_and_keep_shell_errors_recoverable() -> Resu
     let mut outcomes = Vec::new();
     for task in ["1E", "1M"] {
         for depth in [0, 1, 2] {
-            outcomes.push(case(&directory, task, depth, 0.01, &[], developer, &[]).await?);
+            let outcome = match task {
+                "1E" => case::<3>(&directory, task, depth, 0.01, &[], developer, &[]).await?,
+                "1M" => case::<5>(&directory, task, depth, 0.01, &[], developer, &[]).await?,
+                _ => unreachable!(),
+            };
+            outcomes.push(outcome);
             save(&directory.join("summary.json"), &json!(outcomes))?;
         }
     }
@@ -418,18 +419,34 @@ async fn terminal_test_errors_close_without_retries() -> Result<()> {
     let directory = output("codebase-rust-terminal-tests")?;
     let mut outcomes = Vec::new();
     for task in ["1E", "1M"] {
-        outcomes.push(
-            case(
-                &directory,
-                task,
-                0,
-                0.01,
-                &[("run_local_tests", 0)],
-                developer,
-                &[],
-            )
-            .await?,
-        );
+        let outcome = match task {
+            "1E" => {
+                case::<3>(
+                    &directory,
+                    task,
+                    0,
+                    0.01,
+                    &[("run_local_tests", 0)],
+                    developer,
+                    &[],
+                )
+                .await?
+            }
+            "1M" => {
+                case::<5>(
+                    &directory,
+                    task,
+                    0,
+                    0.01,
+                    &[("run_local_tests", 0)],
+                    developer,
+                    &[],
+                )
+                .await?
+            }
+            _ => unreachable!(),
+        };
+        outcomes.push(outcome);
         save(&directory.join("summary.json"), &json!(outcomes))?;
     }
     println!("{}", directory.display());
@@ -440,7 +457,7 @@ async fn terminal_test_errors_close_without_retries() -> Result<()> {
 #[ignore = "requires real WASI and original normal domain delays, without barriers"]
 async fn normal_delays_allow_two_disjoint_actual_wasi_commits() -> Result<()> {
     let directory = output("codebase-rust-normal-delays")?;
-    let outcome = case(&directory, "1M", 0, 1.0, &[], developer, &[]).await?;
+    let outcome = case::<5>(&directory, "1M", 0, 1.0, &[], developer, &[]).await?;
     save(&directory.join("summary.json"), &outcome)?;
     assert_eq!(outcome["audit"]["max_disjoint_commits"], 2);
     println!("{}", directory.display());
