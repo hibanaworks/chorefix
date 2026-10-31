@@ -260,7 +260,7 @@ raw、各参加者のusage、binary/source receiptは
 レビュー監査は要求・close・結果の出現を一対一で照合する。ただし同じframeの全観測で
 wire labelまたはlaneを一斉に変えても受理する不足を、上記6E記録で再現した。
 実行した投影から取り出すwire対応表との照合は未実装で、独立監査が投影全体を保証したとは言わない。
-API／codebaseの旧Python接続、未移行課題と、T3/T4の最小合成を具体的な全効果入口へ適用する認定も残る。
+未移行36課題と、T3/T4の最小合成を具体的な全効果入口へ適用する認定も残る。
 
 ### 以前の版の予備試験
 
@@ -403,7 +403,7 @@ AがDB用Endpointを保持する間はBの受信がPendingとなり、Aの実要
 所有し、runtimeが借用する。現行の外部JSON接続は`ExternalIo`がstdin/stdoutと応答対応を所有する。
 API結果ファイルはファイル担当が内容・offsetを所有し、metadataもglobalの要求・応答で処理する。
 旧native codebaseの要求queueとrunnerの共有記録・callbackは`252b821`で除去した。
-残る旧Python接続・監査と未移行課題は、現行の実Wasm経路へ統一する。
+後続でAPI／codebaseの旧Python接続も除去した。未移行課題は現行の実Wasm経路へ移す。
 
 通常の実験コマンドとsubscription試験は、同じrunnerから移行済み12課題を実行する。
 選択したruntimeのbuild receiptと全sourceを照合し、実行前にbinary、wash、入力を保存する。
@@ -420,7 +420,7 @@ runnerの通常テスト24件、Clippy、buildが通過した。wire label／lan
 9種類×3記録の変異を拒否した。モデル呼出しは0件で、試験全体は54.25秒だった。
 globalの構成とEndpoint操作順は変更していない。roleとsessionの定数を監査と共用し、
 専用のPython subprocess、別監査binary、未使用の旧接続・監査scriptを削除した。
-API／codebaseの旧CLIが使うPython接続は、Rustへの移行が残っている。
+この時点で残っていたAPI／codebaseの旧CLIは、下記のRust経路への統一で除去した。
 
 同じ通常Git pinのbinaryを使い、9HのLuna xhigh 7人による非採点pilotを一度実行した。
 19.784秒で元課題を完了し、実モデル7人と独立した食事3件の重なり、14本のEndpoint返却、
@@ -428,6 +428,17 @@ API／codebaseの旧CLIが使うPython接続は、Rustへの移行が残って�
 実記録の10種類の変異を拒否し、raw model／shell／transport／元採点、sourceとbinary hashを保存した。
 runtimeのbuild前後のsource一致、アプリ21試験、runner24試験、両者のClippyを確認した。
 このpilotと機構試験は採点比較へ数えず、wire label／laneの投影との意味照合は未完のままである。
+
+APIとcodebaseの実Wasm機構試験も、通常runnerと同じRust simulator接続・監査・
+source保存へ統一し、旧CLIと最後の自作Python接続を削除した。元simulatorは変更していない。
+APIは3条件・22.45秒、codebaseは14条件・415.52秒で成功し、記録変異42件・140件を拒否した。
+APIではDB_ADMIN／BACKEND_DEVの結果file読取りを両方Pendingにした後にTESTERを開始し、
+結果の単独所有と独立した私有I/Oを確認した。これはモデルなしの明示的な試験用scheduleである。
+codebaseは1Hの再考、1E／1Mの正常な業務失敗、早すぎるcommit、引数・型・重複の拒否、
+独立commitの並行性を保つ。全17条件で実行前にruntime、wash、runner、source／receiptを保存した。
+アプリ21試験、runner24試験、両者のClippy・build、実行前後のsource一致が成功した。
+全子孫の最大memoryは704,987,136bytes。モデル呼出しと採点比較への算入は0件である。
+記録は`output/review-occurrence-qualification/rust-boundary-unification`に保持する。
 
 ## 本体・統合の保証
 

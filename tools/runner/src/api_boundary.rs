@@ -1,7 +1,7 @@
 //! Scripted checks of result-file I/O through the actual wash guests.
 use crate::{
-    evidence::{Result, Trace, archive_build_receipt, digest, save},
-    oracle, process,
+    evidence::{Result, Trace, digest, save},
+    oracle, process, snapshot,
 };
 use serde_json::{Value, json};
 use std::{
@@ -83,13 +83,6 @@ async fn real_wasi_outcome_metadata_preserves_all_original_results() -> Result<(
             .join("../..")
             .canonicalize()?,
     )?;
-    let runtime = PathBuf::from(
-        std::env::var_os("CHOREOFIX_API_WASI_BINARY").ok_or("API binary not selected")?,
-    );
-    let receipt_path = PathBuf::from(
-        std::env::var_os("CHOREOFIX_API_BUILD_RECEIPT").ok_or("build receipt missing")?,
-    );
-    let wasm = Path::new("vendor/hibana-wash/target/wasm32-wasip1/release/hibana-wash.wasm");
     let root =
         PathBuf::from(std::env::var_os("CHOREOFIX_EVIDENCE_ROOT").ok_or("evidence root missing")?);
     fs::create_dir_all(&root)?;
@@ -98,31 +91,111 @@ async fn real_wasi_outcome_metadata_preserves_all_original_results() -> Result<(
         SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos()
     ));
     fs::create_dir(&directory)?;
-    let receipt = archive_build_receipt(&runtime, &receipt_path, &directory)?;
     let mut cases = Vec::new();
     for depth in 0..=2 {
         let output = directory.join(format!("depth-{depth}"));
         fs::create_dir(&output)?;
+        let versions = snapshot::freeze("8E", &output)?;
         let trace = Trace::create(&output.join("events.jsonl"))?;
         let (simulator, fixture) = oracle::Simulator::new("8E", depth, 0.01, trace.clone(), &[])?;
         save(
             &output.join("case.json"),
             &json!({"task":"8E","depth":depth,
             "scope":"resource Endpoint delegation, actual requests and results, single-owner outcome files",
-            "model_calls":0,"scored_benchmark":false,"build":receipt,"wasm_sha256":digest(wasm)?}),
+            "model_calls":0,"scored_benchmark":false,"versions":versions,
+            "test_barriers":"both outcome opens precede the tester command"}),
         )?;
-        let (guest, runtime_loop) =
-            process::guest(&runtime, wasm, "8E", &output, trace, simulator.clone())?;
-        let mut jobs = tokio::task::JoinSet::new();
-        for actor in fixture["fixtures"]
+        let (guest, runtime_loop) = process::guest(
+            &output.join("runtime").canonicalize()?,
+            &output.join("wash.wasm").canonicalize()?,
+            "8E",
+            &output,
+            trace.clone(),
+            simulator.clone(),
+        )?;
+        let actors = fixture["fixtures"]
             .as_array()
-            .ok_or("original participants")?
-        {
+            .ok_or("original participants")?;
+        assert_eq!(
+            actors
+                .iter()
+                .filter(|actor| actor["agent"] == "TESTER")
+                .count(),
+            1
+        );
+        let tester = actors
+            .iter()
+            .find(|actor| actor["agent"] == "TESTER")
+            .ok_or("tester")?;
+        let mut jobs = tokio::task::JoinSet::new();
+        for actor in actors.iter().filter(|actor| actor["agent"] != "TESTER") {
             jobs.spawn(participant(guest.clone(), actor.clone(), depth));
         }
-        drop(guest);
         let (runtime_result, participants) = tokio::time::timeout(Duration::from_secs(60), async {
             tokio::try_join!(runtime_loop, async {
+                // Hold only the scripted tester input. Both actual WASI reads
+                // must wait at the file owner until the test result exists.
+                tokio::time::timeout(Duration::from_secs(10), async {
+                    loop {
+                        let bytes = fs::read(output.join("events.jsonl"))?;
+                        let rows = bytes
+                            .split_inclusive(|&byte| byte == b'\n')
+                            .filter(|row| row.last() == Some(&b'\n'))
+                            .map(serde_json::from_slice::<Value>)
+                            .collect::<std::result::Result<Vec<_>, _>>()?;
+                        if [(13, 11), (14, 12)].iter().all(|&(vm, owner)| {
+                            rows.iter().any(|row| {
+                                let message = &row["message"];
+                                message["type"] == "protocol_frame"
+                                    && message["action"] == "send"
+                                    && message["source"] == vm
+                                    && message["target"] == owner
+                            })
+                        }) {
+                            assert!(
+                                jobs.try_join_next().is_none(),
+                                "outcome read completed before testing"
+                            );
+                            assert!(!rows.iter().any(|row| {
+                                let message = &row["message"];
+                                message["type"] == "execute"
+                                    && message["tool"] == "run_integration_tests"
+                            }));
+                            for (owner, vm) in [(11, 13), (12, 14)] {
+                                assert!(
+                                    !rows.iter().any(|row| {
+                                        let message = &row["message"];
+                                        message["type"] == "protocol_frame"
+                                            && message["action"] == "send"
+                                            && message["source"] == owner
+                                            && message["target"] == vm
+                                    }),
+                                    "outcome owner replied before the actual test result"
+                                );
+                            }
+                            trace.record(
+                                "test_control",
+                                &json!({"type":"both_outcome_reads_pending","model_calls":0}),
+                            )?;
+                            break;
+                        }
+                        // Transport observations are flushed with terminal I/O.
+                        // Private work also exercises another guest while both
+                        // outcome reads wait for the withheld test operation.
+                        let private = guest
+                            .command("TESTER", "echo pending-read-observation".into())
+                            .await?;
+                        assert!(
+                            private["stdout"]
+                                .as_str()
+                                .ok_or("private tester output")?
+                                .contains("pending-read-observation")
+                        );
+                    }
+                    Ok::<_, Box<dyn std::error::Error + Send + Sync>>(())
+                })
+                .await??;
+                jobs.spawn(participant(guest.clone(), tester.clone(), depth));
                 let mut replies = Vec::new();
                 while let Some(reply) = jobs.join_next().await {
                     replies.push(reply??);

@@ -1,8 +1,8 @@
 //! Actual wash/WASI requests against the unchanged codebase simulator.
 //! Scripted stimuli test the boundary and do not count as model experiments.
 use crate::{
-    evidence::{Result, Trace, archive_build_receipt, digest, save},
-    oracle, process,
+    evidence::{Result, Trace, digest, save},
+    oracle, process, snapshot,
 };
 use serde_json::{Value, json};
 use std::{
@@ -173,9 +173,9 @@ fn output(label: &str) -> Result<std::path::PathBuf> {
             .join("../..")
             .canonicalize()?,
     )?;
-    let root = std::env::var_os("CHOREOFIX_EVIDENCE_ROOT")
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(|| Path::new("output").to_owned());
+    let root = std::path::PathBuf::from(
+        std::env::var_os("CHOREOFIX_EVIDENCE_ROOT").ok_or("evidence root missing")?,
+    );
     fs::create_dir_all(&root)?;
     let directory = root.join(format!(
         "{label}-{}",
@@ -192,36 +192,28 @@ async fn case(
     delay: f64,
     failures: &[(&str, u32)],
 ) -> Result<Value> {
-    let runtime = std::path::PathBuf::from(
-        std::env::var_os("CHOREOFIX_CODEBASE_WASI_BINARY").ok_or("codebase binary missing")?,
-    );
-    let receipt_path = std::path::PathBuf::from(
-        std::env::var_os("CHOREOFIX_CODEBASE_BUILD_RECEIPT")
-            .ok_or("codebase build receipt missing")?,
-    );
-    let module = Path::new("vendor/hibana-wash/target/wasm32-wasip1/release/hibana-wash.wasm");
     let case = directory.join(format!("{task}-depth{depth}"));
     fs::create_dir(&case)?;
-    let receipt = archive_build_receipt(&runtime, &receipt_path, &case)?;
+    let versions = snapshot::freeze(task, &case)?;
     save(
         &case.join("case.json"),
         &json!({"task":task,"depth":depth,
-        "kind":"deterministic_rust_wasi_boundary","model_calls":0,"scored_benchmark":false,"build":receipt,
+        "kind":"deterministic_rust_wasi_boundary","model_calls":0,"scored_benchmark":false,"versions":versions,
         "test_barriers":"none", "domain_delay_multiplier":delay,"external_failure_specs":failures,
-        "runtime_binary_sha256":digest(&runtime)?,"guest_wasm_sha256":digest(module)?,
-        "harness_binary_sha256":digest(&std::env::current_exe()?)?,
-        "harness_source_sha256":digest(Path::new("tools/runner/src/codebase_boundary.rs"))?,
-        "oracle_source_sha256":digest(Path::new("tools/runner/src/oracle.rs"))?,
-        "audit_source_sha256":digest(Path::new("tools/runner/src/codebase_audit.rs"))?,
-        "root_lock_sha256":digest(Path::new("Cargo.lock"))?,"runner_lock_sha256":digest(Path::new("tools/runner/Cargo.lock"))?,
-        "simulator_source_sha256":digest(&Path::new("vendor/tracefix/benchmark/environments").join(task).join("sim.py"))?}),
+        }),
     )?;
     let trace = Trace::create(&case.join("events.jsonl"))?;
     let (simulator, fixture) = oracle::Simulator::new(task, depth, delay, trace.clone(), failures)?;
     save(&case.join("simulator-fixture.json"), &fixture)?;
     let actors = fixture["fixtures"].as_array().ok_or("original actors")?;
-    let (guest, runtime_loop) =
-        process::guest(&runtime, module, task, &case, trace, simulator.clone())?;
+    let (guest, runtime_loop) = process::guest(
+        &case.join("runtime").canonicalize()?,
+        &case.join("wash.wasm").canonicalize()?,
+        task,
+        &case,
+        trace,
+        simulator.clone(),
+    )?;
     let mut participants = JoinSet::new();
     for actor in actors {
         participants.spawn(developer(
@@ -249,7 +241,8 @@ async fn case(
     let feedback = participants?;
     let audit = crate::codebase_audit::audit(&case.join("events.jsonl"))?;
     save(&case.join("audit.json"), &audit)?;
-    crate::codebase_audit::check_mutants(&case.join("events.jsonl"), &case.join("mutants"))?;
+    let mutants =
+        crate::codebase_audit::check_mutants(&case.join("events.jsonl"), &case.join("mutants"))?;
     assert_eq!(
         result["protocol"],
         json!({"type":"run_result","status":"complete"})
@@ -277,6 +270,7 @@ async fn case(
     }
     Ok(
         json!({"task":task,"depth":depth,"result":result,"feedback":feedback,"audit":audit,
+        "mutants":mutants,"events_sha256":digest(&case.join("events.jsonl"))?,
         "kind":"deterministic_rust_wasi_boundary","model_calls":0,"scored_benchmark":false}),
     )
 }

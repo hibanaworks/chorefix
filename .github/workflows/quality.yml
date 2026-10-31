@@ -60,16 +60,22 @@ jobs:
             CHOREOFIX_CICD_BUILD_RECEIPT="$PWD/cicd-build-receipt.json" \
             CHOREOFIX_EVIDENCE_ROOT="$PWD/output/cicd-boundary" \
             cargo +stable test --locked --manifest-path tools/runner/Cargo.toml cicd_boundary:: -- --ignored --test-threads=1 --nocapture
-          for depth in 0 1 2; do
-            cargo +stable run --locked --bin api-boundary -- "$depth" "api-boundary-depth$depth"
-            cargo +stable run --locked --bin api-boundary -- --check-mutants "api-boundary-depth$depth/events.jsonl" "api-boundary-depth$depth-mutants"
-          done
-          cargo +stable run --locked --bin codebase-boundary -- 1E codebase-boundary-1E
-          cargo +stable run --locked --bin codebase-boundary -- --check-mutants codebase-boundary-1E/events.jsonl codebase-boundary-1E-mutants
-          cargo +stable run --locked --bin codebase-boundary -- 1M codebase-boundary-1M
-          cargo +stable run --locked --bin codebase-boundary -- --check-mutants codebase-boundary-1M/events.jsonl codebase-boundary-1M-mutants
-          cargo +stable run --locked --bin codebase-boundary -- 1E:terminal-test-failure codebase-boundary-terminal-test-failure
-          cargo +stable run --locked --bin codebase-boundary -- 1M:terminal-test-failure codebase-boundary-terminal-test-failure-1M
+          jq -n \
+            --arg binary_sha256 "$(sha256sum target/debug/api-wasi | cut -d ' ' -f 1)" \
+            --arg source_manifest_sha256 "$(sha256sum cicd-source-after.sha256 | cut -d ' ' -f 1)" \
+            '{binary_sha256:$binary_sha256,source_manifest:"cicd-source-after.sha256",source_manifest_sha256:$source_manifest_sha256,source_unchanged:true,scored_benchmark:false}' > api-build-receipt.json
+          CHOREOFIX_API_WASI_BINARY="$PWD/target/debug/api-wasi" \
+            CHOREOFIX_API_BUILD_RECEIPT="$PWD/api-build-receipt.json" \
+            CHOREOFIX_EVIDENCE_ROOT="$PWD/output/api-boundary" \
+            cargo +stable test --locked --manifest-path tools/runner/Cargo.toml api_boundary:: -- --ignored --test-threads=1 --nocapture
+          jq -n \
+            --arg binary_sha256 "$(sha256sum target/debug/codebase-wasi | cut -d ' ' -f 1)" \
+            --arg source_manifest_sha256 "$(sha256sum cicd-source-after.sha256 | cut -d ' ' -f 1)" \
+            '{binary_sha256:$binary_sha256,source_manifest:"cicd-source-after.sha256",source_manifest_sha256:$source_manifest_sha256,source_unchanged:true,scored_benchmark:false}' > codebase-build-receipt.json
+          CHOREOFIX_CODEBASE_WASI_BINARY="$PWD/target/debug/codebase-wasi" \
+            CHOREOFIX_CODEBASE_BUILD_RECEIPT="$PWD/codebase-build-receipt.json" \
+            CHOREOFIX_EVIDENCE_ROOT="$PWD/output/codebase-boundary" \
+            cargo +stable test --locked --manifest-path tools/runner/Cargo.toml codebase_boundary:: -- --ignored --test-threads=1 --nocapture
           jq -n \
             --arg binary_sha256 "$(sha256sum target/debug/writing-wasi | cut -d ' ' -f 1)" \
             --arg source_manifest_sha256 "$(sha256sum cicd-source-after.sha256 | cut -d ' ' -f 1)" \
@@ -108,9 +114,11 @@ jobs:
           path: |
             output/writing-boundary/
             writing-build-receipt.json
-            codebase-boundary-*/
+            output/codebase-boundary/
+            codebase-build-receipt.json
             output/philosophers-boundary/
-            api-boundary-*/
+            output/api-boundary/
+            api-build-receipt.json
             output/writing-rust-runner-probe*/
             output/cicd-boundary/
             cicd-source-*.sha256

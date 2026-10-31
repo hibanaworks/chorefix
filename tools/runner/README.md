@@ -49,6 +49,21 @@ completed protocol. The same runner audits each migrated task's records.
 `--check-run-mutants RUN NEW_DIRECTORY` checks the saved model records against
 deliberately altered records without making model calls.
 
+The API and codebase regression tests use the same source snapshots and Rust
+simulator connection. Set the corresponding runtime and receipt variables above
+and `CHOREOFIX_EVIDENCE_ROOT` to a new evidence directory, then run:
+
+```sh
+cargo +stable test --locked --manifest-path tools/runner/Cargo.toml \
+  api_boundary:: -- --ignored --test-threads=1 --nocapture
+cargo +stable test --locked --manifest-path tools/runner/Cargo.toml \
+  codebase_boundary:: -- --ignored --test-threads=1 --nocapture
+```
+
+These scripted tests make no model calls. They check actual wash guests,
+resource requests and returns, independent work, malformed and duplicate
+requests, reconsideration where the task permits it, and terminal domain failures.
+
 The completed code-review auditor checks the repository Endpoint, actual WASI
 arguments, simulator requests and results, approval before merging, and guest
 exits. Each review uses distinct intent deliveries, a request, an argument-file
