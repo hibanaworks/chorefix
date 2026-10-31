@@ -55,7 +55,7 @@ jobs:
           jq -n \
             --arg binary_sha256 "$(sha256sum target/debug/cicd-wasi | cut -d ' ' -f 1)" \
             --arg source_manifest_sha256 "$(sha256sum cicd-source-after.sha256 | cut -d ' ' -f 1)" \
-            '{binary_sha256:$binary_sha256,source_manifest_sha256:$source_manifest_sha256,source_unchanged:true,scored_benchmark:false}' > cicd-build-receipt.json
+            '{binary_sha256:$binary_sha256,source_manifest:"cicd-source-after.sha256",source_manifest_sha256:$source_manifest_sha256,source_unchanged:true,scored_benchmark:false}' > cicd-build-receipt.json
           CHOREOFIX_CICD_WASI_BINARY="$PWD/target/debug/cicd-wasi" \
             CHOREOFIX_CICD_BUILD_RECEIPT="$PWD/cicd-build-receipt.json" \
             CHOREOFIX_EVIDENCE_ROOT="$PWD/output/cicd-boundary" \
@@ -73,7 +73,7 @@ jobs:
           jq -n \
             --arg binary_sha256 "$(sha256sum target/debug/writing-wasi | cut -d ' ' -f 1)" \
             --arg source_manifest_sha256 "$(sha256sum cicd-source-after.sha256 | cut -d ' ' -f 1)" \
-            '{binary_sha256:$binary_sha256,source_manifest_sha256:$source_manifest_sha256,source_unchanged:true,scored_benchmark:false}' > writing-build-receipt.json
+            '{binary_sha256:$binary_sha256,source_manifest:"cicd-source-after.sha256",source_manifest_sha256:$source_manifest_sha256,source_unchanged:true,scored_benchmark:false}' > writing-build-receipt.json
           CHOREOFIX_WRITING_WASI_BINARY="$PWD/target/debug/writing-wasi" \
             CHOREOFIX_WRITING_BUILD_RECEIPT="$PWD/writing-build-receipt.json" \
             CHOREOFIX_EVIDENCE_ROOT="$PWD/output/writing-boundary" \

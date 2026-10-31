@@ -11,6 +11,20 @@ write and flush complete, including any I/O error. The simulator starts the
 original asynchronous tools concurrently and returns each actual result on its
 request's reply channel.
 
+Source-qualified boundary tests and subscription preflights require a selected
+runtime and its build receipt. Set `CHOREOFIX_<FAMILY>_WASI_BINARY` and
+`CHOREOFIX_<FAMILY>_BUILD_RECEIPT`, where `FAMILY` is `CODEBASE`, `WRITING`, `API`,
+`CICD`, `REVIEW` or `PHILOSOPHERS`, as applicable to the test. A receipt contains
+`binary_sha256`, `source_manifest`, `source_manifest_sha256` and
+`source_unchanged: true`. Resolve the input manifest relative to the receipt.
+The build must compare that source manifest before and after compilation.
+
+Each evidence bundle saves the checked manifest, original receipt and a receipt
+whose manifest path is relative to the bundle. Missing or mismatched files stop
+the qualification before starting a guest. Existing build archives cannot be
+overwritten. These records identify the measured build; they do not establish
+that its implementation or task outcome is correct.
+
 The completed code-review auditor checks the repository Endpoint, actual WASI
 arguments, simulator requests and results, approval before merging, and guest
 exits. Each review uses distinct intent deliveries, a request, an argument-file

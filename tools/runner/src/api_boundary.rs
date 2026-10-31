@@ -1,6 +1,6 @@
 //! Scripted checks of result-file I/O through the actual wash guests.
 use crate::{
-    evidence::{Result, Trace, digest, save},
+    evidence::{Result, Trace, archive_build_receipt, digest, save},
     oracle, process,
 };
 use serde_json::{Value, json};
@@ -86,11 +86,9 @@ async fn real_wasi_outcome_metadata_preserves_all_original_results() -> Result<(
     let runtime = PathBuf::from(
         std::env::var_os("CHOREOFIX_API_WASI_BINARY").ok_or("API binary not selected")?,
     );
-    let receipt: Value = serde_json::from_slice(&fs::read(
-        std::env::var_os("CHOREOFIX_API_BUILD_RECEIPT").ok_or("API build receipt missing")?,
-    )?)?;
-    assert_eq!(receipt["binary_sha256"], digest(&runtime)?);
-    assert_eq!(receipt["source_unchanged"], true);
+    let receipt_path = PathBuf::from(
+        std::env::var_os("CHOREOFIX_API_BUILD_RECEIPT").ok_or("build receipt missing")?,
+    );
     let wasm = Path::new("vendor/hibana-wash/target/wasm32-wasip1/release/hibana-wash.wasm");
     let root =
         PathBuf::from(std::env::var_os("CHOREOFIX_EVIDENCE_ROOT").ok_or("evidence root missing")?);
@@ -100,6 +98,7 @@ async fn real_wasi_outcome_metadata_preserves_all_original_results() -> Result<(
         SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos()
     ));
     fs::create_dir(&directory)?;
+    let receipt = archive_build_receipt(&runtime, &receipt_path, &directory)?;
     let mut cases = Vec::new();
     for depth in 0..=2 {
         let output = directory.join(format!("depth-{depth}"));

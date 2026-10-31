@@ -1,7 +1,7 @@
 //! Actual wash/WASI requests against the unchanged codebase simulator.
 //! Scripted stimuli test the boundary and do not count as model experiments.
 use crate::{
-    evidence::{Result, Trace, digest, save},
+    evidence::{Result, Trace, archive_build_receipt, digest, save},
     oracle, process,
 };
 use serde_json::{Value, json};
@@ -192,16 +192,21 @@ async fn case(
     delay: f64,
     failures: &[(&str, u32)],
 ) -> Result<Value> {
-    let runtime = std::env::var_os("CHOREOFIX_CODEBASE_WASI_BINARY")
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(|| "target/debug/codebase-wasi".into());
+    let runtime = std::path::PathBuf::from(
+        std::env::var_os("CHOREOFIX_CODEBASE_WASI_BINARY").ok_or("codebase binary missing")?,
+    );
+    let receipt_path = std::path::PathBuf::from(
+        std::env::var_os("CHOREOFIX_CODEBASE_BUILD_RECEIPT")
+            .ok_or("codebase build receipt missing")?,
+    );
     let module = Path::new("vendor/hibana-wash/target/wasm32-wasip1/release/hibana-wash.wasm");
     let case = directory.join(format!("{task}-depth{depth}"));
     fs::create_dir(&case)?;
+    let receipt = archive_build_receipt(&runtime, &receipt_path, &case)?;
     save(
         &case.join("case.json"),
         &json!({"task":task,"depth":depth,
-        "kind":"deterministic_rust_wasi_boundary","model_calls":0,"scored_benchmark":false,
+        "kind":"deterministic_rust_wasi_boundary","model_calls":0,"scored_benchmark":false,"build":receipt,
         "test_barriers":"none", "domain_delay_multiplier":delay,"external_failure_specs":failures,
         "runtime_binary_sha256":digest(&runtime)?,"guest_wasm_sha256":digest(module)?,
         "harness_binary_sha256":digest(&std::env::current_exe()?)?,

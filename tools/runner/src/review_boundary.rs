@@ -1,7 +1,7 @@
 //! Deterministic shell stimuli for the actual 6E WASI runtime.
 //! These tests neither authorize an operation nor replace a localside.
 use crate::{
-    evidence::{Result, Trace, digest, save},
+    evidence::{Result, Trace, archive_build_receipt, digest, save},
     oracle, process, review_audit,
 };
 use serde_json::{Value, json};
@@ -303,115 +303,6 @@ struct ReviewCase {
     schedule: ReviewSchedule,
     delay: f64,
     extra_failures: &'static [u32],
-}
-
-fn archive_build_receipt(runtime: &Path, input: &Path, directory: &Path) -> Result<Value> {
-    let original = fs::read(input)?;
-    let mut receipt: Value = serde_json::from_slice(&original)?;
-    if receipt["binary_sha256"] != digest(runtime)? || receipt["source_unchanged"] != true {
-        return Err("review binary differs from its build receipt".into());
-    }
-    let manifest = input.parent().ok_or("receipt directory")?.join(
-        receipt["source_manifest"]
-            .as_str()
-            .ok_or("source manifest path")?,
-    );
-    let archived_manifest = directory.join("build-source.sha256");
-    fs::copy(manifest, &archived_manifest)?;
-    if receipt["source_manifest_sha256"] != digest(&archived_manifest)? {
-        return Err("review source manifest differs from its build receipt".into());
-    }
-    let original_path = directory.join("input-build-receipt.json");
-    fs::write(&original_path, original)?;
-    receipt["input_receipt_sha256"] = digest(&original_path)?.into();
-    receipt["source_manifest"] = "build-source.sha256".into();
-    save(&directory.join("build-receipt.json"), &receipt)?;
-    Ok(receipt)
-}
-
-#[test]
-fn archived_build_receipt_survives_moving_the_evidence_bundle() {
-    let root = std::env::temp_dir().join(format!(
-        "choreofix-build-receipt-{}-{}",
-        std::process::id(),
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
-    ));
-    let input = root.join("input");
-    let bundle = root.join("bundle");
-    fs::create_dir_all(&input).unwrap();
-    fs::create_dir(&bundle).unwrap();
-    let binary = input.join("runtime");
-    let manifest = input.join("original-source.sha256");
-    let receipt = input.join("receipt.json");
-    fs::write(&binary, b"qualified binary").unwrap();
-    fs::write(&manifest, b"source hashes\n").unwrap();
-    save(
-        &receipt,
-        &json!({"binary_sha256":digest(&binary).unwrap(),
-        "source_unchanged":true,"source_manifest":"original-source.sha256",
-        "source_manifest_sha256":digest(&manifest).unwrap()}),
-    )
-    .unwrap();
-    let original_receipt = digest(&receipt).unwrap();
-    let saved = archive_build_receipt(&binary, &receipt, &bundle).unwrap();
-    let relocated = root.join("relocated");
-    fs::rename(&bundle, &relocated).unwrap();
-    fs::remove_dir_all(&input).unwrap();
-    let recorded: Value =
-        serde_json::from_slice(&fs::read(relocated.join("build-receipt.json")).unwrap()).unwrap();
-    assert_eq!(recorded, saved);
-    assert_eq!(recorded["source_manifest"], "build-source.sha256");
-    assert_eq!(
-        recorded["source_manifest_sha256"],
-        digest(&relocated.join(recorded["source_manifest"].as_str().unwrap())).unwrap()
-    );
-    assert_eq!(recorded["input_receipt_sha256"], original_receipt);
-    assert_eq!(
-        digest(&relocated.join("input-build-receipt.json")).unwrap(),
-        original_receipt
-    );
-    fs::remove_dir_all(root).unwrap();
-}
-
-#[test]
-fn mismatched_build_evidence_cannot_publish_an_archived_receipt() {
-    let root = std::env::temp_dir().join(format!(
-        "choreofix-bad-build-receipt-{}-{}",
-        std::process::id(),
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
-    ));
-    fs::create_dir(&root).unwrap();
-    let binary = root.join("runtime");
-    let manifest = root.join("source.sha256");
-    let receipt = root.join("input.json");
-    let output = root.join("bundle");
-    fs::create_dir(&output).unwrap();
-    fs::write(&binary, b"qualified binary").unwrap();
-    fs::write(&manifest, b"source hashes\n").unwrap();
-    let valid = json!({"binary_sha256":digest(&binary).unwrap(),"source_unchanged":true,
-        "source_manifest":"source.sha256","source_manifest_sha256":digest(&manifest).unwrap()});
-    for invalid in [
-        "binary_sha256",
-        "source_manifest_sha256",
-        "source_unchanged",
-    ] {
-        let mut value = valid.clone();
-        value[invalid] = if invalid == "source_unchanged" {
-            false.into()
-        } else {
-            "different".into()
-        };
-        save(&receipt, &value).unwrap();
-        assert!(archive_build_receipt(&binary, &receipt, &output).is_err());
-        assert!(!output.join("build-receipt.json").exists());
-    }
-    fs::remove_dir_all(root).unwrap();
 }
 
 async fn run_cases(cases: Vec<ReviewCase>) -> Result<()> {

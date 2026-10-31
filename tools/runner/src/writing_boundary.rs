@@ -1,6 +1,6 @@
 //! Shell stimuli for actual section-delegating Wasm guests and original tasks.
 use crate::{
-    evidence::{Result, Trace, digest, save},
+    evidence::{Result, Trace, archive_build_receipt, digest, save},
     oracle, process, writing_audit,
 };
 use serde_json::{Value, json};
@@ -118,11 +118,9 @@ async fn all_writing_levels_use_actual_section_endpoints() -> Result<()> {
     let runtime = PathBuf::from(
         std::env::var_os("CHOREOFIX_WRITING_WASI_BINARY").ok_or("writing binary missing")?,
     );
-    let receipt: Value = serde_json::from_slice(&fs::read(
-        std::env::var_os("CHOREOFIX_WRITING_BUILD_RECEIPT").ok_or("writing receipt missing")?,
-    )?)?;
-    assert_eq!(receipt["binary_sha256"], digest(&runtime)?);
-    assert_eq!(receipt["source_unchanged"], true);
+    let receipt_path = PathBuf::from(
+        std::env::var_os("CHOREOFIX_WRITING_BUILD_RECEIPT").ok_or("build receipt missing")?,
+    );
     let wasm = Path::new("vendor/hibana-wash/target/wasm32-wasip1/release/hibana-wash.wasm");
     let root =
         PathBuf::from(std::env::var_os("CHOREOFIX_EVIDENCE_ROOT").ok_or("evidence root missing")?);
@@ -132,6 +130,7 @@ async fn all_writing_levels_use_actual_section_endpoints() -> Result<()> {
         SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos()
     ));
     fs::create_dir(&directory)?;
+    let receipt = archive_build_receipt(&runtime, &receipt_path, &directory)?;
     let mut cases = Vec::new();
     for task in ["2E", "2M", "2H"] {
         for (name, depth, delay, terminal) in [

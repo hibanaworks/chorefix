@@ -1,7 +1,7 @@
 //! Scripted shell qualification through the actual CI/CD Wasm participants.
 use crate::{
     cicd_audit,
-    evidence::{Result, Trace, digest, save},
+    evidence::{Result, Trace, archive_build_receipt, digest, save},
     oracle, process,
 };
 use serde_json::{Value, json};
@@ -197,11 +197,9 @@ async fn real_wasi_cicd_uses_resource_endpoints_and_keeps_shell_freedom() -> Res
     let runtime = PathBuf::from(
         std::env::var_os("CHOREOFIX_CICD_WASI_BINARY").ok_or("CI/CD binary missing")?,
     );
-    let receipt: Value = serde_json::from_slice(&fs::read(
-        std::env::var_os("CHOREOFIX_CICD_BUILD_RECEIPT").ok_or("CI/CD build receipt missing")?,
-    )?)?;
-    assert_eq!(receipt["binary_sha256"], digest(&runtime)?);
-    assert_eq!(receipt["source_unchanged"], true);
+    let receipt_path = PathBuf::from(
+        std::env::var_os("CHOREOFIX_CICD_BUILD_RECEIPT").ok_or("build receipt missing")?,
+    );
     let wasm = Path::new("vendor/hibana-wash/target/wasm32-wasip1/release/hibana-wash.wasm");
     let root =
         PathBuf::from(std::env::var_os("CHOREOFIX_EVIDENCE_ROOT").ok_or("evidence root missing")?);
@@ -211,6 +209,7 @@ async fn real_wasi_cicd_uses_resource_endpoints_and_keeps_shell_freedom() -> Res
         SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos()
     ));
     fs::create_dir(&directory)?;
+    let receipt = archive_build_receipt(&runtime, &receipt_path, &directory)?;
     let mut outcomes = Vec::new();
     for depth in 0..=2 {
         let output = directory.join(format!("depth-{depth}"));
@@ -272,11 +271,9 @@ async fn real_wasi_cicd_early_exit_has_no_domain_effect() -> Result<()> {
     let runtime = PathBuf::from(
         std::env::var_os("CHOREOFIX_CICD_WASI_BINARY").ok_or("CI/CD binary missing")?,
     );
-    let receipt: Value = serde_json::from_slice(&fs::read(
-        std::env::var_os("CHOREOFIX_CICD_BUILD_RECEIPT").ok_or("CI/CD build receipt missing")?,
-    )?)?;
-    assert_eq!(receipt["binary_sha256"], digest(&runtime)?);
-    assert_eq!(receipt["source_unchanged"], true);
+    let receipt_path = PathBuf::from(
+        std::env::var_os("CHOREOFIX_CICD_BUILD_RECEIPT").ok_or("build receipt missing")?,
+    );
     let module = Path::new("vendor/hibana-wash/target/wasm32-wasip1/release/hibana-wash.wasm");
     let root =
         PathBuf::from(std::env::var_os("CHOREOFIX_EVIDENCE_ROOT").ok_or("evidence root missing")?);
@@ -286,6 +283,7 @@ async fn real_wasi_cicd_early_exit_has_no_domain_effect() -> Result<()> {
         SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos()
     ));
     fs::create_dir(&output)?;
+    let receipt = archive_build_receipt(&runtime, &receipt_path, &output)?;
     let trace = Trace::create(&output.join("events.jsonl"))?;
     let (simulator, _) = oracle::Simulator::new("16E", 0, 0.01, trace.clone(), &[])?;
     save(

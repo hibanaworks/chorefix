@@ -1,6 +1,6 @@
 //! Live connection qualification with original inputs and actual WASI guests.
 use crate::{
-    evidence::{Result, Trace, digest, save},
+    evidence::{Result, Trace, archive_build_receipt, digest, save},
     model, oracle, process,
 };
 use serde_json::{Value, json};
@@ -127,23 +127,16 @@ async fn subscription_case(task: &str, depth: u8) -> Result<()> {
     };
     let verifier_sha256 = verifier.as_deref().map(digest).transpose()?;
     let receipt_variable = match task {
-        "1H" => Some("CHOREOFIX_CODEBASE_BUILD_RECEIPT"),
-        "8E" => Some("CHOREOFIX_API_BUILD_RECEIPT"),
-        "16E" => Some("CHOREOFIX_CICD_BUILD_RECEIPT"),
-        "6E" => Some("CHOREOFIX_REVIEW_BUILD_RECEIPT"),
-        "2E" | "2M" | "2H" => Some("CHOREOFIX_WRITING_BUILD_RECEIPT"),
-        _ => None,
+        "1H" => "CHOREOFIX_CODEBASE_BUILD_RECEIPT",
+        "8E" => "CHOREOFIX_API_BUILD_RECEIPT",
+        "16E" => "CHOREOFIX_CICD_BUILD_RECEIPT",
+        "6E" => "CHOREOFIX_REVIEW_BUILD_RECEIPT",
+        "2E" | "2M" | "2H" => "CHOREOFIX_WRITING_BUILD_RECEIPT",
+        "9E" | "9M" | "9H" => "CHOREOFIX_PHILOSOPHERS_BUILD_RECEIPT",
+        _ => return Err("missing runtime build receipt selection".into()),
     };
-    let build_receipt = if let Some(variable) = receipt_variable {
-        let receipt = std::env::var_os(variable).ok_or(variable)?;
-        let receipt: Value = serde_json::from_slice(&fs::read(receipt)?)?;
-        if receipt["binary_sha256"] != digest(&runtime)? || receipt["source_unchanged"] != true {
-            return Err("runtime binary does not match the source build receipt".into());
-        }
-        receipt
-    } else {
-        Value::Null
-    };
+    let receipt_path = PathBuf::from(std::env::var_os(receipt_variable).ok_or(receipt_variable)?);
+    let build_receipt = archive_build_receipt(&runtime, &receipt_path, &directory)?;
     let module = Path::new("vendor/hibana-wash/target/wasm32-wasip1/release/hibana-wash.wasm");
     let config: Value = serde_json::from_slice(&fs::read("experiment.json")?)?;
     let seconds = config["run_timeout_seconds"]
