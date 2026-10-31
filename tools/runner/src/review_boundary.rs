@@ -18,6 +18,7 @@ enum ReviewSchedule {
     FinishFirst,
     Alternate,
     AlternateThenRepeat,
+    BothRejectedThenFirst,
 }
 
 fn response(reply: &Value) -> Result<Value> {
@@ -172,6 +173,18 @@ async fn reviewer(
             match schedule {
                 ReviewSchedule::FinishFirst => requests.push_front(feature),
                 ReviewSchedule::Alternate => requests.push_back(feature),
+                ReviewSchedule::BothRejectedThenFirst => {
+                    if before
+                        .iter()
+                        .filter(|event| event["tool"] == "code_review" && event["success"] == false)
+                        .count()
+                        < 2
+                    {
+                        requests.push_back(feature);
+                    } else {
+                        requests.push_front(feature);
+                    }
+                }
                 ReviewSchedule::AlternateThenRepeat => {
                     if before
                         .iter()
@@ -213,23 +226,9 @@ async fn reviewer(
 #[tokio::test(flavor = "current_thread")]
 #[ignore = "uses the built WASI runtime, real wash and unchanged upstream simulator"]
 async fn real_wasi_reviews_reconsider_and_interleave_with_unchanged_upstream() -> Result<()> {
-    std::env::set_current_dir(
-        Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../..")
-            .canonicalize()?,
-    )?;
-    let directory = Path::new("output").join(format!(
-        "review-rust-boundary-{}",
-        SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos()
-    ));
-    fs::create_dir(&directory)?;
-    let runtime = std::env::var_os("CHOREOFIX_REVIEW_WASI_BINARY")
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(|| "target/debug/review-wasi".into());
-    let module = Path::new("vendor/hibana-wash/target/wasm32-wasip1/release/hibana-wash.wasm");
-    let mut outcomes = Vec::new();
+    let mut cases = Vec::new();
     for depth in [0, 1, 2] {
-        for review_first in ["user_authentication", "notification_feature"] {
+        for first in ["user_authentication", "notification_feature"] {
             for schedule in [
                 ReviewSchedule::FinishFirst,
                 ReviewSchedule::Alternate,
@@ -245,161 +244,252 @@ async fn real_wasi_reviews_reconsider_and_interleave_with_unchanged_upstream() -
                     &[0.01]
                 };
                 for &delay in delays {
-                    let case = directory.join(format!(
-                        "depth{depth}-{review_first}-{schedule:?}-delay{delay}"
-                    ));
-                    fs::create_dir(&case)?;
-                    save(
-                        &case.join("case.json"),
-                        &json!({"task":"6E","depth":depth,"review_first":review_first,"schedule":format!("{schedule:?}"),"delay_multiplier":delay,
-                "kind":"deterministic_rust_wasi_regression","model_calls":0,"scored_benchmark":false,
+                    cases.push(ReviewCase {
+                        depth,
+                        first,
+                        schedule,
+                        delay,
+                        extra_failures: &[],
+                    });
+                }
+            }
+        }
+    }
+    run_cases(cases).await
+}
+
+#[tokio::test(flavor = "current_thread")]
+#[ignore = "uses the built WASI runtime and additional unscored upstream failure injection"]
+async fn repeated_rejections_require_a_fresh_revision() -> Result<()> {
+    let mut cases = Vec::new();
+    for first in ["user_authentication", "notification_feature"] {
+        for schedule in [
+            ReviewSchedule::BothRejectedThenFirst,
+            ReviewSchedule::AlternateThenRepeat,
+        ] {
+            for extra_failures in [&[2][..], &[2, 3][..]] {
+                cases.push(ReviewCase {
+                    depth: 2,
+                    first,
+                    schedule,
+                    delay: 0.01,
+                    extra_failures,
+                });
+            }
+        }
+    }
+    run_cases(cases).await
+}
+
+struct ReviewCase {
+    depth: u8,
+    first: &'static str,
+    schedule: ReviewSchedule,
+    delay: f64,
+    extra_failures: &'static [u32],
+}
+
+async fn run_cases(cases: Vec<ReviewCase>) -> Result<()> {
+    std::env::set_current_dir(
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .canonicalize()?,
+    )?;
+    let directory = Path::new("output").join(format!(
+        "review-rust-boundary-{}",
+        SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos()
+    ));
+    fs::create_dir(&directory)?;
+    let runtime = std::env::var_os("CHOREOFIX_REVIEW_WASI_BINARY")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| "target/debug/review-wasi".into());
+    let module = Path::new("vendor/hibana-wash/target/wasm32-wasip1/release/hibana-wash.wasm");
+    let mut outcomes = Vec::new();
+    for ReviewCase {
+        depth,
+        first: review_first,
+        schedule,
+        delay,
+        extra_failures,
+    } in cases
+    {
+        let failures: Vec<_> = extra_failures
+            .iter()
+            .map(|&at| ("code_review", at))
+            .collect();
+        let rejected = usize::from(depth) + extra_failures.len();
+        let case = directory.join(format!(
+            "depth{depth}-{review_first}-{schedule:?}-delay{delay}-extra{extra_failures:?}"
+        ));
+        fs::create_dir(&case)?;
+        save(
+            &case.join("case.json"),
+            &json!({"task":"6E","depth":depth,"review_first":review_first,"schedule":format!("{schedule:?}"),"delay_multiplier":delay,
+                "kind":"deterministic_rust_wasi_regression","model_calls":0,"scored_benchmark":false,"failure_overrides":failures,
                 "test_barriers":"none",
                 "source_qualification":"This fixture does not qualify the recorded root Git dependencies",
                 "runtime_binary_sha256":digest(&runtime)?,"guest_wasm_sha256":digest(module)?,
                 "root_lock_sha256":digest(Path::new("Cargo.lock"))?,"runner_lock_sha256":digest(Path::new("tools/runner/Cargo.lock"))?,
                 "simulator_source_sha256":digest(Path::new("vendor/tracefix/benchmark/environments/6E/sim.py"))?}),
-                    )?;
-                    let trace = Arc::new(Trace::create(&case.join("events.jsonl"))?);
-                    let (simulator, _) =
-                        oracle::Simulator::new("6E", depth, delay, trace.clone(), &[])?;
-                    let (guest, runtime_loop) =
-                        process::guest(&runtime, module, "6E", &case, trace, simulator.clone())?;
-                    let (a, b, review, result) =
-                        tokio::time::timeout(Duration::from_secs(60), async {
-                            tokio::join!(
-                                developer(
-                                    guest.clone(),
-                                    simulator.clone(),
-                                    "DEVELOPER_A",
-                                    "user_authentication",
-                                    "dev_a_feature"
-                                ),
-                                developer(
-                                    guest.clone(),
-                                    simulator.clone(),
-                                    "DEVELOPER_B",
-                                    "notification_feature",
-                                    "dev_b_feature"
-                                ),
-                                reviewer(guest.clone(), simulator.clone(), review_first, schedule),
-                                runtime_loop,
-                            )
-                        })
-                        .await?;
-                    let a = a?;
-                    let b = b?;
-                    review?;
-                    let result = result?;
-                    assert_eq!(
-                        result["protocol"],
-                        json!({"type":"run_result","status":"complete"})
-                    );
-                    assert_eq!(result["runtime_exit_code"], 0);
-                    assert_eq!(result["backend_errors"], json!([]));
-                    assert_eq!(result["score"]["complete"], true);
-                    assert_eq!(result["score"]["violations"], json!([]));
-                    assert_eq!(
-                        result["score"]["events"]
-                            .as_array()
-                            .ok_or("original events")?
-                            .len(),
-                        6 + 2 * usize::from(depth)
-                    );
-                    assert_eq!(
-                        a.iter()
-                            .chain(&b)
-                            .filter(|reply| reply["success"] == false)
-                            .count(),
-                        usize::from(depth)
-                    );
-                    for feedback in [&a, &b] {
-                        assert_eq!(
-                            feedback.last().ok_or("missing review feedback")?["success"],
-                            true
-                        );
-                    }
-                    if matches!(schedule, ReviewSchedule::FinishFirst) {
-                        for (feedback, expected) in [
-                            (
-                                &a,
-                                if review_first == "user_authentication" {
-                                    depth
-                                } else {
-                                    0
-                                },
-                            ),
-                            (
-                                &b,
-                                if review_first == "notification_feature" {
-                                    depth
-                                } else {
-                                    0
-                                },
-                            ),
-                        ] {
-                            let expected: Vec<_> =
-                                std::iter::repeat_n(json!(false), usize::from(expected))
-                                    .chain([json!(true)])
-                                    .collect();
-                            assert_eq!(
-                                feedback
-                                    .iter()
-                                    .map(|r| r["success"].clone())
-                                    .collect::<Vec<_>>(),
-                                expected
-                            );
-                        }
-                    }
-                    let audit = review_audit::audit(&case.join("events.jsonl"))?;
-                    if depth == 2 && !matches!(schedule, ReviewSchedule::FinishFirst) {
-                        let other = if review_first == "user_authentication" {
-                            "notification_feature"
-                        } else {
-                            "user_authentication"
-                        };
-                        let expected = match schedule {
-                            ReviewSchedule::Alternate => {
-                                json!([review_first, other, review_first, other])
-                            }
-                            ReviewSchedule::AlternateThenRepeat => {
-                                json!([review_first, other, other, review_first])
-                            }
-                            _ => unreachable!(),
-                        };
-                        assert_eq!(audit["review_targets"], expected);
-                    }
-                    save(&case.join("resource-audit.json"), &audit)?;
-                    let mutants = review_audit::check_mutants(
-                        &case.join("events.jsonl"),
-                        &case.join("resource-mutants"),
-                    )?;
-                    assert_eq!(mutants["count"], 16);
-                    if delay == 1.0 {
-                        for pair in ["code_review+implement_feature", "code_review+merge_code"] {
-                            assert!(
-                                audit["overlapping_effect_pairs"][pair]
-                                    .as_u64()
-                                    .is_some_and(|n| n > 0),
-                                "missing actual overlap: {pair}"
-                            );
-                        }
-                        if depth == 2 && matches!(schedule, ReviewSchedule::Alternate) {
-                            assert!(
-                                audit["overlapping_effect_pairs"]["code_review+implement_feature"]
-                                    .as_u64()
-                                    .is_some_and(|n| n >= 3),
-                                "both-rejected revision and re-review did not overlap"
-                            );
-                        }
-                    }
-                    let result = json!({"depth":depth,"review_first":review_first,"schedule":format!("{schedule:?}"),"delay_multiplier":delay,"result":result,"a_feedback":a,"b_feedback":b,"audit":audit,"mutant_count":mutants["count"],
-                "kind":"deterministic_rust_wasi_regression","model_calls":0,"scored_benchmark":false});
-                    save(&case.join("result.json"), &result)?;
-                    outcomes.push(result);
-                    save(&directory.join("summary.json"), &json!(outcomes))?;
-                }
+        )?;
+        let trace = Arc::new(Trace::create(&case.join("events.jsonl"))?);
+        let (simulator, _) = oracle::Simulator::new("6E", depth, delay, trace.clone(), &failures)?;
+        let (guest, runtime_loop) =
+            process::guest(&runtime, module, "6E", &case, trace, simulator.clone())?;
+        let (a, b, review, result) = tokio::time::timeout(Duration::from_secs(60), async {
+            tokio::join!(
+                developer(
+                    guest.clone(),
+                    simulator.clone(),
+                    "DEVELOPER_A",
+                    "user_authentication",
+                    "dev_a_feature"
+                ),
+                developer(
+                    guest.clone(),
+                    simulator.clone(),
+                    "DEVELOPER_B",
+                    "notification_feature",
+                    "dev_b_feature"
+                ),
+                reviewer(guest.clone(), simulator.clone(), review_first, schedule),
+                runtime_loop,
+            )
+        })
+        .await?;
+        let a = a?;
+        let b = b?;
+        review?;
+        let result = result?;
+        assert_eq!(
+            result["protocol"],
+            json!({"type":"run_result","status":"complete"})
+        );
+        assert_eq!(result["runtime_exit_code"], 0);
+        assert_eq!(result["backend_errors"], json!([]));
+        assert_eq!(result["score"]["complete"], true);
+        assert_eq!(result["score"]["violations"], json!([]));
+        assert_eq!(
+            result["score"]["events"]
+                .as_array()
+                .ok_or("original events")?
+                .len(),
+            6 + 2 * rejected
+        );
+        assert_eq!(
+            a.iter()
+                .chain(&b)
+                .filter(|reply| reply["success"] == false)
+                .count(),
+            rejected
+        );
+        for feedback in [&a, &b] {
+            assert_eq!(
+                feedback.last().ok_or("missing review feedback")?["success"],
+                true
+            );
+        }
+        if matches!(schedule, ReviewSchedule::FinishFirst) {
+            for (feedback, expected) in [
+                (
+                    &a,
+                    if review_first == "user_authentication" {
+                        depth
+                    } else {
+                        0
+                    },
+                ),
+                (
+                    &b,
+                    if review_first == "notification_feature" {
+                        depth
+                    } else {
+                        0
+                    },
+                ),
+            ] {
+                let expected: Vec<_> = std::iter::repeat_n(json!(false), usize::from(expected))
+                    .chain([json!(true)])
+                    .collect();
+                assert_eq!(
+                    feedback
+                        .iter()
+                        .map(|r| r["success"].clone())
+                        .collect::<Vec<_>>(),
+                    expected
+                );
             }
         }
+        let audit = review_audit::audit(&case.join("events.jsonl"))?;
+        if !extra_failures.is_empty() {
+            let other = if review_first == "user_authentication" {
+                "notification_feature"
+            } else {
+                "user_authentication"
+            };
+            let expected: Vec<_> = match schedule {
+                ReviewSchedule::BothRejectedThenFirst => [review_first, other]
+                    .into_iter()
+                    .chain(std::iter::repeat_n(review_first, rejected - 1))
+                    .chain([other])
+                    .collect(),
+                ReviewSchedule::AlternateThenRepeat => std::iter::once(review_first)
+                    .chain(std::iter::repeat_n(other, rejected))
+                    .chain([review_first])
+                    .collect(),
+                ReviewSchedule::FinishFirst | ReviewSchedule::Alternate => unreachable!(),
+            };
+            assert_eq!(audit["review_targets"], json!(expected));
+        }
+        if depth == 2
+            && extra_failures.is_empty()
+            && !matches!(schedule, ReviewSchedule::FinishFirst)
+        {
+            let other = if review_first == "user_authentication" {
+                "notification_feature"
+            } else {
+                "user_authentication"
+            };
+            let expected = match schedule {
+                ReviewSchedule::Alternate => {
+                    json!([review_first, other, review_first, other])
+                }
+                ReviewSchedule::AlternateThenRepeat => {
+                    json!([review_first, other, other, review_first])
+                }
+                _ => unreachable!(),
+            };
+            assert_eq!(audit["review_targets"], expected);
+        }
+        save(&case.join("resource-audit.json"), &audit)?;
+        let mutants = review_audit::check_mutants(
+            &case.join("events.jsonl"),
+            &case.join("resource-mutants"),
+        )?;
+        assert_eq!(mutants["count"], if rejected == 0 { 22 } else { 25 });
+        if delay == 1.0 {
+            for pair in ["code_review+implement_feature", "code_review+merge_code"] {
+                assert!(
+                    audit["overlapping_effect_pairs"][pair]
+                        .as_u64()
+                        .is_some_and(|n| n > 0),
+                    "missing actual overlap: {pair}"
+                );
+            }
+            if depth == 2 && matches!(schedule, ReviewSchedule::Alternate) {
+                assert!(
+                    audit["overlapping_effect_pairs"]["code_review+implement_feature"]
+                        .as_u64()
+                        .is_some_and(|n| n >= 3),
+                    "both-rejected revision and re-review did not overlap"
+                );
+            }
+        }
+        let result = json!({"depth":depth,"review_first":review_first,"schedule":format!("{schedule:?}"),"delay_multiplier":delay,"result":result,"a_feedback":a,"b_feedback":b,"audit":audit,"mutant_count":mutants["count"],
+                "kind":"deterministic_rust_wasi_regression","model_calls":0,"scored_benchmark":false});
+        save(&case.join("result.json"), &result)?;
+        outcomes.push(result);
+        save(&directory.join("summary.json"), &json!(outcomes))?;
     }
     println!("{}", directory.display());
     Ok(())

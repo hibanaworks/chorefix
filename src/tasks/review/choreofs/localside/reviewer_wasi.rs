@@ -248,7 +248,13 @@ pub async fn run(
                                         }
                                         89 if feature == FEATURE_B => {
                                             branch.send::<AgainBAfterA>(&arguments).await?;
-                                            task.send::<AgainBAfterA>(&arguments).await?;
+                                            task.send::<AgainBAfterA>(&arguments).await.map_err(
+                                                |error| {
+                                                    ShellError::message(format!(
+                                                        "review B intent to review A: {error:?}"
+                                                    ))
+                                                },
+                                            )?;
                                             task.send::<AgainBAfterA>(&arguments).await?;
                                             task.send::<AgainBAfterA>(&arguments).await?;
                                             task.send::<AgainBAfterA>(&arguments).await?;

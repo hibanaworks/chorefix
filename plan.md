@@ -32,6 +32,29 @@
 旧A、v1の承認、別の引数、片方しかない資源で実効果を起こせないことを確認する。
 競合が通常のbroker、lease、proxyや再計画で同じ業務を完了しても成功と数える。
 
+この[最小機構ケース](src/tasks/handoff)を実装した。AとBは別runtimeで、
+失敗した候補からBが再修正・再検証し、RとSの両要求がそろった後だけ版付きの値を公開する。
+独立したCはSで計算し、その実結果も公開物に含める。進行はglobalのpar、roll、routeと
+直接のEndpoint操作で行い、資源の現在版・検証結果・公開物は物理サービスが所有する。
+これはnativeのmemory-backed fixtureであり、実Wasm、実モデル、実成果物Gや採点実験ではない。
+
+通常の再考、旧承認・別対象・引数変更・負の検証結果・左右の資源要求の不一致6種類、
+片方の要求だけを送ったPendingからの継続、未修正候補への承認偽装、実際の否定結果による
+修正なしの失敗終了、計10ケースが通過した。
+引数違反では公開0件と初期bindingの再発行拒否、正常系では同じEndpointのA→B→Aと
+正しい版の公開を確認した。通常Git pinの個別fixtureでは5試験に含まれる10ケースとClippyが成功した。
+再修正／候補確定はglobalの明示的routeであり、localsideのofferはその選択を観測する。
+同じGit pinの10ケースをstrict provenanceのMiriでも確認した。Miriの実行は240.71秒、
+その後のLean照合を含む検証process全体の最大memoryは705,691,648bytesだった。
+検証用の時間枠は計装コストを含む60秒で、実験のdeadlineやmemory上限とは別である。
+このケースの追加で本体の挙動は変更していない。
+
+[Lean](proofs/README.md)では、任意のtarget・版・値について、両要求と実検証結果・現在版が
+一致することと公開判定の同値性を証明した。既存coreのsource実行から操作点の重複がないことも
+導いた。許可する公理はpropext、Quot.soundのみ。これらだけでは、実effectと受信した
+source操作の一対一対応は未証明である。次に両資源の受信を同じ動的業務操作へ対応付け、
+receiverの一回の実効果と結ぶ。新しいruntime台帳を足す方法は取らない。
+
 | 目標 | 命題と完了の証拠 | 現状 |
 | --- | --- | --- |
 | T1 完全実行の対応 | 評価で使うmessage/seq/par/route/resolver/roll/委譲について、globalと理想投影の完全実行を双方向に対応させる | 既存core定理の適用範囲と必要補題を対応付ける。研究全体の証明完了とはしない |
@@ -191,7 +214,7 @@ ChoreoFixのmanifest/lockは本体
 | --- | --- | --- |
 | 1E/1M/1H | 実資源Endpointの要求・結果・返却。1Hは7人が実結果で再考。実Endpoint・実Wasm試験と実モデルの予備記録あり | source固定後の全条件の認定と比較 |
 | 2E/2M/2H | 両sectionの実Endpoint要求・結果・返却。実Wasm15条件と3/5/7人のLuna予備試験が通過 | source固定後の全条件の認定と比較 |
-| 6E | globalとlocalsideを実Repo Endpointの貸出・要求・結果・返却から全面刷新。両feature拒否後も修正と再レビューを並行駆動 | 現版は実Wasm26条件・資源監査・416記録変異拒否が成功。前版のLuna3人の予備記録あり。通常Git pinと現版のモデル認定は未完 |
+| 6E | 実Repo Endpointによるglobal。各拒否後に修正・再レビューを行い、承認後の並行な後続へ進む | 通常Git pinで実Wasm通常26条件と追加8条件が成功、違反0、826記録変異を拒否。現版のモデル認定は未完 |
 | 8E | DB・test環境の実Endpoint委譲、単独所有の結果ファイル、実Wasm3条件、Luna成功・終端失敗の予備試験 | source固定後の認定と比較 |
 | 9E/9M/9H | 実fork Endpointを両方受け取り、実要求・結果・返却。3/5/7人の実Wasm・実モデル予備試験あり | source固定後の認定と比較 |
 | 16E | build/deploy環境の実Endpoint委譲。実Wasm3条件、早期終了拒否、3人のLuna予備試験あり | source固定後の認定と比較 |
@@ -246,6 +269,61 @@ build前後のアプリ・core source hashは一致した。
 アプリとrunner全targetのClippy、runner通常12試験とfmtが通過した。
 26記録は別processで同じ監査を実行し、組み込み監査と一致した。二つの独立アルゴリズムとは数えない。
 
+その後、同じ引数の再レビュー要求を削除しても旧監査が過去の要求を再利用して受理することを
+実記録の変異で再現した。監査を要求・引数ファイルclose・結果の出現ごとの一対一対応に修正し、
+直前版の26記録が引き続き通り、22種または25種、合計626記録変異をすべて拒否した。
+これらは記録監査の検出力であり、626件の実行時攻撃試験ではない。
+
+元の採点matrixは変えず、両feature拒否後の3回目・4回目の拒否を追加する8機構条件を作った。
+4回目の拒否で、内側の反復を終えたglobalが外側へ再入し、レビュー待ちの開発者に再実装を
+要求する不整合を実Wasmで再現した。globalの反復境界を修正し、localsideへの例外分岐や
+操作順の回避は加えない。初回承認を明示的なrouteで受け、拒否の場合だけ修正・再レビューの
+反復へ入り、承認を受けてから後続へ進むglobalへ修正した。追加8条件は実Wasmで完走し、
+実効果と監査が通過した。モデル呼出しは0で、採点対象の比較実験には数えない。
+
+source生成・lane割当の上限は、論理方向の索引、因果計算の一括化、作業領域の再利用により
+解消した。初回承認の分岐を含む現在の1586event globalも、sourceと投影の意味照合を
+維持したままforbidで通常buildが通過した。
+正の順序義務は、activeなsource順序のcover（間に別のactive操作がない前後関係）を
+すべて含む候補へ絞った。余分な直接順序の検査は全件維持し、従来の全操作対の検査との
+一致を含む投影135試験が通過した。小さいsourceは全choice/holder条件からcoverを独立に
+求め、候補に欠落がないことも照合する。有限な後方・推移的source順序について、これらの
+検査が全祖先のcoverageとsource-closedな進行のreadinessを保つLean補題が通過した。
+1586eventの通常buildは1分7秒、最大840,564,736bytesで通過した。これは増分buildで、
+clean build時間ではない。修正後の空targetからのbuildは4分55秒、最大1,120,649,216bytesで
+通過し、実Wasm34条件に使ったbinaryとbyte単位で一致した。forbidは維持している。
+const評価の上限は解消したが、cold build時間の改善は残る。rustcの標本ではconst評価が
+実行されており、Cargo timingsとprocess sampleを保持した。
+その先の実Wasmで見つかった送信のOutOfOrderとofferの停止は、
+小さい実Endpoint試験へ切り出し、本体で修正した。resolverの確認が受理済みの送信候補を
+同labelの別の出現へ戻さないこと、別armへ移る場合も送信方向・logical role・payloadを
+照合することを守る。offerは、全祖先の確定した選択から送れる候補を、追加frameを待つ
+候補より先に提示する。実受信frameの選択と、後段のadmission/commit検査は維持する。
+localsideの操作順・通信・並行性に回避処理は加えていない。
+修正coreを使う追加8条件は、3回目・4回目の拒否を含めて成功し、監査違反0、各記録の
+25変異、計200変異をすべて拒否した。同じbinaryで通常26条件も完走し、違反0、626記録変異を
+すべて拒否した。通常遅延8条件では、実装/レビューとmerge/レビューの実効果の重なりも確認した。
+新しい送信/offerの3回帰試験はstrict-provenance Miriを通過し、候補順位の本番関数はKaniで
+検査した。送信候補とsourceの対応、無frameで送れる候補の優先規則に関するLeanとZ3も通過した。
+送信の修正だけを外す変異は実Endpointの2試験、offerの修正だけを外す変異も2試験で失敗し、
+元のsourceへ戻すと3試験すべてが通過した。検査前後のsource hashも照合した。
+その後、coreを`e139912e`、WASI runtimeを`6b62998b`へ固定し、ローカルpatchなしで
+同じ1586eventを再buildした。4分53秒、最大1,104,922,112bytesで通過し、依存するcoreは
+一つだけであることを確認した。このbinaryで通常26条件と追加8条件を再実行し、全34条件が
+成功、監査違反0、826記録変異をすべて拒否した。build前後のsource hashと実行binaryのhashを
+記録した。228.39秒、最大75,726,848bytesで、モデル呼出しは0、採点実験には数えない。
+WASIのローカルgateも通常Git pinで通過した。実Wasmのシェル例、LeanとZ3、Pico 2の
+resource link、Miri、doc、packageを含む。Wasm専用のguest sourceをhost向けのCargo exampleと
+して自動検出しないようにし、通常のcargo test、Clippy、packageも確認した。
+現版のモデル認定は残る。
+
+修正coreはlib817試験、roll継続再利用13試験、Clippy、no_std/ARM gateを通過した。
+cover変更後のLean全127moduleと全1233定理の公理監査、Z3の14query、依存関係の変異を
+拒否するMiri1試験、word/filter/intersectionのKani3件も通過した。Kani3件はword演算の検査で、
+cover候補の再帰導出全体を証明したものではない。分岐履歴のMiri2件と方向索引のMiri1件、
+全u8域の方向索引・parallel候補のKani2件、条件付き依存の上下界に関するLeanとZ3も通過した。
+これらをcore全ゲートやT3/T4の合成の完了としては扱わない。
+
 前版の3人のLuna xhighは通常遅延・障害条件2で39.13秒で完走した。両featureが一度ずつ拒否された後に
 成功し、元score完了、違反0件、実Endpoint要求・返却は各6件だった。全員のChatGPT認証、モデル、
 effort、usageを確認し、inclusive tokensは360,770だった。実モデルの記録も16変異を拒否した。
@@ -269,7 +347,7 @@ effort、usageを確認し、inclusive tokensは360,770だった。実モデル�
 build前後のアプリ・core・WASI・washのsource hashは一致した。
 buildは306秒、全子孫の最大memoryは1,088,407,040bytesだった。
 これらはローカルcore修正での機構試験で、model呼出し・採点実験は0件である。
-T3/T4の一般的な合成と、通常Git pinでの最終認定は未完である。
+T3/T4の一般的な合成と、レビュー以外の通常Git pinでの最終認定は未完である。
 
 1Hの委譲版には、通常のmodule localsideを動かさず、現在のglobalを公開`project`で
 直接駆動する排他試験を追加した。A/Bそれぞれのdesign・implementationを完了し、

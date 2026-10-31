@@ -71,12 +71,28 @@ async fn run_guests(
     let review_guest =
         review_store.init(module, GuestMemory::new(&mut review_memory), bindings())?;
     tokio::try_join!(
-        localside::reviewer_a::run(&mut review_a, bus, &review_a_result),
-        localside::reviewer_b::run(&mut review_b, bus, &review_b_result),
-        localside::repo::run(&mut repo, repository, bus),
+        async {
+            localside::reviewer_a::run(&mut review_a, bus, &review_a_result)
+                .await
+                .map_err(|error| ShellError::message(format!("review A: {error}")))
+        },
+        async {
+            localside::reviewer_b::run(&mut review_b, bus, &review_b_result)
+                .await
+                .map_err(|error| ShellError::message(format!("review B: {error}")))
+        },
+        async {
+            localside::repo::run(&mut repo, repository, bus)
+                .await
+                .map_err(|error| ShellError::message(format!("repository: {error}")))
+        },
         async {
             let (vm, io) = tokio::try_join!(
-                localside::developer_wasi::run::<A_WASI>(a_guest, &mut a_wasi),
+                async {
+                    localside::developer_wasi::run::<A_WASI>(a_guest, &mut a_wasi)
+                        .await
+                        .map_err(|error| ShellError::message(format!("developer A: {error}")))
+                },
                 private_io::run(&mut a_io, &mut a_fs)
             )?;
             if vm != io {
@@ -89,7 +105,11 @@ async fn run_guests(
         },
         async {
             let (vm, io) = tokio::try_join!(
-                localside::developer_wasi::run::<B_WASI>(b_guest, &mut b_wasi),
+                async {
+                    localside::developer_wasi::run::<B_WASI>(b_guest, &mut b_wasi)
+                        .await
+                        .map_err(|error| ShellError::message(format!("developer B: {error}")))
+                },
                 private_io::run(&mut b_io, &mut b_fs)
             )?;
             if vm != io {
@@ -102,7 +122,11 @@ async fn run_guests(
         },
         async {
             let (vm, io) = tokio::try_join!(
-                localside::reviewer_wasi::run(review_guest, &mut review_wasi, &selected_review),
+                async {
+                    localside::reviewer_wasi::run(review_guest, &mut review_wasi, &selected_review)
+                        .await
+                        .map_err(|error| ShellError::message(format!("reviewer guest: {error}")))
+                },
                 private_io::run(&mut review_io, &mut review_fs)
             )?;
             if vm != io {

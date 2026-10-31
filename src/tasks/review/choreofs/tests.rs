@@ -1,8 +1,30 @@
 //! Drive the production effect receiver with independent Endpoint callers.
+mod repeated_rejection;
 use super::{global::*, imp::RepositoryArguments, localside};
 use crate::shell::imp::{bus::Bus, service::Domain};
 use hibana::runtime::{SessionKitStorage, ids::SessionId, resolver::ResolverRef};
 use serde_json::{Value, json};
+
+#[test]
+fn review_reply_retains_the_response_and_rejects_the_opposite_outcome() {
+    use super::imp::ReviewReply;
+    use hibana::runtime::wire::{Payload, WireEncode, WirePayload};
+
+    let approved = br#"{"success":true,"feedback":"merge this revision"}"#;
+    let rejected = br#"{"success":false,"feedback":"revise this change"}"#;
+    assert!(ReviewReply::<true>::from_bytes(approved).is_ok());
+    assert!(ReviewReply::<false>::from_bytes(rejected).is_ok());
+    assert!(ReviewReply::<true>::from_bytes(rejected).is_err());
+    assert!(ReviewReply::<false>::from_bytes(approved).is_err());
+    for malformed in [b"{}".as_slice(), b"null", br#"{"success":"true"}"#] {
+        assert!(ReviewReply::<true>::validate_payload(Payload::new(malformed)).is_err());
+        assert!(ReviewReply::<false>::validate_payload(Payload::new(malformed)).is_err());
+    }
+    let response = ReviewReply::<true>::from_bytes(approved).unwrap();
+    let mut encoded = [0; 128];
+    let written = response.encode_into(&mut encoded).unwrap();
+    assert_eq!(&encoded[..written], approved);
+}
 
 struct NoEffects;
 impl Domain for NoEffects {

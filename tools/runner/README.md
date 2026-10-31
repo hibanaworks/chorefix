@@ -7,7 +7,10 @@ Use the experiment matrix and qualified task artifacts for scored comparisons.
 
 The completed code-review auditor checks the repository Endpoint, actual WASI
 arguments, simulator requests and results, approval before merging, and guest
-exits. It also reports overlapping domain operations. It runs without models:
+exits. Each review uses distinct intent deliveries, a request, an argument-file
+close and five result deliveries. Repeated arguments cannot reuse earlier
+occurrences. A repeated review also requires a new completed implementation.
+The auditor reports overlapping domain operations and runs without models:
 
 ```sh
 cargo +stable run --locked --manifest-path tools/runner/Cargo.toml -- --audit-review EVENTS.jsonl
@@ -16,9 +19,14 @@ cargo +stable run --locked --manifest-path tools/runner/Cargo.toml -- --check-re
 
 The review regression uses the actual built runtime selected by
 `CHOREOFIX_REVIEW_WASI_BINARY`. It covers failure conditions 0/1/2, both first
-review targets and repeated or alternating reviews. Four additional cases use
-the original delays and require observed overlap. Every case checks 16 record
-mutations. These are integration checks, separate from scored experiments.
+review targets and repeated or alternating reviews. Eight additional cases use
+the original delays and require observed overlap, for 26 cases in total.
+Eight separate mechanism cases inject third and fourth rejections through the
+unchanged simulator's failure API, covering both first targets and both ways
+of revisiting rejected work. They do not change the scored 0/1/2 matrix.
+Every trace checks 22 record mutations, plus three that remove a later
+same-argument request, argument-file close or result when reviews repeat.
+These are integration checks, separate from scored experiments.
 
 ```sh
 cargo +stable test --locked --manifest-path tools/runner/Cargo.toml \

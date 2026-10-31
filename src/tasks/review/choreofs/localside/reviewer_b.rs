@@ -1,17 +1,18 @@
 //! Actual review requests and results for notification_feature.
 use super::super::global::*;
+use super::super::imp::ReviewReply;
 use crate::{
     shell::{ShellError, ShellResult, imp::service::Domain},
     tasks::review::imp::ReviewInput,
 };
 use hibana::Endpoint;
+use hibana::runtime::resolver::DecisionArm;
 
 pub async fn run<D: Domain>(
     endpoint: &mut Endpoint<'_, REVIEW_B>,
     domain: &D,
     review: &ReviewInput,
 ) -> ShellResult<()> {
-    let mut bytes = Vec::new();
     loop {
         let branch = endpoint.offer().await?;
         match branch.label() {
@@ -29,23 +30,29 @@ pub async fn run<D: Domain>(
                     .execute("REVIEWER", "code_review", arguments)
                     .await
                     .map_err(ShellError::message)?;
-                bytes =
+                let bytes =
                     serde_json::to_vec(&result).map_err(|e| ShellError::message(e.to_string()))?;
                 review.record(result);
-            }
-            40 => {
-                branch.send::<ApprovedB<'_>>(&bytes.as_slice()).await?;
-                endpoint.send::<ApprovedB<'_>>(&bytes.as_slice()).await?;
-                endpoint.send::<ApprovedB<'_>>(&bytes.as_slice()).await?;
-                endpoint.send::<ApprovedB<'_>>(&bytes.as_slice()).await?;
-                endpoint.send::<ApprovedB<'_>>(&bytes.as_slice()).await?;
-            }
-            41 => {
-                branch.send::<RejectedB<'_>>(&bytes.as_slice()).await?;
-                endpoint.send::<RejectedB<'_>>(&bytes.as_slice()).await?;
-                endpoint.send::<RejectedB<'_>>(&bytes.as_slice()).await?;
-                endpoint.send::<RejectedB<'_>>(&bytes.as_slice()).await?;
-                endpoint.send::<RejectedB<'_>>(&bytes.as_slice()).await?;
+                match crate::tasks::review::imp::decide(review)
+                    .map_err(|_| ShellError::message("review result has no success field"))?
+                {
+                    DecisionArm::Left => {
+                        let reply = ReviewReply::<true>::from_bytes(&bytes)?;
+                        endpoint.send::<ApprovedB<'_>>(&reply).await?;
+                        endpoint.send::<ApprovedB<'_>>(&reply).await?;
+                        endpoint.send::<ApprovedB<'_>>(&reply).await?;
+                        endpoint.send::<ApprovedB<'_>>(&reply).await?;
+                        endpoint.send::<ApprovedB<'_>>(&reply).await?;
+                    }
+                    DecisionArm::Right => {
+                        let reply = ReviewReply::<false>::from_bytes(&bytes)?;
+                        endpoint.send::<RejectedB<'_>>(&reply).await?;
+                        endpoint.send::<RejectedB<'_>>(&reply).await?;
+                        endpoint.send::<RejectedB<'_>>(&reply).await?;
+                        endpoint.send::<RejectedB<'_>>(&reply).await?;
+                        endpoint.send::<RejectedB<'_>>(&reply).await?;
+                    }
+                }
             }
             30 => {
                 branch.recv::<ApprovedA<'_>>().await?;
