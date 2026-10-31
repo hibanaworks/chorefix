@@ -18,10 +18,9 @@ publication receiver. The receiver owns the repository mutably and has no await
 between checking the requests and publishing. The model's natural values include
 the decoded Rust `u64` values; it does not prove the Rust byte decoder.
 
-This is the data-admission component of T4. It does not prove that arbitrary host
-Rust follows the receiver contract, that a host call belongs to a particular
-source occurrence, or that an operation cannot be invoked twice. Those require
-the adapter's correspondence with the actual received source operations.
+This is the data-admission component of T4. The effect-to-receipt correspondence
+is specified separately in `EffectReceipts.lean`; arbitrary host Rust remains
+outside these proofs.
 
 `endpoint-handoff/` compiles the same handoff, transport, bus and receiver sources
 directly. It avoids instantiating unrelated task protocols during diagnosis and
@@ -46,17 +45,44 @@ Build `Hibana.SourceOccurrenceTrace` in the selected Hibana proof package, then
 check this module in that package's `lake env lean` environment. The module
 introduces no runtime occurrence counter or effect ledger.
 
-Source-point uniqueness is not yet a one-to-one theorem for Rust effects. That
-requires binding each effect invocation and both resource receipts to the same
-designated operation. Different source points may carry equal payload bytes.
-The remaining composition must preserve that distinction, rather than treating
-equal bytes or a locally successful call as an occurrence identity.
+`EffectReceipts.lean` composes the same source execution with the receiver
+contract. Each invocation consumes two actual resource receives since the
+preceding invocation, compares their data with the actual verification and
+current artifact, and publishes once if those checks pass. Independent source
+actions and either receive order are permitted between invocations. The relation
+is erased proof data; the application stores no occurrence IDs or effect ledger.
+
+The proofs establish that every publication has both correctly bound source
+receipts and matching data, that distinct resource roles require distinct
+receipts, and that neither receipt can authorize a second publication. Receipt
+uniqueness follows from Hibana's source execution; an injective effect assignment
+is not assumed. `custody_and_effect_receipts_compose` adds affine custody from
+the core history on that same source word. The permitted axioms remain `propext`
+and `Quot.sound`.
+
+After building the pinned Hibana Lean package, check all three modules together:
+
+```sh
+export HIBANA_PROOFS=/path/to/pinned/hibana/proofs/lean
+mkdir -p target/effect-proofs
+export LEAN_PATH="$PWD/target/effect-proofs:$HIBANA_PROOFS/.lake/build/lib/lean"
+for module in EffectAdmission SourceOccurrences EffectReceipts; do
+  lean +leanprover/lean4:v4.30.0 -j 1 -R proofs \
+    -o "target/effect-proofs/$module.olean" "proofs/$module.lean"
+done
+```
 
 T3 reuses Hibana's `OwnedCallHistory`, `OccurrenceResourceCustody` and source
 occurrence results under their binding and transport assumptions. A legitimate
 request can remain executable after its sender drops its Endpoint; authorization
 comes from that admitted operation. Requiring a live sender Endpoint at effect
 time would incorrectly discard such pending work. Local errors neither undo an
-effect nor authorize initial reissuance. The complete T3/T4 composition must relate
-the received requests to those admitted occurrences; this file alone is not that
-composition or a proof of the complete Rust implementation.
+effect nor authorize initial reissuance.
+
+The adapter obligation is explicit: each modeled receive must be the actual
+Endpoint receive used by the physical call, with its exact decoded arguments,
+verification and current artifact. The theorem does not derive that obligation
+from arbitrary Rust or an unqualified frame log. The native receiver tests cover
+the concrete call path; qualification of the remaining receivers and their
+projection/trace correspondence is still required. The artifact model covers
+target, revision and contents; other simulator arguments need their own bindings.
