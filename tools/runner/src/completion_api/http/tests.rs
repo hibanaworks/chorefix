@@ -160,6 +160,57 @@ async fn unqualified_request_does_not_reach_the_upstream() -> Result<()> {
     Ok(())
 }
 
+#[tokio::test(flavor = "current_thread")]
+async fn output_limits_preserve_the_response_instead_of_becoming_transport_errors() -> Result<()> {
+    for (reason, finish) in [
+        ("max_output_tokens", "length"),
+        ("content_filter", "content_filter"),
+    ] {
+        let output = directory()?;
+        let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await?;
+        let address = listener.local_addr()?;
+        let forward = move |prepared: Value, _: PathBuf| async move {
+            assert_eq!(prepared["max_output_tokens"], 30);
+            let mut limited = response();
+            limited["status"] = json!("incomplete");
+            limited["incomplete_details"] = json!({"reason":reason});
+            limited["output"][1]["content"][0]["text"] = json!("Partial answer");
+            Ok((StatusCode::OK, limited))
+        };
+        let mut input = chat();
+        input["max_completion_tokens"] = json!(30);
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            tokio::select! {
+                result = connections(listener, output.clone(), forward) => {
+                    result?;
+                    Err("HTTP server stopped unexpectedly".into())
+                }
+                result = request(address, input) => {
+                    let (status, completion) = result?;
+                    assert_eq!(status, 200);
+                    assert_eq!(completion["choices"][0]["finish_reason"], finish);
+                    assert_eq!(completion["choices"][0]["message"]["content"], "Partial answer");
+                    assert_eq!(completion["choices"][0]["message"]["tool_calls"][1]["id"], "call_b");
+                    assert_eq!(completion["usage"]["total_tokens"], 130);
+                    Ok::<_, Box<dyn std::error::Error + Send + Sync>>(())
+                }
+            }
+        }).await??;
+        let raw: Value = serde_json::from_slice(&fs::read(
+            output.join("request-00000001/responses-response.json"),
+        )?)?;
+        assert_eq!(raw["status"], "incomplete");
+        assert_eq!(raw["incomplete_details"]["reason"], reason);
+        assert!(
+            !output
+                .join("request-00000001/transport-error.json")
+                .exists()
+        );
+        fs::remove_dir_all(output)?;
+    }
+    Ok(())
+}
+
 // Invoke the original comparison clients, not a reimplementation of their SDK
 // calls. The upstream here is a wire fixture and makes no model requests.
 fn original_module<'py>(py: Python<'py>, module: &str) -> Result<Bound<'py, PyModule>> {

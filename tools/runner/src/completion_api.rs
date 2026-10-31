@@ -156,12 +156,18 @@ pub fn request(chat: &Value) -> Result<Value> {
 }
 
 pub fn response(response: &Value) -> Result<Value> {
-    if response["status"] != "completed"
-        || response["model"] != MODEL
-        || response["reasoning"]["effort"] != EFFORT
-    {
-        return Err("upstream response is incomplete or substituted the model or effort".into());
+    if response["model"] != MODEL || response["reasoning"]["effort"] != EFFORT {
+        return Err("upstream response substituted the model or effort".into());
     }
+    let limited = match response["status"].as_str() {
+        Some("completed") if response["incomplete_details"].is_null() => None,
+        Some("incomplete") => Some(match response["incomplete_details"]["reason"].as_str() {
+            Some("max_output_tokens") => "length",
+            Some("content_filter") => "content_filter",
+            _ => return Err("unknown upstream incomplete response reason".into()),
+        }),
+        _ => return Err("upstream response has no completed or limited result".into()),
+    };
     let usage = &response["usage"];
     let input_tokens = usage["input_tokens"]
         .as_u64()
@@ -218,7 +224,9 @@ pub fn response(response: &Value) -> Result<Value> {
         }
     }
     let text = text.join("\n");
-    let finish_reason = if calls.is_empty() {
+    let finish_reason = if let Some(reason) = limited {
+        reason
+    } else if calls.is_empty() {
         "stop"
     } else {
         "tool_calls"

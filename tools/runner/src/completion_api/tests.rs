@@ -20,6 +20,60 @@ pub(super) fn response() -> Value {
 }
 
 #[test]
+fn a_token_limit_preserves_partial_output_calls_and_inclusive_usage() -> Result<()> {
+    let mut upstream = response();
+    upstream["status"] = json!("incomplete");
+    upstream["incomplete_details"] = json!({"reason":"max_output_tokens"});
+    upstream["output"][1]["status"] = json!("incomplete");
+    upstream["output"][1]["content"][0]["text"] = json!("Partial answer");
+    upstream["output"][3]["arguments"] = json!("{\"channel_id\":");
+    let completion = super::response(&upstream)?;
+    assert_eq!(completion["choices"][0]["finish_reason"], "length");
+    let message = &completion["choices"][0]["message"];
+    assert_eq!(message["content"], "Partial answer");
+    assert_eq!(message["tool_calls"][1]["id"], "call_b");
+    assert_eq!(
+        message["tool_calls"][1]["function"]["arguments"],
+        "{\"channel_id\":"
+    );
+    assert_eq!(completion["usage"]["total_tokens"], 130);
+    assert_eq!(
+        completion["usage"]["completion_tokens_details"]["reasoning_tokens"],
+        20
+    );
+
+    upstream["output"] = json!([]);
+    let empty = super::response(&upstream)?;
+    assert_eq!(empty["choices"][0]["finish_reason"], "length");
+    assert!(empty["choices"][0]["message"]["content"].is_null());
+    assert!(empty["choices"][0]["message"]["tool_calls"].is_null());
+    assert_eq!(empty["usage"], completion["usage"]);
+    Ok(())
+}
+
+#[test]
+fn a_content_filter_is_distinct_from_failures_and_unknown_incomplete_reasons() -> Result<()> {
+    let mut upstream = response();
+    upstream["status"] = json!("incomplete");
+    upstream["incomplete_details"] = json!({"reason":"content_filter"});
+    upstream["output"] = json!([]);
+    assert_eq!(
+        super::response(&upstream)?["choices"][0]["finish_reason"],
+        "content_filter"
+    );
+    for reason in [Value::Null, json!("timeout"), json!("unknown")] {
+        upstream["incomplete_details"]["reason"] = reason;
+        assert!(super::response(&upstream).is_err());
+    }
+    upstream["incomplete_details"]["reason"] = json!("max_output_tokens");
+    for status in ["failed", "cancelled", "queued", "in_progress", "completed"] {
+        upstream["status"] = json!(status);
+        assert!(super::response(&upstream).is_err());
+    }
+    Ok(())
+}
+
+#[test]
 fn preserves_prompts_schemas_optional_arguments_and_parallel_tool_policy() -> Result<()> {
     let mut chat = chat();
     chat["parallel_tool_calls"] = json!(false);

@@ -129,7 +129,15 @@ The local HTTP fixtures call the five unchanged comparison clients and both
 original generators. They check two tool rounds, real context compression and
 JSON output in 16 requests. They use response fixtures and make no model calls.
 The conversion retains optional arguments, schema strictness, parallel-call
-settings, call IDs and result order. These tests qualify data conversion only:
+settings, call IDs and result order. These tests qualify data conversion only.
+
+Output limits preserve partial text, raw call arguments and inclusive usage.
+`incomplete/max_output_tokens` becomes a `length` finish, and a content filter
+remains a distinct finish reason. Neither is converted to an HTTP transport
+failure that could cause an extra SDK retry. Failed responses and unknown
+incomplete reasons remain errors.
+
+Run the original-client checks:
 
 ```sh
 PYTHONHASHSEED=0 PYTHONDONTWRITEBYTECODE=1 \
@@ -154,6 +162,12 @@ cargo +stable test --locked --manifest-path tools/runner/Cargo.toml \
 
 RPC acceptance does not establish which history or generation settings a model
 request actually used. Live connection qualification remains required.
+
+`thread/sample` is not the comparison completion interface. The inspected
+0.166.0 schema requires an existing source turn and does not return function-call
+IDs or argument strings; its text may be null when a tool is called. It also
+provides no fields for the required output cap or tool policy. No model request
+was made to evaluate that schema, and this check does not qualify a connection.
 
 Builds and verification must run under Hibana's resource guard with one Cargo
 job and the existing 3 GB stop. PyO3 loads the unchanged external comparison
