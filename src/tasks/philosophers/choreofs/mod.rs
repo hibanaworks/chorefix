@@ -1,5 +1,6 @@
 //! Each guest and both adjacent physical forks belong to this single global.
 pub mod global;
+pub(crate) mod identity;
 mod imp;
 pub(crate) mod localside;
 #[cfg(test)]
@@ -19,14 +20,15 @@ use hibana::runtime::{SessionKitStorage, ids::SessionId};
 use hibana_wasip1_runtime::{GuestMemory, HibanaWasiGuestStorage};
 
 async fn run_9e_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 3]) -> ShellResult<()> {
-    use global::{roles9e::*, *};
+    use global::*;
+    use identity::roles9e::*;
     let programs = project_9e();
     let mut slab = vec![0; 2 * 1024 * 1024];
     let mut storage = SessionKitStorage::<&InMemoryTransport>::uninit();
     let kit = storage.init();
     let rv = kit.rendezvous(&mut slab, &bus.transport)?;
 
-    let session = SessionId::new(19);
+    let session = SessionId::new(identity::SESSION);
     let mut a = rv.enter(session, &programs.a)?;
     let mut fork_a = rv.enter(session, &programs.fork_a)?;
     let resource_a = rv.enter(session, &programs.resource_a)?;
@@ -127,14 +129,15 @@ async fn run_9e_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 3]) -> Sh
 }
 
 async fn run_9m_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 5]) -> ShellResult<()> {
-    use global::{roles9m::*, *};
+    use global::*;
+    use identity::roles9m::*;
     let programs = project_9m();
     let mut slab = vec![0; 2 * 1024 * 1024];
     let mut storage = SessionKitStorage::<&InMemoryTransport>::uninit();
     let kit = storage.init();
     let rv = kit.rendezvous(&mut slab, &bus.transport)?;
 
-    let session = SessionId::new(19);
+    let session = SessionId::new(identity::SESSION);
     let mut a = rv.enter(session, &programs.a)?;
     let mut fork_a = rv.enter(session, &programs.fork_a)?;
     let resource_a = rv.enter(session, &programs.resource_a)?;
@@ -297,14 +300,15 @@ async fn run_9m_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 5]) -> Sh
 }
 
 async fn run_9h_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 7]) -> ShellResult<()> {
-    use global::{roles9h::*, *};
+    use global::*;
+    use identity::roles9h::*;
     let programs = project_9h();
     let mut slab = vec![0; 2 * 1024 * 1024];
     let mut storage = SessionKitStorage::<&InMemoryTransport>::uninit();
     let kit = storage.init();
     let rv = kit.rendezvous(&mut slab, &bus.transport)?;
 
-    let session = SessionId::new(19);
+    let session = SessionId::new(identity::SESSION);
     let mut a = rv.enter(session, &programs.a)?;
     let mut fork_a = rv.enter(session, &programs.fork_a)?;
     let resource_a = rv.enter(session, &programs.resource_a)?;
@@ -534,9 +538,18 @@ pub async fn run_stdio(module: &[u8], level: &str) -> ShellResult<()> {
             let (bus, mut reader, terminals) = Bus::open(
                 ["PHILOSOPHER_A", "PHILOSOPHER_B", "PHILOSOPHER_C"],
                 [
-                    (SessionId::new(19), global::roles9e::FORK_A_RESOURCE),
-                    (SessionId::new(19), global::roles9e::FORK_B_RESOURCE),
-                    (SessionId::new(19), global::roles9e::FORK_C_RESOURCE),
+                    (
+                        SessionId::new(identity::SESSION),
+                        identity::roles9e::FORK_A_RESOURCE,
+                    ),
+                    (
+                        SessionId::new(identity::SESSION),
+                        identity::roles9e::FORK_B_RESOURCE,
+                    ),
+                    (
+                        SessionId::new(identity::SESSION),
+                        identity::roles9e::FORK_C_RESOURCE,
+                    ),
                 ],
             );
             let result = tokio::select! {result=run_9e_guests(module,&bus,terminals)=>result,result=reader.run(&bus)=>result};
@@ -556,11 +569,26 @@ Err(error)=>reader.emit(&bus,serde_json::json!({"type":"run_result","status":"fa
                     "PHILOSOPHER_E",
                 ],
                 [
-                    (SessionId::new(19), global::roles9m::FORK_A_RESOURCE),
-                    (SessionId::new(19), global::roles9m::FORK_B_RESOURCE),
-                    (SessionId::new(19), global::roles9m::FORK_C_RESOURCE),
-                    (SessionId::new(19), global::roles9m::FORK_D_RESOURCE),
-                    (SessionId::new(19), global::roles9m::FORK_E_RESOURCE),
+                    (
+                        SessionId::new(identity::SESSION),
+                        identity::roles9m::FORK_A_RESOURCE,
+                    ),
+                    (
+                        SessionId::new(identity::SESSION),
+                        identity::roles9m::FORK_B_RESOURCE,
+                    ),
+                    (
+                        SessionId::new(identity::SESSION),
+                        identity::roles9m::FORK_C_RESOURCE,
+                    ),
+                    (
+                        SessionId::new(identity::SESSION),
+                        identity::roles9m::FORK_D_RESOURCE,
+                    ),
+                    (
+                        SessionId::new(identity::SESSION),
+                        identity::roles9m::FORK_E_RESOURCE,
+                    ),
                 ],
             );
             let result = tokio::select! {result=run_9m_guests(module,&bus,terminals)=>result,result=reader.run(&bus)=>result};
@@ -582,13 +610,34 @@ Err(error)=>reader.emit(&bus,serde_json::json!({"type":"run_result","status":"fa
                     "PHILOSOPHER_G",
                 ],
                 [
-                    (SessionId::new(19), global::roles9h::FORK_A_RESOURCE),
-                    (SessionId::new(19), global::roles9h::FORK_B_RESOURCE),
-                    (SessionId::new(19), global::roles9h::FORK_C_RESOURCE),
-                    (SessionId::new(19), global::roles9h::FORK_D_RESOURCE),
-                    (SessionId::new(19), global::roles9h::FORK_E_RESOURCE),
-                    (SessionId::new(19), global::roles9h::FORK_F_RESOURCE),
-                    (SessionId::new(19), global::roles9h::FORK_G_RESOURCE),
+                    (
+                        SessionId::new(identity::SESSION),
+                        identity::roles9h::FORK_A_RESOURCE,
+                    ),
+                    (
+                        SessionId::new(identity::SESSION),
+                        identity::roles9h::FORK_B_RESOURCE,
+                    ),
+                    (
+                        SessionId::new(identity::SESSION),
+                        identity::roles9h::FORK_C_RESOURCE,
+                    ),
+                    (
+                        SessionId::new(identity::SESSION),
+                        identity::roles9h::FORK_D_RESOURCE,
+                    ),
+                    (
+                        SessionId::new(identity::SESSION),
+                        identity::roles9h::FORK_E_RESOURCE,
+                    ),
+                    (
+                        SessionId::new(identity::SESSION),
+                        identity::roles9h::FORK_F_RESOURCE,
+                    ),
+                    (
+                        SessionId::new(identity::SESSION),
+                        identity::roles9h::FORK_G_RESOURCE,
+                    ),
                 ],
             );
             let result = tokio::select! {result=run_9h_guests(module,&bus,terminals)=>result,result=reader.run(&bus)=>result};

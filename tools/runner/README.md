@@ -45,8 +45,7 @@ participant inputs and dependency tree before starting any models. The audit
 checks those files, each model's actual tool exchanges and usage, the task's
 Endpoint messages, and its original simulator outcome. A negative domain result
 is preserved as a domain result. It is not changed into successful work by a
-completed protocol. Dining tasks also require the selected
-`CHOREOFIX_PHILOSOPHERS_VERIFIER_BINARY`, which is copied into the same bundle.
+completed protocol. The same runner audits each migrated task's records.
 `--check-run-mutants RUN NEW_DIRECTORY` checks the saved model records against
 deliberately altered records without making model calls.
 
@@ -86,6 +85,19 @@ These are integration checks, separate from scored experiments.
 ```sh
 cargo +stable test --locked --manifest-path tools/runner/Cargo.toml \
   review_boundary:: -- --ignored --test-threads=1 --nocapture
+```
+
+Dining checks use the original 3/5/7-person environments through the Rust
+connection and actual wash guests. They cover private work, early and duplicate
+operations, malformed arguments, argument preservation, both fork Endpoints,
+and observed overlap of independent meals. Nine record mutations must fail.
+The selected runtime requires `CHOREOFIX_PHILOSOPHERS_WASI_BINARY` and
+`CHOREOFIX_PHILOSOPHERS_BUILD_RECEIPT`; `CHOREOFIX_EVIDENCE_ROOT` selects a new
+evidence directory. No model client is required for these scripted checks.
+
+```sh
+cargo +stable test --locked --manifest-path tools/runner/Cargo.toml \
+  philosophers_boundary:: -- --ignored --test-threads=1 --nocapture
 ```
 
 The CI/CD record auditor runs without starting a model or guest:

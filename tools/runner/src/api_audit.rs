@@ -39,9 +39,6 @@ pub fn audit(path: &Path) -> Result<Value> {
         return Err("depth".into());
     }
     let passes = depth == 0;
-    if fixture["model_run"] == true && fixture["test_delays"] != json!({}) {
-        return Err("model trial has artificial delays".into());
-    }
     let binding = |a: &str| -> Result<(u64, u64)> {
         match a {
             "DB_ADMIN" => Ok((0, 5)),

@@ -78,12 +78,14 @@ jobs:
             CHOREOFIX_WRITING_BUILD_RECEIPT="$PWD/writing-build-receipt.json" \
             CHOREOFIX_EVIDENCE_ROOT="$PWD/output/writing-boundary" \
             cargo +stable test --locked --manifest-path tools/runner/Cargo.toml writing_boundary:: -- --ignored --test-threads=1 --nocapture
-          cargo +stable run --locked --bin philosophers-boundary -- 9E philosophers-boundary-9E
-          cargo +stable run --locked --bin philosophers-boundary -- --check-mutants philosophers-boundary-9E/events.jsonl philosophers-boundary-9E-mutants
-          cargo +stable run --locked --bin philosophers-boundary -- 9M philosophers-boundary-9M
-          cargo +stable run --locked --bin philosophers-boundary -- --check-mutants philosophers-boundary-9M/events.jsonl philosophers-boundary-9M-mutants
-          cargo +stable run --locked --bin philosophers-boundary -- 9H philosophers-boundary-9H
-          cargo +stable run --locked --bin philosophers-boundary -- --check-mutants philosophers-boundary-9H/events.jsonl philosophers-boundary-9H-mutants
+          jq -n \
+            --arg binary_sha256 "$(sha256sum target/debug/philosophers-wasi | cut -d ' ' -f 1)" \
+            --arg source_manifest_sha256 "$(sha256sum cicd-source-after.sha256 | cut -d ' ' -f 1)" \
+            '{binary_sha256:$binary_sha256,source_manifest:"cicd-source-after.sha256",source_manifest_sha256:$source_manifest_sha256,source_unchanged:true,scored_benchmark:false}' > philosophers-build-receipt.json
+          CHOREOFIX_PHILOSOPHERS_WASI_BINARY="$PWD/target/debug/philosophers-wasi" \
+            CHOREOFIX_PHILOSOPHERS_BUILD_RECEIPT="$PWD/philosophers-build-receipt.json" \
+            CHOREOFIX_EVIDENCE_ROOT="$PWD/output/philosophers-boundary" \
+            cargo +stable test --locked --manifest-path tools/runner/Cargo.toml philosophers_boundary:: -- --ignored --test-threads=1 --nocapture
           CHOREOFIX_WRITING_RUNTIME="$PWD/target/debug/writing-wasi" cargo +stable test --locked --manifest-path tools/runner/Cargo.toml original_simulator_overlaps -- --ignored --nocapture
           jq -n \
             --arg binary_sha256 "$(sha256sum target/debug/review-wasi | cut -d ' ' -f 1)" \
@@ -107,7 +109,7 @@ jobs:
             output/writing-boundary/
             writing-build-receipt.json
             codebase-boundary-*/
-            philosophers-boundary-*/
+            output/philosophers-boundary/
             api-boundary-*/
             output/writing-rust-runner-probe*/
             output/cicd-boundary/

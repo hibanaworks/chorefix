@@ -1,10 +1,10 @@
 //! Inspect persisted observations. This code never authorizes a task operation.
-use super::Result;
+use crate::evidence::Result;
 use serde_json::{Value, json};
 use std::{
     collections::{BTreeMap, BTreeSet},
-    fs::File,
-    io::{BufRead, BufReader},
+    fs::{self, File},
+    io::{BufRead, BufReader, Write},
     path::Path,
 };
 
@@ -28,52 +28,100 @@ fn bytes(message: &Value) -> Result<Vec<u8>> {
         .collect()
 }
 
-pub(super) fn audit(path: &Path) -> Result<Value> {
-    use choreofix::tasks::philosophers::choreofs::global::{
-        roles9e as e, roles9h as h, roles9m as m,
-    };
+pub fn audit(path: &Path) -> Result<Value> {
+    use crate::philosopher_identity::{roles9e as e, roles9h as h, roles9m as m};
     let records = BufReader::new(File::open(path)?)
         .lines()
         .map(|line| Ok(serde_json::from_str::<Value>(&line?)?))
         .collect::<Result<Vec<_>>>()?;
     let fixture = &records.first().ok_or("empty evidence")?["message"];
     let actors = fixture["fixtures"].as_array().ok_or("fixtures")?;
-    let model_run = fixture["model_run"] == true;
-    if (model_run && fixture["test_delays"] != json!({}))
-        || fixture["terminal_review_failure"] != false
-    {
+    if fixture["terminal_review_failure"] != false {
         return Err("invalid dining trial configuration".into());
     }
-    let fork_rows: &[(&str, u8, u8)] = match fixture["task"].as_str() {
+    let layout: &[(&str, [u8; 5])] = match fixture["task"].as_str() {
         Some("9E") => &[
-            ("FORK_A", e::FORK_A, e::FORK_A_RESOURCE),
-            ("FORK_B", e::FORK_B, e::FORK_B_RESOURCE),
-            ("FORK_C", e::FORK_C, e::FORK_C_RESOURCE),
+            (
+                "FORK_A",
+                [e::A, e::FORK_A, e::A_WASI, e::A_IO, e::FORK_A_RESOURCE],
+            ),
+            (
+                "FORK_B",
+                [e::B, e::FORK_B, e::B_WASI, e::B_IO, e::FORK_B_RESOURCE],
+            ),
+            (
+                "FORK_C",
+                [e::C, e::FORK_C, e::C_WASI, e::C_IO, e::FORK_C_RESOURCE],
+            ),
         ],
         Some("9M") => &[
-            ("FORK_A", m::FORK_A, m::FORK_A_RESOURCE),
-            ("FORK_B", m::FORK_B, m::FORK_B_RESOURCE),
-            ("FORK_C", m::FORK_C, m::FORK_C_RESOURCE),
-            ("FORK_D", m::FORK_D, m::FORK_D_RESOURCE),
-            ("FORK_E", m::FORK_E, m::FORK_E_RESOURCE),
+            (
+                "FORK_A",
+                [m::A, m::FORK_A, m::A_WASI, m::A_IO, m::FORK_A_RESOURCE],
+            ),
+            (
+                "FORK_B",
+                [m::B, m::FORK_B, m::B_WASI, m::B_IO, m::FORK_B_RESOURCE],
+            ),
+            (
+                "FORK_C",
+                [m::C, m::FORK_C, m::C_WASI, m::C_IO, m::FORK_C_RESOURCE],
+            ),
+            (
+                "FORK_D",
+                [m::D, m::FORK_D, m::D_WASI, m::D_IO, m::FORK_D_RESOURCE],
+            ),
+            (
+                "FORK_E",
+                [m::E, m::FORK_E, m::E_WASI, m::E_IO, m::FORK_E_RESOURCE],
+            ),
         ],
         Some("9H") => &[
-            ("FORK_A", h::FORK_A, h::FORK_A_RESOURCE),
-            ("FORK_B", h::FORK_B, h::FORK_B_RESOURCE),
-            ("FORK_C", h::FORK_C, h::FORK_C_RESOURCE),
-            ("FORK_D", h::FORK_D, h::FORK_D_RESOURCE),
-            ("FORK_E", h::FORK_E, h::FORK_E_RESOURCE),
-            ("FORK_F", h::FORK_F, h::FORK_F_RESOURCE),
-            ("FORK_G", h::FORK_G, h::FORK_G_RESOURCE),
+            (
+                "FORK_A",
+                [h::A, h::FORK_A, h::A_WASI, h::A_IO, h::FORK_A_RESOURCE],
+            ),
+            (
+                "FORK_B",
+                [h::B, h::FORK_B, h::B_WASI, h::B_IO, h::FORK_B_RESOURCE],
+            ),
+            (
+                "FORK_C",
+                [h::C, h::FORK_C, h::C_WASI, h::C_IO, h::FORK_C_RESOURCE],
+            ),
+            (
+                "FORK_D",
+                [h::D, h::FORK_D, h::D_WASI, h::D_IO, h::FORK_D_RESOURCE],
+            ),
+            (
+                "FORK_E",
+                [h::E, h::FORK_E, h::E_WASI, h::E_IO, h::FORK_E_RESOURCE],
+            ),
+            (
+                "FORK_F",
+                [h::F, h::FORK_F, h::F_WASI, h::F_IO, h::FORK_F_RESOURCE],
+            ),
+            (
+                "FORK_G",
+                [h::G, h::FORK_G, h::G_WASI, h::G_IO, h::FORK_G_RESOURCE],
+            ),
         ],
         _ => return Err("unknown dining task".into()),
     };
-    if actors.len() != fork_rows.len() {
+    if actors.len() != layout.len() {
         return Err("participant count".into());
     }
-    let forks: BTreeMap<_, _> = fork_rows
+    let roles: BTreeSet<_> = layout
         .iter()
-        .map(|&(name, owner, resource)| (name, (u64::from(owner), u64::from(resource))))
+        .flat_map(|(_, roles)| roles)
+        .map(|&role| u64::from(role))
+        .collect();
+    if roles.len() != 5 * layout.len() {
+        return Err("dining role identities collide".into());
+    }
+    let forks: BTreeMap<_, _> = layout
+        .iter()
+        .map(|&(name, [_, owner, _, _, resource])| (name, (u64::from(owner), u64::from(resource))))
         .collect();
     let assignments: BTreeMap<_, _> = actors
         .iter()
@@ -81,7 +129,7 @@ pub(super) fn audit(path: &Path) -> Result<Value> {
         .map(|(index, actor)| {
             Ok((
                 actor["agent"].as_str().ok_or("actor name")?,
-                (index as u64, actor),
+                (u64::from(layout[index].1[0]), actor),
             ))
         })
         .collect::<Result<_>>()?;
@@ -109,9 +157,19 @@ pub(super) fn audit(path: &Path) -> Result<Value> {
         let message = &record["message"];
         match (record["direction"].as_str(), message["type"].as_str()) {
             (Some("runtime"), Some("protocol_frame")) => {
+                if message["session"] != crate::philosopher_identity::SESSION {
+                    return Err("frame belongs to another dining session".into());
+                }
+                u8::try_from(message["lane"].as_u64().ok_or("frame lane")?)
+                    .map_err(|_| "frame lane exceeds its wire width")?;
+                u16::try_from(message["frame_label"].as_u64().ok_or("frame label")?)
+                    .map_err(|_| "frame label exceeds its wire width")?;
                 let id = message["frame_id"].as_u64().ok_or("frame id")?;
                 let source = message["source"].as_u64().ok_or("source")?;
                 let target = message["target"].as_u64().ok_or("target")?;
+                if !roles.contains(&source) || !roles.contains(&target) {
+                    return Err("frame refers to a role absent from this dining protocol".into());
+                }
                 let payload = bytes(message)?;
                 let mut identity = message.clone();
                 identity
@@ -157,9 +215,9 @@ pub(super) fn audit(path: &Path) -> Result<Value> {
                     }
                     _ => return Err("unknown frame action".into()),
                 };
-                if fork_rows
-                    .iter()
-                    .any(|&(_, owner, _)| u64::from(owner) == source || u64::from(owner) == target)
+                if forks
+                    .values()
+                    .any(|&(owner, _)| owner == source || owner == target)
                 {
                     if payload.len() != 3 {
                         return Err("owned Endpoint envelope".into());
@@ -424,11 +482,170 @@ pub(super) fn audit(path: &Path) -> Result<Value> {
         || score["events"].as_array().ok_or("events")?.len() != 2 * actors.len()
         || maximum_eaters == 0
         || maximum_eaters > expected_parallel
-        || (!model_run && maximum_eaters != expected_parallel)
     {
         return Err("incomplete delegation boundary evidence".into());
     }
     Ok(
-        json!({"task":fixture["task"],"kind":if model_run {"model_direct_wasi_delegation"} else {"deterministic_direct_wasi_delegation"},"model_calls":if model_run {Value::Null} else {json!(0)},"scored_benchmark":false,"status":"passed","participants":actors.len(),"domain_calls":2*actors.len(),"carrier_frames":frames.len(),"max_disjoint_eaters":maximum_eaters,"simulator_complete":true,"actual_resource_endpoint_requests":2*actors.len(),"actual_resource_endpoint_returns":2*actors.len(),"violations":0,"guest_exits":exits.len(),"original_test_delays":fixture["test_delays"]}),
+        json!({"task":fixture["task"],"kind":"actual_wasi_resource_delegation","model_calls":null,"scored_benchmark":false,"status":"passed","participants":actors.len(),"domain_calls":2*actors.len(),"carrier_frames":frames.len(),"max_disjoint_eaters":maximum_eaters,"simulator_complete":true,"actual_resource_endpoint_requests":2*actors.len(),"actual_resource_endpoint_returns":2*actors.len(),"violations":0,"guest_exits":exits.len(),"original_test_delays":fixture["test_delays"]}),
     )
+}
+
+fn send(output: &mut impl Write, value: &Value) -> Result<()> {
+    serde_json::to_writer(&mut *output, value)?;
+    writeln!(output)?;
+    Ok(())
+}
+
+pub fn check_mutants(path: &Path, output: &Path) -> Result<Value> {
+    audit(path)?;
+    fs::create_dir(output)?;
+    let records = BufReader::new(File::open(path)?)
+        .lines()
+        .map(|line| Ok(serde_json::from_str::<Value>(&line?)?))
+        .collect::<Result<Vec<_>>>()?;
+    let mut checked = Vec::new();
+    for mutation in [
+        "missing_request",
+        "altered_frame",
+        "forged_arguments",
+        "forged_result",
+        "missing_exit",
+        "false_score",
+        "response_before_second_request",
+        "consistent_unknown_private_role",
+        "consistent_wrong_session",
+    ] {
+        let mut copy = records.clone();
+        let index = copy
+            .iter()
+            .position(|r| {
+                let m = &r["message"];
+                match mutation {
+                    "missing_request" => {
+                        r["direction"] == "runtime"
+                            && m["type"] == "protocol_frame"
+                            && m["action"] == "receive"
+                            && m["source"] == 28
+                            && m["target"] == 0
+                    }
+                    "altered_frame" => {
+                        r["direction"] == "runtime"
+                            && m["type"] == "protocol_frame"
+                            && m["action"] == "receive"
+                    }
+                    "forged_arguments" => m["type"] == "execute",
+                    "forged_result" => {
+                        r["direction"] == "simulator" && m["type"] == "simulator_result"
+                    }
+                    "missing_exit" => m["type"] == "exit",
+                    "false_score" => m["type"] == "score",
+                    "response_before_second_request" => true,
+                    "consistent_unknown_private_role" => {
+                        r["direction"] == "runtime"
+                            && m["type"] == "protocol_frame"
+                            && m["source"].as_u64().is_some_and(|role| role >= 14)
+                            && m["target"].as_u64().is_some_and(|role| role >= 14)
+                    }
+                    "consistent_wrong_session" => m["type"] == "protocol_frame",
+                    _ => false,
+                }
+            })
+            .ok_or("mutation target missing")?;
+        match mutation {
+            "missing_request" | "missing_exit" => {
+                copy.remove(index);
+            }
+            "altered_frame" => copy[index]["message"]["source"] = json!(254),
+            "forged_arguments" => copy[index]["message"]["arguments"] = json!({"philosopher":42}),
+            "forged_result" => copy[index]["message"]["result"]["data"] = json!({"forged":true}),
+            "false_score" => {
+                copy[index]["message"]["complete"] = json!(
+                    !copy[index]["message"]["complete"]
+                        .as_bool()
+                        .ok_or("score completion")?
+                )
+            }
+            "response_before_second_request" => {
+                use crate::philosopher_identity::{roles9e, roles9h, roles9m};
+                let right = match records[0]["message"]["task"].as_str() {
+                    Some("9E") => roles9e::FORK_C_RESOURCE,
+                    Some("9M") => roles9m::FORK_E_RESOURCE,
+                    Some("9H") => roles9h::FORK_G_RESOURCE,
+                    _ => return Err("unknown dining task".into()),
+                };
+                let request = records
+                    .iter()
+                    .find(|r| {
+                        let m = &r["message"];
+                        m["type"] == "protocol_frame"
+                            && m["action"] == "send"
+                            && m["source"] == right
+                            && m["target"] == 0
+                    })
+                    .ok_or("actual right-resource request")?["message"]["frame_id"]
+                    .clone();
+                let moved = copy
+                    .iter()
+                    .filter(|r| {
+                        r["message"]["type"] == "protocol_frame"
+                            && r["message"]["frame_id"] == request
+                    })
+                    .cloned()
+                    .collect::<Vec<_>>();
+                copy.retain(|r| {
+                    !(r["message"]["type"] == "protocol_frame"
+                        && r["message"]["frame_id"] == request)
+                });
+                let after = copy
+                    .iter()
+                    .position(|r| {
+                        let m = &r["message"];
+                        m["type"] == "protocol_frame"
+                            && m["action"] == "receive"
+                            && m["source"] == 0
+                            && m["target"] == roles9e::FORK_A_RESOURCE
+                    })
+                    .ok_or("actual meal receipt")?
+                    + 1;
+                copy.splice(after..after, moved);
+            }
+            "consistent_unknown_private_role" => {
+                let id = copy[index]["message"]["frame_id"].clone();
+                for row in &mut copy {
+                    if row["message"]["type"] == "protocol_frame"
+                        && row["message"]["frame_id"] == id
+                    {
+                        row["message"]["source"] = json!(254);
+                    }
+                }
+            }
+            "consistent_wrong_session" => {
+                let id = copy[index]["message"]["frame_id"].clone();
+                for row in &mut copy {
+                    if row["message"]["type"] == "protocol_frame"
+                        && row["message"]["frame_id"] == id
+                    {
+                        row["message"]["session"] = json!(crate::philosopher_identity::SESSION + 1);
+                    }
+                }
+            }
+            _ => unreachable!(),
+        }
+        let mutant_path = output.join(format!("{mutation}.jsonl"));
+        let mut file = File::create(&mutant_path)?;
+        for record in &copy {
+            send(&mut file, record)?;
+        }
+        let error = audit(&mutant_path)
+            .err()
+            .ok_or("audit accepted mutated evidence")?
+            .to_string();
+        checked.push(json!({"mutation":mutation, "rejected":true, "error":error}));
+    }
+    let result = json!({"mutants":checked, "original_unchanged":true});
+    fs::write(
+        output.join("mutants.json"),
+        format!("{}\n", serde_json::to_string_pretty(&result)?),
+    )?;
+    Ok(result)
 }

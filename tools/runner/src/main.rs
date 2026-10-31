@@ -15,6 +15,11 @@ mod model;
 #[cfg(test)]
 mod model_boundary;
 mod oracle;
+#[path = "../../../src/tasks/philosophers/choreofs/identity.rs"]
+mod philosopher_identity;
+mod philosophers_audit;
+#[cfg(test)]
+mod philosophers_boundary;
 mod process;
 mod review_audit;
 #[cfg(test)]
@@ -164,7 +169,9 @@ async fn run(task: &str, depth: u8, output: &Path) -> Result<Value> {
     }
     fs::create_dir_all(output.parent().ok_or("output parent")?)?;
     fs::create_dir(output)?;
-    let versions = snapshot::freeze(task, output)?;
+    let mut versions = snapshot::freeze(task, output)?;
+    versions["model_connection"] = model::identity()?;
+    save(&output.join("versions.json"), &versions)?;
     let config: Value = serde_json::from_slice(&fs::read("experiment.json")?)?;
     let seconds = config["run_timeout_seconds"]
         .as_u64()
@@ -264,6 +271,8 @@ async fn run(task: &str, depth: u8, output: &Path) -> Result<Value> {
 async fn main() -> Result<()> {
     let args: Vec<_> = std::env::args().skip(1).collect();
     match args.as_slice() {
+        [mode, events] if mode == "--audit-philosophers" => println!("{}", serde_json::to_string_pretty(&philosophers_audit::audit(Path::new(events))?)?),
+        [mode, events, output] if mode == "--check-philosophers-mutants" => println!("{}", serde_json::to_string_pretty(&philosophers_audit::check_mutants(Path::new(events), Path::new(output))?)?),
         [mode, events] if mode == "--audit-api" => println!("{}", serde_json::to_string_pretty(&api_audit::audit(Path::new(events))?)?),
         [mode, events, output] if mode == "--check-api-mutants" => println!("{}", serde_json::to_string_pretty(&api_audit::check_mutants(Path::new(events), Path::new(output))?)?),
         [mode, events] if mode == "--audit-review" => println!("{}", serde_json::to_string_pretty(&review_audit::audit(Path::new(events))?)?),
@@ -318,8 +327,8 @@ async fn main() -> Result<()> {
         }
         _ => return Err(concat!(
             "usage: choreofix-experiments 1E|1M|1H|2E|2M|2H|6E|8E|9E|9M|9H|16E DEPTH OUTPUT\n",
-            "       --audit-api|--audit-review|--audit-writing|--audit-cicd|--audit EVENTS\n",
-            "       --check-api-mutants|--check-review-mutants|--check-writing-mutants|--check-cicd-mutants|--check-protocol-mutants EVENTS NEW_OUTPUT\n",
+            "       --audit-api|--audit-review|--audit-writing|--audit-cicd|--audit-philosophers|--audit EVENTS\n",
+            "       --check-api-mutants|--check-review-mutants|--check-writing-mutants|--check-cicd-mutants|--check-philosophers-mutants|--check-protocol-mutants EVENTS NEW_OUTPUT\n",
             "       --audit-run RUN\n",
             "       --check-run-mutants RUN NEW_OUTPUT"
         ).into()),

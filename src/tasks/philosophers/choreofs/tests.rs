@@ -1,5 +1,10 @@
 //! Protocol execution checks. Real shell execution is qualified separately.
-use super::{global::*, imp::PhilosopherArguments, localside};
+use super::{
+    global::*,
+    identity::{self, roles9e},
+    imp::PhilosopherArguments,
+    localside,
+};
 use crate::shell::{
     ShellResult,
     global::Exit,
@@ -9,12 +14,12 @@ use hibana::{
     Endpoint,
     runtime::{SessionKitStorage, ids::SessionId},
 };
-use std::cell::{Cell, RefCell};
+use std::cell::Cell;
 
 #[derive(Default)]
 struct Effects(
-    RefCell<Vec<(&'static str, &'static str)>>,
-    RefCell<Vec<&'static str>>,
+    Cell<Vec<(&'static str, &'static str)>>,
+    Cell<Vec<&'static str>>,
     Cell<usize>,
 );
 impl Domain for Effects {
@@ -25,12 +30,18 @@ impl Domain for Effects {
         arguments: serde_json::Value,
     ) -> Result<serde_json::Value, String> {
         assert_eq!(arguments["philosopher"], agent);
-        self.0.borrow_mut().push((agent, tool));
+        let mut events = self.0.take();
+        events.push((agent, tool));
+        self.0.set(events);
         if tool == "eat" {
-            self.1.borrow_mut().push(agent);
-            self.2.set(self.2.get().max(self.1.borrow().len()));
+            let mut active = self.1.take();
+            active.push(agent);
+            self.2.set(self.2.get().max(active.len()));
+            self.1.set(active);
             tokio::task::yield_now().await;
-            self.1.borrow_mut().retain(|who| *who != agent);
+            let mut active = self.1.take();
+            active.retain(|who| *who != agent);
+            self.1.set(active);
         }
         Ok(serde_json::json!({"success":true,"agent":agent,"tool":tool}))
     }
@@ -88,7 +99,7 @@ async fn client<const ROLE: u8, const LEFT: u8, const RIGHT: u8>(
 async fn three_guests_use_both_real_fork_endpoints_and_return_them() -> ShellResult<()> {
     use roles9e::*;
     let programs = project_9e();
-    let session = SessionId::new(19);
+    let session = SessionId::new(identity::SESSION);
     let (bus, _reader, _terminals) = Bus::open(
         ["PHILOSOPHER_A", "PHILOSOPHER_B", "PHILOSOPHER_C"],
         [
@@ -151,7 +162,7 @@ async fn three_guests_use_both_real_fork_endpoints_and_return_them() -> ShellRes
             Ok::<_, crate::shell::ShellError>(())
         },
     )?;
-    let effects = effects.0.borrow();
+    let effects = effects.0.take();
     for agent in ["PHILOSOPHER_A", "PHILOSOPHER_B", "PHILOSOPHER_C"] {
         assert_eq!(
             effects
@@ -180,9 +191,9 @@ macro_rules! larger_fixture {
          $resource:ident, $resource_role:ident, $vm:ident, $vm_role:ident,
          $io:ident, $io_role:ident, $left:ident, $right:ident, $agent:literal)),+ $(,)?) => {
         async fn $name(domain: &impl Domain) -> ShellResult<()> {
-            use super::global::$roles::*;
+            use super::identity::$roles::*;
             let programs = $project();
-            let session = SessionId::new(19);
+            let session = SessionId::new(identity::SESSION);
             let (bus, _reader, _terminals) = Bus::open(
                 [$($agent),+], [$( (session, $resource_role) ),+],
             );
@@ -234,9 +245,9 @@ larger_fixture!(drive_seven, project_9h, roles9h;
 async fn five_guests_keep_two_disjoint_meals_running() -> ShellResult<()> {
     let effects = Effects::default();
     drive_five(&effects).await?;
-    assert_eq!(effects.0.borrow().len(), 10);
+    assert_eq!(effects.0.take().len(), 10);
     assert_eq!(effects.2.get(), 2);
-    assert!(effects.1.borrow().is_empty());
+    assert!(effects.1.take().is_empty());
     Ok(())
 }
 
@@ -244,17 +255,17 @@ async fn five_guests_keep_two_disjoint_meals_running() -> ShellResult<()> {
 async fn seven_guests_keep_three_disjoint_meals_running() -> ShellResult<()> {
     let effects = Effects::default();
     drive_seven(&effects).await?;
-    assert_eq!(effects.0.borrow().len(), 14);
+    assert_eq!(effects.0.take().len(), 14);
     assert_eq!(effects.2.get(), 3);
-    assert!(effects.1.borrow().is_empty());
+    assert!(effects.1.take().is_empty());
     Ok(())
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn a_delayed_meal_does_not_hold_an_unrelated_fork_pair() -> ShellResult<()> {
     struct DelayA {
-        receiver: RefCell<Option<tokio::sync::oneshot::Receiver<()>>>,
-        sender: RefCell<Option<tokio::sync::oneshot::Sender<()>>>,
+        receiver: Cell<Option<tokio::sync::oneshot::Receiver<()>>>,
+        sender: Cell<Option<tokio::sync::oneshot::Sender<()>>>,
     }
     impl Domain for DelayA {
         async fn execute(
@@ -265,19 +276,19 @@ async fn a_delayed_meal_does_not_hold_an_unrelated_fork_pair() -> ShellResult<()
         ) -> Result<serde_json::Value, String> {
             // A controlled test barrier, never a production permission.
             if tool == "eat" && agent == "PHILOSOPHER_A" {
-                let receiver = self.receiver.borrow_mut().take().unwrap();
+                let receiver = self.receiver.take().unwrap();
                 receiver.await.map_err(|error| error.to_string())?;
             }
             if tool == "eat" && agent == "PHILOSOPHER_D" {
-                self.sender.borrow_mut().take().unwrap().send(()).unwrap();
+                self.sender.take().unwrap().send(()).unwrap();
             }
             Ok(serde_json::json!({"success":true,"tool":tool}))
         }
     }
     let (sender, receiver) = tokio::sync::oneshot::channel();
     let domain = DelayA {
-        receiver: RefCell::new(Some(receiver)),
-        sender: RefCell::new(Some(sender)),
+        receiver: Cell::new(Some(receiver)),
+        sender: Cell::new(Some(sender)),
     };
     tokio::time::timeout(std::time::Duration::from_secs(5), drive_five(&domain))
         .await
@@ -289,7 +300,7 @@ async fn a_delayed_meal_does_not_hold_an_unrelated_fork_pair() -> ShellResult<()
 async fn the_guest_cannot_send_an_eat_request_without_the_resource_endpoints() -> ShellResult<()> {
     use roles9e::*;
     let programs = project_9e();
-    let session = SessionId::new(19);
+    let session = SessionId::new(identity::SESSION);
     let (bus, _reader, _terminals) = Bus::open(
         ["PHILOSOPHER_A"],
         [(session, FORK_A_RESOURCE), (session, FORK_C_RESOURCE)],
@@ -322,7 +333,7 @@ async fn the_guest_cannot_send_an_eat_request_without_the_resource_endpoints() -
             Ok::<_, crate::shell::ShellError>(())
         },
     )?;
-    assert_eq!(*effects.0.borrow(), [("PHILOSOPHER_A", "think")]);
+    assert_eq!(effects.0.take(), [("PHILOSOPHER_A", "think")]);
     let observations = bus.transport.take_observations();
     assert_eq!(
         observations

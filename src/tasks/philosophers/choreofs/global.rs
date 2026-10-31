@@ -1,5 +1,8 @@
 //! Each shared request runs through the endpoint of its required resource.
-use super::imp::PhilosopherArguments;
+use super::{
+    identity::{roles9e, roles9h, roles9m},
+    imp::PhilosopherArguments,
+};
 use hibana::{
     Endpoint, g,
     runtime::program::{Projectable, RoleProgram, project},
@@ -53,23 +56,6 @@ fn eat<
     )
 }
 
-pub mod roles9e {
-    pub const A: u8 = 0;
-    pub const FORK_A: u8 = 7;
-    pub const A_WASI: u8 = 14;
-    pub const A_IO: u8 = 21;
-    pub const FORK_A_RESOURCE: u8 = 28;
-    pub const B: u8 = 1;
-    pub const FORK_B: u8 = 8;
-    pub const B_WASI: u8 = 15;
-    pub const B_IO: u8 = 22;
-    pub const FORK_B_RESOURCE: u8 = 29;
-    pub const C: u8 = 2;
-    pub const FORK_C: u8 = 9;
-    pub const C_WASI: u8 = 16;
-    pub const C_IO: u8 = 23;
-    pub const FORK_C_RESOURCE: u8 = 30;
-}
 pub struct Programs9E {
     pub a: RoleProgram<{ roles9e::A }>,
     pub fork_a: RoleProgram<{ roles9e::FORK_A }>,
@@ -140,33 +126,6 @@ pub fn project_9e() -> Programs9E {
     }
 }
 
-pub mod roles9m {
-    pub const A: u8 = 0;
-    pub const FORK_A: u8 = 7;
-    pub const A_WASI: u8 = 14;
-    pub const A_IO: u8 = 21;
-    pub const FORK_A_RESOURCE: u8 = 28;
-    pub const B: u8 = 1;
-    pub const FORK_B: u8 = 8;
-    pub const B_WASI: u8 = 15;
-    pub const B_IO: u8 = 22;
-    pub const FORK_B_RESOURCE: u8 = 29;
-    pub const C: u8 = 2;
-    pub const FORK_C: u8 = 9;
-    pub const C_WASI: u8 = 16;
-    pub const C_IO: u8 = 23;
-    pub const FORK_C_RESOURCE: u8 = 30;
-    pub const D: u8 = 3;
-    pub const FORK_D: u8 = 10;
-    pub const D_WASI: u8 = 17;
-    pub const D_IO: u8 = 24;
-    pub const FORK_D_RESOURCE: u8 = 31;
-    pub const E: u8 = 4;
-    pub const FORK_E: u8 = 11;
-    pub const E_WASI: u8 = 18;
-    pub const E_IO: u8 = 25;
-    pub const FORK_E_RESOURCE: u8 = 32;
-}
 pub struct Programs9M {
     pub a: RoleProgram<{ roles9m::A }>,
     pub fork_a: RoleProgram<{ roles9m::FORK_A }>,
@@ -278,43 +237,6 @@ pub fn project_9m() -> Programs9M {
     }
 }
 
-pub mod roles9h {
-    pub const A: u8 = 0;
-    pub const FORK_A: u8 = 7;
-    pub const A_WASI: u8 = 14;
-    pub const A_IO: u8 = 21;
-    pub const FORK_A_RESOURCE: u8 = 28;
-    pub const B: u8 = 1;
-    pub const FORK_B: u8 = 8;
-    pub const B_WASI: u8 = 15;
-    pub const B_IO: u8 = 22;
-    pub const FORK_B_RESOURCE: u8 = 29;
-    pub const C: u8 = 2;
-    pub const FORK_C: u8 = 9;
-    pub const C_WASI: u8 = 16;
-    pub const C_IO: u8 = 23;
-    pub const FORK_C_RESOURCE: u8 = 30;
-    pub const D: u8 = 3;
-    pub const FORK_D: u8 = 10;
-    pub const D_WASI: u8 = 17;
-    pub const D_IO: u8 = 24;
-    pub const FORK_D_RESOURCE: u8 = 31;
-    pub const E: u8 = 4;
-    pub const FORK_E: u8 = 11;
-    pub const E_WASI: u8 = 18;
-    pub const E_IO: u8 = 25;
-    pub const FORK_E_RESOURCE: u8 = 32;
-    pub const F: u8 = 5;
-    pub const FORK_F: u8 = 12;
-    pub const F_WASI: u8 = 19;
-    pub const F_IO: u8 = 26;
-    pub const FORK_F_RESOURCE: u8 = 33;
-    pub const G: u8 = 6;
-    pub const FORK_G: u8 = 13;
-    pub const G_WASI: u8 = 20;
-    pub const G_IO: u8 = 27;
-    pub const FORK_G_RESOURCE: u8 = 34;
-}
 pub struct Programs9H {
     pub a: RoleProgram<{ roles9h::A }>,
     pub fork_a: RoleProgram<{ roles9h::FORK_A }>,

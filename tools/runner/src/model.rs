@@ -20,6 +20,22 @@ pub const MODEL: &str = "gpt-6-luna";
 pub const EFFORT: &str = "xhigh";
 pub const CLI: &str = "/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex";
 
+pub fn identity() -> Result<Value> {
+    let version = std::process::Command::new(CLI).arg("--version").output()?;
+    if !version.status.success() {
+        return Err("model client version query failed".into());
+    }
+    let version = String::from_utf8(version.stdout)?.trim().to_owned();
+    if version.is_empty() {
+        return Err("model client returned an empty version".into());
+    }
+    Ok(json!({
+        "model":MODEL,"effort":EFFORT,
+        "client_version":version,
+        "client_sha256":digest(std::path::Path::new(CLI))?,
+    }))
+}
+
 pub struct Participant {
     pub agent: String,
     pub instructions: String,

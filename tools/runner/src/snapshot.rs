@@ -1,7 +1,4 @@
-use crate::{
-    evidence::{Result, archive_build_receipt, digest, save},
-    model,
-};
+use crate::evidence::{Result, archive_build_receipt, digest, save};
 use serde_json::{Map, Value, json};
 use std::{
     collections::BTreeMap,
@@ -134,7 +131,7 @@ pub fn freeze(task: &str, output: &Path) -> Result<Value> {
     }
     runtime_sources(&output.join("source"), &output.join("build-source.sha256"))?;
     save(&output.join("source-manifest.json"), &json!(manifest))?;
-    let mut artifacts = vec![
+    let artifacts = [
         ("runtime", runtime),
         (
             "wash.wasm",
@@ -142,15 +139,6 @@ pub fn freeze(task: &str, output: &Path) -> Result<Value> {
         ),
         ("runner", std::env::current_exe()?),
     ];
-    if family == "PHILOSOPHERS" {
-        artifacts.push((
-            "protocol-audit",
-            PathBuf::from(
-                std::env::var_os("CHOREOFIX_PHILOSOPHERS_VERIFIER_BINARY")
-                    .ok_or("CHOREOFIX_PHILOSOPHERS_VERIFIER_BINARY is required")?,
-            ),
-        ));
-    }
     let mut binaries = Map::new();
     for (name, source) in artifacts {
         let saved = output.join(name);
@@ -161,7 +149,7 @@ pub fn freeze(task: &str, output: &Path) -> Result<Value> {
         return Err("runtime changed while archiving its build".into());
     }
     let versions = json!({
-        "format_version":3,
+        "format_version":4,
         "consumer":command("git", &["rev-parse", "HEAD"])?,
         "host_toolchain":command("rustc", &["+stable", "-Vv"])?,
         "runtime_build_receipt":receipt,
@@ -169,11 +157,8 @@ pub fn freeze(task: &str, output: &Path) -> Result<Value> {
         "input_build_receipt_sha256":digest(&output.join("input-build-receipt.json"))?,
         "runtime_source_manifest_sha256":digest(&output.join("build-source.sha256"))?,
         "upstream_interpreter":crate::oracle::interpreter_identity()?,
-        "model_client":command(model::CLI, &["--version"])?,
-        "model_client_sha256":digest(Path::new(model::CLI))?,
         "binaries":binaries,
         "source_manifest_sha256":digest(&output.join("source-manifest.json"))?,
-        "model":model::MODEL, "effort":model::EFFORT,
     });
     fs::write(
         output.join("dependency-tree.txt"),

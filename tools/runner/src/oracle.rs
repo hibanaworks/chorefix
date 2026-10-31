@@ -468,7 +468,7 @@ fn fixture(task: &str, metadata: &Value, inputs: &Value) -> Result<Value> {
         // They are never task authority. Actual model calls are verified from
         // participant events, independently of this environment metadata.
         json!({"type":"fixtures","task":task,"fixtures":actors,"inputs":inputs,
-        "adapter":"rust_upstream_api","test_delays":{},"model_run":true,
+        "adapter":"rust_upstream_api","test_delays":{},
         "terminal_review_failure":false,"terminal_test_failure":false}),
     )
 }

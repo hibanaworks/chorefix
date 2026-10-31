@@ -9,7 +9,6 @@ use std::{
     fs,
     io::{BufRead, BufReader},
     path::{Component, Path},
-    process::Command,
 };
 
 fn load(path: &Path) -> Result<Value> {
@@ -236,10 +235,7 @@ pub fn run(root: &Path) -> Result<Value> {
         return Err("failed or altered case result".into());
     }
     let binaries = versions["binaries"].as_object().ok_or("binary hashes")?;
-    let mut required = vec!["runtime", "wash.wasm", "runner"];
-    if matches!(task, "9E" | "9M" | "9H") {
-        required.push("protocol-audit");
-    }
+    let required = ["runtime", "wash.wasm", "runner"];
     if binaries.len() != required.len() || required.iter().any(|name| !binaries.contains_key(*name))
     {
         return Err("missing or unexpected executable in the evidence bundle".into());
@@ -270,7 +266,7 @@ pub fn run(root: &Path) -> Result<Value> {
     let mut normalized = original.clone();
     normalized["source_manifest"] = json!("build-source.sha256");
     normalized["input_receipt_sha256"] = json!(input_hash);
-    if versions["format_version"] != 3
+    if versions["format_version"] != 4
         || versions["runtime_build_receipt"] != receipt
         || versions["build_receipt_sha256"] != digest(&root.join("build-receipt.json"))?
         || versions["input_build_receipt_sha256"] != input_hash
@@ -346,6 +342,19 @@ pub fn run(root: &Path) -> Result<Value> {
     {
         return Err("model fixture settings differ".into());
     }
+    if versions["model_connection"]["model"] != model::MODEL
+        || versions["model_connection"]["effort"] != model::EFFORT
+        || versions["model_connection"]["client_version"]
+            .as_str()
+            .is_none_or(str::is_empty)
+        || versions["model_connection"]["client_sha256"]
+            .as_str()
+            .is_none_or(|hash| {
+                hash.len() != 64 || !hash.bytes().all(|byte| byte.is_ascii_hexdigit())
+            })
+    {
+        return Err("missing or inconsistent model client identity".into());
+    }
     let mut participants = Vec::new();
     for actor in fixture["fixtures"].as_array().ok_or("fixture actors")? {
         let expected = crate::prompt(
@@ -394,20 +403,7 @@ pub fn run(root: &Path) -> Result<Value> {
         "6E" => crate::review_audit::audit(&root.join("events.jsonl"))?,
         "8E" => crate::api_audit::audit(&root.join("events.jsonl"))?,
         "16E" => crate::cicd_audit::audit(&root.join("events.jsonl"))?,
-        "9E" | "9M" | "9H" => {
-            let protocol = Command::new(root.join("protocol-audit").canonicalize()?)
-                .arg("--audit")
-                .arg(root.join("events.jsonl"))
-                .output()?;
-            if !protocol.status.success() {
-                return Err(format!(
-                    "protocol audit: {}",
-                    String::from_utf8_lossy(&protocol.stderr)
-                )
-                .into());
-            }
-            serde_json::from_slice(&protocol.stdout)?
-        }
+        "9E" | "9M" | "9H" => crate::philosophers_audit::audit(&root.join("events.jsonl"))?,
         _ => return Err("task has no delegated WASI implementation".into()),
     };
     let runtime = result["outcomes"]
@@ -442,7 +438,7 @@ pub fn run(root: &Path) -> Result<Value> {
         json!({"status":"passed","task":fixture["task"],"kind":"unscored_direct_wasi_model_preflight",
         "scored_benchmark":false,"participants":participants,"participant_turns":participants.len(),"max_simultaneous_model_turns":maximum,
         "inclusive_tokens":total,"protocol":protocol,"events_sha256":result["events_sha256"],
-        "protocol_verifier_sha256":versions["binaries"]["protocol-audit"],"model_verifier_sha256":digest(&std::env::current_exe()?)?}),
+        "auditor_sha256":digest(&std::env::current_exe()?)?}),
     )
 }
 
@@ -480,6 +476,7 @@ pub fn check_mutants(root: &Path, output: &Path) -> Result<Value> {
         "unqualified_runtime",
         "missing_guest_artifact",
         "wrong_participant_set",
+        "artificial_delay_in_model_fixture",
     ] {
         let case = output.join(kind);
         copy(root, &case)?;
@@ -595,6 +592,18 @@ pub fn check_mutants(root: &Path, output: &Path) -> Result<Value> {
                 )?;
                 result["events_sha256"] = json!(digest(&case.join("events.jsonl"))?);
             }
+            "artificial_delay_in_model_fixture" => {
+                let mut runtime = records(&case.join("events.jsonl"))?;
+                runtime[0]["message"]["test_delays"] = json!({"synthetic_barrier":true});
+                fs::write(
+                    case.join("events.jsonl"),
+                    runtime
+                        .iter()
+                        .map(|row| format!("{row}\n"))
+                        .collect::<String>(),
+                )?;
+                result["events_sha256"] = json!(digest(&case.join("events.jsonl"))?);
+            }
             _ => unreachable!(),
         }
         fs::write(
@@ -610,7 +619,7 @@ pub fn check_mutants(root: &Path, output: &Path) -> Result<Value> {
         checked.push(json!({"mutation":kind,"status":"rejected","reason":error,"outer_hashes_recomputed":true}));
     }
     let report = json!({"status":"passed","checked":checked,
-        "model_verifier_sha256":digest(&std::env::current_exe()?)?,
+        "auditor_sha256":digest(&std::env::current_exe()?)?,
         "original_events_sha256":digest(&root.join("events.jsonl"))?});
     crate::evidence::save(&output.join("report.json"), &report)?;
     Ok(report)
