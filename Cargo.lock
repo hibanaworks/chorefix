@@ -15,12 +15,12 @@ dependencies = [
 [[package]]
 name = "hibana"
 version = "0.10.0"
-source = "git+https://github.com/hibanaworks/hibana?rev=b7d65518b07226a3d69a140bbaf17d4c80fb65a8#b7d65518b07226a3d69a140bbaf17d4c80fb65a8"
+source = "git+https://github.com/hibanaworks/hibana?rev=c1d92129b0ae95572aaa53bb2e7455c20689bb43#c1d92129b0ae95572aaa53bb2e7455c20689bb43"
 
 [[package]]
 name = "hibana-runtime"
 version = "0.1.0"
-source = "git+https://github.com/hibanaworks/hibana-runtime?rev=61ae78bbde9d77148fa38f86f8f63ab4cf45a314#61ae78bbde9d77148fa38f86f8f63ab4cf45a314"
+source = "git+https://github.com/hibanaworks/hibana-runtime?rev=078ca3224db5d5eec05c9b8f346ab561a99a3170#078ca3224db5d5eec05c9b8f346ab561a99a3170"
 dependencies = [
  "hibana-runtime-macros",
 ]
@@ -28,7 +28,7 @@ dependencies = [
 [[package]]
 name = "hibana-runtime-macros"
 version = "0.1.0"
-source = "git+https://github.com/hibanaworks/hibana-runtime?rev=61ae78bbde9d77148fa38f86f8f63ab4cf45a314#61ae78bbde9d77148fa38f86f8f63ab4cf45a314"
+source = "git+https://github.com/hibanaworks/hibana-runtime?rev=078ca3224db5d5eec05c9b8f346ab561a99a3170#078ca3224db5d5eec05c9b8f346ab561a99a3170"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -38,7 +38,7 @@ dependencies = [
 [[package]]
 name = "hibana-wasip1-runtime"
 version = "0.1.0"
-source = "git+https://github.com/hibanaworks/hibana-wasip1-runtime?rev=77f5bbd1075402da8f67b86c7a70fbb5937bdf79#77f5bbd1075402da8f67b86c7a70fbb5937bdf79"
+source = "git+https://github.com/hibanaworks/hibana-wasip1-runtime?rev=e9bcf88d10de0dc92e08fef0f18f42e9d94ba3ad#e9bcf88d10de0dc92e08fef0f18f42e9d94ba3ad"
 dependencies = [
  "hibana",
 ]

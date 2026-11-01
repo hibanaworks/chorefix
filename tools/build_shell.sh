@@ -2,4 +2,7 @@
 set -eu
 cd "$(dirname "$0")/.."
 cargo +stable build --locked --bins
-sh vendor/hibana-wash/scripts/build.sh
+(
+    unset CARGO_TARGET_DIR
+    sh vendor/hibana-wash/scripts/build.sh
+)

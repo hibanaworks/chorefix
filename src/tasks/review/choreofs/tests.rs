@@ -107,23 +107,23 @@ async fn repository_receiver_rejects_substitution_and_wrong_target_before_effect
 
                         let (result, held) = async {
                             #[localside]
-                            let first =
+                            let (first, second) = (
                                 async {
                                     Ok(localside::repo::run(&mut service, repository, &NoEffects)
                                         .await)
-                                };
-                            #[localside]
-                            let second = async {
-                                task.send::<ImplementA>(&admitted).await.unwrap();
-                                let mut repository = task.recv::<RepoLoan>().await.unwrap();
-                                assert!(owner.enter(session, &p.repo_endpoint).is_err());
-                                assert!(guest.enter(session, &p.repo_endpoint).is_err());
-                                repository
-                                    .send::<ImplementOnRepo>(&substituted)
-                                    .await
-                                    .unwrap();
-                                Ok(repository)
-                            };
+                                },
+                                async {
+                                    task.send::<ImplementA>(&admitted).await.unwrap();
+                                    let mut repository = task.recv::<RepoLoan>().await.unwrap();
+                                    assert!(owner.enter(session, &p.repo_endpoint).is_err());
+                                    assert!(guest.enter(session, &p.repo_endpoint).is_err());
+                                    repository
+                                        .send::<ImplementOnRepo>(&substituted)
+                                        .await
+                                        .unwrap();
+                                    Ok(repository)
+                                },
+                            );
                             Ok((first, second))
                         }
                         .await

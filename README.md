@@ -121,3 +121,5 @@ The [runner](tools/runner) records raw model events, tool calls, source and
 binary digests, original simulator results and inclusive token usage. Failed
 qualifications and negative results remain evidence. Scoring requires frozen
 inputs and qualified implementations for every condition.
+Saved source manifests include working-tree changes; `checkout_head` records
+the repository's checked-out revision.

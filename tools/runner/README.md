@@ -60,16 +60,19 @@ model response cannot hide an error reported with that response.
 `--check-run-mutants RUN NEW_DIRECTORY` checks the saved model records against
 deliberately altered records without making model calls.
 
-The API and codebase regression tests use the same source snapshots and Rust
-simulator connection. Set the corresponding runtime and receipt variables above
-and `CHOREOFIX_EVIDENCE_ROOT` to a new evidence directory, then run:
+Run all six migrated families' scripted WASI regressions from one source
+snapshot with a new output directory:
 
 ```sh
-cargo +stable test --locked --manifest-path tools/runner/Cargo.toml \
-  api_boundary:: -- --ignored --test-threads=1 --nocapture
-cargo +stable test --locked --manifest-path tools/runner/Cargo.toml \
-  codebase_boundary:: -- --ignored --test-threads=1 --nocapture
+cargo +stable build --locked --manifest-path tools/runner/Cargo.toml
+tools/runner/target/debug/choreofix-experiments --qualify-wasi output/wasi-boundary
 ```
+
+This builds the wash guest and task hosts, saves their source and receipts,
+and runs each family's ignored boundary tests. Missing tests, a failed build or
+a source change stop qualification. `CHOREOFIX_APP_TARGET_DIR` and
+`CHOREOFIX_RUNNER_TARGET_DIR` can select separate reusable build directories.
+Run local builds and qualification under the documented resource guard.
 
 These scripted tests make no model calls. They check actual wash guests,
 resource requests and returns, independent work, malformed and duplicate

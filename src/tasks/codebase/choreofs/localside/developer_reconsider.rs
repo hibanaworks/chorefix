@@ -75,9 +75,10 @@ pub(crate) async fn run<
             let [mut first, mut second] = endpoint.par()?;
             let (first, second) = async {
                 #[localside]
-                let first = first.recv::<CommitRequest<TASK, ROLE, FIRST>>();
-                #[localside]
-                let second = second.recv::<CommitRequest<TASK, ROLE, SECOND>>();
+                let (first, second) = (
+                    first.recv::<CommitRequest<TASK, ROLE, FIRST>>(),
+                    second.recv::<CommitRequest<TASK, ROLE, SECOND>>(),
+                );
                 Ok((first, second))
             }
             .await?;
@@ -112,10 +113,12 @@ pub(crate) async fn run<
             let [mut first, mut second] = endpoint.par()?;
             let payload = bytes.as_slice();
             async {
-                #[localside]
-                first.send::<CommitCompleted<FIRST>>(&payload);
-                #[localside]
-                second.send::<CommitCompleted<SECOND>>(&payload);
+                async {
+                    first.send::<CommitCompleted<FIRST>>(&payload).await?;
+                };
+                async {
+                    second.send::<CommitCompleted<SECOND>>(&payload).await?;
+                };
                 Ok(())
             }
             .await?;
@@ -145,12 +148,19 @@ pub(crate) async fn run<
                 let [mut vm, mut first_owner, mut second_owner] = endpoint.par()?;
                 let payload = bytes.as_slice();
                 async {
-                    #[localside]
-                    vm.send::<TestPassed>(&payload);
-                    #[localside]
-                    first_owner.send::<ModuleTestResult<SECOND>>(&payload);
-                    #[localside]
-                    second_owner.send::<ModuleTestResult<FIRST>>(&payload);
+                    async {
+                        vm.send::<TestPassed>(&payload).await?;
+                    };
+                    async {
+                        first_owner
+                            .send::<ModuleTestResult<SECOND>>(&payload)
+                            .await?;
+                    };
+                    async {
+                        second_owner
+                            .send::<ModuleTestResult<FIRST>>(&payload)
+                            .await?;
+                    };
                     Ok(())
                 }
                 .await?;
@@ -160,12 +170,19 @@ pub(crate) async fn run<
                 let [mut vm, mut first_owner, mut second_owner] = endpoint.par()?;
                 let payload = bytes.as_slice();
                 async {
-                    #[localside]
-                    vm.send::<TestFailed>(&payload);
-                    #[localside]
-                    first_owner.send::<ModuleTestResult<SECOND_OWNER>>(&payload);
-                    #[localside]
-                    second_owner.send::<ModuleTestResult<FIRST_OWNER>>(&payload);
+                    async {
+                        vm.send::<TestFailed>(&payload).await?;
+                    };
+                    async {
+                        first_owner
+                            .send::<ModuleTestResult<SECOND_OWNER>>(&payload)
+                            .await?;
+                    };
+                    async {
+                        second_owner
+                            .send::<ModuleTestResult<FIRST_OWNER>>(&payload)
+                            .await?;
+                    };
                     Ok(())
                 }
                 .await?;

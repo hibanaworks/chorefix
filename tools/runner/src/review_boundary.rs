@@ -374,26 +374,27 @@ async fn run_cases(cases: Vec<ReviewCase>) -> Result<()> {
             process::guest(&runtime, module, "6E", &case, trace, simulator.clone())?;
         let (a, b, result) = hibana_runtime::race(
             async {
+                async {
+                    reviewer(&guest, &simulator, review_first, schedule).await?;
+                };
                 #[localside]
-                let a = developer(
-                    &guest,
-                    &simulator,
-                    "DEVELOPER_A",
-                    "user_authentication",
-                    "dev_a_feature",
+                let (a, b, result) = (
+                    developer(
+                        &guest,
+                        &simulator,
+                        "DEVELOPER_A",
+                        "user_authentication",
+                        "dev_a_feature",
+                    ),
+                    developer(
+                        &guest,
+                        &simulator,
+                        "DEVELOPER_B",
+                        "notification_feature",
+                        "dev_b_feature",
+                    ),
+                    runtime_loop,
                 );
-                #[localside]
-                let b = developer(
-                    &guest,
-                    &simulator,
-                    "DEVELOPER_B",
-                    "notification_feature",
-                    "dev_b_feature",
-                );
-                #[localside]
-                reviewer(&guest, &simulator, review_first, schedule);
-                #[localside]
-                let result = runtime_loop;
                 Ok((a, b, result))
             },
             hibana_runtime::host::deadline(Duration::from_secs(60)),

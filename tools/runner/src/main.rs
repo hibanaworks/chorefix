@@ -20,6 +20,7 @@ mod philosophers_audit;
 mod philosophers_boundary;
 mod process;
 mod projection;
+mod qualification;
 mod review_audit;
 #[cfg(test)]
 mod review_boundary;
@@ -290,6 +291,10 @@ async fn run(task: &str, depth: u8, output: &Path) -> Result<Value> {
 async fn main() -> Result<()> {
     let args: Vec<_> = std::env::args().skip(1).collect();
     match args.as_slice() {
+        [mode, output] if mode == "--qualify-wasi" => println!(
+            "{}",
+            serde_json::to_string_pretty(&qualification::run(Path::new(output))?)?
+        ),
         [mode, events] if mode == "--audit-philosophers" => println!("{}", serde_json::to_string_pretty(&philosophers_audit::audit(Path::new(events))?)?),
         [mode, events, output] if mode == "--check-philosophers-mutants" => println!("{}", serde_json::to_string_pretty(&philosophers_audit::check_mutants(Path::new(events), Path::new(output))?)?),
         [mode, events] if mode == "--audit-api" => println!("{}", serde_json::to_string_pretty(&api_audit::audit(Path::new(events))?)?),
@@ -349,6 +354,7 @@ async fn main() -> Result<()> {
             "       --audit-api|--audit-review|--audit-writing|--audit-cicd|--audit-philosophers|--audit EVENTS\n",
             "       --check-api-mutants|--check-review-mutants|--check-writing-mutants|--check-cicd-mutants|--check-philosophers-mutants|--check-protocol-mutants EVENTS NEW_OUTPUT\n",
             "       --audit-run RUN\n",
+            "       --qualify-wasi NEW_OUTPUT\n",
             "       --check-run-mutants RUN NEW_OUTPUT"
         ).into()),
     }

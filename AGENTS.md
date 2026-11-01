@@ -2,6 +2,10 @@
 
 ## Local validation memory budget
 
+GitHub Actions is available again. Run the required checks on the published
+revision as well as the fixed-source local gates; the former Actions budget is
+not a reason to skip CI. Distinguish submitted, running and successful checks.
+
 Do not use Docker or start Docker Desktop, a daemon or a VM for measurement.
 The measurement core must use no_std, no heap allocation and caller-supplied
 storage. Keep host reporting separate. Distinguish CPU instructions, logical
@@ -101,6 +105,38 @@ Tokio-shaped wrappers and application schedulers. The I/O participant owns its
 data and final I/O; hibana-runtime owns polling, cancellation and waiting for
 children. Improve hibana-runtime when natural direct code cannot express a
 required operation; never compensate with application adapters, helpers or flags.
+Do not use a per-branch `#[localside]` or `let ()` list as the standard style.
+Use one function attribute and direct `async { ... };` bodies for inline
+concurrent Endpoint operations. Bind needed parallel results together, without
+application registration, result collection, pinning or completion management.
+Keep only the scope boundaries needed for data dependencies, ownership and borrowing; do not add
+async wrappers or nested scopes merely to hide the same management code.
+An ordinary `async { ... }.await?` may define completion and borrowing. A one-call
+async child may directly express independent work. Do not add custom syntax or
+execution APIs merely to remove these Rust forms. Each result declaration waits
+only for its explicit futures; adjacency never merges its wait with another
+result declaration or an unrelated child.
+
+Use one function attribute, `#[hibana_runtime::localside]`, with Rust async/await
+as the basic interface. Inside that function, write independent branches directly:
+
+```rust
+async {
+    let [mut a, mut b] = endpoint.par()?;
+
+    async { a.send::<First>(&first).await?; };
+    async { b.send::<Second>(&second).await?; };
+
+    Ok(())
+}.await?;
+```
+
+The runtime drives these children concurrently and finishes them before the outer
+await completes. A single-call async child is valid. Keep Endpoint operations
+visible; the runtime owns pinning, task handles, join construction and child
+completion. Keep the existing declaration grammar; do not add custom concurrency
+syntax to replace these Rust forms.
+
 Do not recreate Tokio's task or channel framework under different names in the
 application. Repeated participants are direct localside declarations from their
 actual inputs, without task handles or a result-collection loop. Keep physical

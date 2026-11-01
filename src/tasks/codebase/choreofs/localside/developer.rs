@@ -66,9 +66,10 @@ pub(crate) async fn run<const TASK: u8, const ROLE: u8, const FIRST: u8, const S
         let [mut first, mut second] = endpoint.par()?;
         let (first, second) = async {
             #[localside]
-            let first = first.recv::<CommitRequest<TASK, ROLE, FIRST>>();
-            #[localside]
-            let second = second.recv::<CommitRequest<TASK, ROLE, SECOND>>();
+            let (first, second) = (
+                first.recv::<CommitRequest<TASK, ROLE, FIRST>>(),
+                second.recv::<CommitRequest<TASK, ROLE, SECOND>>(),
+            );
             Ok((first, second))
         }
         .await?;
@@ -103,10 +104,12 @@ pub(crate) async fn run<const TASK: u8, const ROLE: u8, const FIRST: u8, const S
         let [mut first, mut second] = endpoint.par()?;
         let payload = bytes.as_slice();
         async {
-            #[localside]
-            first.send::<CommitCompleted<FIRST>>(&payload);
-            #[localside]
-            second.send::<CommitCompleted<SECOND>>(&payload);
+            async {
+                first.send::<CommitCompleted<FIRST>>(&payload).await?;
+            };
+            async {
+                second.send::<CommitCompleted<SECOND>>(&payload).await?;
+            };
             Ok(())
         }
         .await?;

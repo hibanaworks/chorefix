@@ -167,26 +167,19 @@ async fn exchange(mode: &str) -> Result<(Vec<Conversation>, Vec<Value>)> {
     };
     let result = hibana_runtime::race(
         async {
-            #[localside]
-            let result = async {
-                let result: io::Result<Result<()>> = hibana_runtime::race(
-                    async {
-                        Ok(
-                            driver::run(&mut client, &mut people, &mut completed, 200, &guest)
-                                .await,
-                        )
-                    },
-                    deadline(timeout),
-                )
-                .await;
-                Ok(result)
-            };
             async {
                 server.await?;
             };
             async {
                 shell.await?;
             };
+            let result: io::Result<Result<()>> = hibana_runtime::race(
+                async {
+                    Ok(driver::run(&mut client, &mut people, &mut completed, 200, &guest).await)
+                },
+                deadline(timeout),
+            )
+            .await;
             Ok(result)
         },
         deadline(Duration::from_secs(5)),

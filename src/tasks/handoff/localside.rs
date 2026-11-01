@@ -105,54 +105,57 @@ pub async fn service(
     let (checked, independent) = async {
         let [mut candidate, mut independent] = endpoint.par()?;
         #[localside]
-        let checked = async {
-            let proposal = Artifact::decode(candidate.recv::<Prepare>().await?);
-            let artifact = repository.prepare(proposal)?;
-            candidate.send::<Prepared>(&artifact.bytes()).await?;
-            let requested = Artifact::decode(candidate.recv::<Inspect>().await?);
-            let checked = repository.verify(requested)?;
-            result.record(checked);
-            candidate.send::<Inspected>(&checked.bytes()).await?;
-            loop {
-                let branch = candidate.offer().await?;
-                match branch.label() {
-                    5 => {
-                        let proposal = Artifact::decode(branch.recv::<Revise>().await?);
-                        let artifact = repository.prepare(proposal)?;
-                        candidate.send::<Revised>(&artifact.bytes()).await?;
-                        let requested = Artifact::decode(candidate.recv::<Reinspect>().await?);
-                        let checked = repository.verify(requested)?;
-                        result.record(checked);
-                        let branch = candidate.offer().await?;
-                        match branch.label() {
-                            8 => {
-                                branch.send::<Passed>(&checked.bytes()).await?;
-                            }
-                            9 => {
-                                branch.send::<Failed>(&checked.bytes()).await?;
-                            }
-                            _ => {
-                                return Err(ShellError::message("unexpected verifier decision"));
+        let (checked, independent) = (
+            async {
+                let proposal = Artifact::decode(candidate.recv::<Prepare>().await?);
+                let artifact = repository.prepare(proposal)?;
+                candidate.send::<Prepared>(&artifact.bytes()).await?;
+                let requested = Artifact::decode(candidate.recv::<Inspect>().await?);
+                let checked = repository.verify(requested)?;
+                result.record(checked);
+                candidate.send::<Inspected>(&checked.bytes()).await?;
+                loop {
+                    let branch = candidate.offer().await?;
+                    match branch.label() {
+                        5 => {
+                            let proposal = Artifact::decode(branch.recv::<Revise>().await?);
+                            let artifact = repository.prepare(proposal)?;
+                            candidate.send::<Revised>(&artifact.bytes()).await?;
+                            let requested = Artifact::decode(candidate.recv::<Reinspect>().await?);
+                            let checked = repository.verify(requested)?;
+                            result.record(checked);
+                            let branch = candidate.offer().await?;
+                            match branch.label() {
+                                8 => {
+                                    branch.send::<Passed>(&checked.bytes()).await?;
+                                }
+                                9 => {
+                                    branch.send::<Failed>(&checked.bytes()).await?;
+                                }
+                                _ => {
+                                    return Err(ShellError::message(
+                                        "unexpected verifier decision",
+                                    ));
+                                }
                             }
                         }
-                    }
-                    25 => {
-                        let declared =
-                            Verification::decode(branch.recv::<CandidateReady>().await?)?;
-                        let actual = result.actual()?;
-                        if declared != actual {
-                            return Err(ShellError::message(
-                                "final verification differs from the actual result",
-                            ));
+                        25 => {
+                            let declared =
+                                Verification::decode(branch.recv::<CandidateReady>().await?)?;
+                            let actual = result.actual()?;
+                            if declared != actual {
+                                return Err(ShellError::message(
+                                    "final verification differs from the actual result",
+                                ));
+                            }
+                            break Ok(actual);
                         }
-                        break Ok(actual);
+                        _ => return Err(ShellError::message("unexpected repository request")),
                     }
-                    _ => return Err(ShellError::message("unexpected repository request")),
                 }
-            }
-        };
-        #[localside]
-        let independent = async { Ok(independent.recv::<WorkReport>().await?) };
+            },
+            independent.recv::<WorkReport>(),
+        );
         Ok((checked, independent))
     }
     .await?;
@@ -165,9 +168,7 @@ pub async fn service(
             let (first, second) = async {
                 let [mut first, mut second] = endpoint.par()?;
                 #[localside]
-                let first = first.recv::<CommitR>();
-                #[localside]
-                let second = second.recv::<CommitS>();
+                let (first, second) = (first.recv::<CommitR>(), second.recv::<CommitS>());
                 Ok((first, second))
             }
             .await?;
@@ -189,10 +190,12 @@ pub async fn service(
             async {
                 let bytes = checked.artifact.bytes();
                 let [mut first, mut second] = endpoint.par()?;
-                #[localside]
-                first.send::<CommittedR>(&bytes);
-                #[localside]
-                second.send::<CommittedS>(&bytes);
+                async {
+                    first.send::<CommittedR>(&bytes).await?;
+                };
+                async {
+                    second.send::<CommittedS>(&bytes).await?;
+                };
                 Ok(())
             }
             .await?;

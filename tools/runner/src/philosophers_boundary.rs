@@ -177,9 +177,7 @@ async fn all_dining_levels_use_both_resource_endpoints_through_wasi() -> Result<
         let (runtime, mut outcomes) = hibana_runtime::race(
             async {
                 #[localside]
-                let runtime = runtime;
-                #[localside]
-                let participants = async {
+                let (runtime, participants) = (runtime, async {
                     match task {
                         "9E" => {
                             inputs(
@@ -210,7 +208,7 @@ async fn all_dining_levels_use_both_resource_endpoints_through_wasi() -> Result<
                         }
                         _ => Err("unknown dining task".into()),
                     }
-                };
+                });
                 Ok((runtime, participants))
             },
             hibana_runtime::host::deadline(Duration::from_secs(120)),
@@ -235,7 +233,7 @@ async fn all_dining_levels_use_both_resource_endpoints_through_wasi() -> Result<
                 .as_array()
                 .ok_or("mutation verdicts")?
                 .len(),
-            9
+            11
         );
         summary.push(
             json!({"task":task,"model_calls":0,"scored_benchmark":false,"audit":audit,

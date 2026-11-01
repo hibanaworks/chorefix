@@ -148,18 +148,14 @@ pub fn freeze(task: &str, output: &Path) -> Result<Value> {
     if binaries["runtime"] != receipt["binary_sha256"] {
         return Err("runtime changed while archiving its build".into());
     }
-    let projection = if matches!(task, "6E" | "16E") {
-        let projection = crate::projection::archive(&output.join("runtime"), output, task)?;
-        if projection["runtime_binary_sha256"] != binaries["runtime"] {
-            return Err("compiled projection executable differs from the snapshot".into());
-        }
-        json!(digest(&output.join("projection.json"))?)
-    } else {
-        Value::Null
-    };
+    let projection = crate::projection::archive(&output.join("runtime"), output, task)?;
+    if projection["runtime_binary_sha256"] != binaries["runtime"] {
+        return Err("compiled projection executable differs from the snapshot".into());
+    }
+    let projection = json!(digest(&output.join("projection.json"))?);
     let versions = json!({
         "format_version":4,
-        "consumer":command("git", &["rev-parse", "HEAD"])?,
+        "checkout_head":command("git", &["rev-parse", "HEAD"])?,
         "host_toolchain":command("rustc", &["+stable", "-Vv"])?,
         "runtime_build_receipt":receipt,
         "build_receipt_sha256":digest(&output.join("build-receipt.json"))?,

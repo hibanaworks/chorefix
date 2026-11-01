@@ -58,6 +58,27 @@ fn original_call(assignment: &Value, count: usize, revising: bool) -> Result<&Va
 
 pub fn audit(path: &Path) -> Result<Value> {
     let records = read(path)?;
+    let projection = crate::projection::load(path)?;
+    let mut result = check(&records, &projection)?;
+    result["source_events_sha256"] = json!(crate::evidence::digest(path)?);
+    result["compiled_projection_sha256"] = json!(crate::evidence::digest(
+        &path
+            .parent()
+            .ok_or("event directory")?
+            .join("projection.json"),
+    )?);
+    result["runtime_binary_sha256"] = projection["runtime_binary_sha256"].clone();
+    result["wire_validation"] =
+        json!("static compiled header membership; dynamic eligibility is not replayed");
+    Ok(result)
+}
+
+fn check(records: &[Value], projection: &Value) -> Result<Value> {
+    crate::projection::frames(projection, records)?;
+    if projection["compiled"]["task"] != records.first().ok_or("empty evidence")?["message"]["task"]
+    {
+        return Err("compiled projection belongs to a different task".into());
+    }
     let fixture = &records.first().ok_or("empty evidence")?["message"];
     let actors = fixture["fixtures"].as_array().ok_or("fixtures")?;
     let revising = fixture["task"] == "1H";
@@ -118,7 +139,7 @@ pub fn audit(path: &Path) -> Result<Value> {
     let mut exits = BTreeSet::new();
     let mut verdict = false;
     let mut score = None;
-    for record in &records {
+    for record in records {
         let message = &record["message"];
         match (record["direction"].as_str(), message["type"].as_str()) {
             (Some("runtime"), Some("protocol_frame")) => {
@@ -577,10 +598,13 @@ pub fn audit(path: &Path) -> Result<Value> {
 
 pub fn check_mutants(path: &Path, output: &Path) -> Result<Value> {
     audit(path)?;
+    let projection = crate::projection::load(path)?;
     fs::create_dir(output)?;
     let records = read(path)?;
     let mut checked = Vec::new();
     for mutation in [
+        "wrong_frame_label",
+        "wrong_lane",
         "missing_request",
         "forged_request_arguments",
         "altered_frame",
@@ -593,126 +617,153 @@ pub fn check_mutants(path: &Path, output: &Path) -> Result<Value> {
         "missing_loan",
     ] {
         let mut copy = records.clone();
-        if matches!(
-            mutation,
-            "commit_before_second_request" | "return_before_result" | "missing_loan"
-        ) {
-            if mutation == "commit_before_second_request" {
-                let effect = copy
-                    .iter()
-                    .position(|r| {
-                        r["message"]["type"] == "execute"
-                            && r["message"]["agent"] == "DEVELOPER_A"
-                            && r["message"]["tool"] == "commit_changes"
-                    })
-                    .ok_or("commit mutation target")?;
-                let effect = copy.remove(effect);
-                let before = copy
-                    .iter()
-                    .position(|r| {
-                        r["message"]["type"] == "protocol_frame"
-                            && r["message"]["action"] == "receive"
-                            && r["message"]["source"] == 29
-                            && r["message"]["target"] == 0
-                    })
-                    .ok_or("second module request")?;
-                copy.insert(before, effect);
+        if matches!(mutation, "wrong_frame_label" | "wrong_lane") {
+            let frame = copy
+                .iter()
+                .find(|row| row["message"]["type"] == "protocol_frame")
+                .ok_or("frame for header mutation")?["message"]
+                .clone();
+            let field = if mutation == "wrong_frame_label" {
+                "frame_label"
             } else {
-                let (source, target) = if mutation == "missing_loan" {
-                    (7, 14)
-                } else {
-                    (14, 7)
-                };
-                let id = copy
-                    .iter()
-                    .find(|r| {
-                        r["message"]["type"] == "protocol_frame"
-                            && r["message"]["action"] == "send"
-                            && r["message"]["source"] == source
-                            && r["message"]["target"] == target
-                    })
-                    .ok_or("loan mutation target")?["message"]["frame_id"]
-                    .clone();
-                let moved: Vec<_> = copy
-                    .iter()
-                    .filter(|r| {
-                        r["message"]["type"] == "protocol_frame" && r["message"]["frame_id"] == id
-                    })
-                    .cloned()
-                    .collect();
-                copy.retain(|r| {
-                    !(r["message"]["type"] == "protocol_frame" && r["message"]["frame_id"] == id)
-                });
-                if mutation == "return_before_result" {
+                "lane"
+            };
+            let replacement = if mutation == "wrong_frame_label" {
+                65535
+            } else {
+                (frame["lane"].as_u64().ok_or("observed lane")? + 1) % 256
+            };
+            for row in &mut copy {
+                if row["message"]["type"] == "protocol_frame"
+                    && row["message"]["frame_id"] == frame["frame_id"]
+                {
+                    row["message"][field] = json!(replacement);
+                }
+            }
+        } else {
+            if matches!(
+                mutation,
+                "commit_before_second_request" | "return_before_result" | "missing_loan"
+            ) {
+                if mutation == "commit_before_second_request" {
+                    let effect = copy
+                        .iter()
+                        .position(|r| {
+                            r["message"]["type"] == "execute"
+                                && r["message"]["agent"] == "DEVELOPER_A"
+                                && r["message"]["tool"] == "commit_changes"
+                        })
+                        .ok_or("commit mutation target")?;
+                    let effect = copy.remove(effect);
                     let before = copy
                         .iter()
                         .position(|r| {
                             r["message"]["type"] == "protocol_frame"
-                                && r["message"]["action"] == "send"
-                                && r["message"]["source"] == 0
-                                && r["message"]["target"] == 28
+                                && r["message"]["action"] == "receive"
+                                && r["message"]["source"] == 29
+                                && r["message"]["target"] == 0
                         })
-                        .ok_or("commit reply")?;
-                    copy.splice(before..before, moved);
-                }
-            }
-        } else {
-            let index = copy
-                .iter()
-                .position(|r| {
-                    let m = &r["message"];
-                    match mutation {
-                        "missing_request" | "forged_request_arguments" => {
-                            r["direction"] == "runtime"
-                                && m["type"] == "protocol_frame"
-                                && m["action"] == "receive"
-                                && m["source"] == 14
-                                && m["target"] == 0
-                                && m["payload"][0] == 4
-                        }
-                        "altered_frame" => {
-                            m["type"] == "protocol_frame" && m["action"] == "receive"
-                        }
-                        "forged_arguments" => m["type"] == "execute",
-                        "forged_result" => {
-                            r["direction"] == "simulator" && m["type"] == "simulator_result"
-                        }
-                        "missing_exit" => m["type"] == "exit",
-                        "false_score" => m["type"] == "score",
-                        _ => false,
-                    }
-                })
-                .ok_or("mutation target")?;
-            match mutation {
-                "missing_request" | "missing_exit" => {
-                    copy.remove(index);
-                }
-                "forged_request_arguments" => {
-                    let id = copy[index]["message"]["frame_id"].clone();
-                    for r in &mut copy {
-                        if r["message"]["type"] == "protocol_frame"
-                            && r["message"]["frame_id"] == id
-                        {
-                            r["message"]["payload"] =
-                                json!(b"\x04{\"feature_name\":\"forged\"}".as_slice());
-                        }
+                        .ok_or("second module request")?;
+                    copy.insert(before, effect);
+                } else {
+                    let (source, target) = if mutation == "missing_loan" {
+                        (7, 14)
+                    } else {
+                        (14, 7)
+                    };
+                    let id = copy
+                        .iter()
+                        .find(|r| {
+                            r["message"]["type"] == "protocol_frame"
+                                && r["message"]["action"] == "send"
+                                && r["message"]["source"] == source
+                                && r["message"]["target"] == target
+                        })
+                        .ok_or("loan mutation target")?["message"]["frame_id"]
+                        .clone();
+                    let moved: Vec<_> = copy
+                        .iter()
+                        .filter(|r| {
+                            r["message"]["type"] == "protocol_frame"
+                                && r["message"]["frame_id"] == id
+                        })
+                        .cloned()
+                        .collect();
+                    copy.retain(|r| {
+                        !(r["message"]["type"] == "protocol_frame"
+                            && r["message"]["frame_id"] == id)
+                    });
+                    if mutation == "return_before_result" {
+                        let before = copy
+                            .iter()
+                            .position(|r| {
+                                r["message"]["type"] == "protocol_frame"
+                                    && r["message"]["action"] == "send"
+                                    && r["message"]["source"] == 0
+                                    && r["message"]["target"] == 28
+                            })
+                            .ok_or("commit reply")?;
+                        copy.splice(before..before, moved);
                     }
                 }
-                "altered_frame" => copy[index]["message"]["source"] = json!(254),
-                "forged_arguments" => {
-                    copy[index]["message"]["arguments"] = json!({"feature_name":"forged"})
+            } else {
+                let index = copy
+                    .iter()
+                    .position(|r| {
+                        let m = &r["message"];
+                        match mutation {
+                            "missing_request" | "forged_request_arguments" => {
+                                r["direction"] == "runtime"
+                                    && m["type"] == "protocol_frame"
+                                    && m["action"] == "receive"
+                                    && m["source"] == 14
+                                    && m["target"] == 0
+                                    && m["payload"][0] == 4
+                            }
+                            "altered_frame" => {
+                                m["type"] == "protocol_frame" && m["action"] == "receive"
+                            }
+                            "forged_arguments" => m["type"] == "execute",
+                            "forged_result" => {
+                                r["direction"] == "simulator" && m["type"] == "simulator_result"
+                            }
+                            "missing_exit" => m["type"] == "exit",
+                            "false_score" => m["type"] == "score",
+                            _ => false,
+                        }
+                    })
+                    .ok_or("mutation target")?;
+                match mutation {
+                    "missing_request" | "missing_exit" => {
+                        copy.remove(index);
+                    }
+                    "forged_request_arguments" => {
+                        let id = copy[index]["message"]["frame_id"].clone();
+                        for r in &mut copy {
+                            if r["message"]["type"] == "protocol_frame"
+                                && r["message"]["frame_id"] == id
+                            {
+                                r["message"]["payload"] =
+                                    json!(b"\x04{\"feature_name\":\"forged\"}".as_slice());
+                            }
+                        }
+                    }
+                    "altered_frame" => copy[index]["message"]["source"] = json!(254),
+                    "forged_arguments" => {
+                        copy[index]["message"]["arguments"] = json!({"feature_name":"forged"})
+                    }
+                    "forged_result" => {
+                        copy[index]["message"]["result"]["data"] = json!({"forged":true})
+                    }
+                    "false_score" => {
+                        copy[index]["message"]["complete"] = json!(
+                            !copy[index]["message"]["complete"]
+                                .as_bool()
+                                .ok_or("score completion")?
+                        )
+                    }
+                    _ => unreachable!(),
                 }
-                "forged_result" => {
-                    copy[index]["message"]["result"]["data"] = json!({"forged":true})
-                }
-                "false_score" => {
-                    copy[index]["message"]["complete"] = json!(
-                        !copy[index]["message"]["complete"]
-                            .as_bool()
-                            .ok_or("score completion")?
-                    )
-                }
-                _ => unreachable!(),
             }
         }
         let mutated = output.join(format!("{mutation}.jsonl"));
@@ -721,7 +772,7 @@ pub fn check_mutants(path: &Path, output: &Path) -> Result<Value> {
             serde_json::to_writer(&mut file, record)?;
             writeln!(file)?;
         }
-        let error = audit(&mutated)
+        let error = check(&copy, &projection)
             .err()
             .ok_or("audit accepted mutated evidence")?
             .to_string();

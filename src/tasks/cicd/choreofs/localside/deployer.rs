@@ -80,10 +80,12 @@ pub async fn run<D: Domain>(
     }
     let [mut services, mut developer, mut tester] = endpoint.par()?;
     async {
-        #[localside]
-        developer.send::<DeployedToDeveloper>(&());
-        #[localside]
-        tester.send::<DeployedToTester>(&());
+        async {
+            developer.send::<DeployedToDeveloper>(&()).await?;
+        };
+        async {
+            tester.send::<DeployedToTester>(&()).await?;
+        };
         Ok(())
     }
     .await?;

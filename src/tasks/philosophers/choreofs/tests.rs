@@ -64,25 +64,27 @@ async fn client<const ROLE: u8, const LEFT: u8, const RIGHT: u8>(
         let [mut left_loan, mut right_loan] = task.par()?;
         async {
             #[localside]
-            let left = async {
-                let mut resource = left_loan.recv::<Loan<LEFT>>().await?;
-                resource.send::<Eat<LEFT>>(&arguments).await?;
-                Ok(resource)
-            };
-            #[localside]
-            let right = async {
-                let mut resource = right_loan.recv::<Loan<RIGHT>>().await?;
-                resource.send::<Eat<RIGHT>>(&arguments).await?;
-                Ok(resource)
-            };
+            let (left, right) = (
+                async {
+                    let mut resource = left_loan.recv::<Loan<LEFT>>().await?;
+                    resource.send::<Eat<LEFT>>(&arguments).await?;
+                    Ok(resource)
+                },
+                async {
+                    let mut resource = right_loan.recv::<Loan<RIGHT>>().await?;
+                    resource.send::<Eat<RIGHT>>(&arguments).await?;
+                    Ok(resource)
+                },
+            );
             Ok((left, right))
         }
         .await?
     };
     #[localside]
-    let left_result = async { Ok(left.recv::<Meal<LEFT>>().await?.to_vec()) };
-    #[localside]
-    let right_result = async { Ok(right.recv::<Meal<RIGHT>>().await?.to_vec()) };
+    let (left_result, right_result) = (
+        async { Ok(left.recv::<Meal<LEFT>>().await?.to_vec()) },
+        async { Ok(right.recv::<Meal<RIGHT>>().await?.to_vec()) },
+    );
     assert_eq!(left_result, right_result);
     assert_eq!(
         serde_json::from_slice::<serde_json::Value>(&left_result).unwrap()["tool"],

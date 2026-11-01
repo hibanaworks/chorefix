@@ -72,28 +72,39 @@ async fn run_guests(
     let aguest = astore.init(module, GuestMemory::new(&mut amemory), bindings())?;
     let bguest = bstore.init(module, GuestMemory::new(&mut bmemory), bindings())?;
     let cguest = cstore.init(module, GuestMemory::new(&mut cmemory), bindings())?;
-    #[localside]
-    localside::developer::run(&mut developer, bus, &compile);
-    #[localside]
-    localside::tester::run(&mut tester, bus, &test);
-    #[localside]
-    localside::deployer::run(&mut deployer, bus, &deploy);
-    #[localside]
-    localside::infrastructure::build_server(&mut build_owner, build);
-    #[localside]
-    localside::infrastructure::deploy_env(&mut deploy_owner, env);
-    #[localside]
-    localside::wasi::developer(aguest, &mut avm);
-    #[localside]
-    private_io::run(&mut aio, afs);
-    #[localside]
-    localside::wasi::tester(bguest, &mut bvm);
-    #[localside]
-    private_io::run(&mut bio, bfs);
-    #[localside]
-    localside::wasi::deployer(cguest, &mut cvm);
-    #[localside]
-    private_io::run(&mut cio, cfs);
+    async {
+        localside::developer::run(&mut developer, bus, &compile).await?;
+    };
+    async {
+        localside::tester::run(&mut tester, bus, &test).await?;
+    };
+    async {
+        localside::deployer::run(&mut deployer, bus, &deploy).await?;
+    };
+    async {
+        localside::infrastructure::build_server(&mut build_owner, build).await?;
+    };
+    async {
+        localside::infrastructure::deploy_env(&mut deploy_owner, env).await?;
+    };
+    async {
+        localside::wasi::developer(aguest, &mut avm).await?;
+    };
+    async {
+        private_io::run(&mut aio, afs).await?;
+    };
+    async {
+        localside::wasi::tester(bguest, &mut bvm).await?;
+    };
+    async {
+        private_io::run(&mut bio, bfs).await?;
+    };
+    async {
+        localside::wasi::deployer(cguest, &mut cvm).await?;
+    };
+    async {
+        private_io::run(&mut cio, cfs).await?;
+    };
     Ok(())
 }
 

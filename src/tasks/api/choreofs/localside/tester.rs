@@ -81,20 +81,24 @@ pub async fn run<D: Domain>(
         match label {
             50 | 51 => {
                 async {
-                    #[localside]
-                    admin.send::<PassedAdmin>(&response);
-                    #[localside]
-                    backend.send::<PassedBackend>(&response);
+                    async {
+                        admin.send::<PassedAdmin>(&response).await?;
+                    };
+                    async {
+                        backend.send::<PassedBackend>(&response).await?;
+                    };
                     Ok(())
                 }
                 .await?;
             }
             60 | 61 => {
                 async {
-                    #[localside]
-                    admin.send::<FailedAdmin>(&response);
-                    #[localside]
-                    backend.send::<FailedBackend>(&response);
+                    async {
+                        admin.send::<FailedAdmin>(&response).await?;
+                    };
+                    async {
+                        backend.send::<FailedBackend>(&response).await?;
+                    };
                     Ok(())
                 }
                 .await?;

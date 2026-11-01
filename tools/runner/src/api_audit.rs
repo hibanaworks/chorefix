@@ -30,6 +30,27 @@ pub fn audit(path: &Path) -> Result<Value> {
         .lines()
         .map(|l| Ok(serde_json::from_str::<Value>(&l?)?))
         .collect::<Result<Vec<_>>>()?;
+    let projection = crate::projection::load(path)?;
+    let mut result = check(&records, &projection)?;
+    result["source_events_sha256"] = json!(crate::evidence::digest(path)?);
+    result["compiled_projection_sha256"] = json!(crate::evidence::digest(
+        &path
+            .parent()
+            .ok_or("event directory")?
+            .join("projection.json"),
+    )?);
+    result["runtime_binary_sha256"] = projection["runtime_binary_sha256"].clone();
+    result["wire_validation"] =
+        json!("static compiled header membership; dynamic eligibility is not replayed");
+    Ok(result)
+}
+
+fn check(records: &[Value], projection: &Value) -> Result<Value> {
+    crate::projection::frames(projection, records)?;
+    if projection["compiled"]["task"] != records.first().ok_or("empty evidence")?["message"]["task"]
+    {
+        return Err("compiled projection belongs to a different task".into());
+    }
     let fixture = &records.first().ok_or("empty evidence")?["message"];
     if fixture["task"] != "8E" || fixture["fixtures"].as_array().ok_or("actors")?.len() != 3 {
         return Err("unexpected API task".into());
@@ -352,6 +373,7 @@ pub fn audit(path: &Path) -> Result<Value> {
 }
 pub fn check_mutants(path: &Path, output: &Path) -> Result<Value> {
     audit(path)?;
+    let projection = crate::projection::load(path)?;
     fs::create_dir(output)?;
     let rows = BufReader::new(File::open(path)?)
         .lines()
@@ -359,6 +381,8 @@ pub fn check_mutants(path: &Path, output: &Path) -> Result<Value> {
         .collect::<Result<Vec<_>>>()?;
     let mut reports = Vec::new();
     for kind in [
+        "wrong_frame_label",
+        "wrong_lane",
         "missing_close",
         "altered_frame",
         "forged_arguments",
@@ -375,115 +399,147 @@ pub fn check_mutants(path: &Path, output: &Path) -> Result<Value> {
         "missing_resource_return",
     ] {
         let mut copy = rows.clone();
-        let index = copy
-            .iter()
-            .position(|r| {
-                let m = &r["message"];
-                match kind {
-                    "missing_close" => {
-                        m["type"] == "protocol_frame"
-                            && m["action"] == "receive"
-                            && m["source"] == 5
-                            && m["target"] == 0
-                            && m["payload"] == json!([4])
-                    }
-                    "altered_frame" => m["type"] == "protocol_frame" && m["action"] == "receive",
-                    "forged_arguments" => m["type"] == "execute",
-                    "forged_result" => m["type"] == "simulator_result",
-                    "missing_notification" => {
-                        m["type"] == "protocol_frame"
-                            && m["action"] == "receive"
-                            && m["source"] == 2
-                            && m["target"] == 11
-                    }
-                    "missing_read" => {
-                        m["type"] == "protocol_frame"
-                            && m["action"] == "send"
-                            && m["source"] == 11
-                            && m["target"] == 13
-                            && m["payload"].as_array().is_some_and(|b| b.len() > 5)
-                    }
-                    "missing_exit" => m["type"] == "exit",
-                    "false_score" => m["type"] == "score",
-                    "missing_loan" | "wrong_loan_resource" => {
-                        m["type"] == "protocol_frame"
-                            && m["action"] == "send"
-                            && m["source"] == 3
-                            && m["target"] == 5
-                    }
-                    "missing_resource_request" | "forged_resource_request" => {
-                        m["type"] == "protocol_frame"
-                            && m["action"] == "send"
-                            && m["source"] == 15
-                            && m["target"] == 0
-                    }
-                    "forged_resource_result" => {
-                        m["type"] == "protocol_frame"
-                            && m["action"] == "send"
-                            && m["source"] == 0
-                            && m["target"] == 15
-                    }
-                    "missing_resource_return" => {
-                        m["type"] == "protocol_frame"
-                            && m["action"] == "send"
-                            && m["source"] == 5
-                            && m["target"] == 3
-                    }
-                    _ => false,
-                }
-            })
-            .ok_or("mutation target")?;
-        match kind {
-            "missing_close" | "missing_notification" | "missing_read" | "missing_exit" => {
-                copy.remove(index);
-            }
-            "altered_frame" => copy[index]["message"]["source"] = json!(254),
-            "forged_arguments" => {
-                copy[index]["message"]["arguments"] = json!({"component":"wrong"})
-            }
-            "forged_result" => copy[index]["message"]["result"]["data"] = json!({"forged":true}),
-            "false_score" => {
-                copy[index]["message"]["complete"] =
-                    json!(!copy[index]["message"]["complete"].as_bool().unwrap())
-            }
-            "missing_loan" | "missing_resource_request" | "missing_resource_return" => {
-                let id = copy[index]["message"]["frame_id"].clone();
-                copy.retain(|row| {
-                    !(row["message"]["type"] == "protocol_frame"
-                        && row["message"]["frame_id"] == id)
-                });
-            }
-            "wrong_loan_resource" | "forged_resource_request" | "forged_resource_result" => {
-                let id = copy[index]["message"]["frame_id"].clone();
-                let mut bytes = payload(&copy[index]["message"])?;
-                match kind {
-                    "wrong_loan_resource" => bytes[0] = 16,
-                    "forged_resource_request" => {
-                        bytes = serde_json::to_vec(&json!({"migration_name":"wrong_target"}))?
-                    }
-                    "forged_resource_result" => {
-                        let mut response: Value = serde_json::from_slice(&bytes)?;
-                        response["data"]["forged"] = json!(true);
-                        bytes = serde_json::to_vec(&response)?;
-                    }
-                    _ => unreachable!(),
-                }
-                for row in &mut copy {
-                    if row["message"]["type"] == "protocol_frame"
-                        && row["message"]["frame_id"] == id
-                    {
-                        row["message"]["payload"] = json!(bytes);
-                    }
+        if matches!(kind, "wrong_frame_label" | "wrong_lane") {
+            let frame = copy
+                .iter()
+                .find(|row| row["message"]["type"] == "protocol_frame")
+                .ok_or("frame for header mutation")?["message"]
+                .clone();
+            let field = if kind == "wrong_frame_label" {
+                "frame_label"
+            } else {
+                "lane"
+            };
+            let replacement = if kind == "wrong_frame_label" {
+                65535
+            } else {
+                (frame["lane"].as_u64().ok_or("observed lane")? + 1) % 256
+            };
+            for row in &mut copy {
+                if row["message"]["type"] == "protocol_frame"
+                    && row["message"]["frame_id"] == frame["frame_id"]
+                {
+                    row["message"][field] = json!(replacement);
                 }
             }
-            _ => unreachable!(),
+        } else {
+            let index = copy
+                .iter()
+                .position(|r| {
+                    let m = &r["message"];
+                    match kind {
+                        "missing_close" => {
+                            m["type"] == "protocol_frame"
+                                && m["action"] == "receive"
+                                && m["source"] == 5
+                                && m["target"] == 0
+                                && m["payload"] == json!([4])
+                        }
+                        "altered_frame" => {
+                            m["type"] == "protocol_frame" && m["action"] == "receive"
+                        }
+                        "forged_arguments" => m["type"] == "execute",
+                        "forged_result" => m["type"] == "simulator_result",
+                        "missing_notification" => {
+                            m["type"] == "protocol_frame"
+                                && m["action"] == "receive"
+                                && m["source"] == 2
+                                && m["target"] == 11
+                        }
+                        "missing_read" => {
+                            m["type"] == "protocol_frame"
+                                && m["action"] == "send"
+                                && m["source"] == 11
+                                && m["target"] == 13
+                                && m["payload"].as_array().is_some_and(|b| b.len() > 5)
+                        }
+                        "missing_exit" => m["type"] == "exit",
+                        "false_score" => m["type"] == "score",
+                        "missing_loan" | "wrong_loan_resource" => {
+                            m["type"] == "protocol_frame"
+                                && m["action"] == "send"
+                                && m["source"] == 3
+                                && m["target"] == 5
+                        }
+                        "missing_resource_request" | "forged_resource_request" => {
+                            m["type"] == "protocol_frame"
+                                && m["action"] == "send"
+                                && m["source"] == 15
+                                && m["target"] == 0
+                        }
+                        "forged_resource_result" => {
+                            m["type"] == "protocol_frame"
+                                && m["action"] == "send"
+                                && m["source"] == 0
+                                && m["target"] == 15
+                        }
+                        "missing_resource_return" => {
+                            m["type"] == "protocol_frame"
+                                && m["action"] == "send"
+                                && m["source"] == 5
+                                && m["target"] == 3
+                        }
+                        _ => false,
+                    }
+                })
+                .ok_or("mutation target")?;
+            match kind {
+                "missing_close" | "missing_notification" | "missing_read" | "missing_exit" => {
+                    copy.remove(index);
+                }
+                "altered_frame" => copy[index]["message"]["source"] = json!(254),
+                "forged_arguments" => {
+                    copy[index]["message"]["arguments"] = json!({"component":"wrong"})
+                }
+                "forged_result" => {
+                    copy[index]["message"]["result"]["data"] = json!({"forged":true})
+                }
+                "false_score" => {
+                    copy[index]["message"]["complete"] =
+                        json!(!copy[index]["message"]["complete"].as_bool().unwrap())
+                }
+                "missing_loan" | "missing_resource_request" | "missing_resource_return" => {
+                    let id = copy[index]["message"]["frame_id"].clone();
+                    copy.retain(|row| {
+                        !(row["message"]["type"] == "protocol_frame"
+                            && row["message"]["frame_id"] == id)
+                    });
+                }
+                "wrong_loan_resource" | "forged_resource_request" | "forged_resource_result" => {
+                    let id = copy[index]["message"]["frame_id"].clone();
+                    let mut bytes = payload(&copy[index]["message"])?;
+                    match kind {
+                        "wrong_loan_resource" => bytes[0] = 16,
+                        "forged_resource_request" => {
+                            bytes = serde_json::to_vec(&json!({"migration_name":"wrong_target"}))?
+                        }
+                        "forged_resource_result" => {
+                            let mut response: Value = serde_json::from_slice(&bytes)?;
+                            response["data"]["forged"] = json!(true);
+                            bytes = serde_json::to_vec(&response)?;
+                        }
+                        _ => unreachable!(),
+                    }
+                    for row in &mut copy {
+                        if row["message"]["type"] == "protocol_frame"
+                            && row["message"]["frame_id"] == id
+                        {
+                            row["message"]["payload"] = json!(bytes);
+                        }
+                    }
+                }
+                _ => unreachable!(),
+            }
         }
         let file = output.join(format!("{kind}.jsonl"));
         let mut out = File::create(&file)?;
         for r in &copy {
             send(&mut out, r)?
         }
-        let error = audit(&file).err().ok_or("accepted a mutant")?.to_string();
+        let error = check(&copy, &projection)
+            .err()
+            .ok_or("accepted a mutant")?
+            .to_string();
         reports.push(json!({"mutation":kind,"rejected":true,"error":error}));
     }
     let report = json!({"mutants":reports,"original_unchanged":true});

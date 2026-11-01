@@ -26,9 +26,7 @@ pub(crate) async fn run<const ROLE: u8, const LEFT: u8, const RIGHT: u8>(
         let [mut left, mut right] = endpoint.par()?;
         async {
             #[localside]
-            let left = left.recv::<Eat<LEFT>>();
-            #[localside]
-            let right = right.recv::<Eat<RIGHT>>();
+            let (left, right) = (left.recv::<Eat<LEFT>>(), right.recv::<Eat<RIGHT>>());
             Ok((left, right))
         }
         .await?
@@ -49,10 +47,12 @@ pub(crate) async fn run<const ROLE: u8, const LEFT: u8, const RIGHT: u8>(
         let [mut left, mut right] = endpoint.par()?;
         let payload = bytes.as_slice();
         async {
-            #[localside]
-            left.send::<Meal<LEFT>>(&payload);
-            #[localside]
-            right.send::<Meal<RIGHT>>(&payload);
+            async {
+                left.send::<Meal<LEFT>>(&payload).await?;
+            };
+            async {
+                right.send::<Meal<RIGHT>>(&payload).await?;
+            };
             Ok(())
         }
         .await?;

@@ -7,6 +7,13 @@ async fn main() -> choreofix::shell::ShellResult<()> {
     let level = args
         .next()
         .ok_or_else(|| choreofix::shell::ShellError::message("missing writing task"))?;
+    if path == "--projection" {
+        println!(
+            "{}",
+            choreofix::tasks::writing::choreofs::projection(&level)?
+        );
+        return Ok(());
+    }
     let module = std::fs::read(path)?;
     choreofix::tasks::writing::choreofs::run_stdio(&module, &level).await
 }

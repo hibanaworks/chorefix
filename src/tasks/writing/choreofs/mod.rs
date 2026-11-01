@@ -24,6 +24,7 @@ use localside::researcher::Assignment;
 async fn run_2e_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 3]) -> ShellResult<()> {
     use global::{roles2e::*, *};
     let programs = project_2e();
+    bus.observe(programs.observation());
     let acheck = Validation::new();
     let bcheck = Validation::new();
     let ccheck = Validation::new();
@@ -75,66 +76,84 @@ async fn run_2e_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 3]) -> Sh
     let mut cmemory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut cstore = HibanaWasiGuestStorage::uninit();
     let cguest = cstore.init(module, GuestMemory::new(&mut cmemory), bindings())?;
-    #[localside]
-    localside::researcher::run::<A, INTRO_RESOURCE, METHODS_RESOURCE>(
-        &mut a,
-        bus,
-        (
-            &acheck,
-            &Assignment {
-                agent: "RESEARCHER_A",
-                topic: "intro_methods_connection",
-                section: "sec_intro_methods",
-                sections: ["INTRO_SECTION", "METHODS_SECTION"],
-            },
-        ),
-    );
-    #[localside]
-    localside::researcher::run::<B, METHODS_RESOURCE, RESULTS_RESOURCE>(
-        &mut b,
-        bus,
-        (
-            &bcheck,
-            &Assignment {
-                agent: "RESEARCHER_B",
-                topic: "methods_results_connection",
-                section: "sec_methods_results",
-                sections: ["METHODS_SECTION", "RESULTS_SECTION"],
-            },
-        ),
-    );
-    #[localside]
-    localside::researcher::run::<C, INTRO_RESOURCE, RESULTS_RESOURCE>(
-        &mut c,
-        bus,
-        (
-            &ccheck,
-            &Assignment {
-                agent: "RESEARCHER_C",
-                topic: "results_intro_analysis",
-                section: "sec_results_intro",
-                sections: ["INTRO_SECTION", "RESULTS_SECTION"],
-            },
-        ),
-    );
-    #[localside]
-    localside::section::run(&mut intro, intro_resource);
-    #[localside]
-    localside::section::run(&mut methods, methods_resource);
-    #[localside]
-    localside::section::run(&mut results, results_resource);
-    #[localside]
-    localside::wasi::run::<A_WASI, INTRO_RESOURCE, METHODS_RESOURCE>(aguest, &mut a_wasi);
-    #[localside]
-    private_io::run(&mut a_io, afs);
-    #[localside]
-    localside::wasi::run::<B_WASI, METHODS_RESOURCE, RESULTS_RESOURCE>(bguest, &mut b_wasi);
-    #[localside]
-    private_io::run(&mut b_io, bfs);
-    #[localside]
-    localside::wasi::run::<C_WASI, INTRO_RESOURCE, RESULTS_RESOURCE>(cguest, &mut c_wasi);
-    #[localside]
-    private_io::run(&mut c_io, cfs);
+    async {
+        localside::researcher::run::<A, INTRO_RESOURCE, METHODS_RESOURCE>(
+            &mut a,
+            bus,
+            (
+                &acheck,
+                &Assignment {
+                    agent: "RESEARCHER_A",
+                    topic: "intro_methods_connection",
+                    section: "sec_intro_methods",
+                    sections: ["INTRO_SECTION", "METHODS_SECTION"],
+                },
+            ),
+        )
+        .await?;
+    };
+    async {
+        localside::researcher::run::<B, METHODS_RESOURCE, RESULTS_RESOURCE>(
+            &mut b,
+            bus,
+            (
+                &bcheck,
+                &Assignment {
+                    agent: "RESEARCHER_B",
+                    topic: "methods_results_connection",
+                    section: "sec_methods_results",
+                    sections: ["METHODS_SECTION", "RESULTS_SECTION"],
+                },
+            ),
+        )
+        .await?;
+    };
+    async {
+        localside::researcher::run::<C, INTRO_RESOURCE, RESULTS_RESOURCE>(
+            &mut c,
+            bus,
+            (
+                &ccheck,
+                &Assignment {
+                    agent: "RESEARCHER_C",
+                    topic: "results_intro_analysis",
+                    section: "sec_results_intro",
+                    sections: ["INTRO_SECTION", "RESULTS_SECTION"],
+                },
+            ),
+        )
+        .await?;
+    };
+    async {
+        localside::section::run(&mut intro, intro_resource).await?;
+    };
+    async {
+        localside::section::run(&mut methods, methods_resource).await?;
+    };
+    async {
+        localside::section::run(&mut results, results_resource).await?;
+    };
+    async {
+        localside::wasi::run::<A_WASI, INTRO_RESOURCE, METHODS_RESOURCE>(aguest, &mut a_wasi)
+            .await?;
+    };
+    async {
+        private_io::run(&mut a_io, afs).await?;
+    };
+    async {
+        localside::wasi::run::<B_WASI, METHODS_RESOURCE, RESULTS_RESOURCE>(bguest, &mut b_wasi)
+            .await?;
+    };
+    async {
+        private_io::run(&mut b_io, bfs).await?;
+    };
+    async {
+        localside::wasi::run::<C_WASI, INTRO_RESOURCE, RESULTS_RESOURCE>(cguest, &mut c_wasi)
+            .await?;
+    };
+    async {
+        private_io::run(&mut c_io, cfs).await?;
+    };
     Ok(())
 }
 
@@ -142,6 +161,7 @@ async fn run_2e_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 3]) -> Sh
 async fn run_2m_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 5]) -> ShellResult<()> {
     use global::{roles2m::*, *};
     let programs = project_2m();
+    bus.observe(programs.observation());
     let acheck = Validation::new();
     let bcheck = Validation::new();
     let ccheck = Validation::new();
@@ -223,106 +243,136 @@ async fn run_2m_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 5]) -> Sh
     let mut ememory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut estore = HibanaWasiGuestStorage::uninit();
     let eguest = estore.init(module, GuestMemory::new(&mut ememory), bindings())?;
-    #[localside]
-    localside::researcher::run::<A, BACKGROUND_RESOURCE, INTRO_RESOURCE>(
-        &mut a,
-        bus,
-        (
-            &acheck,
-            &Assignment {
-                agent: "RESEARCHER_A",
-                topic: "intro_background_connection",
-                section: "sec_intro_background",
-                sections: ["BACKGROUND_SECTION", "INTRO_SECTION"],
-            },
-        ),
-    );
-    #[localside]
-    localside::researcher::run::<B, BACKGROUND_RESOURCE, METHODS_RESOURCE>(
-        &mut b,
-        bus,
-        (
-            &bcheck,
-            &Assignment {
-                agent: "RESEARCHER_B",
-                topic: "background_methods_connection",
-                section: "sec_background_methods",
-                sections: ["BACKGROUND_SECTION", "METHODS_SECTION"],
-            },
-        ),
-    );
-    #[localside]
-    localside::researcher::run::<C, EXPERIMENTS_RESOURCE, METHODS_RESOURCE>(
-        &mut c,
-        bus,
-        (
-            &ccheck,
-            &Assignment {
-                agent: "RESEARCHER_C",
-                topic: "methods_experiments_connection",
-                section: "sec_methods_experiments",
-                sections: ["EXPERIMENTS_SECTION", "METHODS_SECTION"],
-            },
-        ),
-    );
-    #[localside]
-    localside::researcher::run::<D, EXPERIMENTS_RESOURCE, RESULTS_RESOURCE>(
-        &mut d,
-        bus,
-        (
-            &dcheck,
-            &Assignment {
-                agent: "RESEARCHER_D",
-                topic: "experiments_results_connection",
-                section: "sec_experiments_results",
-                sections: ["EXPERIMENTS_SECTION", "RESULTS_SECTION"],
-            },
-        ),
-    );
-    #[localside]
-    localside::researcher::run::<E, INTRO_RESOURCE, RESULTS_RESOURCE>(
-        &mut e,
-        bus,
-        (
-            &echeck,
-            &Assignment {
-                agent: "RESEARCHER_E",
-                topic: "results_intro_analysis",
-                section: "sec_results_intro",
-                sections: ["INTRO_SECTION", "RESULTS_SECTION"],
-            },
-        ),
-    );
-    #[localside]
-    localside::section::run(&mut background, background_resource);
-    #[localside]
-    localside::section::run(&mut intro, intro_resource);
-    #[localside]
-    localside::section::run(&mut methods, methods_resource);
-    #[localside]
-    localside::section::run(&mut experiments, experiments_resource);
-    #[localside]
-    localside::section::run(&mut results, results_resource);
-    #[localside]
-    localside::wasi::run::<A_WASI, BACKGROUND_RESOURCE, INTRO_RESOURCE>(aguest, &mut a_wasi);
-    #[localside]
-    private_io::run(&mut a_io, afs);
-    #[localside]
-    localside::wasi::run::<B_WASI, BACKGROUND_RESOURCE, METHODS_RESOURCE>(bguest, &mut b_wasi);
-    #[localside]
-    private_io::run(&mut b_io, bfs);
-    #[localside]
-    localside::wasi::run::<C_WASI, EXPERIMENTS_RESOURCE, METHODS_RESOURCE>(cguest, &mut c_wasi);
-    #[localside]
-    private_io::run(&mut c_io, cfs);
-    #[localside]
-    localside::wasi::run::<D_WASI, EXPERIMENTS_RESOURCE, RESULTS_RESOURCE>(dguest, &mut d_wasi);
-    #[localside]
-    private_io::run(&mut d_io, dfs);
-    #[localside]
-    localside::wasi::run::<E_WASI, INTRO_RESOURCE, RESULTS_RESOURCE>(eguest, &mut e_wasi);
-    #[localside]
-    private_io::run(&mut e_io, efs);
+    async {
+        localside::researcher::run::<A, BACKGROUND_RESOURCE, INTRO_RESOURCE>(
+            &mut a,
+            bus,
+            (
+                &acheck,
+                &Assignment {
+                    agent: "RESEARCHER_A",
+                    topic: "intro_background_connection",
+                    section: "sec_intro_background",
+                    sections: ["BACKGROUND_SECTION", "INTRO_SECTION"],
+                },
+            ),
+        )
+        .await?;
+    };
+    async {
+        localside::researcher::run::<B, BACKGROUND_RESOURCE, METHODS_RESOURCE>(
+            &mut b,
+            bus,
+            (
+                &bcheck,
+                &Assignment {
+                    agent: "RESEARCHER_B",
+                    topic: "background_methods_connection",
+                    section: "sec_background_methods",
+                    sections: ["BACKGROUND_SECTION", "METHODS_SECTION"],
+                },
+            ),
+        )
+        .await?;
+    };
+    async {
+        localside::researcher::run::<C, EXPERIMENTS_RESOURCE, METHODS_RESOURCE>(
+            &mut c,
+            bus,
+            (
+                &ccheck,
+                &Assignment {
+                    agent: "RESEARCHER_C",
+                    topic: "methods_experiments_connection",
+                    section: "sec_methods_experiments",
+                    sections: ["EXPERIMENTS_SECTION", "METHODS_SECTION"],
+                },
+            ),
+        )
+        .await?;
+    };
+    async {
+        localside::researcher::run::<D, EXPERIMENTS_RESOURCE, RESULTS_RESOURCE>(
+            &mut d,
+            bus,
+            (
+                &dcheck,
+                &Assignment {
+                    agent: "RESEARCHER_D",
+                    topic: "experiments_results_connection",
+                    section: "sec_experiments_results",
+                    sections: ["EXPERIMENTS_SECTION", "RESULTS_SECTION"],
+                },
+            ),
+        )
+        .await?;
+    };
+    async {
+        localside::researcher::run::<E, INTRO_RESOURCE, RESULTS_RESOURCE>(
+            &mut e,
+            bus,
+            (
+                &echeck,
+                &Assignment {
+                    agent: "RESEARCHER_E",
+                    topic: "results_intro_analysis",
+                    section: "sec_results_intro",
+                    sections: ["INTRO_SECTION", "RESULTS_SECTION"],
+                },
+            ),
+        )
+        .await?;
+    };
+    async {
+        localside::section::run(&mut background, background_resource).await?;
+    };
+    async {
+        localside::section::run(&mut intro, intro_resource).await?;
+    };
+    async {
+        localside::section::run(&mut methods, methods_resource).await?;
+    };
+    async {
+        localside::section::run(&mut experiments, experiments_resource).await?;
+    };
+    async {
+        localside::section::run(&mut results, results_resource).await?;
+    };
+    async {
+        localside::wasi::run::<A_WASI, BACKGROUND_RESOURCE, INTRO_RESOURCE>(aguest, &mut a_wasi)
+            .await?;
+    };
+    async {
+        private_io::run(&mut a_io, afs).await?;
+    };
+    async {
+        localside::wasi::run::<B_WASI, BACKGROUND_RESOURCE, METHODS_RESOURCE>(bguest, &mut b_wasi)
+            .await?;
+    };
+    async {
+        private_io::run(&mut b_io, bfs).await?;
+    };
+    async {
+        localside::wasi::run::<C_WASI, EXPERIMENTS_RESOURCE, METHODS_RESOURCE>(cguest, &mut c_wasi)
+            .await?;
+    };
+    async {
+        private_io::run(&mut c_io, cfs).await?;
+    };
+    async {
+        localside::wasi::run::<D_WASI, EXPERIMENTS_RESOURCE, RESULTS_RESOURCE>(dguest, &mut d_wasi)
+            .await?;
+    };
+    async {
+        private_io::run(&mut d_io, dfs).await?;
+    };
+    async {
+        localside::wasi::run::<E_WASI, INTRO_RESOURCE, RESULTS_RESOURCE>(eguest, &mut e_wasi)
+            .await?;
+    };
+    async {
+        private_io::run(&mut e_io, efs).await?;
+    };
     Ok(())
 }
 
@@ -330,6 +380,7 @@ async fn run_2m_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 5]) -> Sh
 async fn run_2h_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 7]) -> ShellResult<()> {
     use global::{roles2h::*, *};
     let programs = project_2h();
+    bus.observe(programs.observation());
     let acheck = Validation::new();
     let bcheck = Validation::new();
     let ccheck = Validation::new();
@@ -441,146 +492,188 @@ async fn run_2h_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 7]) -> Sh
     let mut gmemory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut gstore = HibanaWasiGuestStorage::uninit();
     let gguest = gstore.init(module, GuestMemory::new(&mut gmemory), bindings())?;
-    #[localside]
-    localside::researcher::run::<A, BACKGROUND_RESOURCE, INTRO_RESOURCE>(
-        &mut a,
-        bus,
-        (
-            &acheck,
-            &Assignment {
-                agent: "RESEARCHER_A",
-                topic: "intro_background_connection",
-                section: "sec_intro_background",
-                sections: ["BACKGROUND_SECTION", "INTRO_SECTION"],
-            },
-        ),
-    );
-    #[localside]
-    localside::researcher::run::<B, BACKGROUND_RESOURCE, RELATED_RESOURCE>(
-        &mut b,
-        bus,
-        (
-            &bcheck,
-            &Assignment {
-                agent: "RESEARCHER_B",
-                topic: "background_related_connection",
-                section: "sec_background_related",
-                sections: ["BACKGROUND_SECTION", "RELATED_SECTION"],
-            },
-        ),
-    );
-    #[localside]
-    localside::researcher::run::<C, METHODS_RESOURCE, RELATED_RESOURCE>(
-        &mut c,
-        bus,
-        (
-            &ccheck,
-            &Assignment {
-                agent: "RESEARCHER_C",
-                topic: "related_methods_connection",
-                section: "sec_related_methods",
-                sections: ["METHODS_SECTION", "RELATED_SECTION"],
-            },
-        ),
-    );
-    #[localside]
-    localside::researcher::run::<D, EXPERIMENTS_RESOURCE, METHODS_RESOURCE>(
-        &mut d,
-        bus,
-        (
-            &dcheck,
-            &Assignment {
-                agent: "RESEARCHER_D",
-                topic: "methods_experiments_connection",
-                section: "sec_methods_experiments",
-                sections: ["EXPERIMENTS_SECTION", "METHODS_SECTION"],
-            },
-        ),
-    );
-    #[localside]
-    localside::researcher::run::<E, EXPERIMENTS_RESOURCE, RESULTS_RESOURCE>(
-        &mut e,
-        bus,
-        (
-            &echeck,
-            &Assignment {
-                agent: "RESEARCHER_E",
-                topic: "experiments_results_connection",
-                section: "sec_experiments_results",
-                sections: ["EXPERIMENTS_SECTION", "RESULTS_SECTION"],
-            },
-        ),
-    );
-    #[localside]
-    localside::researcher::run::<F, DISCUSSION_RESOURCE, RESULTS_RESOURCE>(
-        &mut f,
-        bus,
-        (
-            &fcheck,
-            &Assignment {
-                agent: "RESEARCHER_F",
-                topic: "results_discussion_connection",
-                section: "sec_results_discussion",
-                sections: ["DISCUSSION_SECTION", "RESULTS_SECTION"],
-            },
-        ),
-    );
-    #[localside]
-    localside::researcher::run::<G, DISCUSSION_RESOURCE, INTRO_RESOURCE>(
-        &mut g,
-        bus,
-        (
-            &gcheck,
-            &Assignment {
-                agent: "RESEARCHER_G",
-                topic: "discussion_intro_connection",
-                section: "sec_discussion_intro",
-                sections: ["DISCUSSION_SECTION", "INTRO_SECTION"],
-            },
-        ),
-    );
-    #[localside]
-    localside::section::run(&mut background, background_resource);
-    #[localside]
-    localside::section::run(&mut intro, intro_resource);
-    #[localside]
-    localside::section::run(&mut related, related_resource);
-    #[localside]
-    localside::section::run(&mut methods, methods_resource);
-    #[localside]
-    localside::section::run(&mut experiments, experiments_resource);
-    #[localside]
-    localside::section::run(&mut results, results_resource);
-    #[localside]
-    localside::section::run(&mut discussion, discussion_resource);
-    #[localside]
-    localside::wasi::run::<A_WASI, BACKGROUND_RESOURCE, INTRO_RESOURCE>(aguest, &mut a_wasi);
-    #[localside]
-    private_io::run(&mut a_io, afs);
-    #[localside]
-    localside::wasi::run::<B_WASI, BACKGROUND_RESOURCE, RELATED_RESOURCE>(bguest, &mut b_wasi);
-    #[localside]
-    private_io::run(&mut b_io, bfs);
-    #[localside]
-    localside::wasi::run::<C_WASI, METHODS_RESOURCE, RELATED_RESOURCE>(cguest, &mut c_wasi);
-    #[localside]
-    private_io::run(&mut c_io, cfs);
-    #[localside]
-    localside::wasi::run::<D_WASI, EXPERIMENTS_RESOURCE, METHODS_RESOURCE>(dguest, &mut d_wasi);
-    #[localside]
-    private_io::run(&mut d_io, dfs);
-    #[localside]
-    localside::wasi::run::<E_WASI, EXPERIMENTS_RESOURCE, RESULTS_RESOURCE>(eguest, &mut e_wasi);
-    #[localside]
-    private_io::run(&mut e_io, efs);
-    #[localside]
-    localside::wasi::run::<F_WASI, DISCUSSION_RESOURCE, RESULTS_RESOURCE>(fguest, &mut f_wasi);
-    #[localside]
-    private_io::run(&mut f_io, ffs);
-    #[localside]
-    localside::wasi::run::<G_WASI, DISCUSSION_RESOURCE, INTRO_RESOURCE>(gguest, &mut g_wasi);
-    #[localside]
-    private_io::run(&mut g_io, gfs);
+    async {
+        localside::researcher::run::<A, BACKGROUND_RESOURCE, INTRO_RESOURCE>(
+            &mut a,
+            bus,
+            (
+                &acheck,
+                &Assignment {
+                    agent: "RESEARCHER_A",
+                    topic: "intro_background_connection",
+                    section: "sec_intro_background",
+                    sections: ["BACKGROUND_SECTION", "INTRO_SECTION"],
+                },
+            ),
+        )
+        .await?;
+    };
+    async {
+        localside::researcher::run::<B, BACKGROUND_RESOURCE, RELATED_RESOURCE>(
+            &mut b,
+            bus,
+            (
+                &bcheck,
+                &Assignment {
+                    agent: "RESEARCHER_B",
+                    topic: "background_related_connection",
+                    section: "sec_background_related",
+                    sections: ["BACKGROUND_SECTION", "RELATED_SECTION"],
+                },
+            ),
+        )
+        .await?;
+    };
+    async {
+        localside::researcher::run::<C, METHODS_RESOURCE, RELATED_RESOURCE>(
+            &mut c,
+            bus,
+            (
+                &ccheck,
+                &Assignment {
+                    agent: "RESEARCHER_C",
+                    topic: "related_methods_connection",
+                    section: "sec_related_methods",
+                    sections: ["METHODS_SECTION", "RELATED_SECTION"],
+                },
+            ),
+        )
+        .await?;
+    };
+    async {
+        localside::researcher::run::<D, EXPERIMENTS_RESOURCE, METHODS_RESOURCE>(
+            &mut d,
+            bus,
+            (
+                &dcheck,
+                &Assignment {
+                    agent: "RESEARCHER_D",
+                    topic: "methods_experiments_connection",
+                    section: "sec_methods_experiments",
+                    sections: ["EXPERIMENTS_SECTION", "METHODS_SECTION"],
+                },
+            ),
+        )
+        .await?;
+    };
+    async {
+        localside::researcher::run::<E, EXPERIMENTS_RESOURCE, RESULTS_RESOURCE>(
+            &mut e,
+            bus,
+            (
+                &echeck,
+                &Assignment {
+                    agent: "RESEARCHER_E",
+                    topic: "experiments_results_connection",
+                    section: "sec_experiments_results",
+                    sections: ["EXPERIMENTS_SECTION", "RESULTS_SECTION"],
+                },
+            ),
+        )
+        .await?;
+    };
+    async {
+        localside::researcher::run::<F, DISCUSSION_RESOURCE, RESULTS_RESOURCE>(
+            &mut f,
+            bus,
+            (
+                &fcheck,
+                &Assignment {
+                    agent: "RESEARCHER_F",
+                    topic: "results_discussion_connection",
+                    section: "sec_results_discussion",
+                    sections: ["DISCUSSION_SECTION", "RESULTS_SECTION"],
+                },
+            ),
+        )
+        .await?;
+    };
+    async {
+        localside::researcher::run::<G, DISCUSSION_RESOURCE, INTRO_RESOURCE>(
+            &mut g,
+            bus,
+            (
+                &gcheck,
+                &Assignment {
+                    agent: "RESEARCHER_G",
+                    topic: "discussion_intro_connection",
+                    section: "sec_discussion_intro",
+                    sections: ["DISCUSSION_SECTION", "INTRO_SECTION"],
+                },
+            ),
+        )
+        .await?;
+    };
+    async {
+        localside::section::run(&mut background, background_resource).await?;
+    };
+    async {
+        localside::section::run(&mut intro, intro_resource).await?;
+    };
+    async {
+        localside::section::run(&mut related, related_resource).await?;
+    };
+    async {
+        localside::section::run(&mut methods, methods_resource).await?;
+    };
+    async {
+        localside::section::run(&mut experiments, experiments_resource).await?;
+    };
+    async {
+        localside::section::run(&mut results, results_resource).await?;
+    };
+    async {
+        localside::section::run(&mut discussion, discussion_resource).await?;
+    };
+    async {
+        localside::wasi::run::<A_WASI, BACKGROUND_RESOURCE, INTRO_RESOURCE>(aguest, &mut a_wasi)
+            .await?;
+    };
+    async {
+        private_io::run(&mut a_io, afs).await?;
+    };
+    async {
+        localside::wasi::run::<B_WASI, BACKGROUND_RESOURCE, RELATED_RESOURCE>(bguest, &mut b_wasi)
+            .await?;
+    };
+    async {
+        private_io::run(&mut b_io, bfs).await?;
+    };
+    async {
+        localside::wasi::run::<C_WASI, METHODS_RESOURCE, RELATED_RESOURCE>(cguest, &mut c_wasi)
+            .await?;
+    };
+    async {
+        private_io::run(&mut c_io, cfs).await?;
+    };
+    async {
+        localside::wasi::run::<D_WASI, EXPERIMENTS_RESOURCE, METHODS_RESOURCE>(dguest, &mut d_wasi)
+            .await?;
+    };
+    async {
+        private_io::run(&mut d_io, dfs).await?;
+    };
+    async {
+        localside::wasi::run::<E_WASI, EXPERIMENTS_RESOURCE, RESULTS_RESOURCE>(eguest, &mut e_wasi)
+            .await?;
+    };
+    async {
+        private_io::run(&mut e_io, efs).await?;
+    };
+    async {
+        localside::wasi::run::<F_WASI, DISCUSSION_RESOURCE, RESULTS_RESOURCE>(fguest, &mut f_wasi)
+            .await?;
+    };
+    async {
+        private_io::run(&mut f_io, ffs).await?;
+    };
+    async {
+        localside::wasi::run::<G_WASI, DISCUSSION_RESOURCE, INTRO_RESOURCE>(gguest, &mut g_wasi)
+            .await?;
+    };
+    async {
+        private_io::run(&mut g_io, gfs).await?;
+    };
     Ok(())
 }
 
@@ -643,5 +736,14 @@ Err(error) => reader.emit(&bus,serde_json::json!({"type":"run_result", "status":
             result
         }
         _ => Err(ShellError::message("expected writing task 2E, 2M or 2H")),
+    }
+}
+
+pub fn projection(task: &str) -> ShellResult<serde_json::Value> {
+    match task {
+        "2E" => Ok(global::project_2e().observation()),
+        "2M" => Ok(global::project_2m().observation()),
+        "2H" => Ok(global::project_2h().observation()),
+        _ => Err(ShellError::message("unsupported task projection")),
     }
 }

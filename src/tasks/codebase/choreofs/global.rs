@@ -529,3 +529,24 @@ pub fn project_1h() -> Programs1H {
         search_resource: project(&protocol),
     }
 }
+
+impl Programs1E {
+    pub(crate) fn observation(&self) -> serde_json::Value {
+        use crate::imp::projection::rows;
+        serde_json::json!({"type":"compiled_projection","format_version":1,"task":"1E","programs":[rows(&self.a), rows(&self.a_wasi), rows(&self.a_io), rows(&self.b), rows(&self.b_wasi), rows(&self.b_io), rows(&self.c), rows(&self.c_wasi), rows(&self.c_io), rows(&self.auth), rows(&self.auth_resource), rows(&self.database), rows(&self.database_resource), rows(&self.api), rows(&self.api_resource)]})
+    }
+}
+
+impl Programs1M {
+    pub(crate) fn observation(&self) -> serde_json::Value {
+        use crate::imp::projection::rows;
+        serde_json::json!({"type":"compiled_projection","format_version":1,"task":"1M","programs":[rows(&self.a), rows(&self.a_wasi), rows(&self.a_io), rows(&self.b), rows(&self.b_wasi), rows(&self.b_io), rows(&self.c), rows(&self.c_wasi), rows(&self.c_io), rows(&self.d), rows(&self.d_wasi), rows(&self.d_io), rows(&self.e), rows(&self.e_wasi), rows(&self.e_io), rows(&self.auth), rows(&self.auth_resource), rows(&self.database), rows(&self.database_resource), rows(&self.api), rows(&self.api_resource), rows(&self.payment), rows(&self.payment_resource), rows(&self.notify), rows(&self.notify_resource)]})
+    }
+}
+
+impl Programs1H {
+    pub(crate) fn observation(&self) -> serde_json::Value {
+        use crate::imp::projection::rows;
+        serde_json::json!({"type":"compiled_projection","format_version":1,"task":"1H","programs":[rows(&self.a), rows(&self.a_wasi), rows(&self.a_io), rows(&self.b), rows(&self.b_wasi), rows(&self.b_io), rows(&self.c), rows(&self.c_wasi), rows(&self.c_io), rows(&self.d), rows(&self.d_wasi), rows(&self.d_io), rows(&self.e), rows(&self.e_wasi), rows(&self.e_io), rows(&self.f), rows(&self.f_wasi), rows(&self.f_io), rows(&self.g), rows(&self.g_wasi), rows(&self.g_io), rows(&self.auth), rows(&self.auth_resource), rows(&self.database), rows(&self.database_resource), rows(&self.api), rows(&self.api_resource), rows(&self.payment), rows(&self.payment_resource), rows(&self.notify), rows(&self.notify_resource), rows(&self.analytics), rows(&self.analytics_resource), rows(&self.search), rows(&self.search_resource)]})
+    }
+}

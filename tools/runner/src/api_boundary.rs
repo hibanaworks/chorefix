@@ -137,13 +137,10 @@ async fn real_wasi_outcome_metadata_preserves_all_original_results() -> Result<(
         let (runtime_result, participants) = hibana_runtime::race(
             async {
                 #[localside]
-                let first = participant(&guest, first.clone(), depth);
-                #[localside]
-                let second = participant(&guest, second.clone(), depth);
-                #[localside]
-                let runtime_result = runtime_loop;
-                #[localside]
-                let tester =
+                let (first, second, runtime_result, tester) = (
+                    participant(&guest, first.clone(), depth),
+                    participant(&guest, second.clone(), depth),
+                    runtime_loop,
                     async {
                         // Hold only the scripted tester input. Both actual WASI reads
                         // must wait at the file owner until the test result exists.
@@ -204,7 +201,8 @@ async fn real_wasi_outcome_metadata_preserves_all_original_results() -> Result<(
                 }, hibana_runtime::host::deadline(Duration::from_secs(10)))
                 .await?;
                         participant(&guest, tester.clone(), depth).await
-                    };
+                    },
+                );
                 Ok((runtime_result, [first, second, tester]))
             },
             hibana_runtime::host::deadline(Duration::from_secs(60)),
@@ -261,7 +259,7 @@ async fn real_wasi_outcome_metadata_preserves_all_original_results() -> Result<(
         assert_eq!(audit["actual_resource_endpoint_returns"], 2);
         let mutants =
             crate::api_audit::check_mutants(&output.join("events.jsonl"), &output.join("mutants"))?;
-        assert_eq!(mutants["mutants"].as_array().ok_or("mutants")?.len(), 14);
+        assert_eq!(mutants["mutants"].as_array().ok_or("mutants")?.len(), 16);
         save(&output.join("audit.json"), &audit)?;
         let result = json!({"task":"8E","depth":depth,"status":"passed","model_calls":0,
             "scored_benchmark":false,"participants":participants,"runtime":runtime_result,

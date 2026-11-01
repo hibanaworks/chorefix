@@ -203,143 +203,141 @@ async fn wasi_roles_reach_the_service_owners_only_through_projected_messages()
     let (developer_closed, mut closed) = notification().unwrap();
     let clients = async {
         async {
-            #[localside]
-            let first = async {
-                assert_eq!(test_ready.read(&mut [0; 1]).await.unwrap(), 1);
-                assert_ne!(open(&mut a, b"service/deploy_application").await, 0);
-                assert_eq!(open(&mut a, b"service/compile_and_test").await, 0);
-                write(&mut a, json!({"wrong":"application"})).await;
-                a.recv::<RequestReady>().await.unwrap();
-                a.send::<Commit>(&protocol::FdCloseReq(protocol::FdRequest::new(4)))
-                    .await
-                    .unwrap();
-                let rejected =
-                    serde_json::from_slice::<Value>(a.recv::<Rejected>().await.unwrap()).unwrap();
-                assert_eq!(rejected["status"], "invalid_arguments");
-                assert!(journal.events().is_empty());
-                assert_eq!(open(&mut a, b"service/compile_and_test").await, 0);
-                write(&mut a, json!({"component":"application"})).await;
-                a.recv::<RequestReady>().await.unwrap();
-                a.send::<Commit>(&protocol::FdCloseReq(protocol::FdRequest::new(SERVICE_FD)))
-                    .await
-                    .unwrap();
-                let arguments = {
-                    let bytes = a.recv::<Admitted>().await.unwrap();
-                    Arguments::<1>::from_bytes(bytes).unwrap()
-                };
-                let mut resource = a.recv::<Loan<BUILD_SERVER>>().await.unwrap();
-                resource.send::<CompileRequest>(&arguments).await.unwrap();
-                let result = resource.recv::<CompileResult>().await.unwrap().to_vec();
-                assert_eq!(
-                    serde_json::from_slice::<Value>(&result).unwrap()["success"],
-                    true
-                );
-                a.send::<Loan<BUILD_SERVER>>(resource).await.unwrap();
-                assert_eq!(open(&mut a, b"service/compile_and_test").await, 8);
-                // Closed-service errors must not wait for downstream effects.
-                assert_eq!(journal.events().len(), 1);
-                developer_closed.notify().unwrap();
-                a.recv::<RequestReady>().await.unwrap();
-                a.send::<ServiceExit>(&0).await.unwrap();
-
-                Ok(())
-            };
-            #[localside]
-            let second = async {
-                {
-                    let mut ready = std::pin::pin!(b.recv::<RequestReady>());
-                    assert!(
-                        hibana_runtime::race(
-                            async { Ok::<_, std::io::Error>((&mut ready).await) },
-                            hibana_runtime::host::deadline(Duration::from_millis(10))
-                        )
-                        .await
-                        .is_err_and(|error| error.kind() == std::io::ErrorKind::TimedOut)
-                    );
-                    assert!(journal.events().is_empty());
-                    test_requested.notify().unwrap();
-                    ready.await.unwrap();
-                }
-                b.send::<Open>(&protocol::PathOpenReq(
-                    protocol::PathOpen::new(3, 1 << 6, b"service/run_integration_tests")
-                        .unwrap()
-                        .with_flags(8, 0)
-                        .unwrap(),
-                ))
+            assert_eq!(test_ready.read(&mut [0; 1]).await.unwrap(), 1);
+            assert_ne!(open(&mut a, b"service/deploy_application").await, 0);
+            assert_eq!(open(&mut a, b"service/compile_and_test").await, 0);
+            write(&mut a, json!({"wrong":"application"})).await;
+            a.recv::<RequestReady>().await.unwrap();
+            a.send::<Commit>(&protocol::FdCloseReq(protocol::FdRequest::new(4)))
                 .await
                 .unwrap();
-                assert_eq!(b.recv::<Opened>().await.unwrap().0.errno(), 0);
-                assert_eq!(closed.read(&mut [0; 1]).await.unwrap(), 1);
-                write(&mut b, json!({"suite":"integration"})).await;
-                b.recv::<RequestReady>().await.unwrap();
-                b.send::<Commit>(&protocol::FdCloseReq(protocol::FdRequest::new(SERVICE_FD)))
-                    .await
-                    .unwrap();
-                let arguments = {
-                    let bytes = b.recv::<Admitted>().await.unwrap();
-                    Arguments::<2>::from_bytes(bytes).unwrap()
-                };
-                let mut resource = b.recv::<Loan<BUILD_SERVER>>().await.unwrap();
-                resource.send::<TestRequest>(&arguments).await.unwrap();
-                let result = resource.recv::<TestResult>().await.unwrap().to_vec();
-                assert_eq!(
-                    serde_json::from_slice::<Value>(&result).unwrap()["success"],
-                    true
-                );
-                b.send::<Loan<BUILD_SERVER>>(resource).await.unwrap();
-                b.recv::<RequestReady>().await.unwrap();
-                b.send::<ServiceExit>(&0).await.unwrap();
-
-                Ok(())
+            let rejected =
+                serde_json::from_slice::<Value>(a.recv::<Rejected>().await.unwrap()).unwrap();
+            assert_eq!(rejected["status"], "invalid_arguments");
+            assert!(journal.events().is_empty());
+            assert_eq!(open(&mut a, b"service/compile_and_test").await, 0);
+            write(&mut a, json!({"component":"application"})).await;
+            a.recv::<RequestReady>().await.unwrap();
+            a.send::<Commit>(&protocol::FdCloseReq(protocol::FdRequest::new(SERVICE_FD)))
+                .await
+                .unwrap();
+            let arguments = {
+                let bytes = a.recv::<Admitted>().await.unwrap();
+                Arguments::<1>::from_bytes(bytes).unwrap()
             };
-            #[localside]
-            let third = async {
-                assert_eq!(open(&mut c, b"service/deploy_application").await, 0);
-                write(&mut c, json!({"target":"production"})).await;
-                c.recv::<RequestReady>().await.unwrap();
-                c.send::<Commit>(&protocol::FdCloseReq(protocol::FdRequest::new(SERVICE_FD)))
-                    .await
-                    .unwrap();
-                let arguments = {
-                    let bytes = c.recv::<Admitted>().await.unwrap();
-                    Arguments::<3>::from_bytes(bytes).unwrap()
-                };
-                let mut resource = c.recv::<Loan<DEPLOY_ENV>>().await.unwrap();
-                resource.send::<DeployRequest>(&arguments).await.unwrap();
-                let result = resource.recv::<DeployResult>().await.unwrap().to_vec();
-                assert_eq!(
-                    serde_json::from_slice::<Value>(&result).unwrap()["success"],
-                    true
-                );
-                c.send::<Loan<DEPLOY_ENV>>(resource).await.unwrap();
-                c.recv::<RequestReady>().await.unwrap();
-                c.send::<ServiceExit>(&0).await.unwrap();
+            let mut resource = a.recv::<Loan<BUILD_SERVER>>().await.unwrap();
+            resource.send::<CompileRequest>(&arguments).await.unwrap();
+            let result = resource.recv::<CompileResult>().await.unwrap().to_vec();
+            assert_eq!(
+                serde_json::from_slice::<Value>(&result).unwrap()["success"],
+                true
+            );
+            a.send::<Loan<BUILD_SERVER>>(resource).await.unwrap();
+            assert_eq!(open(&mut a, b"service/compile_and_test").await, 8);
+            // Closed-service errors must not wait for downstream effects.
+            assert_eq!(journal.events().len(), 1);
+            developer_closed.notify().unwrap();
+            a.recv::<RequestReady>().await.unwrap();
+            a.send::<ServiceExit>(&0).await.unwrap();
 
-                Ok(())
+            Ok(())
+        };
+        async {
+            {
+                let mut ready = std::pin::pin!(b.recv::<RequestReady>());
+                assert!(
+                    hibana_runtime::race(
+                        async { Ok::<_, std::io::Error>((&mut ready).await) },
+                        hibana_runtime::host::deadline(Duration::from_millis(10))
+                    )
+                    .await
+                    .is_err_and(|error| error.kind() == std::io::ErrorKind::TimedOut)
+                );
+                assert!(journal.events().is_empty());
+                test_requested.notify().unwrap();
+                ready.await.unwrap();
+            }
+            b.send::<Open>(&protocol::PathOpenReq(
+                protocol::PathOpen::new(3, 1 << 6, b"service/run_integration_tests")
+                    .unwrap()
+                    .with_flags(8, 0)
+                    .unwrap(),
+            ))
+            .await
+            .unwrap();
+            assert_eq!(b.recv::<Opened>().await.unwrap().0.errno(), 0);
+            assert_eq!(closed.read(&mut [0; 1]).await.unwrap(), 1);
+            write(&mut b, json!({"suite":"integration"})).await;
+            b.recv::<RequestReady>().await.unwrap();
+            b.send::<Commit>(&protocol::FdCloseReq(protocol::FdRequest::new(SERVICE_FD)))
+                .await
+                .unwrap();
+            let arguments = {
+                let bytes = b.recv::<Admitted>().await.unwrap();
+                Arguments::<2>::from_bytes(bytes).unwrap()
             };
-            Ok((first, second, third))
-        }
-        .await
-        .unwrap();
+            let mut resource = b.recv::<Loan<BUILD_SERVER>>().await.unwrap();
+            resource.send::<TestRequest>(&arguments).await.unwrap();
+            let result = resource.recv::<TestResult>().await.unwrap().to_vec();
+            assert_eq!(
+                serde_json::from_slice::<Value>(&result).unwrap()["success"],
+                true
+            );
+            b.send::<Loan<BUILD_SERVER>>(resource).await.unwrap();
+            b.recv::<RequestReady>().await.unwrap();
+            b.send::<ServiceExit>(&0).await.unwrap();
+
+            Ok(())
+        };
+        async {
+            assert_eq!(open(&mut c, b"service/deploy_application").await, 0);
+            write(&mut c, json!({"target":"production"})).await;
+            c.recv::<RequestReady>().await.unwrap();
+            c.send::<Commit>(&protocol::FdCloseReq(protocol::FdRequest::new(SERVICE_FD)))
+                .await
+                .unwrap();
+            let arguments = {
+                let bytes = c.recv::<Admitted>().await.unwrap();
+                Arguments::<3>::from_bytes(bytes).unwrap()
+            };
+            let mut resource = c.recv::<Loan<DEPLOY_ENV>>().await.unwrap();
+            resource.send::<DeployRequest>(&arguments).await.unwrap();
+            let result = resource.recv::<DeployResult>().await.unwrap().to_vec();
+            assert_eq!(
+                serde_json::from_slice::<Value>(&result).unwrap()["success"],
+                true
+            );
+            c.send::<Loan<DEPLOY_ENV>>(resource).await.unwrap();
+            c.recv::<RequestReady>().await.unwrap();
+            c.send::<ServiceExit>(&0).await.unwrap();
+
+            Ok(())
+        };
         Ok::<(), crate::shell::ShellError>(())
     };
     hibana_runtime::race(
         async {
             Ok::<_, std::io::Error>(
                 async {
-                    #[localside]
-                    let first = clients;
-                    #[localside]
-                    let second = localside::developer::run(&mut developer, &journal, &compile);
-                    #[localside]
-                    let third = localside::tester::run(&mut tester, &journal, &test);
-                    #[localside]
-                    let fourth = localside::deployer::run(&mut deployer, &journal, &deploy);
-                    #[localside]
-                    let fifth = localside::infrastructure::build_server(&mut build_owner, build);
-                    #[localside]
-                    let sixth = localside::infrastructure::deploy_env(&mut deploy_owner, env);
-                    Ok((first, second, third, fourth, fifth, sixth))
+                    async {
+                        clients.await?;
+                    };
+                    async {
+                        localside::developer::run(&mut developer, &journal, &compile).await?;
+                    };
+                    async {
+                        localside::tester::run(&mut tester, &journal, &test).await?;
+                    };
+                    async {
+                        localside::deployer::run(&mut deployer, &journal, &deploy).await?;
+                    };
+                    async {
+                        localside::infrastructure::build_server(&mut build_owner, build).await?;
+                    };
+                    async {
+                        localside::infrastructure::deploy_env(&mut deploy_owner, env).await?;
+                    };
+                    Ok(())
                 }
                 .await,
             )

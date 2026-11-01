@@ -221,9 +221,10 @@ pub(crate) async fn run<const ROLE: u8, const FIRST: u8, const SECOND: u8>(
         let [mut first, mut second] = endpoint.par()?;
         async {
             #[localside]
-            let first = first.recv::<SectionRequest<FIRST>>();
-            #[localside]
-            let second = second.recv::<SectionRequest<SECOND>>();
+            let (first, second) = (
+                first.recv::<SectionRequest<FIRST>>(),
+                second.recv::<SectionRequest<SECOND>>(),
+            );
             Ok((first, second))
         }
         .await?
@@ -248,10 +249,12 @@ pub(crate) async fn run<const ROLE: u8, const FIRST: u8, const SECOND: u8>(
         let [mut first, mut second] = endpoint.par()?;
         let payload = bytes.as_slice();
         async {
-            #[localside]
-            first.send::<SectionWritten<FIRST>>(&payload);
-            #[localside]
-            second.send::<SectionWritten<SECOND>>(&payload);
+            async {
+                first.send::<SectionWritten<FIRST>>(&payload).await?;
+            };
+            async {
+                second.send::<SectionWritten<SECOND>>(&payload).await?;
+            };
             Ok(())
         }
         .await?;

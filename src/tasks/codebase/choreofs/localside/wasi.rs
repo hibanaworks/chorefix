@@ -520,40 +520,48 @@ pub async fn run<
                                     let [mut first_loan, mut second_loan] = task.par()?;
                                     async {
                                         #[localside]
-                                        let first = async {
-                                            let mut resource =
-                                                first_loan.recv::<Loan<FIRST>>().await?;
-                                            resource
-                                                .send::<CommitRequest<TASK, SUBJECT, FIRST>>(
-                                                    &arguments,
-                                                )
-                                                .await?;
-                                            Ok(resource)
-                                        };
-                                        #[localside]
-                                        let second = async {
-                                            let mut resource =
-                                                second_loan.recv::<Loan<SECOND>>().await?;
-                                            resource
-                                                .send::<CommitRequest<TASK, SUBJECT, SECOND>>(
-                                                    &arguments,
-                                                )
-                                                .await?;
-                                            Ok(resource)
-                                        };
+                                        let (first, second) = (
+                                            async {
+                                                let mut resource =
+                                                    first_loan.recv::<Loan<FIRST>>().await?;
+                                                resource
+                                                    .send::<CommitRequest<TASK, SUBJECT, FIRST>>(
+                                                        &arguments,
+                                                    )
+                                                    .await?;
+                                                Ok(resource)
+                                            },
+                                            async {
+                                                let mut resource =
+                                                    second_loan.recv::<Loan<SECOND>>().await?;
+                                                resource
+                                                    .send::<CommitRequest<TASK, SUBJECT, SECOND>>(
+                                                        &arguments,
+                                                    )
+                                                    .await?;
+                                                Ok(resource)
+                                            },
+                                        );
                                         Ok((first, second))
                                     }
                                     .await?
                                 };
                                 let (bytes, second_bytes) = async {
                                     #[localside]
-                                    let bytes = async {
-                                        Ok(first.recv::<CommitCompleted<FIRST>>().await?.to_vec())
-                                    };
-                                    #[localside]
-                                    let second_bytes = async {
-                                        Ok(second.recv::<CommitCompleted<SECOND>>().await?.to_vec())
-                                    };
+                                    let (bytes, second_bytes) = (
+                                        async {
+                                            Ok(first
+                                                .recv::<CommitCompleted<FIRST>>()
+                                                .await?
+                                                .to_vec())
+                                        },
+                                        async {
+                                            Ok(second
+                                                .recv::<CommitCompleted<SECOND>>()
+                                                .await?
+                                                .to_vec())
+                                        },
+                                    );
                                     Ok((bytes, second_bytes))
                                 }
                                 .await?;
@@ -565,10 +573,12 @@ pub async fn run<
                                 {
                                     let [mut first_return, mut second_return] = task.par()?;
                                     async {
-                                        #[localside]
-                                        first_return.send::<Loan<FIRST>>(first);
-                                        #[localside]
-                                        second_return.send::<Loan<SECOND>>(second);
+                                        async {
+                                            first_return.send::<Loan<FIRST>>(first).await?;
+                                        };
+                                        async {
+                                            second_return.send::<Loan<SECOND>>(second).await?;
+                                        };
                                         Ok(())
                                     }
                                     .await?;

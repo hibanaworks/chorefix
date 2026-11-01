@@ -103,9 +103,10 @@ async fn the_actual_1h_database_endpoint_reaches_b_only_after_a_returns_it()
                 let [mut a_auth, mut a_database] = a_task.par().unwrap();
                 let (mut auth_resource, mut database_resource) = async {
                     #[localside]
-                    let first = a_auth.recv::<Loan<AUTH_RESOURCE>>();
-                    #[localside]
-                    let second = a_database.recv::<Loan<DATABASE_RESOURCE>>();
+                    let (first, second) = (
+                        a_auth.recv::<Loan<AUTH_RESOURCE>>(),
+                        a_database.recv::<Loan<DATABASE_RESOURCE>>(),
+                    );
                     Ok((first, second))
                 }
                 .await
@@ -128,13 +129,17 @@ async fn the_actual_1h_database_endpoint_reaches_b_only_after_a_returns_it()
                 )
                 .unwrap();
                 async {
-                    #[localside]
-                    let first =
-                        auth_resource.send::<CommitRequest<HARD, A, AUTH_RESOURCE>>(&commit);
-                    #[localside]
-                    let second = database_resource
-                        .send::<CommitRequest<HARD, A, DATABASE_RESOURCE>>(&commit);
-                    Ok((first, second))
+                    async {
+                        auth_resource
+                            .send::<CommitRequest<HARD, A, AUTH_RESOURCE>>(&commit)
+                            .await?;
+                    };
+                    async {
+                        database_resource
+                            .send::<CommitRequest<HARD, A, DATABASE_RESOURCE>>(&commit)
+                            .await?;
+                    };
+                    Ok(())
                 }
                 .await
                 .unwrap();
@@ -142,9 +147,10 @@ async fn the_actual_1h_database_endpoint_reaches_b_only_after_a_returns_it()
                     let [mut first, mut second] = a.par().unwrap();
                     async {
                         #[localside]
-                        let first = first.recv::<CommitRequest<HARD, A, AUTH_RESOURCE>>();
-                        #[localside]
-                        let second = second.recv::<CommitRequest<HARD, A, DATABASE_RESOURCE>>();
+                        let (first, second) = (
+                            first.recv::<CommitRequest<HARD, A, AUTH_RESOURCE>>(),
+                            second.recv::<CommitRequest<HARD, A, DATABASE_RESOURCE>>(),
+                        );
                         Ok((first, second))
                     }
                     .await
@@ -153,20 +159,27 @@ async fn the_actual_1h_database_endpoint_reaches_b_only_after_a_returns_it()
                 {
                     let [mut first, mut second] = a.par().unwrap();
                     async {
-                        #[localside]
-                        let first = first.send::<CommitCompleted<AUTH_RESOURCE>>(&result);
-                        #[localside]
-                        let second = second.send::<CommitCompleted<DATABASE_RESOURCE>>(&result);
-                        Ok((first, second))
+                        async {
+                            first
+                                .send::<CommitCompleted<AUTH_RESOURCE>>(&result)
+                                .await?;
+                        };
+                        async {
+                            second
+                                .send::<CommitCompleted<DATABASE_RESOURCE>>(&result)
+                                .await?;
+                        };
+                        Ok(())
                     }
                     .await
                     .unwrap();
                 }
                 async {
                     #[localside]
-                    let first = auth_resource.recv::<CommitCompleted<AUTH_RESOURCE>>();
-                    #[localside]
-                    let second = database_resource.recv::<CommitCompleted<DATABASE_RESOURCE>>();
+                    let (first, second) = (
+                        auth_resource.recv::<CommitCompleted<AUTH_RESOURCE>>(),
+                        database_resource.recv::<CommitCompleted<DATABASE_RESOURCE>>(),
+                    );
                     Ok((first, second))
                 }
                 .await
@@ -175,11 +188,15 @@ async fn the_actual_1h_database_endpoint_reaches_b_only_after_a_returns_it()
                 {
                     let [mut first, mut second] = a_task.par().unwrap();
                     async {
-                        #[localside]
-                        let first = first.send::<Loan<AUTH_RESOURCE>>(auth_resource);
-                        #[localside]
-                        let second = second.send::<Loan<DATABASE_RESOURCE>>(database_resource);
-                        Ok((first, second))
+                        async {
+                            first.send::<Loan<AUTH_RESOURCE>>(auth_resource).await?;
+                        };
+                        async {
+                            second
+                                .send::<Loan<DATABASE_RESOURCE>>(database_resource)
+                                .await?;
+                        };
+                        Ok(())
                     }
                     .await
                     .unwrap();

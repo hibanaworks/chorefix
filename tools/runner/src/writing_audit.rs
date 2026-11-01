@@ -37,6 +37,27 @@ pub fn audit(path: &Path) -> Result<Value> {
         .lines()
         .map(serde_json::from_str)
         .collect::<std::result::Result<_, _>>()?;
+    let projection = crate::projection::load(path)?;
+    let mut result = check(&records, &projection)?;
+    result["source_events_sha256"] = json!(crate::evidence::digest(path)?);
+    result["compiled_projection_sha256"] = json!(crate::evidence::digest(
+        &path
+            .parent()
+            .ok_or("event directory")?
+            .join("projection.json"),
+    )?);
+    result["runtime_binary_sha256"] = projection["runtime_binary_sha256"].clone();
+    result["wire_validation"] =
+        json!("static compiled header membership; dynamic eligibility is not replayed");
+    Ok(result)
+}
+
+fn check(records: &[Value], projection: &Value) -> Result<Value> {
+    crate::projection::frames(projection, records)?;
+    if projection["compiled"]["task"] != records.first().ok_or("empty evidence")?["message"]["task"]
+    {
+        return Err("compiled projection belongs to a different task".into());
+    }
     let fixture = &records.first().ok_or("empty evidence")?["message"];
     let actors = fixture["fixtures"]
         .as_array()
@@ -96,7 +117,7 @@ pub fn audit(path: &Path) -> Result<Value> {
     let mut exits = BTreeSet::new();
     let mut verdict = false;
     let mut score = None;
-    for row in &records {
+    for row in records {
         let m = &row["message"];
         match (row["direction"].as_str(), m["type"].as_str()) {
             (Some("runtime"), Some("protocol_frame")) => {
@@ -432,6 +453,7 @@ pub fn audit(path: &Path) -> Result<Value> {
 
 pub fn check_mutants(path: &Path, output: &Path) -> Result<Value> {
     audit(path)?;
+    let projection = crate::projection::load(path)?;
     fs::create_dir(output)?;
     let rows: Vec<Value> = fs::read_to_string(path)?
         .lines()
@@ -439,6 +461,8 @@ pub fn check_mutants(path: &Path, output: &Path) -> Result<Value> {
         .collect::<std::result::Result<_, _>>()?;
     let mut results = Vec::new();
     for kind in [
+        "wrong_frame_label",
+        "wrong_lane",
         "missing_loan",
         "wrong_loan_resource",
         "missing_request",
@@ -455,152 +479,180 @@ pub fn check_mutants(path: &Path, output: &Path) -> Result<Value> {
         "false_score",
     ] {
         let mut copy = rows.clone();
-        match kind {
-            "missing_loan"
-            | "wrong_loan_resource"
-            | "missing_request"
-            | "forged_request"
-            | "missing_reply"
-            | "forged_reply"
-            | "missing_return"
-            | "missing_admission" => {
-                let (from, to) = match kind {
-                    "missing_loan" | "wrong_loan_resource" => (7, 14),
-                    "missing_request" | "forged_request" => (28, 0),
-                    "missing_reply" | "forged_reply" => (0, 28),
-                    "missing_return" => (14, 7),
-                    "missing_admission" => (0, 14),
-                    _ => unreachable!(),
-                };
-                let frame = copy
-                    .iter()
-                    .find(|r| {
-                        r["message"]["type"] == "protocol_frame"
-                            && r["message"]["source"] == from
-                            && r["message"]["target"] == to
-                            && (kind != "missing_admission"
-                                || serde_json::from_slice::<Value>(&bytes(&r["message"]).unwrap())
+        if matches!(kind, "wrong_frame_label" | "wrong_lane") {
+            let frame = copy
+                .iter()
+                .find(|row| row["message"]["type"] == "protocol_frame")
+                .ok_or("frame for header mutation")?["message"]
+                .clone();
+            let field = if kind == "wrong_frame_label" {
+                "frame_label"
+            } else {
+                "lane"
+            };
+            let replacement = if kind == "wrong_frame_label" {
+                65535
+            } else {
+                (frame["lane"].as_u64().ok_or("observed lane")? + 1) % 256
+            };
+            for row in &mut copy {
+                if row["message"]["type"] == "protocol_frame"
+                    && row["message"]["frame_id"] == frame["frame_id"]
+                {
+                    row["message"][field] = json!(replacement);
+                }
+            }
+        } else {
+            match kind {
+                "missing_loan"
+                | "wrong_loan_resource"
+                | "missing_request"
+                | "forged_request"
+                | "missing_reply"
+                | "forged_reply"
+                | "missing_return"
+                | "missing_admission" => {
+                    let (from, to) = match kind {
+                        "missing_loan" | "wrong_loan_resource" => (7, 14),
+                        "missing_request" | "forged_request" => (28, 0),
+                        "missing_reply" | "forged_reply" => (0, 28),
+                        "missing_return" => (14, 7),
+                        "missing_admission" => (0, 14),
+                        _ => unreachable!(),
+                    };
+                    let frame = copy
+                        .iter()
+                        .find(|r| {
+                            r["message"]["type"] == "protocol_frame"
+                                && r["message"]["source"] == from
+                                && r["message"]["target"] == to
+                                && (kind != "missing_admission"
+                                    || serde_json::from_slice::<Value>(
+                                        &bytes(&r["message"]).unwrap(),
+                                    )
                                     .is_ok_and(|v| v["sections"].is_string()))
-                    })
-                    .ok_or("mutation frame")?["message"]["frame_id"]
-                    .clone();
-                if kind.starts_with("missing_") {
-                    copy.retain(|r| {
-                        !(r["message"]["type"] == "protocol_frame"
-                            && r["message"]["frame_id"] == frame)
-                    });
-                } else {
-                    for row in copy.iter_mut().filter(|r| {
-                        r["message"]["type"] == "protocol_frame"
-                            && r["message"]["frame_id"] == frame
-                    }) {
-                        if kind == "wrong_loan_resource" {
-                            row["message"]["payload"][0] = json!(29);
-                        } else {
-                            let data = if kind == "forged_request" {
-                                json!({"sections":"forged"})
+                        })
+                        .ok_or("mutation frame")?["message"]["frame_id"]
+                        .clone();
+                    if kind.starts_with("missing_") {
+                        copy.retain(|r| {
+                            !(r["message"]["type"] == "protocol_frame"
+                                && r["message"]["frame_id"] == frame)
+                        });
+                    } else {
+                        for row in copy.iter_mut().filter(|r| {
+                            r["message"]["type"] == "protocol_frame"
+                                && r["message"]["frame_id"] == frame
+                        }) {
+                            if kind == "wrong_loan_resource" {
+                                row["message"]["payload"][0] = json!(29);
                             } else {
-                                json!({"success":true,"data":"forged"})
-                            };
-                            row["message"]["payload"] = json!(serde_json::to_vec(&data)?);
+                                let data = if kind == "forged_request" {
+                                    json!({"sections":"forged"})
+                                } else {
+                                    json!({"success":true,"data":"forged"})
+                                };
+                                row["message"]["payload"] = json!(serde_json::to_vec(&data)?);
+                            }
                         }
                     }
                 }
-            }
-            "overlapping_loans" => {
-                let next_id = copy
-                    .iter()
-                    .find(|r| {
+                "overlapping_loans" => {
+                    let next_id = copy
+                        .iter()
+                        .find(|r| {
+                            r["message"]["type"] == "protocol_frame"
+                                && r["message"]["source"] == 7
+                                && r["message"]["target"] != 14
+                        })
+                        .ok_or("second loan")?["message"]["frame_id"]
+                        .clone();
+                    let is_next_loan = |r: &Value| {
                         r["message"]["type"] == "protocol_frame"
-                            && r["message"]["source"] == 7
-                            && r["message"]["target"] != 14
-                    })
-                    .ok_or("second loan")?["message"]["frame_id"]
-                    .clone();
-                let is_next_loan = |r: &Value| {
-                    r["message"]["type"] == "protocol_frame" && r["message"]["frame_id"] == next_id
-                };
-                let next: Vec<_> = copy.iter().filter(|r| is_next_loan(r)).cloned().collect();
-                if next.is_empty() {
-                    return Err("second loan mutation target".into());
+                            && r["message"]["frame_id"] == next_id
+                    };
+                    let next: Vec<_> = copy.iter().filter(|r| is_next_loan(r)).cloned().collect();
+                    if next.is_empty() {
+                        return Err("second loan mutation target".into());
+                    }
+                    copy.retain(|r| !is_next_loan(r));
+                    let position = copy
+                        .iter()
+                        .position(|r| {
+                            r["message"]["type"] == "protocol_frame"
+                                && r["message"]["action"] == "receive"
+                                && r["message"]["source"] == 7
+                                && r["message"]["target"] == 14
+                        })
+                        .ok_or("first loan receipt")?;
+                    copy.splice(position + 1..position + 1, next);
                 }
-                copy.retain(|r| !is_next_loan(r));
-                let position = copy
-                    .iter()
-                    .position(|r| {
-                        r["message"]["type"] == "protocol_frame"
-                            && r["message"]["action"] == "receive"
-                            && r["message"]["source"] == 7
-                            && r["message"]["target"] == 14
-                    })
-                    .ok_or("first loan receipt")?;
-                copy.splice(position + 1..position + 1, next);
-            }
-            "missing_close" => {
-                let ids: Vec<_> = copy
-                    .iter()
-                    .filter(|r| {
-                        r["message"]["type"] == "protocol_frame"
-                            && r["message"]["source"] == 14
-                            && r["message"]["target"] == 0
-                            && r["message"]["payload"] == json!([4])
-                    })
-                    .map(|r| r["message"]["frame_id"].clone())
-                    .collect();
-                if ids.is_empty() {
-                    return Err("close mutation target".into());
+                "missing_close" => {
+                    let ids: Vec<_> = copy
+                        .iter()
+                        .filter(|r| {
+                            r["message"]["type"] == "protocol_frame"
+                                && r["message"]["source"] == 14
+                                && r["message"]["target"] == 0
+                                && r["message"]["payload"] == json!([4])
+                        })
+                        .map(|r| r["message"]["frame_id"].clone())
+                        .collect();
+                    if ids.is_empty() {
+                        return Err("close mutation target".into());
+                    }
+                    copy.retain(|r| {
+                        !(r["message"]["type"] == "protocol_frame"
+                            && ids.contains(&r["message"]["frame_id"]))
+                    });
                 }
-                copy.retain(|r| {
-                    !(r["message"]["type"] == "protocol_frame"
-                        && ids.contains(&r["message"]["frame_id"]))
-                });
+                "missing_exit" => {
+                    let index = copy
+                        .iter()
+                        .position(|r| r["message"]["type"] == "exit")
+                        .ok_or("exit mutation target")?;
+                    copy.remove(index);
+                }
+                "forged_arguments" => {
+                    let row = copy
+                        .iter_mut()
+                        .find(|r| r["message"]["type"] == "execute")
+                        .ok_or("effect mutation target")?;
+                    row["message"]["arguments"] = json!({"sections":"forged"});
+                }
+                "forged_original_result" => {
+                    let row = copy
+                        .iter_mut()
+                        .find(|r| r["message"]["type"] == "simulator_result")
+                        .ok_or("result mutation target")?;
+                    row["message"]["result"]["data"] = json!({"forged":true});
+                }
+                "false_score" => {
+                    let row = copy
+                        .iter_mut()
+                        .find(|r| r["message"]["type"] == "score")
+                        .ok_or("score mutation target")?;
+                    row["message"]["complete"] = json!(
+                        !row["message"]["complete"]
+                            .as_bool()
+                            .ok_or("score outcome")?
+                    );
+                }
+                _ => unreachable!(),
             }
-            "missing_exit" => {
-                let index = copy
-                    .iter()
-                    .position(|r| r["message"]["type"] == "exit")
-                    .ok_or("exit mutation target")?;
-                copy.remove(index);
+            if copy == rows {
+                return Err(format!("mutation {kind} did not change the evidence").into());
             }
-            "forged_arguments" => {
-                let row = copy
-                    .iter_mut()
-                    .find(|r| r["message"]["type"] == "execute")
-                    .ok_or("effect mutation target")?;
-                row["message"]["arguments"] = json!({"sections":"forged"});
-            }
-            "forged_original_result" => {
-                let row = copy
-                    .iter_mut()
-                    .find(|r| r["message"]["type"] == "simulator_result")
-                    .ok_or("result mutation target")?;
-                row["message"]["result"]["data"] = json!({"forged":true});
-            }
-            "false_score" => {
-                let row = copy
-                    .iter_mut()
-                    .find(|r| r["message"]["type"] == "score")
-                    .ok_or("score mutation target")?;
-                row["message"]["complete"] = json!(
-                    !row["message"]["complete"]
-                        .as_bool()
-                        .ok_or("score outcome")?
-                );
-            }
-            _ => unreachable!(),
-        }
-        if copy == rows {
-            return Err(format!("mutation {kind} did not change the evidence").into());
         }
         let mutant = output.join(format!("{kind}.jsonl"));
         use std::io::Write;
         let mut file = fs::File::create_new(&mutant)?;
-        for row in copy {
-            serde_json::to_writer(&mut file, &row)?;
+        for row in &copy {
+            serde_json::to_writer(&mut file, row)?;
             writeln!(file)?;
         }
         drop(file);
-        let error = audit(&mutant)
+        let error = check(&copy, &projection)
             .err()
             .ok_or_else(|| format!("accepted mutant {kind}"))?;
         results.push(json!({"kind":kind,"status":"rejected","error":error.to_string()}));

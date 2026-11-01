@@ -159,6 +159,13 @@ fn the_projection_artifact_must_match_the_saved_run_receipt() -> Result<()> {
         serde_json::to_vec(&versions)?,
     )?;
     assert_eq!(load(&events)?, artifact);
+    let mut case = json!({"versions":versions});
+    fs::write(directory.join("case.json"), serde_json::to_vec(&case)?)?;
+    assert_eq!(load(&events)?, artifact);
+    case["versions"]["binaries"]["runtime"] = json!("b".repeat(64));
+    fs::write(directory.join("case.json"), serde_json::to_vec(&case)?)?;
+    assert!(load(&events).is_err());
+    fs::remove_file(directory.join("case.json"))?;
     fs::write(&path, b"{}")?;
     assert!(load(&events).is_err());
     fs::remove_dir_all(directory)?;

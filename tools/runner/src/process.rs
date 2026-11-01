@@ -284,8 +284,6 @@ mod tests {
             async {
                 let guest = &guest;
                 #[localside]
-                let result = guest_loop;
-                #[localside]
                 for actor in actors {
                     let name = actor["agent"].as_str().ok_or("actor")?;
                     for call in actor["calls"].as_array().ok_or("calls")? {
@@ -313,6 +311,7 @@ mod tests {
                         return Err("probe guest exit failed".into());
                     }
                 }
+                let result = guest_loop.await?;
                 Ok(result)
             },
             hibana_runtime::host::deadline(std::time::Duration::from_secs(120)),

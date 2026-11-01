@@ -526,36 +526,44 @@ pub async fn run<const ROLE: u8, const FIRST: u8, const SECOND: u8>(
                                     let [mut first_loan, mut second_loan] = task.par()?;
                                     async {
                                         #[localside]
-                                        let first = async {
-                                            let mut section =
-                                                first_loan.recv::<Loan<FIRST>>().await?;
-                                            section
-                                                .send::<SectionRequest<FIRST>>(&arguments)
-                                                .await?;
-                                            Ok(section)
-                                        };
-                                        #[localside]
-                                        let second = async {
-                                            let mut section =
-                                                second_loan.recv::<Loan<SECOND>>().await?;
-                                            section
-                                                .send::<SectionRequest<SECOND>>(&arguments)
-                                                .await?;
-                                            Ok(section)
-                                        };
+                                        let (first, second) = (
+                                            async {
+                                                let mut section =
+                                                    first_loan.recv::<Loan<FIRST>>().await?;
+                                                section
+                                                    .send::<SectionRequest<FIRST>>(&arguments)
+                                                    .await?;
+                                                Ok(section)
+                                            },
+                                            async {
+                                                let mut section =
+                                                    second_loan.recv::<Loan<SECOND>>().await?;
+                                                section
+                                                    .send::<SectionRequest<SECOND>>(&arguments)
+                                                    .await?;
+                                                Ok(section)
+                                            },
+                                        );
                                         Ok((first, second))
                                     }
                                     .await?
                                 };
                                 let (first_result, second_result) = async {
                                     #[localside]
-                                    let first_result = async {
-                                        Ok(first.recv::<SectionWritten<FIRST>>().await?.to_vec())
-                                    };
-                                    #[localside]
-                                    let second_result = async {
-                                        Ok(second.recv::<SectionWritten<SECOND>>().await?.to_vec())
-                                    };
+                                    let (first_result, second_result) = (
+                                        async {
+                                            Ok(first
+                                                .recv::<SectionWritten<FIRST>>()
+                                                .await?
+                                                .to_vec())
+                                        },
+                                        async {
+                                            Ok(second
+                                                .recv::<SectionWritten<SECOND>>()
+                                                .await?
+                                                .to_vec())
+                                        },
+                                    );
                                     Ok((first_result, second_result))
                                 }
                                 .await?;
@@ -567,10 +575,12 @@ pub async fn run<const ROLE: u8, const FIRST: u8, const SECOND: u8>(
                                 {
                                     let [mut first_return, mut second_return] = task.par()?;
                                     async {
-                                        #[localside]
-                                        first_return.send::<Loan<FIRST>>(first);
-                                        #[localside]
-                                        second_return.send::<Loan<SECOND>>(second);
+                                        async {
+                                            first_return.send::<Loan<FIRST>>(first).await?;
+                                        };
+                                        async {
+                                            second_return.send::<Loan<SECOND>>(second).await?;
+                                        };
                                         Ok(())
                                     }
                                     .await?;

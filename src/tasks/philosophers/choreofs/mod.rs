@@ -24,6 +24,7 @@ async fn run_9e_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 3]) -> Sh
     use global::*;
     use identity::roles9e::*;
     let programs = project_9e();
+    bus.observe(programs.observation());
     let mut slab = vec![0; 2 * 1024 * 1024];
     let mut storage = SessionKitStorage::<&InMemoryTransport>::uninit();
     let kit = storage.init();
@@ -58,42 +59,60 @@ async fn run_9e_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 3]) -> Sh
     let mut cmemory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut cstore = HibanaWasiGuestStorage::uninit();
     let cguest = cstore.init(module, GuestMemory::new(&mut cmemory), bindings())?;
-    #[localside]
-    localside::philosopher::run::<A, FORK_A_RESOURCE, FORK_C_RESOURCE>(
-        "PHILOSOPHER_A",
-        &mut a,
-        bus,
-    );
-    #[localside]
-    localside::philosopher::run::<B, FORK_B_RESOURCE, FORK_A_RESOURCE>(
-        "PHILOSOPHER_B",
-        &mut b,
-        bus,
-    );
-    #[localside]
-    localside::philosopher::run::<C, FORK_C_RESOURCE, FORK_B_RESOURCE>(
-        "PHILOSOPHER_C",
-        &mut c,
-        bus,
-    );
-    #[localside]
-    localside::fork::run::<FORK_A, FORK_A_RESOURCE>(&mut fork_a, resource_a);
-    #[localside]
-    localside::fork::run::<FORK_B, FORK_B_RESOURCE>(&mut fork_b, resource_b);
-    #[localside]
-    localside::fork::run::<FORK_C, FORK_C_RESOURCE>(&mut fork_c, resource_c);
-    #[localside]
-    localside::wasi::run::<A_WASI, FORK_A_RESOURCE, FORK_C_RESOURCE>(aguest, &mut a_wasi);
-    #[localside]
-    private_io::run(&mut a_io, afs);
-    #[localside]
-    localside::wasi::run::<B_WASI, FORK_B_RESOURCE, FORK_A_RESOURCE>(bguest, &mut b_wasi);
-    #[localside]
-    private_io::run(&mut b_io, bfs);
-    #[localside]
-    localside::wasi::run::<C_WASI, FORK_C_RESOURCE, FORK_B_RESOURCE>(cguest, &mut c_wasi);
-    #[localside]
-    private_io::run(&mut c_io, cfs);
+    async {
+        localside::philosopher::run::<A, FORK_A_RESOURCE, FORK_C_RESOURCE>(
+            "PHILOSOPHER_A",
+            &mut a,
+            bus,
+        )
+        .await?;
+    };
+    async {
+        localside::philosopher::run::<B, FORK_B_RESOURCE, FORK_A_RESOURCE>(
+            "PHILOSOPHER_B",
+            &mut b,
+            bus,
+        )
+        .await?;
+    };
+    async {
+        localside::philosopher::run::<C, FORK_C_RESOURCE, FORK_B_RESOURCE>(
+            "PHILOSOPHER_C",
+            &mut c,
+            bus,
+        )
+        .await?;
+    };
+    async {
+        localside::fork::run::<FORK_A, FORK_A_RESOURCE>(&mut fork_a, resource_a).await?;
+    };
+    async {
+        localside::fork::run::<FORK_B, FORK_B_RESOURCE>(&mut fork_b, resource_b).await?;
+    };
+    async {
+        localside::fork::run::<FORK_C, FORK_C_RESOURCE>(&mut fork_c, resource_c).await?;
+    };
+    async {
+        localside::wasi::run::<A_WASI, FORK_A_RESOURCE, FORK_C_RESOURCE>(aguest, &mut a_wasi)
+            .await?;
+    };
+    async {
+        private_io::run(&mut a_io, afs).await?;
+    };
+    async {
+        localside::wasi::run::<B_WASI, FORK_B_RESOURCE, FORK_A_RESOURCE>(bguest, &mut b_wasi)
+            .await?;
+    };
+    async {
+        private_io::run(&mut b_io, bfs).await?;
+    };
+    async {
+        localside::wasi::run::<C_WASI, FORK_C_RESOURCE, FORK_B_RESOURCE>(cguest, &mut c_wasi)
+            .await?;
+    };
+    async {
+        private_io::run(&mut c_io, cfs).await?;
+    };
     Ok(())
 }
 
@@ -102,6 +121,7 @@ async fn run_9m_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 5]) -> Sh
     use global::*;
     use identity::roles9m::*;
     let programs = project_9m();
+    bus.observe(programs.observation());
     let mut slab = vec![0; 2 * 1024 * 1024];
     let mut storage = SessionKitStorage::<&InMemoryTransport>::uninit();
     let kit = storage.init();
@@ -154,66 +174,96 @@ async fn run_9m_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 5]) -> Sh
     let mut ememory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut estore = HibanaWasiGuestStorage::uninit();
     let eguest = estore.init(module, GuestMemory::new(&mut ememory), bindings())?;
-    #[localside]
-    localside::philosopher::run::<A, FORK_A_RESOURCE, FORK_E_RESOURCE>(
-        "PHILOSOPHER_A",
-        &mut a,
-        bus,
-    );
-    #[localside]
-    localside::philosopher::run::<B, FORK_B_RESOURCE, FORK_A_RESOURCE>(
-        "PHILOSOPHER_B",
-        &mut b,
-        bus,
-    );
-    #[localside]
-    localside::philosopher::run::<C, FORK_C_RESOURCE, FORK_B_RESOURCE>(
-        "PHILOSOPHER_C",
-        &mut c,
-        bus,
-    );
-    #[localside]
-    localside::philosopher::run::<D, FORK_D_RESOURCE, FORK_C_RESOURCE>(
-        "PHILOSOPHER_D",
-        &mut d,
-        bus,
-    );
-    #[localside]
-    localside::philosopher::run::<E, FORK_E_RESOURCE, FORK_D_RESOURCE>(
-        "PHILOSOPHER_E",
-        &mut e,
-        bus,
-    );
-    #[localside]
-    localside::fork::run::<FORK_A, FORK_A_RESOURCE>(&mut fork_a, resource_a);
-    #[localside]
-    localside::fork::run::<FORK_B, FORK_B_RESOURCE>(&mut fork_b, resource_b);
-    #[localside]
-    localside::fork::run::<FORK_C, FORK_C_RESOURCE>(&mut fork_c, resource_c);
-    #[localside]
-    localside::fork::run::<FORK_D, FORK_D_RESOURCE>(&mut fork_d, resource_d);
-    #[localside]
-    localside::fork::run::<FORK_E, FORK_E_RESOURCE>(&mut fork_e, resource_e);
-    #[localside]
-    localside::wasi::run::<A_WASI, FORK_A_RESOURCE, FORK_E_RESOURCE>(aguest, &mut a_wasi);
-    #[localside]
-    private_io::run(&mut a_io, afs);
-    #[localside]
-    localside::wasi::run::<B_WASI, FORK_B_RESOURCE, FORK_A_RESOURCE>(bguest, &mut b_wasi);
-    #[localside]
-    private_io::run(&mut b_io, bfs);
-    #[localside]
-    localside::wasi::run::<C_WASI, FORK_C_RESOURCE, FORK_B_RESOURCE>(cguest, &mut c_wasi);
-    #[localside]
-    private_io::run(&mut c_io, cfs);
-    #[localside]
-    localside::wasi::run::<D_WASI, FORK_D_RESOURCE, FORK_C_RESOURCE>(dguest, &mut d_wasi);
-    #[localside]
-    private_io::run(&mut d_io, dfs);
-    #[localside]
-    localside::wasi::run::<E_WASI, FORK_E_RESOURCE, FORK_D_RESOURCE>(eguest, &mut e_wasi);
-    #[localside]
-    private_io::run(&mut e_io, efs);
+    async {
+        localside::philosopher::run::<A, FORK_A_RESOURCE, FORK_E_RESOURCE>(
+            "PHILOSOPHER_A",
+            &mut a,
+            bus,
+        )
+        .await?;
+    };
+    async {
+        localside::philosopher::run::<B, FORK_B_RESOURCE, FORK_A_RESOURCE>(
+            "PHILOSOPHER_B",
+            &mut b,
+            bus,
+        )
+        .await?;
+    };
+    async {
+        localside::philosopher::run::<C, FORK_C_RESOURCE, FORK_B_RESOURCE>(
+            "PHILOSOPHER_C",
+            &mut c,
+            bus,
+        )
+        .await?;
+    };
+    async {
+        localside::philosopher::run::<D, FORK_D_RESOURCE, FORK_C_RESOURCE>(
+            "PHILOSOPHER_D",
+            &mut d,
+            bus,
+        )
+        .await?;
+    };
+    async {
+        localside::philosopher::run::<E, FORK_E_RESOURCE, FORK_D_RESOURCE>(
+            "PHILOSOPHER_E",
+            &mut e,
+            bus,
+        )
+        .await?;
+    };
+    async {
+        localside::fork::run::<FORK_A, FORK_A_RESOURCE>(&mut fork_a, resource_a).await?;
+    };
+    async {
+        localside::fork::run::<FORK_B, FORK_B_RESOURCE>(&mut fork_b, resource_b).await?;
+    };
+    async {
+        localside::fork::run::<FORK_C, FORK_C_RESOURCE>(&mut fork_c, resource_c).await?;
+    };
+    async {
+        localside::fork::run::<FORK_D, FORK_D_RESOURCE>(&mut fork_d, resource_d).await?;
+    };
+    async {
+        localside::fork::run::<FORK_E, FORK_E_RESOURCE>(&mut fork_e, resource_e).await?;
+    };
+    async {
+        localside::wasi::run::<A_WASI, FORK_A_RESOURCE, FORK_E_RESOURCE>(aguest, &mut a_wasi)
+            .await?;
+    };
+    async {
+        private_io::run(&mut a_io, afs).await?;
+    };
+    async {
+        localside::wasi::run::<B_WASI, FORK_B_RESOURCE, FORK_A_RESOURCE>(bguest, &mut b_wasi)
+            .await?;
+    };
+    async {
+        private_io::run(&mut b_io, bfs).await?;
+    };
+    async {
+        localside::wasi::run::<C_WASI, FORK_C_RESOURCE, FORK_B_RESOURCE>(cguest, &mut c_wasi)
+            .await?;
+    };
+    async {
+        private_io::run(&mut c_io, cfs).await?;
+    };
+    async {
+        localside::wasi::run::<D_WASI, FORK_D_RESOURCE, FORK_C_RESOURCE>(dguest, &mut d_wasi)
+            .await?;
+    };
+    async {
+        private_io::run(&mut d_io, dfs).await?;
+    };
+    async {
+        localside::wasi::run::<E_WASI, FORK_E_RESOURCE, FORK_D_RESOURCE>(eguest, &mut e_wasi)
+            .await?;
+    };
+    async {
+        private_io::run(&mut e_io, efs).await?;
+    };
     Ok(())
 }
 
@@ -222,6 +272,7 @@ async fn run_9h_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 7]) -> Sh
     use global::*;
     use identity::roles9h::*;
     let programs = project_9h();
+    bus.observe(programs.observation());
     let mut slab = vec![0; 2 * 1024 * 1024];
     let mut storage = SessionKitStorage::<&InMemoryTransport>::uninit();
     let kit = storage.init();
@@ -292,90 +343,132 @@ async fn run_9h_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 7]) -> Sh
     let mut gmemory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut gstore = HibanaWasiGuestStorage::uninit();
     let gguest = gstore.init(module, GuestMemory::new(&mut gmemory), bindings())?;
-    #[localside]
-    localside::philosopher::run::<A, FORK_A_RESOURCE, FORK_G_RESOURCE>(
-        "PHILOSOPHER_A",
-        &mut a,
-        bus,
-    );
-    #[localside]
-    localside::philosopher::run::<B, FORK_B_RESOURCE, FORK_A_RESOURCE>(
-        "PHILOSOPHER_B",
-        &mut b,
-        bus,
-    );
-    #[localside]
-    localside::philosopher::run::<C, FORK_C_RESOURCE, FORK_B_RESOURCE>(
-        "PHILOSOPHER_C",
-        &mut c,
-        bus,
-    );
-    #[localside]
-    localside::philosopher::run::<D, FORK_D_RESOURCE, FORK_C_RESOURCE>(
-        "PHILOSOPHER_D",
-        &mut d,
-        bus,
-    );
-    #[localside]
-    localside::philosopher::run::<E, FORK_E_RESOURCE, FORK_D_RESOURCE>(
-        "PHILOSOPHER_E",
-        &mut e,
-        bus,
-    );
-    #[localside]
-    localside::philosopher::run::<F, FORK_F_RESOURCE, FORK_E_RESOURCE>(
-        "PHILOSOPHER_F",
-        &mut f,
-        bus,
-    );
-    #[localside]
-    localside::philosopher::run::<G, FORK_G_RESOURCE, FORK_F_RESOURCE>(
-        "PHILOSOPHER_G",
-        &mut g,
-        bus,
-    );
-    #[localside]
-    localside::fork::run::<FORK_A, FORK_A_RESOURCE>(&mut fork_a, resource_a);
-    #[localside]
-    localside::fork::run::<FORK_B, FORK_B_RESOURCE>(&mut fork_b, resource_b);
-    #[localside]
-    localside::fork::run::<FORK_C, FORK_C_RESOURCE>(&mut fork_c, resource_c);
-    #[localside]
-    localside::fork::run::<FORK_D, FORK_D_RESOURCE>(&mut fork_d, resource_d);
-    #[localside]
-    localside::fork::run::<FORK_E, FORK_E_RESOURCE>(&mut fork_e, resource_e);
-    #[localside]
-    localside::fork::run::<FORK_F, FORK_F_RESOURCE>(&mut fork_f, resource_f);
-    #[localside]
-    localside::fork::run::<FORK_G, FORK_G_RESOURCE>(&mut fork_g, resource_g);
-    #[localside]
-    localside::wasi::run::<A_WASI, FORK_A_RESOURCE, FORK_G_RESOURCE>(aguest, &mut a_wasi);
-    #[localside]
-    private_io::run(&mut a_io, afs);
-    #[localside]
-    localside::wasi::run::<B_WASI, FORK_B_RESOURCE, FORK_A_RESOURCE>(bguest, &mut b_wasi);
-    #[localside]
-    private_io::run(&mut b_io, bfs);
-    #[localside]
-    localside::wasi::run::<C_WASI, FORK_C_RESOURCE, FORK_B_RESOURCE>(cguest, &mut c_wasi);
-    #[localside]
-    private_io::run(&mut c_io, cfs);
-    #[localside]
-    localside::wasi::run::<D_WASI, FORK_D_RESOURCE, FORK_C_RESOURCE>(dguest, &mut d_wasi);
-    #[localside]
-    private_io::run(&mut d_io, dfs);
-    #[localside]
-    localside::wasi::run::<E_WASI, FORK_E_RESOURCE, FORK_D_RESOURCE>(eguest, &mut e_wasi);
-    #[localside]
-    private_io::run(&mut e_io, efs);
-    #[localside]
-    localside::wasi::run::<F_WASI, FORK_F_RESOURCE, FORK_E_RESOURCE>(fguest, &mut f_wasi);
-    #[localside]
-    private_io::run(&mut f_io, ffs);
-    #[localside]
-    localside::wasi::run::<G_WASI, FORK_G_RESOURCE, FORK_F_RESOURCE>(gguest, &mut g_wasi);
-    #[localside]
-    private_io::run(&mut g_io, gfs);
+    async {
+        localside::philosopher::run::<A, FORK_A_RESOURCE, FORK_G_RESOURCE>(
+            "PHILOSOPHER_A",
+            &mut a,
+            bus,
+        )
+        .await?;
+    };
+    async {
+        localside::philosopher::run::<B, FORK_B_RESOURCE, FORK_A_RESOURCE>(
+            "PHILOSOPHER_B",
+            &mut b,
+            bus,
+        )
+        .await?;
+    };
+    async {
+        localside::philosopher::run::<C, FORK_C_RESOURCE, FORK_B_RESOURCE>(
+            "PHILOSOPHER_C",
+            &mut c,
+            bus,
+        )
+        .await?;
+    };
+    async {
+        localside::philosopher::run::<D, FORK_D_RESOURCE, FORK_C_RESOURCE>(
+            "PHILOSOPHER_D",
+            &mut d,
+            bus,
+        )
+        .await?;
+    };
+    async {
+        localside::philosopher::run::<E, FORK_E_RESOURCE, FORK_D_RESOURCE>(
+            "PHILOSOPHER_E",
+            &mut e,
+            bus,
+        )
+        .await?;
+    };
+    async {
+        localside::philosopher::run::<F, FORK_F_RESOURCE, FORK_E_RESOURCE>(
+            "PHILOSOPHER_F",
+            &mut f,
+            bus,
+        )
+        .await?;
+    };
+    async {
+        localside::philosopher::run::<G, FORK_G_RESOURCE, FORK_F_RESOURCE>(
+            "PHILOSOPHER_G",
+            &mut g,
+            bus,
+        )
+        .await?;
+    };
+    async {
+        localside::fork::run::<FORK_A, FORK_A_RESOURCE>(&mut fork_a, resource_a).await?;
+    };
+    async {
+        localside::fork::run::<FORK_B, FORK_B_RESOURCE>(&mut fork_b, resource_b).await?;
+    };
+    async {
+        localside::fork::run::<FORK_C, FORK_C_RESOURCE>(&mut fork_c, resource_c).await?;
+    };
+    async {
+        localside::fork::run::<FORK_D, FORK_D_RESOURCE>(&mut fork_d, resource_d).await?;
+    };
+    async {
+        localside::fork::run::<FORK_E, FORK_E_RESOURCE>(&mut fork_e, resource_e).await?;
+    };
+    async {
+        localside::fork::run::<FORK_F, FORK_F_RESOURCE>(&mut fork_f, resource_f).await?;
+    };
+    async {
+        localside::fork::run::<FORK_G, FORK_G_RESOURCE>(&mut fork_g, resource_g).await?;
+    };
+    async {
+        localside::wasi::run::<A_WASI, FORK_A_RESOURCE, FORK_G_RESOURCE>(aguest, &mut a_wasi)
+            .await?;
+    };
+    async {
+        private_io::run(&mut a_io, afs).await?;
+    };
+    async {
+        localside::wasi::run::<B_WASI, FORK_B_RESOURCE, FORK_A_RESOURCE>(bguest, &mut b_wasi)
+            .await?;
+    };
+    async {
+        private_io::run(&mut b_io, bfs).await?;
+    };
+    async {
+        localside::wasi::run::<C_WASI, FORK_C_RESOURCE, FORK_B_RESOURCE>(cguest, &mut c_wasi)
+            .await?;
+    };
+    async {
+        private_io::run(&mut c_io, cfs).await?;
+    };
+    async {
+        localside::wasi::run::<D_WASI, FORK_D_RESOURCE, FORK_C_RESOURCE>(dguest, &mut d_wasi)
+            .await?;
+    };
+    async {
+        private_io::run(&mut d_io, dfs).await?;
+    };
+    async {
+        localside::wasi::run::<E_WASI, FORK_E_RESOURCE, FORK_D_RESOURCE>(eguest, &mut e_wasi)
+            .await?;
+    };
+    async {
+        private_io::run(&mut e_io, efs).await?;
+    };
+    async {
+        localside::wasi::run::<F_WASI, FORK_F_RESOURCE, FORK_E_RESOURCE>(fguest, &mut f_wasi)
+            .await?;
+    };
+    async {
+        private_io::run(&mut f_io, ffs).await?;
+    };
+    async {
+        localside::wasi::run::<G_WASI, FORK_G_RESOURCE, FORK_F_RESOURCE>(gguest, &mut g_wasi)
+            .await?;
+    };
+    async {
+        private_io::run(&mut g_io, gfs).await?;
+    };
     Ok(())
 }
 
@@ -501,5 +594,14 @@ Err(error)=>reader.emit(&bus,serde_json::json!({"type":"run_result","status":"fa
             result
         }
         _ => Err(ShellError::message("expected dining task 9E, 9M or 9H")),
+    }
+}
+
+pub fn projection(task: &str) -> ShellResult<serde_json::Value> {
+    match task {
+        "9E" => Ok(global::project_9e().observation()),
+        "9M" => Ok(global::project_9m().observation()),
+        "9H" => Ok(global::project_9h().observation()),
+        _ => Err(ShellError::message("unsupported task projection")),
     }
 }

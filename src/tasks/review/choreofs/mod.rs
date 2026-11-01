@@ -72,24 +72,33 @@ async fn run_guests(
     let mut review_store = HibanaWasiGuestStorage::uninit();
     let review_guest =
         review_store.init(module, GuestMemory::new(&mut review_memory), bindings())?;
-    #[localside]
-    localside::reviewer_a::run(&mut review_a, bus, &review_a_result);
-    #[localside]
-    localside::reviewer_b::run(&mut review_b, bus, &review_b_result);
-    #[localside]
-    localside::repo::run(&mut repo, repository, bus);
-    #[localside]
-    localside::developer_wasi::run::<A_WASI>(a_guest, &mut a_wasi);
-    #[localside]
-    private_io::run(&mut a_io, a_fs);
-    #[localside]
-    localside::developer_wasi::run::<B_WASI>(b_guest, &mut b_wasi);
-    #[localside]
-    private_io::run(&mut b_io, b_fs);
-    #[localside]
-    localside::reviewer_wasi::run(review_guest, &mut review_wasi, &selected_review);
-    #[localside]
-    private_io::run(&mut review_io, review_fs);
+    async {
+        localside::reviewer_a::run(&mut review_a, bus, &review_a_result).await?;
+    };
+    async {
+        localside::reviewer_b::run(&mut review_b, bus, &review_b_result).await?;
+    };
+    async {
+        localside::repo::run(&mut repo, repository, bus).await?;
+    };
+    async {
+        localside::developer_wasi::run::<A_WASI>(a_guest, &mut a_wasi).await?;
+    };
+    async {
+        private_io::run(&mut a_io, a_fs).await?;
+    };
+    async {
+        localside::developer_wasi::run::<B_WASI>(b_guest, &mut b_wasi).await?;
+    };
+    async {
+        private_io::run(&mut b_io, b_fs).await?;
+    };
+    async {
+        localside::reviewer_wasi::run(review_guest, &mut review_wasi, &selected_review).await?;
+    };
+    async {
+        private_io::run(&mut review_io, review_fs).await?;
+    };
     Ok(())
 }
 

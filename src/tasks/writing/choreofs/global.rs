@@ -599,3 +599,24 @@ pub fn project_2h() -> Programs2H {
         g_io: project(&protocol),
     }
 }
+
+impl Programs2E {
+    pub(crate) fn observation(&self) -> serde_json::Value {
+        use crate::imp::projection::rows;
+        serde_json::json!({"type":"compiled_projection","format_version":1,"task":"2E","programs":[rows(&self.a), rows(&self.b), rows(&self.c), rows(&self.intro), rows(&self.intro_resource), rows(&self.methods), rows(&self.methods_resource), rows(&self.results), rows(&self.results_resource), rows(&self.a_wasi), rows(&self.b_wasi), rows(&self.c_wasi), rows(&self.a_io), rows(&self.b_io), rows(&self.c_io)]})
+    }
+}
+
+impl Programs2M {
+    pub(crate) fn observation(&self) -> serde_json::Value {
+        use crate::imp::projection::rows;
+        serde_json::json!({"type":"compiled_projection","format_version":1,"task":"2M","programs":[rows(&self.a), rows(&self.b), rows(&self.c), rows(&self.d), rows(&self.e), rows(&self.background), rows(&self.background_resource), rows(&self.intro), rows(&self.intro_resource), rows(&self.methods), rows(&self.methods_resource), rows(&self.experiments), rows(&self.experiments_resource), rows(&self.results), rows(&self.results_resource), rows(&self.a_wasi), rows(&self.b_wasi), rows(&self.c_wasi), rows(&self.d_wasi), rows(&self.e_wasi), rows(&self.a_io), rows(&self.b_io), rows(&self.c_io), rows(&self.d_io), rows(&self.e_io)]})
+    }
+}
+
+impl Programs2H {
+    pub(crate) fn observation(&self) -> serde_json::Value {
+        use crate::imp::projection::rows;
+        serde_json::json!({"type":"compiled_projection","format_version":1,"task":"2H","programs":[rows(&self.a), rows(&self.b), rows(&self.c), rows(&self.d), rows(&self.e), rows(&self.f), rows(&self.g), rows(&self.background), rows(&self.background_resource), rows(&self.intro), rows(&self.intro_resource), rows(&self.related), rows(&self.related_resource), rows(&self.methods), rows(&self.methods_resource), rows(&self.experiments), rows(&self.experiments_resource), rows(&self.results), rows(&self.results_resource), rows(&self.discussion), rows(&self.discussion_resource), rows(&self.a_wasi), rows(&self.b_wasi), rows(&self.c_wasi), rows(&self.d_wasi), rows(&self.e_wasi), rows(&self.f_wasi), rows(&self.g_wasi), rows(&self.a_io), rows(&self.b_io), rows(&self.c_io), rows(&self.d_io), rows(&self.e_io), rows(&self.f_io), rows(&self.g_io)]})
+    }
+}

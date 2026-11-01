@@ -164,30 +164,32 @@ async fn client<
         let [mut first_loan, mut second_loan] = task.par()?;
         async {
             #[localside]
-            let first = async {
-                let mut resource = first_loan.recv::<Loan<FIRST>>().await?;
-                resource
-                    .send::<CommitRequest<TASK, SUBJECT, FIRST>>(&commit)
-                    .await?;
-                Ok(resource)
-            };
-            #[localside]
-            let second = async {
-                let mut resource = second_loan.recv::<Loan<SECOND>>().await?;
-                resource
-                    .send::<CommitRequest<TASK, SUBJECT, SECOND>>(&commit)
-                    .await?;
-                Ok(resource)
-            };
+            let (first, second) = (
+                async {
+                    let mut resource = first_loan.recv::<Loan<FIRST>>().await?;
+                    resource
+                        .send::<CommitRequest<TASK, SUBJECT, FIRST>>(&commit)
+                        .await?;
+                    Ok(resource)
+                },
+                async {
+                    let mut resource = second_loan.recv::<Loan<SECOND>>().await?;
+                    resource
+                        .send::<CommitRequest<TASK, SUBJECT, SECOND>>(&commit)
+                        .await?;
+                    Ok(resource)
+                },
+            );
             Ok((first, second))
         }
         .await?
     };
     let (first_result, second_result) = async {
         #[localside]
-        let first = async { Ok(first.recv::<CommitCompleted<FIRST>>().await?.to_vec()) };
-        #[localside]
-        let second = async { Ok(second.recv::<CommitCompleted<SECOND>>().await?.to_vec()) };
+        let (first, second) = (
+            async { Ok(first.recv::<CommitCompleted<FIRST>>().await?.to_vec()) },
+            async { Ok(second.recv::<CommitCompleted<SECOND>>().await?.to_vec()) },
+        );
         Ok((first, second))
     }
     .await?;
@@ -199,11 +201,13 @@ async fn client<
     {
         let [mut first_return, mut second_return] = task.par()?;
         async {
-            #[localside]
-            let first = first_return.send::<Loan<FIRST>>(first);
-            #[localside]
-            let second = second_return.send::<Loan<SECOND>>(second);
-            Ok((first, second))
+            async {
+                first_return.send::<Loan<FIRST>>(first).await?;
+            };
+            async {
+                second_return.send::<Loan<SECOND>>(second).await?;
+            };
+            Ok(())
         }
         .await?;
     }
@@ -332,30 +336,32 @@ async fn revising_client<
             let [mut first_loan, mut second_loan] = task.par()?;
             async {
                 #[localside]
-                let first = async {
-                    let mut resource = first_loan.recv::<Loan<FIRST>>().await?;
-                    resource
-                        .send::<CommitRequest<TASK, SUBJECT, FIRST>>(&commit)
-                        .await?;
-                    Ok(resource)
-                };
-                #[localside]
-                let second = async {
-                    let mut resource = second_loan.recv::<Loan<SECOND>>().await?;
-                    resource
-                        .send::<CommitRequest<TASK, SUBJECT, SECOND>>(&commit)
-                        .await?;
-                    Ok(resource)
-                };
+                let (first, second) = (
+                    async {
+                        let mut resource = first_loan.recv::<Loan<FIRST>>().await?;
+                        resource
+                            .send::<CommitRequest<TASK, SUBJECT, FIRST>>(&commit)
+                            .await?;
+                        Ok(resource)
+                    },
+                    async {
+                        let mut resource = second_loan.recv::<Loan<SECOND>>().await?;
+                        resource
+                            .send::<CommitRequest<TASK, SUBJECT, SECOND>>(&commit)
+                            .await?;
+                        Ok(resource)
+                    },
+                );
                 Ok((first, second))
             }
             .await?
         };
         let (first_result, second_result) = async {
             #[localside]
-            let first = async { Ok(first.recv::<CommitCompleted<FIRST>>().await?.to_vec()) };
-            #[localside]
-            let second = async { Ok(second.recv::<CommitCompleted<SECOND>>().await?.to_vec()) };
+            let (first, second) = (
+                async { Ok(first.recv::<CommitCompleted<FIRST>>().await?.to_vec()) },
+                async { Ok(second.recv::<CommitCompleted<SECOND>>().await?.to_vec()) },
+            );
             Ok((first, second))
         }
         .await?;
@@ -367,11 +373,13 @@ async fn revising_client<
         {
             let [mut first_return, mut second_return] = task.par()?;
             async {
-                #[localside]
-                let first = first_return.send::<Loan<FIRST>>(first);
-                #[localside]
-                let second = second_return.send::<Loan<SECOND>>(second);
-                Ok((first, second))
+                async {
+                    first_return.send::<Loan<FIRST>>(first).await?;
+                };
+                async {
+                    second_return.send::<Loan<SECOND>>(second).await?;
+                };
+                Ok(())
             }
             .await?;
         }

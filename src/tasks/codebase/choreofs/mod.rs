@@ -22,6 +22,7 @@ use hibana_wasip1_runtime::{GuestMemory, HibanaWasiGuestStorage};
 async fn run_1e_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 3]) -> ShellResult<()> {
     use global::{roles1e::*, *};
     let programs = project_1e();
+    bus.observe(programs.observation());
     let mut slab = vec![0; 2 * 1024 * 1024];
     let mut storage = SessionKitStorage::<&InMemoryTransport>::uninit();
     let kit = storage.init();
@@ -55,36 +56,59 @@ async fn run_1e_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 3]) -> Sh
     let mut memory_c = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut store_c = HibanaWasiGuestStorage::uninit();
     let guest_c = store_c.init(module, GuestMemory::new(&mut memory_c), bindings())?;
-    #[localside]
-    localside::developer::run::<EASY, A, AUTH_RESOURCE, DATABASE_RESOURCE>(&mut a, bus);
-    #[localside]
-    localside::developer::run::<EASY, B, API_RESOURCE, DATABASE_RESOURCE>(&mut b, bus);
-    #[localside]
-    localside::developer::run::<EASY, C, API_RESOURCE, AUTH_RESOURCE>(&mut c, bus);
-    #[localside]
-    localside::module::run::<AUTH, AUTH_RESOURCE>(&mut auth, auth_resource);
-    #[localside]
-    localside::module::run::<DATABASE, DATABASE_RESOURCE>(&mut database, database_resource);
-    #[localside]
-    localside::module::run::<API, API_RESOURCE>(&mut api, api_resource);
-    #[localside]
-    localside::wasi::run::<A_WASI, A, EASY, AUTH_RESOURCE, DATABASE_RESOURCE>(guest_a, &mut a_wasi);
-    #[localside]
-    private_io::run(&mut a_io, fs_a);
-    #[localside]
-    localside::wasi::run::<B_WASI, B, EASY, API_RESOURCE, DATABASE_RESOURCE>(guest_b, &mut b_wasi);
-    #[localside]
-    private_io::run(&mut b_io, fs_b);
-    #[localside]
-    localside::wasi::run::<C_WASI, C, EASY, API_RESOURCE, AUTH_RESOURCE>(guest_c, &mut c_wasi);
-    #[localside]
-    private_io::run(&mut c_io, fs_c);
+    async {
+        localside::developer::run::<EASY, A, AUTH_RESOURCE, DATABASE_RESOURCE>(&mut a, bus).await?;
+    };
+    async {
+        localside::developer::run::<EASY, B, API_RESOURCE, DATABASE_RESOURCE>(&mut b, bus).await?;
+    };
+    async {
+        localside::developer::run::<EASY, C, API_RESOURCE, AUTH_RESOURCE>(&mut c, bus).await?;
+    };
+    async {
+        localside::module::run::<AUTH, AUTH_RESOURCE>(&mut auth, auth_resource).await?;
+    };
+    async {
+        localside::module::run::<DATABASE, DATABASE_RESOURCE>(&mut database, database_resource)
+            .await?;
+    };
+    async {
+        localside::module::run::<API, API_RESOURCE>(&mut api, api_resource).await?;
+    };
+    async {
+        localside::wasi::run::<A_WASI, A, EASY, AUTH_RESOURCE, DATABASE_RESOURCE>(
+            guest_a,
+            &mut a_wasi,
+        )
+        .await?;
+    };
+    async {
+        private_io::run(&mut a_io, fs_a).await?;
+    };
+    async {
+        localside::wasi::run::<B_WASI, B, EASY, API_RESOURCE, DATABASE_RESOURCE>(
+            guest_b,
+            &mut b_wasi,
+        )
+        .await?;
+    };
+    async {
+        private_io::run(&mut b_io, fs_b).await?;
+    };
+    async {
+        localside::wasi::run::<C_WASI, C, EASY, API_RESOURCE, AUTH_RESOURCE>(guest_c, &mut c_wasi)
+            .await?;
+    };
+    async {
+        private_io::run(&mut c_io, fs_c).await?;
+    };
     Ok(())
 }
 #[hibana_runtime::localside]
 async fn run_1m_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 5]) -> ShellResult<()> {
     use global::{roles1m::*, *};
     let programs = project_1m();
+    bus.observe(programs.observation());
     let mut slab = vec![0; 2 * 1024 * 1024];
     let mut storage = SessionKitStorage::<&InMemoryTransport>::uninit();
     let kit = storage.init();
@@ -136,55 +160,90 @@ async fn run_1m_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 5]) -> Sh
     let mut memory_e = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut store_e = HibanaWasiGuestStorage::uninit();
     let guest_e = store_e.init(module, GuestMemory::new(&mut memory_e), bindings())?;
-    #[localside]
-    localside::developer::run::<MEDIUM, A, AUTH_RESOURCE, DATABASE_RESOURCE>(&mut a, bus);
-    #[localside]
-    localside::developer::run::<MEDIUM, B, API_RESOURCE, DATABASE_RESOURCE>(&mut b, bus);
-    #[localside]
-    localside::developer::run::<MEDIUM, C, API_RESOURCE, PAYMENT_RESOURCE>(&mut c, bus);
-    #[localside]
-    localside::developer::run::<MEDIUM, D, NOTIFY_RESOURCE, PAYMENT_RESOURCE>(&mut d, bus);
-    #[localside]
-    localside::developer::run::<MEDIUM, E, AUTH_RESOURCE, NOTIFY_RESOURCE>(&mut e, bus);
-    #[localside]
-    localside::module::run::<AUTH, AUTH_RESOURCE>(&mut auth, auth_resource);
-    #[localside]
-    localside::module::run::<DATABASE, DATABASE_RESOURCE>(&mut database, database_resource);
-    #[localside]
-    localside::module::run::<API, API_RESOURCE>(&mut api, api_resource);
-    #[localside]
-    localside::module::run::<PAYMENT, PAYMENT_RESOURCE>(&mut payment, payment_resource);
-    #[localside]
-    localside::module::run::<NOTIFY, NOTIFY_RESOURCE>(&mut notify, notify_resource);
-    #[localside]
-    localside::wasi::run::<A_WASI, A, MEDIUM, AUTH_RESOURCE, DATABASE_RESOURCE>(
-        guest_a,
-        &mut a_wasi,
-    );
-    #[localside]
-    private_io::run(&mut a_io, fs_a);
-    #[localside]
-    localside::wasi::run::<B_WASI, B, MEDIUM, API_RESOURCE, DATABASE_RESOURCE>(
-        guest_b,
-        &mut b_wasi,
-    );
-    #[localside]
-    private_io::run(&mut b_io, fs_b);
-    #[localside]
-    localside::wasi::run::<C_WASI, C, MEDIUM, API_RESOURCE, PAYMENT_RESOURCE>(guest_c, &mut c_wasi);
-    #[localside]
-    private_io::run(&mut c_io, fs_c);
-    #[localside]
-    localside::wasi::run::<D_WASI, D, MEDIUM, NOTIFY_RESOURCE, PAYMENT_RESOURCE>(
-        guest_d,
-        &mut d_wasi,
-    );
-    #[localside]
-    private_io::run(&mut d_io, fs_d);
-    #[localside]
-    localside::wasi::run::<E_WASI, E, MEDIUM, AUTH_RESOURCE, NOTIFY_RESOURCE>(guest_e, &mut e_wasi);
-    #[localside]
-    private_io::run(&mut e_io, fs_e);
+    async {
+        localside::developer::run::<MEDIUM, A, AUTH_RESOURCE, DATABASE_RESOURCE>(&mut a, bus)
+            .await?;
+    };
+    async {
+        localside::developer::run::<MEDIUM, B, API_RESOURCE, DATABASE_RESOURCE>(&mut b, bus)
+            .await?;
+    };
+    async {
+        localside::developer::run::<MEDIUM, C, API_RESOURCE, PAYMENT_RESOURCE>(&mut c, bus).await?;
+    };
+    async {
+        localside::developer::run::<MEDIUM, D, NOTIFY_RESOURCE, PAYMENT_RESOURCE>(&mut d, bus)
+            .await?;
+    };
+    async {
+        localside::developer::run::<MEDIUM, E, AUTH_RESOURCE, NOTIFY_RESOURCE>(&mut e, bus).await?;
+    };
+    async {
+        localside::module::run::<AUTH, AUTH_RESOURCE>(&mut auth, auth_resource).await?;
+    };
+    async {
+        localside::module::run::<DATABASE, DATABASE_RESOURCE>(&mut database, database_resource)
+            .await?;
+    };
+    async {
+        localside::module::run::<API, API_RESOURCE>(&mut api, api_resource).await?;
+    };
+    async {
+        localside::module::run::<PAYMENT, PAYMENT_RESOURCE>(&mut payment, payment_resource).await?;
+    };
+    async {
+        localside::module::run::<NOTIFY, NOTIFY_RESOURCE>(&mut notify, notify_resource).await?;
+    };
+    async {
+        localside::wasi::run::<A_WASI, A, MEDIUM, AUTH_RESOURCE, DATABASE_RESOURCE>(
+            guest_a,
+            &mut a_wasi,
+        )
+        .await?;
+    };
+    async {
+        private_io::run(&mut a_io, fs_a).await?;
+    };
+    async {
+        localside::wasi::run::<B_WASI, B, MEDIUM, API_RESOURCE, DATABASE_RESOURCE>(
+            guest_b,
+            &mut b_wasi,
+        )
+        .await?;
+    };
+    async {
+        private_io::run(&mut b_io, fs_b).await?;
+    };
+    async {
+        localside::wasi::run::<C_WASI, C, MEDIUM, API_RESOURCE, PAYMENT_RESOURCE>(
+            guest_c,
+            &mut c_wasi,
+        )
+        .await?;
+    };
+    async {
+        private_io::run(&mut c_io, fs_c).await?;
+    };
+    async {
+        localside::wasi::run::<D_WASI, D, MEDIUM, NOTIFY_RESOURCE, PAYMENT_RESOURCE>(
+            guest_d,
+            &mut d_wasi,
+        )
+        .await?;
+    };
+    async {
+        private_io::run(&mut d_io, fs_d).await?;
+    };
+    async {
+        localside::wasi::run::<E_WASI, E, MEDIUM, AUTH_RESOURCE, NOTIFY_RESOURCE>(
+            guest_e,
+            &mut e_wasi,
+        )
+        .await?;
+    };
+    async {
+        private_io::run(&mut e_io, fs_e).await?;
+    };
     Ok(())
 }
 pub async fn run_stdio(module: &[u8], task: &str) -> ShellResult<()> {
@@ -263,6 +322,7 @@ async fn run_1h_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 7]) -> Sh
     use global::{roles1h::*, *};
     use hibana::runtime::resolver::ResolverRef;
     let programs = project_1h();
+    bus.observe(programs.observation());
     let result_a = input::TestResult::default();
     let result_b = input::TestResult::default();
     let result_c = input::TestResult::default();
@@ -374,160 +434,226 @@ async fn run_1h_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 7]) -> Sh
     let mut memory_g = vec![0; crate::shell::GUEST_MEMORY_BYTES];
     let mut store_g = HibanaWasiGuestStorage::uninit();
     let guest_g = store_g.init(module, GuestMemory::new(&mut memory_g), bindings())?;
-    #[localside]
-    localside::developer_reconsider::run::<HARD, A, AUTH_RESOURCE, DATABASE_RESOURCE, AUTH, DATABASE>(
-        &mut a, bus, &result_a,
-    );
-    #[localside]
-    localside::developer_reconsider::run::<HARD, B, API_RESOURCE, DATABASE_RESOURCE, API, DATABASE>(
-        &mut b, bus, &result_b,
-    );
-    #[localside]
-    localside::developer_reconsider::run::<HARD, C, API_RESOURCE, PAYMENT_RESOURCE, API, PAYMENT>(
+    async {
+        localside::developer_reconsider::run::<
+            HARD,
+            A,
+            AUTH_RESOURCE,
+            DATABASE_RESOURCE,
+            AUTH,
+            DATABASE,
+        >(&mut a, bus, &result_a)
+        .await?;
+    };
+    async {
+        localside::developer_reconsider::run::<
+            HARD,
+            B,
+            API_RESOURCE,
+            DATABASE_RESOURCE,
+            API,
+            DATABASE,
+        >(&mut b, bus, &result_b)
+        .await?;
+    };
+    async {
+        localside::developer_reconsider::run::<HARD, C, API_RESOURCE, PAYMENT_RESOURCE, API, PAYMENT>(
         &mut c, bus, &result_c,
-    );
-    #[localside]
-    localside::developer_reconsider::run::<
-        HARD,
-        D,
-        NOTIFY_RESOURCE,
-        PAYMENT_RESOURCE,
-        NOTIFY,
-        PAYMENT,
-    >(&mut d, bus, &result_d);
-    #[localside]
-    localside::developer_reconsider::run::<
-        HARD,
-        E,
-        ANALYTICS_RESOURCE,
-        NOTIFY_RESOURCE,
-        ANALYTICS,
-        NOTIFY,
-    >(&mut e, bus, &result_e);
-    #[localside]
-    localside::developer_reconsider::run::<
-        HARD,
-        F,
-        ANALYTICS_RESOURCE,
-        SEARCH_RESOURCE,
-        ANALYTICS,
-        SEARCH,
-    >(&mut f, bus, &result_f);
-    #[localside]
-    localside::developer_reconsider::run::<HARD, G, AUTH_RESOURCE, SEARCH_RESOURCE, AUTH, SEARCH>(
+    ).await?;
+    };
+    async {
+        localside::developer_reconsider::run::<
+            HARD,
+            D,
+            NOTIFY_RESOURCE,
+            PAYMENT_RESOURCE,
+            NOTIFY,
+            PAYMENT,
+        >(&mut d, bus, &result_d)
+        .await?;
+    };
+    async {
+        localside::developer_reconsider::run::<
+            HARD,
+            E,
+            ANALYTICS_RESOURCE,
+            NOTIFY_RESOURCE,
+            ANALYTICS,
+            NOTIFY,
+        >(&mut e, bus, &result_e)
+        .await?;
+    };
+    async {
+        localside::developer_reconsider::run::<
+            HARD,
+            F,
+            ANALYTICS_RESOURCE,
+            SEARCH_RESOURCE,
+            ANALYTICS,
+            SEARCH,
+        >(&mut f, bus, &result_f)
+        .await?;
+    };
+    async {
+        localside::developer_reconsider::run::<HARD, G, AUTH_RESOURCE, SEARCH_RESOURCE, AUTH, SEARCH>(
         &mut g, bus, &result_g,
-    );
-    #[localside]
-    localside::module_reconsider::run::<
-        AUTH,
-        AUTH_RESOURCE,
-        DATABASE,
-        DATABASE_RESOURCE,
-        SEARCH,
-        SEARCH_RESOURCE,
-    >(&mut auth, auth_resource);
-    #[localside]
-    localside::module_reconsider::run::<
-        DATABASE,
-        DATABASE_RESOURCE,
-        AUTH,
-        AUTH_RESOURCE,
-        API,
-        API_RESOURCE,
-    >(&mut database, database_resource);
-    #[localside]
-    localside::module_reconsider::run::<
-        API,
-        API_RESOURCE,
-        PAYMENT,
-        PAYMENT_RESOURCE,
-        DATABASE,
-        DATABASE_RESOURCE,
-    >(&mut api, api_resource);
-    #[localside]
-    localside::module_reconsider::run::<
-        PAYMENT,
-        PAYMENT_RESOURCE,
-        API,
-        API_RESOURCE,
-        NOTIFY,
-        NOTIFY_RESOURCE,
-    >(&mut payment, payment_resource);
-    #[localside]
-    localside::module_reconsider::run::<
-        NOTIFY,
-        NOTIFY_RESOURCE,
-        ANALYTICS,
-        ANALYTICS_RESOURCE,
-        PAYMENT,
-        PAYMENT_RESOURCE,
-    >(&mut notify, notify_resource);
-    #[localside]
-    localside::module_reconsider::run::<
-        ANALYTICS,
-        ANALYTICS_RESOURCE,
-        NOTIFY,
-        NOTIFY_RESOURCE,
-        SEARCH,
-        SEARCH_RESOURCE,
-    >(&mut analytics, analytics_resource);
-    #[localside]
-    localside::module_reconsider::run::<
-        SEARCH,
-        SEARCH_RESOURCE,
-        ANALYTICS,
-        ANALYTICS_RESOURCE,
-        AUTH,
-        AUTH_RESOURCE,
-    >(&mut search, search_resource);
-    #[localside]
-    localside::wasi_reconsider::run::<A_WASI, A, HARD, AUTH_RESOURCE, DATABASE_RESOURCE>(
-        guest_a,
-        &mut a_wasi,
-    );
-    #[localside]
-    private_io::run(&mut a_io, fs_a);
-    #[localside]
-    localside::wasi_reconsider::run::<B_WASI, B, HARD, API_RESOURCE, DATABASE_RESOURCE>(
-        guest_b,
-        &mut b_wasi,
-    );
-    #[localside]
-    private_io::run(&mut b_io, fs_b);
-    #[localside]
-    localside::wasi_reconsider::run::<C_WASI, C, HARD, API_RESOURCE, PAYMENT_RESOURCE>(
-        guest_c,
-        &mut c_wasi,
-    );
-    #[localside]
-    private_io::run(&mut c_io, fs_c);
-    #[localside]
-    localside::wasi_reconsider::run::<D_WASI, D, HARD, NOTIFY_RESOURCE, PAYMENT_RESOURCE>(
-        guest_d,
-        &mut d_wasi,
-    );
-    #[localside]
-    private_io::run(&mut d_io, fs_d);
-    #[localside]
-    localside::wasi_reconsider::run::<E_WASI, E, HARD, ANALYTICS_RESOURCE, NOTIFY_RESOURCE>(
-        guest_e,
-        &mut e_wasi,
-    );
-    #[localside]
-    private_io::run(&mut e_io, fs_e);
-    #[localside]
-    localside::wasi_reconsider::run::<F_WASI, F, HARD, ANALYTICS_RESOURCE, SEARCH_RESOURCE>(
-        guest_f,
-        &mut f_wasi,
-    );
-    #[localside]
-    private_io::run(&mut f_io, fs_f);
-    #[localside]
-    localside::wasi_reconsider::run::<G_WASI, G, HARD, AUTH_RESOURCE, SEARCH_RESOURCE>(
-        guest_g,
-        &mut g_wasi,
-    );
-    #[localside]
-    private_io::run(&mut g_io, fs_g);
+    ).await?;
+    };
+    async {
+        localside::module_reconsider::run::<
+            AUTH,
+            AUTH_RESOURCE,
+            DATABASE,
+            DATABASE_RESOURCE,
+            SEARCH,
+            SEARCH_RESOURCE,
+        >(&mut auth, auth_resource)
+        .await?;
+    };
+    async {
+        localside::module_reconsider::run::<
+            DATABASE,
+            DATABASE_RESOURCE,
+            AUTH,
+            AUTH_RESOURCE,
+            API,
+            API_RESOURCE,
+        >(&mut database, database_resource)
+        .await?;
+    };
+    async {
+        localside::module_reconsider::run::<
+            API,
+            API_RESOURCE,
+            PAYMENT,
+            PAYMENT_RESOURCE,
+            DATABASE,
+            DATABASE_RESOURCE,
+        >(&mut api, api_resource)
+        .await?;
+    };
+    async {
+        localside::module_reconsider::run::<
+            PAYMENT,
+            PAYMENT_RESOURCE,
+            API,
+            API_RESOURCE,
+            NOTIFY,
+            NOTIFY_RESOURCE,
+        >(&mut payment, payment_resource)
+        .await?;
+    };
+    async {
+        localside::module_reconsider::run::<
+            NOTIFY,
+            NOTIFY_RESOURCE,
+            ANALYTICS,
+            ANALYTICS_RESOURCE,
+            PAYMENT,
+            PAYMENT_RESOURCE,
+        >(&mut notify, notify_resource)
+        .await?;
+    };
+    async {
+        localside::module_reconsider::run::<
+            ANALYTICS,
+            ANALYTICS_RESOURCE,
+            NOTIFY,
+            NOTIFY_RESOURCE,
+            SEARCH,
+            SEARCH_RESOURCE,
+        >(&mut analytics, analytics_resource)
+        .await?;
+    };
+    async {
+        localside::module_reconsider::run::<
+            SEARCH,
+            SEARCH_RESOURCE,
+            ANALYTICS,
+            ANALYTICS_RESOURCE,
+            AUTH,
+            AUTH_RESOURCE,
+        >(&mut search, search_resource)
+        .await?;
+    };
+    async {
+        localside::wasi_reconsider::run::<A_WASI, A, HARD, AUTH_RESOURCE, DATABASE_RESOURCE>(
+            guest_a,
+            &mut a_wasi,
+        )
+        .await?;
+    };
+    async {
+        private_io::run(&mut a_io, fs_a).await?;
+    };
+    async {
+        localside::wasi_reconsider::run::<B_WASI, B, HARD, API_RESOURCE, DATABASE_RESOURCE>(
+            guest_b,
+            &mut b_wasi,
+        )
+        .await?;
+    };
+    async {
+        private_io::run(&mut b_io, fs_b).await?;
+    };
+    async {
+        localside::wasi_reconsider::run::<C_WASI, C, HARD, API_RESOURCE, PAYMENT_RESOURCE>(
+            guest_c,
+            &mut c_wasi,
+        )
+        .await?;
+    };
+    async {
+        private_io::run(&mut c_io, fs_c).await?;
+    };
+    async {
+        localside::wasi_reconsider::run::<D_WASI, D, HARD, NOTIFY_RESOURCE, PAYMENT_RESOURCE>(
+            guest_d,
+            &mut d_wasi,
+        )
+        .await?;
+    };
+    async {
+        private_io::run(&mut d_io, fs_d).await?;
+    };
+    async {
+        localside::wasi_reconsider::run::<E_WASI, E, HARD, ANALYTICS_RESOURCE, NOTIFY_RESOURCE>(
+            guest_e,
+            &mut e_wasi,
+        )
+        .await?;
+    };
+    async {
+        private_io::run(&mut e_io, fs_e).await?;
+    };
+    async {
+        localside::wasi_reconsider::run::<F_WASI, F, HARD, ANALYTICS_RESOURCE, SEARCH_RESOURCE>(
+            guest_f,
+            &mut f_wasi,
+        )
+        .await?;
+    };
+    async {
+        private_io::run(&mut f_io, fs_f).await?;
+    };
+    async {
+        localside::wasi_reconsider::run::<G_WASI, G, HARD, AUTH_RESOURCE, SEARCH_RESOURCE>(
+            guest_g,
+            &mut g_wasi,
+        )
+        .await?;
+    };
+    async {
+        private_io::run(&mut g_io, fs_g).await?;
+    };
     Ok(())
+}
+
+pub fn projection(task: &str) -> ShellResult<serde_json::Value> {
+    match task {
+        "1E" => Ok(global::project_1e().observation()),
+        "1M" => Ok(global::project_1m().observation()),
+        "1H" => Ok(global::project_1h().observation()),
+        _ => Err(ShellError::message("unsupported task projection")),
+    }
 }

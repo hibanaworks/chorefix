@@ -216,11 +216,11 @@ Globalを唯一の連携仕様にし、localsideへEndpointの操作を直接書
 
 ## 現在のsourceと検証範囲
 
-ChoreoFixのmanifest/lockは本体
-`b7d65518b07226a3d69a140bbaf17d4c80fb65a8`、WASI
-`77f5bbd1075402da8f67b86c7a70fbb5937bdf79`を選択している。
-アプリと実験runnerは`hibana-runtime`の
-`61ae78bbde9d77148fa38f86f8f63ab4cf45a314`を選択する。
+現在選択する依存の固定値は[アプリのmanifest](Cargo.toml)と[lock](Cargo.lock)、
+[runnerのmanifest](tools/runner/Cargo.toml)と[lock](tools/runner/Cargo.lock)、
+[効果境界の検証crate](proofs/endpoint-handoff/Cargo.toml)に記録する。
+この計画書へ「現在のpin」を重複して転記しない。各認定は、その実行のsource manifest・
+dependency tree・binary hashへ対応付け、下記では検査した版を個別に示す。
 通常のGit依存を使い、診断用のpath patchを認定へ流用しない。
 本体の`8792e63`ではKani321件が成功し、全子孫の最大memoryは2,248,671,568bytesだった。
 この版はlane mismatchの観測値の説明を訂正し、tap記録の標準変換を追加した。
@@ -229,6 +229,42 @@ EPFはフィールド解釈を複製せずに完全な記録を読める。
 生成器を修正した本体`77c54e6`では、修正前に回帰試験が失敗し、修正後の88試験と
 停止した分割が成功した。174形・616,608操作試行でruntime-only/model-onlyは0、
 120件の実コンパイル拒否を確認した。最終sourceでの全gate完了とは扱わない。
+本体の`0356494`は、確定した操作の16-bit source位置、実行actor、logical roleとlaneを
+記録し、Evidenceのword 2へ観測連番を保持する。旧版で4試験の失敗を確認し、修正版では
+本体823試験、公開経路36試験、strict-provenance Miri5試験、Lean9定理とZ3、Clippy、
+no_std/thumbv6m buildが成功した。不要になった受信previewの観測計画・補助型とfieldを削除した。
+このSHAでKani321件が成功し、全子孫の最大memoryは2,588,558,128bytesだった。
+protocol-shapesの32分割中0〜3は成功したが、分割4のshape 781でmodel-onlyが8件発生し、
+全gateは停止した。runtime-onlyは0件。prefix `[2,4,5,6]`等の後のreceive 0/3をRust側が
+拒否する不一致だった。原因は本体の受信選択にある。別の合法なroute armのframeを
+先に見た際、独立laneの要求を調べる前に`PhaseInvariant`を返していた。
+通常3ロールの小さいglobalでも再現し、修正候補ではそのframeを元のFIFOへ保持したまま
+独立受信を進める。受信の確定前にpayloadやroute/rollを進めない。未知のheaderは拒否する。
+公開Endpointの回帰試験、同じ構造の通常／委譲付き生成ケース、source上の許可を示すLean定理を
+追加した。修正版`c1d9212`をfeature/endpoint-delegationへ公開した。
+この版は公開試験28件、受信のstrict-provenance Miri5件、生成器88試験、Clippy、
+11workload×8metric×2反復の処理回数ゲートを通した。全headが別contractの場合も
+Pendingで隠さず拒否する。Kani321件・protocol fuzz・32分割・全Miri等を含む全gateは、
+このSHAを固定してローカルで実行中であり、まだ完了として扱わない。
+同じSHAで[通常CI](https://github.com/hibanaworks/hibana/actions/runs/41270764123)、
+[protocol fuzz](https://github.com/hibanaworks/hibana/actions/runs/41270765157)、
+[並行再入Miri](https://github.com/hibanaworks/hibana/actions/runs/41270766502)も起動した。
+CIの受付・実行中を成功と扱わない。失敗入力とログは保持する。
+WASIの`378e7d7`は本体`c1d9212`とruntime`4d73bcf`を選択し、二つの利用例と
+八つのEndpoint試験をhibana-runtimeへ書き換えた。Tokioはmanifestとlockから除いた。
+閉じたメモリ内fixtureのdriverを使い、OSのreadinessやI/O性能の検証とは区別する。
+CIのguard追加後の`e9bcf88`を公開し、[WASIのCI](https://github.com/hibanaworks/hibana-wasip1-runtime/actions/runs/41270905426)を起動した。
+検証成功は未確認であり、本体のローカル全gate成功後に同じsourceでWASIのローカル全gateを開始する。
+consumerも本体・WASI・runtimeの公開pinを揃えてCIへ渡す。最新handoffと全移行済みfamilyの
+再認定は未完であり、旧pinでの認定結果を流用しない。
+作業版では、隣接する結果bindingの暗黙の並行化へ依存する箇所を、必要な複数の結果を
+一つに束ねる宣言へ書き換えた。結果不要の枝は一呼出しも含めたasyncの子とし、
+六familyの参加者起動とEndpointの並行send/返却から枝ごとの属性を除いた。
+globalの操作順・依存は変更していない。この書換えの型検査・統合認定は未実行である。
+既存pinの機構試験を、新runtimeでの統合認定へ読み替えない。
+全familyの機構検証はRust runnerの`--qualify-wasi`へ集約している。source・binary・
+receiptを保存し、テスト0件や途中のsource変更では成功としない。現在の変更は未検証であり、
+最新pinでの再認定結果を得るまで成功件数へ加えない。
 
 runtimeの`61ae78b`は、配列localside宣言の入力式内のasync scopeも変換する。
 修正前に成功・子のエラー・借用値の3試験がすべて失敗することを確認し、同じ試験を修正後に
@@ -240,10 +276,21 @@ no_std/Pico linkを含む全gateが同じsourceで成功した。全子孫最大
 全子孫最大memoryは1,705,820,160bytes。binaryとsource manifestを
 `output/review-occurrence-qualification/runtime-array-input/consumer`へ対応付けて保持する。
 モデル呼出し・採点算入は0件。残るfamilyの旧認定を、この修正版の認定へ読み替えない。
-handoffも同じruntime pinでnative11試験とClippy、同じ10ケースを含む5試験の
-strict-provenance Miriを再実行した。最大memoryは426,508,288bytesで、試験前後のsourceは一致した。
 
 
+
+runtimeの`6c0782b`では、結果bindingの隣に宣言した子まで終了を待つ問題を修正した。
+旧macroで停止する再現を確認し、結果bindingは明示したFutureだけを待つ形へ揃えた。
+native98試験、compile入力15件（成功2／拒否13）、strict-provenance Miri70試験、
+Lean/Z3、Clippy、no_std/Pico linkを含む全gateが同じsourceで成功した。
+全子孫最大memoryは701,661,184bytes。`4d73bcf`はこの実装のままAGENTS.mdへ規則と例を追加した版。
+`8fba570`も実行コードは同じで、Actions再開とmacOS/ARM LinuxのCIを追加した版である。
+最初のCIは検査前に共有scriptの実行権限で停止した。`078ca32`でCIの起動手順を修正し、
+[再実行](https://github.com/hibanaworks/hibana-runtime/actions/runs/41271100947)を起動した。
+runtimeの実行コードは同じであり、CIの成功結果は未確認である。
+これらのruntime検証を、現在のcore・WASI・consumerの組合せの認定へ読み替えない。
+関数属性一つとRustのasync/awaitを使い、並行枝の一呼出しasyncも許容する。
+新しい並行構文は増やさず、pin・task handle・joinの組立て・子の完了管理をruntimeへ置く。
 
 runtimeの中核はno_std・割当なし・caller-owned storageである。参加者は借用した値や
 所有値で直接宣言し、runtimeがFutureの配置・poll・キャンセル・子の終了待ちを担当する。
@@ -301,18 +348,16 @@ resource/event envelopeを検査し、レビューのintent・要求・実結果
 実行binaryに含まれるsealed RoleProgramの不変情報と、同じ実行の出現記録を照合する。
 受理・送信commit・受信commit、route選択とrollのvisit、委譲前後のactorを区別し、
 欠落した記録や一意に対応づかない出現から適合を認定しない。監査の履歴は操作権を与えない。
-EPFの`10b7f69e61ed0207840dd9a6184f8b86869f9532`（`feature/dynamic-audit`）は、
-本体`8792e63`の標準16-byte記録を使い、入力のEOFを待たずに1件ずつ観測を出力する。
-実Endpointの左右のresolver選択とroll再訪をEPFで読み、連番・lane・16-bit wire labelの
-保持を検査した。native31試験、strict-provenance Miri26試験、Clippy、no_std hostと
-thumbv6mのlibrary buildが同じsourceで成功した。失敗したload・存在しないpolicyのunload・
-revertが設定枠を消費する3経路は、修正前sourceで再現し、修正後に同じ試験を通した。
-観測CLIへpolicyを指定しても既定の観測へ黙って切り替えず、入力エラーを返す。
-raw/source、修正前の入力と結果は`runtime-array-input/epf/atomic-configuration`に保持する。
-EOF待ちだけを戻す変異によるライブ観測の検出力は、`epf/final`に保持する以前のsourceで確認した。
-未使用のscratch・内部history・raw storage構築経路も除去し、容量引数を二つにした。
-全子孫最大memoryは468,893,696bytes。実行中の観測に対応した段階であり、動的適合の認定や
-ChoreoFixの効果監査との接続はまだ含まない。
+EPFの`f27f8de46292d10c6b12fa194ba5fcaf33a781fe`（`feature/dynamic-audit`）は、
+本体`0356494`の標準16-byte記録を使い、入力のEOFを待たずに1件ずつ観測を出力する。
+VMからも観測連番を読み、連番による絞り込みを実CLIで検査した。actor、logical role、lane、
+16-bit source位置の解釈をEvidence schema 3へ固定し、古いschemaは有効なimageを置き換えずに拒否する。
+旧本体では連番が失われる回帰試験が失敗し、修正版ではnative32試験、strict-provenance Miri27試験、
+Clippy、docs、no_std host/thumbv6m buildが同じsourceで成功した。最大memoryは1,373,831,168bytes。
+source/rawと修正前の結果は`runtime-array-input/epf/commit-fields`に保持する。
+設定の失敗がpolicy枠を消費する3経路の修正前後の検査は`epf/atomic-configuration`、
+EOF待ちを戻すライブ観測の感度検査は`epf/final`へ対応付ける。観測CLIへpolicyを指定した場合も
+黙って既定の観測へ切り替えず拒否する。動的適合の認定やChoreoFixの効果監査との接続は含まない。
 現EPFは診断VMであり、この動的再生は未実装。現在のtapだけでは全commitと動的出現を
 一意に結ぶ情報が不足するため、先に観測契約とcompilerからの読み取りを補う。
 
@@ -587,7 +632,8 @@ coreのRust 2024、no_std、heap割当なし、caller storage、lockなしを維
 1,542eventの実Endpoint試験が成功している。後続`b38178a`は試験bufferのリーク修正であり、
 consumerの実行コードは変わらない。
 
-GitHub Actionsの残予算はなく、最終gateはローカルで確認する。
+10月末の検証はActions予算の制約でローカル実行した。11月1日からはActionsも再開し、
+公開したSHAのCIと、sourceを固定したローカル検証を区別して記録する。
 core `967a89bbbbb392387e70a74b579ecf39ec21b5c5`ではKani全319件が成功し、
 全子孫の最大memoryは2,647,310,336bytesだった。元の記号入力とunwinding検査を維持した。
 独立していた所有権の4証明を同じ検証入口へ統合した。本体の実行挙動は変更していない。
@@ -665,7 +711,8 @@ M3では旧nativeの進行管理・不要な入口・自作Pythonを除去し、
 既存のdirty sourceを保ち、同名packageの別checkoutでtarget directoryを共有しない。
 本体等の検証済み修正は開発branchへpushする。研究repoの現在sourceはGitHubの
 `development/endpoint-delegation`へ公開し、旧検証ログ・sourceコピー・build生成物は追加しない。
-GitHub Actionsの残予算はないため、必要な検査はローカルで実行し、進捗pushは`[skip ci]`を付ける。
+GitHub Actionsも利用し、公開したSHAに対する必須検査を起動する。以前のActions予算を
+理由に`[skip ci]`を常用しない。ローカル検証は引き続き実施し、CIの受付・実行中と成功を区別する。
 古いbuild・不要cache・未使用の実験成果物は削除し、profilerと論文に必要なraw証拠は保持する。
 ビルド成功後に毎回この整理を行い、置き換えたbinaryや未使用target、一時ログを溜めない。
 現在使う成果物・再利用するcacheと、未解決の反例・検証停止の証拠は残す。圧縮保管へ逃がさない。

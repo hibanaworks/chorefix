@@ -300,3 +300,10 @@ pub fn programs() -> Programs {
         backend_outcome_vm: project(&global),
     }
 }
+
+impl Programs {
+    pub(crate) fn observation(&self) -> serde_json::Value {
+        use crate::imp::projection::rows;
+        serde_json::json!({"type":"compiled_projection","format_version":1,"task":"8E","programs":[rows(&self.admin), rows(&self.backend), rows(&self.tester), rows(&self.database), rows(&self.test_env), rows(&self.database_resource), rows(&self.test_resource), rows(&self.admin_vm), rows(&self.backend_vm), rows(&self.tester_vm), rows(&self.admin_io), rows(&self.backend_io), rows(&self.tester_io), rows(&self.admin_outcome), rows(&self.backend_outcome), rows(&self.admin_outcome_vm), rows(&self.backend_outcome_vm)]})
+    }
+}

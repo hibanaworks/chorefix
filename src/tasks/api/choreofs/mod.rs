@@ -22,6 +22,7 @@ use hibana_wasip1_runtime::{GuestMemory, HibanaWasiGuestStorage};
 async fn run_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 3]) -> ShellResult<()> {
     use global::*;
     let p = programs();
+    bus.observe(p.observation());
     let ac = Validation::new();
     let bc = Validation::new();
     let tc = Validation::new();
@@ -83,32 +84,45 @@ async fn run_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 3]) -> Shell
     let aguest = astore.init(module, GuestMemory::new(&mut amemory), bindings())?;
     let bguest = bstore.init(module, GuestMemory::new(&mut bmemory), bindings())?;
     let tguest = tstore.init(module, GuestMemory::new(&mut tmemory), bindings())?;
-    #[localside]
-    localside::admin::run(&mut admin, bus, &ac);
-    #[localside]
-    localside::backend::run(&mut backend, bus, &bc);
-    #[localside]
-    localside::tester::run(&mut tester, bus, &tc, &result);
-    #[localside]
-    localside::resources::run(&mut database, database_resource);
-    #[localside]
-    localside::resources::run(&mut test_env, test_resource);
-    #[localside]
-    localside::outcome::admin::admin(&mut admin_outcome, &mut afile);
-    #[localside]
-    localside::outcome::backend::backend(&mut backend_outcome, &mut bfile);
-    #[localside]
-    localside::wasi::admin(aguest, &mut admin_vm, &mut admin_outcome_vm);
-    #[localside]
-    localside::private_io::run(&mut admin_io, afs);
-    #[localside]
-    localside::wasi::backend(bguest, &mut backend_vm, &mut backend_outcome_vm);
-    #[localside]
-    localside::private_io::run(&mut backend_io, bfs);
-    #[localside]
-    localside::wasi::tester(tguest, &mut tester_vm);
-    #[localside]
-    private_io::run(&mut tester_io, tfs);
+    async {
+        localside::admin::run(&mut admin, bus, &ac).await?;
+    };
+    async {
+        localside::backend::run(&mut backend, bus, &bc).await?;
+    };
+    async {
+        localside::tester::run(&mut tester, bus, &tc, &result).await?;
+    };
+    async {
+        localside::resources::run(&mut database, database_resource).await?;
+    };
+    async {
+        localside::resources::run(&mut test_env, test_resource).await?;
+    };
+    async {
+        localside::outcome::admin::admin(&mut admin_outcome, &mut afile).await?;
+    };
+    async {
+        localside::outcome::backend::backend(&mut backend_outcome, &mut bfile).await?;
+    };
+    async {
+        localside::wasi::admin(aguest, &mut admin_vm, &mut admin_outcome_vm).await?;
+    };
+    async {
+        localside::private_io::run(&mut admin_io, afs).await?;
+    };
+    async {
+        localside::wasi::backend(bguest, &mut backend_vm, &mut backend_outcome_vm).await?;
+    };
+    async {
+        localside::private_io::run(&mut backend_io, bfs).await?;
+    };
+    async {
+        localside::wasi::tester(tguest, &mut tester_vm).await?;
+    };
+    async {
+        private_io::run(&mut tester_io, tfs).await?;
+    };
     Ok(())
 }
 pub async fn run_stdio(module: &[u8]) -> ShellResult<()> {
@@ -138,4 +152,8 @@ pub async fn run_stdio(module: &[u8]) -> ShellResult<()> {
             .await?,
     }
     result
+}
+
+pub fn projection() -> serde_json::Value {
+    global::programs().observation()
 }

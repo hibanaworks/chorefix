@@ -29,11 +29,32 @@ fn bytes(message: &Value) -> Result<Vec<u8>> {
 }
 
 pub fn audit(path: &Path) -> Result<Value> {
-    use crate::philosopher_identity::{roles9e as e, roles9h as h, roles9m as m};
     let records = BufReader::new(File::open(path)?)
         .lines()
         .map(|line| Ok(serde_json::from_str::<Value>(&line?)?))
         .collect::<Result<Vec<_>>>()?;
+    let projection = crate::projection::load(path)?;
+    let mut result = check(&records, &projection)?;
+    result["source_events_sha256"] = json!(crate::evidence::digest(path)?);
+    result["compiled_projection_sha256"] = json!(crate::evidence::digest(
+        &path
+            .parent()
+            .ok_or("event directory")?
+            .join("projection.json"),
+    )?);
+    result["runtime_binary_sha256"] = projection["runtime_binary_sha256"].clone();
+    result["wire_validation"] =
+        json!("static compiled header membership; dynamic eligibility is not replayed");
+    Ok(result)
+}
+
+fn check(records: &[Value], projection: &Value) -> Result<Value> {
+    use crate::philosopher_identity::{roles9e as e, roles9h as h, roles9m as m};
+    crate::projection::frames(projection, records)?;
+    if projection["compiled"]["task"] != records.first().ok_or("empty evidence")?["message"]["task"]
+    {
+        return Err("compiled projection belongs to a different task".into());
+    }
     let fixture = &records.first().ok_or("empty evidence")?["message"];
     let actors = fixture["fixtures"].as_array().ok_or("fixtures")?;
     if fixture["terminal_review_failure"] != false {
@@ -153,7 +174,7 @@ pub fn audit(path: &Path) -> Result<Value> {
     let mut exits = BTreeSet::new();
     let mut verdict = false;
     let mut score = None;
-    for record in &records {
+    for record in records {
         let message = &record["message"];
         match (record["direction"].as_str(), message["type"].as_str()) {
             (Some("runtime"), Some("protocol_frame")) => {
@@ -498,6 +519,7 @@ fn send(output: &mut impl Write, value: &Value) -> Result<()> {
 
 pub fn check_mutants(path: &Path, output: &Path) -> Result<Value> {
     audit(path)?;
+    let projection = crate::projection::load(path)?;
     fs::create_dir(output)?;
     let records = BufReader::new(File::open(path)?)
         .lines()
@@ -505,6 +527,8 @@ pub fn check_mutants(path: &Path, output: &Path) -> Result<Value> {
         .collect::<Result<Vec<_>>>()?;
     let mut checked = Vec::new();
     for mutation in [
+        "wrong_frame_label",
+        "wrong_lane",
         "missing_request",
         "altered_frame",
         "forged_arguments",
@@ -516,127 +540,157 @@ pub fn check_mutants(path: &Path, output: &Path) -> Result<Value> {
         "consistent_wrong_session",
     ] {
         let mut copy = records.clone();
-        let index = copy
-            .iter()
-            .position(|r| {
-                let m = &r["message"];
-                match mutation {
-                    "missing_request" => {
-                        r["direction"] == "runtime"
-                            && m["type"] == "protocol_frame"
-                            && m["action"] == "receive"
-                            && m["source"] == 28
-                            && m["target"] == 0
-                    }
-                    "altered_frame" => {
-                        r["direction"] == "runtime"
-                            && m["type"] == "protocol_frame"
-                            && m["action"] == "receive"
-                    }
-                    "forged_arguments" => m["type"] == "execute",
-                    "forged_result" => {
-                        r["direction"] == "simulator" && m["type"] == "simulator_result"
-                    }
-                    "missing_exit" => m["type"] == "exit",
-                    "false_score" => m["type"] == "score",
-                    "response_before_second_request" => true,
-                    "consistent_unknown_private_role" => {
-                        r["direction"] == "runtime"
-                            && m["type"] == "protocol_frame"
-                            && m["source"].as_u64().is_some_and(|role| role >= 14)
-                            && m["target"].as_u64().is_some_and(|role| role >= 14)
-                    }
-                    "consistent_wrong_session" => m["type"] == "protocol_frame",
-                    _ => false,
-                }
-            })
-            .ok_or("mutation target missing")?;
-        match mutation {
-            "missing_request" | "missing_exit" => {
-                copy.remove(index);
-            }
-            "altered_frame" => copy[index]["message"]["source"] = json!(254),
-            "forged_arguments" => copy[index]["message"]["arguments"] = json!({"philosopher":42}),
-            "forged_result" => copy[index]["message"]["result"]["data"] = json!({"forged":true}),
-            "false_score" => {
-                copy[index]["message"]["complete"] = json!(
-                    !copy[index]["message"]["complete"]
-                        .as_bool()
-                        .ok_or("score completion")?
-                )
-            }
-            "response_before_second_request" => {
-                use crate::philosopher_identity::{roles9e, roles9h, roles9m};
-                let right = match records[0]["message"]["task"].as_str() {
-                    Some("9E") => roles9e::FORK_C_RESOURCE,
-                    Some("9M") => roles9m::FORK_E_RESOURCE,
-                    Some("9H") => roles9h::FORK_G_RESOURCE,
-                    _ => return Err("unknown dining task".into()),
-                };
-                let request = records
-                    .iter()
-                    .find(|r| {
-                        let m = &r["message"];
-                        m["type"] == "protocol_frame"
-                            && m["action"] == "send"
-                            && m["source"] == right
-                            && m["target"] == 0
-                    })
-                    .ok_or("actual right-resource request")?["message"]["frame_id"]
-                    .clone();
-                let moved = copy
-                    .iter()
-                    .filter(|r| {
-                        r["message"]["type"] == "protocol_frame"
-                            && r["message"]["frame_id"] == request
-                    })
-                    .cloned()
-                    .collect::<Vec<_>>();
-                copy.retain(|r| {
-                    !(r["message"]["type"] == "protocol_frame"
-                        && r["message"]["frame_id"] == request)
-                });
-                let after = copy
-                    .iter()
-                    .position(|r| {
-                        let m = &r["message"];
-                        m["type"] == "protocol_frame"
-                            && m["action"] == "receive"
-                            && m["source"] == 0
-                            && m["target"] == roles9e::FORK_A_RESOURCE
-                    })
-                    .ok_or("actual meal receipt")?
-                    + 1;
-                copy.splice(after..after, moved);
-            }
-            "consistent_unknown_private_role" => {
-                let id = copy[index]["message"]["frame_id"].clone();
-                for row in &mut copy {
-                    if row["message"]["type"] == "protocol_frame"
-                        && row["message"]["frame_id"] == id
-                    {
-                        row["message"]["source"] = json!(254);
-                    }
+        if matches!(mutation, "wrong_frame_label" | "wrong_lane") {
+            let frame = copy
+                .iter()
+                .find(|row| row["message"]["type"] == "protocol_frame")
+                .ok_or("frame for header mutation")?["message"]
+                .clone();
+            let field = if mutation == "wrong_frame_label" {
+                "frame_label"
+            } else {
+                "lane"
+            };
+            let replacement = if mutation == "wrong_frame_label" {
+                65535
+            } else {
+                (frame["lane"].as_u64().ok_or("observed lane")? + 1) % 256
+            };
+            for row in &mut copy {
+                if row["message"]["type"] == "protocol_frame"
+                    && row["message"]["frame_id"] == frame["frame_id"]
+                {
+                    row["message"][field] = json!(replacement);
                 }
             }
-            "consistent_wrong_session" => {
-                let id = copy[index]["message"]["frame_id"].clone();
-                for row in &mut copy {
-                    if row["message"]["type"] == "protocol_frame"
-                        && row["message"]["frame_id"] == id
-                    {
-                        row["message"]["session"] = json!(crate::philosopher_identity::SESSION + 1);
+        } else {
+            let index = copy
+                .iter()
+                .position(|r| {
+                    let m = &r["message"];
+                    match mutation {
+                        "missing_request" => {
+                            r["direction"] == "runtime"
+                                && m["type"] == "protocol_frame"
+                                && m["action"] == "receive"
+                                && m["source"] == 28
+                                && m["target"] == 0
+                        }
+                        "altered_frame" => {
+                            r["direction"] == "runtime"
+                                && m["type"] == "protocol_frame"
+                                && m["action"] == "receive"
+                        }
+                        "forged_arguments" => m["type"] == "execute",
+                        "forged_result" => {
+                            r["direction"] == "simulator" && m["type"] == "simulator_result"
+                        }
+                        "missing_exit" => m["type"] == "exit",
+                        "false_score" => m["type"] == "score",
+                        "response_before_second_request" => true,
+                        "consistent_unknown_private_role" => {
+                            r["direction"] == "runtime"
+                                && m["type"] == "protocol_frame"
+                                && m["source"].as_u64().is_some_and(|role| role >= 14)
+                                && m["target"].as_u64().is_some_and(|role| role >= 14)
+                        }
+                        "consistent_wrong_session" => m["type"] == "protocol_frame",
+                        _ => false,
+                    }
+                })
+                .ok_or("mutation target missing")?;
+            match mutation {
+                "missing_request" | "missing_exit" => {
+                    copy.remove(index);
+                }
+                "altered_frame" => copy[index]["message"]["source"] = json!(254),
+                "forged_arguments" => {
+                    copy[index]["message"]["arguments"] = json!({"philosopher":42})
+                }
+                "forged_result" => {
+                    copy[index]["message"]["result"]["data"] = json!({"forged":true})
+                }
+                "false_score" => {
+                    copy[index]["message"]["complete"] = json!(
+                        !copy[index]["message"]["complete"]
+                            .as_bool()
+                            .ok_or("score completion")?
+                    )
+                }
+                "response_before_second_request" => {
+                    use crate::philosopher_identity::{roles9e, roles9h, roles9m};
+                    let right = match records[0]["message"]["task"].as_str() {
+                        Some("9E") => roles9e::FORK_C_RESOURCE,
+                        Some("9M") => roles9m::FORK_E_RESOURCE,
+                        Some("9H") => roles9h::FORK_G_RESOURCE,
+                        _ => return Err("unknown dining task".into()),
+                    };
+                    let request = records
+                        .iter()
+                        .find(|r| {
+                            let m = &r["message"];
+                            m["type"] == "protocol_frame"
+                                && m["action"] == "send"
+                                && m["source"] == right
+                                && m["target"] == 0
+                        })
+                        .ok_or("actual right-resource request")?["message"]["frame_id"]
+                        .clone();
+                    let moved = copy
+                        .iter()
+                        .filter(|r| {
+                            r["message"]["type"] == "protocol_frame"
+                                && r["message"]["frame_id"] == request
+                        })
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    copy.retain(|r| {
+                        !(r["message"]["type"] == "protocol_frame"
+                            && r["message"]["frame_id"] == request)
+                    });
+                    let after = copy
+                        .iter()
+                        .position(|r| {
+                            let m = &r["message"];
+                            m["type"] == "protocol_frame"
+                                && m["action"] == "receive"
+                                && m["source"] == 0
+                                && m["target"] == roles9e::FORK_A_RESOURCE
+                        })
+                        .ok_or("actual meal receipt")?
+                        + 1;
+                    copy.splice(after..after, moved);
+                }
+                "consistent_unknown_private_role" => {
+                    let id = copy[index]["message"]["frame_id"].clone();
+                    for row in &mut copy {
+                        if row["message"]["type"] == "protocol_frame"
+                            && row["message"]["frame_id"] == id
+                        {
+                            row["message"]["source"] = json!(254);
+                        }
                     }
                 }
+                "consistent_wrong_session" => {
+                    let id = copy[index]["message"]["frame_id"].clone();
+                    for row in &mut copy {
+                        if row["message"]["type"] == "protocol_frame"
+                            && row["message"]["frame_id"] == id
+                        {
+                            row["message"]["session"] =
+                                json!(crate::philosopher_identity::SESSION + 1);
+                        }
+                    }
+                }
+                _ => unreachable!(),
             }
-            _ => unreachable!(),
         }
         let mutant_path = output.join(format!("{mutation}.jsonl"));
         let mut file = File::create(&mutant_path)?;
         for record in &copy {
             send(&mut file, record)?;
         }
-        let error = audit(&mutant_path)
+        let error = check(&copy, &projection)
             .err()
             .ok_or("audit accepted mutated evidence")?
             .to_string();

@@ -274,11 +274,10 @@ async fn case<const N: usize>(
             let guest = &guest;
             let simulator = &simulator;
             #[localside]
-            let result = runtime_loop;
-            #[localside]
             for (actor, output) in participants {
                 *output = drive(guest, simulator, actor, task).await?;
             }
+            let result = runtime_loop.await?;
             Ok(result)
         },
         hibana_runtime::host::deadline(Duration::from_secs(90)),

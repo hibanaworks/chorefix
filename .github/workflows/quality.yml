@@ -2,6 +2,7 @@ name: quality
 on:
   push:
   pull_request:
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
@@ -11,12 +12,19 @@ jobs:
     env:
       CARGO_INCREMENTAL: '0'
       CARGO_BUILD_JOBS: '1'
+      RUST_TEST_THREADS: '1'
       PYTHONHASHSEED: '0'
       PYO3_PYTHON: ${{ github.workspace }}/.venv/bin/python
+      HIBANA_RESOURCE_GUARD: ${{ github.workspace }}/validation-core/.github/scripts/lib/resource_guard.sh
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           submodules: true
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: hibanaworks/hibana
+          ref: c1d92129b0ae95572aaa53bb2e7455c20689bb43
+          path: validation-core
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
           python-version: '3.14'
@@ -25,13 +33,16 @@ jobs:
           rustup toolchain install stable --profile minimal --component clippy --component rustfmt
           rustup target add --toolchain stable wasm32-wasip1
       - name: Restore the recorded upstream sources
-        run: cargo +stable run --locked --manifest-path tools/inputs/Cargo.toml -- restore
+        run: >-
+          bash "$HIBANA_RESOURCE_GUARD"
+          cargo +stable run --locked --manifest-path tools/inputs/Cargo.toml -- restore
       - name: Install the locked Python environment
         run: |
           python -m venv .venv
           .venv/bin/python -m pip install -r requirements.lock
       - name: Check projected task implementations
         run: |
+          bash "$HIBANA_RESOURCE_GUARD" bash -euo pipefail <<'CHECKS'
           cargo +stable fmt --check
           cargo +stable fmt --manifest-path tools/inputs/Cargo.toml --check
           cargo +stable test --locked --manifest-path tools/inputs/Cargo.toml
@@ -46,90 +57,32 @@ jobs:
           cargo +stable test --locked --manifest-path proofs/endpoint-handoff/Cargo.toml --all-targets
           cargo +stable clippy --locked --manifest-path proofs/endpoint-handoff/Cargo.toml --all-targets -- -D warnings
           cargo +stable clippy --locked --manifest-path vendor/hibana-wash/Cargo.toml --target wasm32-wasip1 --release -- -D warnings
+          CHECKS
       - name: Check the actual receiver under Miri
         run: |
           rustup toolchain install nightly-2026-10-12 --profile minimal --component miri --component rust-src
-          MIRIFLAGS=-Zmiri-strict-provenance cargo +nightly-2026-10-12 miri test --locked --manifest-path proofs/endpoint-handoff/Cargo.toml --lib handoff:: -- --test-threads=1
+          MIRIFLAGS=-Zmiri-strict-provenance bash "$HIBANA_RESOURCE_GUARD" cargo +nightly-2026-10-12 miri test --locked --manifest-path proofs/endpoint-handoff/Cargo.toml --lib handoff:: -- --test-threads=1
       - name: Check the actual WASI and task effect boundary
         run: |
-          find src tests -type f -name '*.rs' -print0 | sort -z | xargs -0 shasum -a 256 > cicd-source-before.sha256
-          shasum -a 256 Cargo.toml Cargo.lock >> cicd-source-before.sha256
-          bash tools/build_shell.sh
-          find src tests -type f -name '*.rs' -print0 | sort -z | xargs -0 shasum -a 256 > cicd-source-after.sha256
-          shasum -a 256 Cargo.toml Cargo.lock >> cicd-source-after.sha256
-          cmp cicd-source-before.sha256 cicd-source-after.sha256
-          jq -n \
-            --arg binary_sha256 "$(shasum -a 256 target/debug/cicd-wasi | cut -d ' ' -f 1)" \
-            --arg source_manifest_sha256 "$(shasum -a 256 cicd-source-after.sha256 | cut -d ' ' -f 1)" \
-            '{binary_sha256:$binary_sha256,source_manifest:"cicd-source-after.sha256",source_manifest_sha256:$source_manifest_sha256,source_unchanged:true,scored_benchmark:false}' > cicd-build-receipt.json
-          CHOREOFIX_CICD_WASI_BINARY="$PWD/target/debug/cicd-wasi" \
-            CHOREOFIX_CICD_BUILD_RECEIPT="$PWD/cicd-build-receipt.json" \
-            CHOREOFIX_EVIDENCE_ROOT="$PWD/output/cicd-boundary" \
-            cargo +stable test --locked --manifest-path tools/runner/Cargo.toml cicd_boundary:: -- --ignored --test-threads=1 --nocapture
-          jq -n \
-            --arg binary_sha256 "$(shasum -a 256 target/debug/api-wasi | cut -d ' ' -f 1)" \
-            --arg source_manifest_sha256 "$(shasum -a 256 cicd-source-after.sha256 | cut -d ' ' -f 1)" \
-            '{binary_sha256:$binary_sha256,source_manifest:"cicd-source-after.sha256",source_manifest_sha256:$source_manifest_sha256,source_unchanged:true,scored_benchmark:false}' > api-build-receipt.json
-          CHOREOFIX_API_WASI_BINARY="$PWD/target/debug/api-wasi" \
-            CHOREOFIX_API_BUILD_RECEIPT="$PWD/api-build-receipt.json" \
-            CHOREOFIX_EVIDENCE_ROOT="$PWD/output/api-boundary" \
-            cargo +stable test --locked --manifest-path tools/runner/Cargo.toml api_boundary:: -- --ignored --test-threads=1 --nocapture
-          jq -n \
-            --arg binary_sha256 "$(shasum -a 256 target/debug/codebase-wasi | cut -d ' ' -f 1)" \
-            --arg source_manifest_sha256 "$(shasum -a 256 cicd-source-after.sha256 | cut -d ' ' -f 1)" \
-            '{binary_sha256:$binary_sha256,source_manifest:"cicd-source-after.sha256",source_manifest_sha256:$source_manifest_sha256,source_unchanged:true,scored_benchmark:false}' > codebase-build-receipt.json
-          CHOREOFIX_CODEBASE_WASI_BINARY="$PWD/target/debug/codebase-wasi" \
-            CHOREOFIX_CODEBASE_BUILD_RECEIPT="$PWD/codebase-build-receipt.json" \
-            CHOREOFIX_EVIDENCE_ROOT="$PWD/output/codebase-boundary" \
-            cargo +stable test --locked --manifest-path tools/runner/Cargo.toml codebase_boundary:: -- --ignored --test-threads=1 --nocapture
-          jq -n \
-            --arg binary_sha256 "$(shasum -a 256 target/debug/writing-wasi | cut -d ' ' -f 1)" \
-            --arg source_manifest_sha256 "$(shasum -a 256 cicd-source-after.sha256 | cut -d ' ' -f 1)" \
-            '{binary_sha256:$binary_sha256,source_manifest:"cicd-source-after.sha256",source_manifest_sha256:$source_manifest_sha256,source_unchanged:true,scored_benchmark:false}' > writing-build-receipt.json
-          CHOREOFIX_WRITING_WASI_BINARY="$PWD/target/debug/writing-wasi" \
-            CHOREOFIX_WRITING_BUILD_RECEIPT="$PWD/writing-build-receipt.json" \
-            CHOREOFIX_EVIDENCE_ROOT="$PWD/output/writing-boundary" \
-            cargo +stable test --locked --manifest-path tools/runner/Cargo.toml writing_boundary:: -- --ignored --test-threads=1 --nocapture
-          jq -n \
-            --arg binary_sha256 "$(shasum -a 256 target/debug/philosophers-wasi | cut -d ' ' -f 1)" \
-            --arg source_manifest_sha256 "$(shasum -a 256 cicd-source-after.sha256 | cut -d ' ' -f 1)" \
-            '{binary_sha256:$binary_sha256,source_manifest:"cicd-source-after.sha256",source_manifest_sha256:$source_manifest_sha256,source_unchanged:true,scored_benchmark:false}' > philosophers-build-receipt.json
-          CHOREOFIX_PHILOSOPHERS_WASI_BINARY="$PWD/target/debug/philosophers-wasi" \
-            CHOREOFIX_PHILOSOPHERS_BUILD_RECEIPT="$PWD/philosophers-build-receipt.json" \
-            CHOREOFIX_EVIDENCE_ROOT="$PWD/output/philosophers-boundary" \
-            cargo +stable test --locked --manifest-path tools/runner/Cargo.toml philosophers_boundary:: -- --ignored --test-threads=1 --nocapture
+          bash "$HIBANA_RESOURCE_GUARD" bash -euo pipefail <<'CHECKS'
+          cargo +stable build --locked --manifest-path tools/runner/Cargo.toml
+          tools/runner/target/debug/choreofix-experiments --qualify-wasi "$PWD/output/wasi-boundary"
           cargo +stable test --locked --manifest-path tools/runner/Cargo.toml oracle::tests::original_tool_exception_reaches_rust_without_effects_or_a_hung_reply -- --ignored --test-threads=1 --nocapture
           cargo +stable test --locked --manifest-path tools/runner/Cargo.toml oracle::tests::codebase_simulator_allows_independent_work_and_reports_shared_module_overlap -- --ignored --test-threads=1 --nocapture
-          jq -n \
-            --arg binary_sha256 "$(shasum -a 256 target/debug/review-wasi | cut -d ' ' -f 1)" \
-            --arg source_manifest_sha256 "$(shasum -a 256 cicd-source-after.sha256 | cut -d ' ' -f 1)" \
-            '{binary_sha256:$binary_sha256,source_manifest:"cicd-source-after.sha256",source_manifest_sha256:$source_manifest_sha256,source_unchanged:true,scored_benchmark:false}' > review-build-receipt.json
-          CHOREOFIX_REVIEW_WASI_BINARY="$PWD/target/debug/review-wasi" \
-            CHOREOFIX_REVIEW_BUILD_RECEIPT="$PWD/review-build-receipt.json" \
-            CHOREOFIX_EVIDENCE_ROOT="$PWD/output/review-boundary" \
-            cargo +stable test --locked --manifest-path tools/runner/Cargo.toml review_boundary:: -- --ignored --test-threads=1 --nocapture
           cargo +stable run --locked --manifest-path tools/inputs/Cargo.toml -- verify
           cargo +stable run --locked --manifest-path tools/inputs/Cargo.toml -- matrix --check
+          CHECKS
       - name: Inspect hibana-wash imports and memory
-        run: |
-          cargo +stable run --locked --manifest-path tools/inputs/Cargo.toml -- wash vendor/hibana-wash/target/wasm32-wasip1/release/hibana-wash.wasm > wash-profile.json
+        run: >-
+          bash "$HIBANA_RESOURCE_GUARD"
+          cargo +stable run --locked --manifest-path tools/inputs/Cargo.toml -- wash
+          vendor/hibana-wash/target/wasm32-wasip1/release/hibana-wash.wasm > wash-profile.json
       - name: Retain direct WASI boundary evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: direct-wasi-boundary
           path: |
-            output/writing-boundary/
-            writing-build-receipt.json
-            output/codebase-boundary/
-            codebase-build-receipt.json
-            output/philosophers-boundary/
-            output/api-boundary/
-            api-build-receipt.json
-            output/writing-rust-runner-probe*/
-            output/cicd-boundary/
-            cicd-source-*.sha256
-            cicd-build-receipt.json
-            output/review-boundary/
-            review-build-receipt.json
+            output/wasi-boundary/
+            wash-profile.json
           if-no-files-found: ignore

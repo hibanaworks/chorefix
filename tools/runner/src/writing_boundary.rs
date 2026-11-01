@@ -156,6 +156,7 @@ async fn all_writing_levels_use_actual_section_endpoints() -> Result<()> {
         ] {
             let output = directory.join(format!("{task}-{name}"));
             fs::create_dir(&output)?;
+            let projection = crate::projection::archive(&runtime, &output, task)?;
             let trace = Trace::create(&output.join("events.jsonl"))?;
             let failures = if terminal {
                 vec![("review_own_work", 0)]
@@ -168,6 +169,8 @@ async fn all_writing_levels_use_actual_section_endpoints() -> Result<()> {
                 &output.join("case.json"),
                 &json!({"task":task,"depth":depth,"domain_delay_multiplier":delay,"external_failure_specs":failures,
                 "test_barriers":"none","model_calls":0,"scored_benchmark":false,"build":receipt,"wasm_sha256":digest(wasm)?,
+                "runtime_binary_sha256":projection["runtime_binary_sha256"],
+                "compiled_projection_sha256":digest(&output.join("projection.json"))?,
                 "harness_binary_sha256":digest(&std::env::current_exe()?)?,"harness_source_sha256":digest(Path::new("tools/runner/src/writing_boundary.rs"))?,
                 "oracle_source_sha256":digest(Path::new("tools/runner/src/oracle.rs"))?,"audit_source_sha256":digest(Path::new("tools/runner/src/writing_audit.rs"))?}),
             )?;
@@ -176,8 +179,6 @@ async fn all_writing_levels_use_actual_section_endpoints() -> Result<()> {
             let actors = fixture["fixtures"].as_array().ok_or("actors")?.clone();
             let result = hibana_runtime::race(
                 async {
-                    #[localside]
-                    let result = runtime_loop;
                     async {
                         match task {
                             "2E" => {
@@ -210,6 +211,7 @@ async fn all_writing_levels_use_actual_section_endpoints() -> Result<()> {
                             _ => return Err("unknown writing task".into()),
                         };
                     };
+                    let result = runtime_loop.await?;
                     Ok(result)
                 },
                 hibana_runtime::host::deadline(Duration::from_secs(120)),

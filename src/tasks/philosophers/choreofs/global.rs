@@ -388,3 +388,24 @@ pub fn project_9h() -> Programs9H {
         resource_g: project(&protocol),
     }
 }
+
+impl Programs9E {
+    pub(crate) fn observation(&self) -> serde_json::Value {
+        use crate::imp::projection::rows;
+        serde_json::json!({"type":"compiled_projection","format_version":1,"task":"9E","programs":[rows(&self.a), rows(&self.fork_a), rows(&self.a_wasi), rows(&self.a_io), rows(&self.resource_a), rows(&self.b), rows(&self.fork_b), rows(&self.b_wasi), rows(&self.b_io), rows(&self.resource_b), rows(&self.c), rows(&self.fork_c), rows(&self.c_wasi), rows(&self.c_io), rows(&self.resource_c)]})
+    }
+}
+
+impl Programs9M {
+    pub(crate) fn observation(&self) -> serde_json::Value {
+        use crate::imp::projection::rows;
+        serde_json::json!({"type":"compiled_projection","format_version":1,"task":"9M","programs":[rows(&self.a), rows(&self.fork_a), rows(&self.a_wasi), rows(&self.a_io), rows(&self.resource_a), rows(&self.b), rows(&self.fork_b), rows(&self.b_wasi), rows(&self.b_io), rows(&self.resource_b), rows(&self.c), rows(&self.fork_c), rows(&self.c_wasi), rows(&self.c_io), rows(&self.resource_c), rows(&self.d), rows(&self.fork_d), rows(&self.d_wasi), rows(&self.d_io), rows(&self.resource_d), rows(&self.e), rows(&self.fork_e), rows(&self.e_wasi), rows(&self.e_io), rows(&self.resource_e)]})
+    }
+}
+
+impl Programs9H {
+    pub(crate) fn observation(&self) -> serde_json::Value {
+        use crate::imp::projection::rows;
+        serde_json::json!({"type":"compiled_projection","format_version":1,"task":"9H","programs":[rows(&self.a), rows(&self.fork_a), rows(&self.a_wasi), rows(&self.a_io), rows(&self.resource_a), rows(&self.b), rows(&self.fork_b), rows(&self.b_wasi), rows(&self.b_io), rows(&self.resource_b), rows(&self.c), rows(&self.fork_c), rows(&self.c_wasi), rows(&self.c_io), rows(&self.resource_c), rows(&self.d), rows(&self.fork_d), rows(&self.d_wasi), rows(&self.d_io), rows(&self.resource_d), rows(&self.e), rows(&self.fork_e), rows(&self.e_wasi), rows(&self.e_io), rows(&self.resource_e), rows(&self.f), rows(&self.fork_f), rows(&self.f_wasi), rows(&self.f_io), rows(&self.resource_f), rows(&self.g), rows(&self.fork_g), rows(&self.g_wasi), rows(&self.g_io), rows(&self.resource_g)]})
+    }
+}
