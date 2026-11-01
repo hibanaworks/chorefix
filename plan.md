@@ -337,6 +337,39 @@ native、Clippy、Miri、Lean/Z3、Pico 2の確認を含む。WASIのproduction 
 `e9bcf88`と同じで、変更は開発用runtimeのmanifest/lockだけである。
 アプリとhandoff検証crateもこのWASI pinへ更新する。このCI成功を、ChoreoFix全familyの
 実Wasm再認定や本体の最終source全gate成功へ読み替えない。
+同じ`18da231`でローカル全gateも成功した。native lib83件・利用例8件、doctest6件、
+strict-provenance Miriのlib81件・利用例8件、Lean/Z3、実Wasmシェル、Pico 2、packageを確認した。
+全子孫最大memoryは1,189,691,392bytes。開始前後の全tracked sourceのhashは一致した。
+
+本体のoffer修正は`f542167`へ公開し、検証用差分の書式だけを直した`8ecc7b1`を固定した。
+dropしたpreviewの保持データと、実行中Futureの借用を分け、別のtyped操作を通常の進行検査へ渡す。
+入れ子のrollを含む生成ケースは、600完走記録・64,008の通常操作試行とparked-preview試行で
+sourceとの差が0件だった。旧productionへ戻すと同じ生成入力のshape 24がsendの
+`PhaseInvariant`で失敗した。初期の感度wrapperは後段のmodel mismatchだけを要求していたため、
+実際に先行するこの実行時失敗を検査する形へ訂正した。最終版でのwrapper再実行も全gateへ含める。
+`8ecc7b1`のCIでは、保持中のpreview frameと異なる枝のtyped receiveが同じRxを
+再pollしてpanicする問題が生成試験で見つかった。2ロールの短い例でも再現し、`4fb3868`で
+保持中のFIFO headを新たなpoll対象から除外した。独立laneの受信とPendingからの再開は保つ。
+実Endpoint17試験、strict-provenance Miri2試験、Lean9定理とZ3の5組を確認した。
+生成6形状の通常3,510試行・parked-preview384試行でsourceとの差は0件であり、
+この修正だけを戻すと同じ生成入力のshape 18が元のRx再pollのpanicを検出した。
+phase表の証明は保持frameのRx借用を扱っていなかったため、lane除外のモデルを補った。
+現在は`4fb3868`に対して、protocol fuzz・32分割の生成検査・Kani・Miri・形式検証等の
+ローカル全gateを実行している。旧版で中断したKaniを全件成功とは扱わず、consumerの
+core pinも全gate完了前には更新していない。
+
+runtimeの配列child属性の欠落は`2a6a24c`で修正済み。子のcfgを保持し、無効な子の
+入力評価・patternのdropは保つ。同一sourceのローカル全gateとMac・ARM Linux両CIが
+成功した。native144試験、compile入力16件、strict-provenance Miri115試験と既存の
+Lean/Z3、no_std/Pico link等を含み、全子孫最大memoryは1,369,489,408bytesだった。
+mainをこの版へ統一し、検証用branchは削除した。アプリ・runner・handoff検証crateと
+WASIの開発用runtimeもこのpinへ揃える。WASIの新pinは`6314831`で、production sourceは
+`18da231`と同じである。この新しいconsumerの組合せの全認定はまだ完了していない。
+
+ChoreoFixの`eff88e2`のCIは、native・Clippy・receiverのMiriを通過し、実Wasmの
+codebase群5試験を871.36秒で完了した後、writing群の途中でjob全体の45分制限に達した。
+全75条件の成功とは扱わない。各試験のdeadlineとmemory guardを変えず、job全体の
+時間枠を90分にして再実行する。比較実験やモデル利用の結果には算入しない。
 
 runtimeの中核はno_std・割当なし・caller-owned storageである。参加者は借用した値や
 所有値で直接宣言し、runtimeがFutureの配置・poll・キャンセル・子の終了待ちを担当する。
