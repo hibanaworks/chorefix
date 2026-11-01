@@ -11,7 +11,7 @@ use hibana_wasip1_runtime::{
     protocol,
 };
 
-#[hibana_runtime::localside]
+#[hibana_runtime::scope]
 pub async fn run<const ROLE: u8>(
     endpoint: &mut hibana::Endpoint<ROLE>,
     mut io: PrivateFs,

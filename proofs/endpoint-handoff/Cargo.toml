@@ -7,7 +7,7 @@ publish = false
 [dependencies]
 hibana = { git = "https://github.com/hibanaworks/hibana", rev = "c1d92129b0ae95572aaa53bb2e7455c20689bb43", version = "=0.10.0" }
 hibana-wasip1-runtime = { git = "https://github.com/hibanaworks/hibana-wasip1-runtime", rev = "e9bcf88d10de0dc92e08fef0f18f42e9d94ba3ad" }
-hibana-runtime = { git = "https://github.com/hibanaworks/hibana-runtime", rev = "3ded31b88fa7dd7fc2f63a70cb07364984ccba4a", features = ["host"] }
+hibana-runtime = { git = "https://github.com/hibanaworks/hibana-runtime", rev = "68966541e71e7701e9edec6d0696d5da9ac76927", features = ["host"] }
 serde_json = "=1.0.154"
 
 [workspace]

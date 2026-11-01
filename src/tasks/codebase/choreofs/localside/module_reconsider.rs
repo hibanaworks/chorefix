@@ -3,7 +3,7 @@ use super::super::global::{Loan, ModuleTestResult};
 use crate::shell::{ShellError, ShellResult};
 use hibana::Endpoint;
 
-#[hibana_runtime::localside]
+#[hibana_runtime::scope]
 pub(crate) async fn run<
     'r,
     const ROLE: u8,

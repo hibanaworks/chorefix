@@ -18,7 +18,7 @@ use crate::{
 };
 use hibana::runtime::{SessionKitStorage, ids::SessionId};
 use hibana_wasip1_runtime::{GuestMemory, HibanaWasiGuestStorage};
-#[hibana_runtime::localside]
+#[hibana_runtime::scope]
 async fn run_1e_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 3]) -> ShellResult<()> {
     use global::{roles1e::*, *};
     let programs = project_1e();
@@ -104,7 +104,7 @@ async fn run_1e_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 3]) -> Sh
     };
     Ok(())
 }
-#[hibana_runtime::localside]
+#[hibana_runtime::scope]
 async fn run_1m_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 5]) -> ShellResult<()> {
     use global::{roles1m::*, *};
     let programs = project_1m();
@@ -317,7 +317,7 @@ pub async fn run_stdio(module: &[u8], task: &str) -> ShellResult<()> {
     }
 }
 
-#[hibana_runtime::localside]
+#[hibana_runtime::scope]
 async fn run_1h_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 7]) -> ShellResult<()> {
     use global::{roles1h::*, *};
     use hibana::runtime::resolver::ResolverRef;

@@ -302,10 +302,34 @@ Lean/Z3、Clippy、no_std/Pico linkを含む全gateが同じsourceで成功し�
 取得するようにした。試験のstack予算・入力数・コンパイル拒否条件は変えていない。
 Macの同一source全gateは成功し、Linuxも同じstack試験を通過した。旧Z3での定数配列の
 logic指定を修正した`3ded31b`は[Mac・Linux両CIの全gate](https://github.com/hibanaworks/hibana-runtime/actions/runs/41272640920)が成功した。
-この修正版をアプリ・runner・handoff検証crateで選択する。
+この時点では、この修正版をアプリ・runner・handoff検証crateで選択した。現在のpinはmanifest/lockを正とする。
 これらのruntime検証を、現在のcore・WASI・consumerの組合せの認定へ読み替えない。
 関数属性一つとRustのasync/awaitを使い、並行枝の一呼出しasyncも許容する。
 新しい並行構文は増やさず、pin・task handle・joinの組立て・子の完了管理をruntimeへ置く。
+
+2026-11-01のinterface更新では、runtimeの関数属性を`scope`へ揃え、枝や結果の宣言ごとの
+属性を削除した。並行処理は`async { ... };`、値の合流はその子を並べたasync本体の
+`.await?`で書く。成功値は宣言順に返し、固定配列は実際のNの配列を返す。
+明示した親の返値、早期return、error、借用の解放を保ち、結果receiverや追加wakerは置かない。
+`baf9f41`の[Mac・ARM Linux両CI](https://github.com/hibanaworks/hibana-runtime/actions/runs/41284637777)は成功した。
+
+consumerで露呈した常駐I/Oの成功型の推論不足もruntime側で修正した。`6896654`では、
+成功値を利用しないerror-only loopへunitの文脈を与え、値を返すloopとlabel付きbreak値を保つ。
+両方向の回帰入力は修正前に失敗した。同一sourceの全gateが成功し、native134試験
+（再帰起動するhelperの重複を除く）、compile入力15件、strict-provenance Miri105試験、
+Clippy、doctests、実Endpointの別process例、Lean/Z3、no_std/Pico linkを確認した。
+全子孫の最大memoryは698,941,440bytes。`6896654`の[Mac・ARM Linux両CI](https://github.com/hibanaworks/hibana-runtime/actions/runs/41285432031)も成功した。既存のLean/Z3はschedulerの性質の検査であり、
+macro変換全体のrefinementを証明したとは扱わない。
+4KiB入力二つは8,264bytes、三つの配列入力は12,376bytesで、既存の保存領域予算内だった。
+
+アプリ・runner・handoff検証crateのruntime pinをこの公開版へ更新した。各localsideの
+結果用の属性と不要な中間bindingを除き、Endpoint操作を直接書くasync枝から値を返す。
+globalとEndpoint操作順は変更していない。通常Git依存のhandoff検証は12試験が成功し、
+全子孫最大memoryは377,716,736bytesだった。これはnativeの実Endpoint試験で、
+モデル呼出し0件。さらにアプリ通常試験41件、runner通常試験31件とrunnerのClippyが成功した。
+アプリ通常試験の全子孫最大memoryは1,721,173,960bytes、runnerは681,492,480bytesだった。
+実Wasmの全条件と実モデルの再認定は未完であり、この通常試験に算入しない。
+記録とsource hashは`output/review-occurrence-qualification/runtime-scope-values/`へ保持する。
 
 runtimeの中核はno_std・割当なし・caller-owned storageである。参加者は借用した値や
 所有値で直接宣言し、runtimeがFutureの配置・poll・キャンセル・子の終了待ちを担当する。

@@ -6,7 +6,7 @@ use hibana::runtime::{SessionKitStorage, ids::SessionId, resolver::ResolverRef};
 pub use imp::{Domain, Operation, Request};
 use imp::{ReviewInput, decide};
 
-#[hibana_runtime::localside]
+#[hibana_runtime::scope]
 pub async fn run_3e<D: Domain>(domain: &D) -> Result<Vec<serde_json::Value>, RunError<String>> {
     let p = global::project_3e();
     let review_a = ReviewInput::default();
@@ -35,16 +35,21 @@ pub async fn run_3e<D: Domain>(domain: &D) -> Result<Vec<serde_json::Value>, Run
     let mut document = rv.enter(session, &p.document).map_err(RunError::Attach)?;
     let mut database = rv.enter(session, &p.database).map_err(RunError::Attach)?;
     async {
-        #[localside]
-        localside::author::author_a(&mut a, domain);
-        #[localside]
-        localside::author::author_b(&mut b, domain);
-        #[localside]
-        localside::editor::run(&mut editor, domain, &review_a, &review_b);
-        #[localside]
-        localside::resources::document(&mut document);
-        #[localside]
-        localside::resources::database(&mut database);
+        async {
+            localside::author::author_a(&mut a, domain).await?;
+        };
+        async {
+            localside::author::author_b(&mut b, domain).await?;
+        };
+        async {
+            localside::editor::run(&mut editor, domain, &review_a, &review_b).await?;
+        };
+        async {
+            localside::resources::document(&mut document).await?;
+        };
+        async {
+            localside::resources::database(&mut database).await?;
+        };
         Ok(())
     }
     .await?;

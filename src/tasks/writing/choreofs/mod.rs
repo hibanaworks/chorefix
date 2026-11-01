@@ -20,7 +20,7 @@ use hibana::runtime::{SessionKitStorage, ids::SessionId, resolver::ResolverRef};
 use hibana_wasip1_runtime::{GuestMemory, HibanaWasiGuestStorage};
 use localside::researcher::Assignment;
 
-#[hibana_runtime::localside]
+#[hibana_runtime::scope]
 async fn run_2e_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 3]) -> ShellResult<()> {
     use global::{roles2e::*, *};
     let programs = project_2e();
@@ -157,7 +157,7 @@ async fn run_2e_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 3]) -> Sh
     Ok(())
 }
 
-#[hibana_runtime::localside]
+#[hibana_runtime::scope]
 async fn run_2m_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 5]) -> ShellResult<()> {
     use global::{roles2m::*, *};
     let programs = project_2m();
@@ -376,7 +376,7 @@ async fn run_2m_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 5]) -> Sh
     Ok(())
 }
 
-#[hibana_runtime::localside]
+#[hibana_runtime::scope]
 async fn run_2h_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 7]) -> ShellResult<()> {
     use global::{roles2h::*, *};
     let programs = project_2h();

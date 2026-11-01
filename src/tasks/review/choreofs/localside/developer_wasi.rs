@@ -11,7 +11,7 @@ use hibana_wasip1_runtime::{
 };
 use serde_json::{Value, json};
 
-#[hibana_runtime::localside]
+#[hibana_runtime::scope]
 pub async fn run<const ROLE: u8>(
     guest: &mut HibanaWasiGuest,
     endpoint: &mut hibana::Endpoint<ROLE>,

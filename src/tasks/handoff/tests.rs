@@ -70,23 +70,22 @@ async fn a_failed_candidate_moves_to_b_and_both_resources_guard_the_actual_commi
         async {
             Ok::<_, std::io::Error>(
                 async {
-                    #[localside]
-                    let (first, second, third, fourth, fifth, sixth) = (
-                        localside::initial(
+                    async {
+                        (localside::initial(
                             &mut a,
                             r,
                             Artifact {
                                 value: 1,
                                 ..initial
                             },
-                        ),
-                        localside::recover(&mut b, [3, 6]),
-                        localside::independent(&mut c, 10),
-                        localside::service(&mut store, &mut repository, &result),
-                        localside::auxiliary(&mut aux),
-                        localside::second_owner(&mut owner, s),
-                    );
-                    Ok((first, second, third, fourth, fifth, sixth))
+                        ))
+                        .await
+                    };
+                    async { (localside::recover(&mut b, [3, 6])).await };
+                    async { (localside::independent(&mut c, 10)).await };
+                    async { (localside::service(&mut store, &mut repository, &result)).await };
+                    async { (localside::auxiliary(&mut aux)).await };
+                    async { (localside::second_owner(&mut owner, s)).await };
                 }
                 .await,
             )
@@ -231,67 +230,59 @@ async fn old_approval_wrong_target_and_changed_arguments_never_publish()
                             },
                             async {
                                 let result = async {
-                                    #[localside]
-                                    let (first, second, third, fourth, fifth) = (
-                                        async {
-                                            let mut r = r;
-                                            r.send::<Prepare>(
-                                                &Artifact {
-                                                    value: 1,
-                                                    ..initial
-                                                }
-                                                .bytes(),
-                                            )
-                                            .await?;
-                                            let prepared = r.recv::<Prepared>().await?;
-                                            r.send::<Inspect>(&prepared).await?;
-                                            let checked = r.recv::<Inspected>().await?;
-                                            a.send::<Context>(&checked).await?;
-                                            a.send::<LoanR>(r).await?;
-                                            let checked = a.recv::<CandidateReady>().await?;
-                                            let mut r = a.recv::<LoanR>().await?;
-                                            a.send::<CandidateReady>(&checked).await?;
-                                            r.offer().await?.recv::<CommitReady>().await?;
-                                            r.send::<CommitR>(&first.bytes()).await?;
-                                            let published = r.recv::<CommittedR>().await?;
-                                            Err::<Artifact, _>(crate::shell::ShellError::message(
-                                                format!(
-                                                    "forged commit materialized: {published:?}"
-                                                ),
-                                            ))
-                                        },
-                                        async {
-                                            let context =
-                                                Verification::decode(b.recv::<Context>().await?)?;
-                                            let mut r = b.recv::<LoanR>().await?;
-                                            r.send::<Revise>(
-                                                &Artifact {
-                                                    value: 2,
-                                                    ..context.artifact
-                                                }
-                                                .bytes(),
-                                            )
-                                            .await?;
-                                            let artifact = r.recv::<Revised>().await?;
-                                            r.send::<Reinspect>(&artifact).await?;
-                                            let checked = r.offer().await?.recv::<Passed>().await?;
-                                            r.send::<CandidateReady>(&checked).await?;
-                                            b.send::<LoanR>(r).await?;
-                                            b.offer().await?.recv::<CommitReady>().await?;
-                                            let mut s = b.recv::<LoanS>().await?;
-                                            s.send::<CommitS>(&second.bytes()).await?;
-                                            let published = s.recv::<CommittedS>().await?;
-                                            Err::<(), _>(crate::shell::ShellError::message(
-                                                format!(
-                                                    "forged commit materialized: {published:?}"
-                                                ),
-                                            ))
-                                        },
-                                        localside::independent(&mut c, 10),
-                                        localside::auxiliary(&mut aux),
-                                        localside::second_owner(&mut owner, s),
-                                    );
-                                    Ok((first, second, third, fourth, fifth))
+                                    async {
+                                        let mut r = r;
+                                        r.send::<Prepare>(
+                                            &Artifact {
+                                                value: 1,
+                                                ..initial
+                                            }
+                                            .bytes(),
+                                        )
+                                        .await?;
+                                        let prepared = r.recv::<Prepared>().await?;
+                                        r.send::<Inspect>(&prepared).await?;
+                                        let checked = r.recv::<Inspected>().await?;
+                                        a.send::<Context>(&checked).await?;
+                                        a.send::<LoanR>(r).await?;
+                                        let checked = a.recv::<CandidateReady>().await?;
+                                        let mut r = a.recv::<LoanR>().await?;
+                                        a.send::<CandidateReady>(&checked).await?;
+                                        r.offer().await?.recv::<CommitReady>().await?;
+                                        r.send::<CommitR>(&first.bytes()).await?;
+                                        let published = r.recv::<CommittedR>().await?;
+                                        Err::<Artifact, _>(crate::shell::ShellError::message(
+                                            format!("forged commit materialized: {published:?}"),
+                                        ))
+                                    };
+                                    async {
+                                        let context =
+                                            Verification::decode(b.recv::<Context>().await?)?;
+                                        let mut r = b.recv::<LoanR>().await?;
+                                        r.send::<Revise>(
+                                            &Artifact {
+                                                value: 2,
+                                                ..context.artifact
+                                            }
+                                            .bytes(),
+                                        )
+                                        .await?;
+                                        let artifact = r.recv::<Revised>().await?;
+                                        r.send::<Reinspect>(&artifact).await?;
+                                        let checked = r.offer().await?.recv::<Passed>().await?;
+                                        r.send::<CandidateReady>(&checked).await?;
+                                        b.send::<LoanR>(r).await?;
+                                        b.offer().await?.recv::<CommitReady>().await?;
+                                        let mut s = b.recv::<LoanS>().await?;
+                                        s.send::<CommitS>(&second.bytes()).await?;
+                                        let published = s.recv::<CommittedS>().await?;
+                                        Err::<(), _>(crate::shell::ShellError::message(format!(
+                                            "forged commit materialized: {published:?}"
+                                        )))
+                                    };
+                                    async { (localside::independent(&mut c, 10)).await };
+                                    async { (localside::auxiliary(&mut aux)).await };
+                                    async { (localside::second_owner(&mut owner, s)).await };
                                 }
                                 .await;
                                 Err::<(), crate::shell::ShellError>(
@@ -375,81 +366,76 @@ async fn a_missing_second_request_keeps_the_effect_pending_then_can_complete()
         async {
             Ok::<_, std::io::Error>(
                 async {
-                    #[localside]
-                    let (actual, independent, service, auxiliary, owner) = (
-                        async {
-                            let mut r = r;
-                            r.send::<Prepare>(
-                                &Artifact {
-                                    value: 1,
-                                    ..initial
-                                }
-                                .bytes(),
-                            )
-                            .await?;
-                            let prepared = r.recv::<Prepared>().await?;
-                            r.send::<Inspect>(&prepared).await?;
-                            let checked = r.recv::<Inspected>().await?;
-                            a.send::<Context>(&checked).await?;
-                            a.send::<LoanR>(r).await?;
-                            let context = Verification::decode(b.recv::<Context>().await?)?;
-                            let mut r = b.recv::<LoanR>().await?;
-                            r.send::<Revise>(
-                                &Artifact {
-                                    value: 2,
-                                    ..context.artifact
-                                }
-                                .bytes(),
-                            )
-                            .await?;
-                            let artifact = r.recv::<Revised>().await?;
-                            r.send::<Reinspect>(&artifact).await?;
-                            let checked = r.offer().await?.recv::<Passed>().await?;
-                            r.send::<CandidateReady>(&checked).await?;
-                            let declared = a.recv::<CandidateReady>().await?;
-                            b.send::<LoanR>(r).await?;
-                            let mut r = a.recv::<LoanR>().await?;
-                            a.send::<CandidateReady>(&declared).await?;
-                            r.offer().await?.recv::<CommitReady>().await?;
-                            b.offer().await?.recv::<CommitReady>().await?;
-                            let mut s = b.recv::<LoanS>().await?;
-                            r.send::<CommitR>(&checked).await?;
-                            let mut response = Box::pin(r.recv::<CommittedR>());
-                            assert!(
-                                hibana_runtime::race(
-                                    async { Ok::<_, std::io::Error>((&mut response).await) },
-                                    deadline(Duration::from_millis(10))
-                                )
-                                .await
-                                .is_err_and(|error| error.kind() == std::io::ErrorKind::TimedOut)
-                            );
-                            assert!(
-                                observations.take().is_empty(),
-                                "effect occurred without the S request"
-                            );
-                            s.send::<CommitS>(&checked).await?;
-                            let (first, second) = async {
-                                #[localside]
-                                let (first, second) = (response, s.recv::<CommittedS>());
-                                Ok((first, second))
+                    async {
+                        let mut r = r;
+                        r.send::<Prepare>(
+                            &Artifact {
+                                value: 1,
+                                ..initial
                             }
-                            .await?;
-                            assert_eq!(first, second);
-                            b.send::<LoanS>(s).await?;
-                            b.send::<Report>(&second).await?;
-                            let reported = a.recv::<Report>().await?;
-                            assert_eq!(reported, first);
-                            let actual = Artifact::decode(first);
-                            r.send::<Audit>(&actual.target).await?;
-                            assert_eq!(r.recv::<Audited>().await?, first);
-                            Ok(actual)
-                        },
-                        localside::independent(&mut c, 10),
-                        localside::service(&mut store, &mut repository, &result),
-                        localside::auxiliary(&mut aux),
-                        localside::second_owner(&mut owner, s),
-                    );
-                    Ok((actual, independent, service, auxiliary, owner))
+                            .bytes(),
+                        )
+                        .await?;
+                        let prepared = r.recv::<Prepared>().await?;
+                        r.send::<Inspect>(&prepared).await?;
+                        let checked = r.recv::<Inspected>().await?;
+                        a.send::<Context>(&checked).await?;
+                        a.send::<LoanR>(r).await?;
+                        let context = Verification::decode(b.recv::<Context>().await?)?;
+                        let mut r = b.recv::<LoanR>().await?;
+                        r.send::<Revise>(
+                            &Artifact {
+                                value: 2,
+                                ..context.artifact
+                            }
+                            .bytes(),
+                        )
+                        .await?;
+                        let artifact = r.recv::<Revised>().await?;
+                        r.send::<Reinspect>(&artifact).await?;
+                        let checked = r.offer().await?.recv::<Passed>().await?;
+                        r.send::<CandidateReady>(&checked).await?;
+                        let declared = a.recv::<CandidateReady>().await?;
+                        b.send::<LoanR>(r).await?;
+                        let mut r = a.recv::<LoanR>().await?;
+                        a.send::<CandidateReady>(&declared).await?;
+                        r.offer().await?.recv::<CommitReady>().await?;
+                        b.offer().await?.recv::<CommitReady>().await?;
+                        let mut s = b.recv::<LoanS>().await?;
+                        r.send::<CommitR>(&checked).await?;
+                        let mut response = Box::pin(r.recv::<CommittedR>());
+                        assert!(
+                            hibana_runtime::race(
+                                async { Ok::<_, std::io::Error>((&mut response).await) },
+                                deadline(Duration::from_millis(10))
+                            )
+                            .await
+                            .is_err_and(|error| error.kind() == std::io::ErrorKind::TimedOut)
+                        );
+                        assert!(
+                            observations.take().is_empty(),
+                            "effect occurred without the S request"
+                        );
+                        s.send::<CommitS>(&checked).await?;
+                        let (first, second) = async {
+                            async { response.await };
+                            async { s.recv::<CommittedS>().await };
+                        }
+                        .await?;
+                        assert_eq!(first, second);
+                        b.send::<LoanS>(s).await?;
+                        b.send::<Report>(&second).await?;
+                        let reported = a.recv::<Report>().await?;
+                        assert_eq!(reported, first);
+                        let actual = Artifact::decode(first);
+                        r.send::<Audit>(&actual.target).await?;
+                        assert_eq!(r.recv::<Audited>().await?, first);
+                        Ok(actual)
+                    };
+                    async { (localside::independent(&mut c, 10)).await };
+                    async { (localside::service(&mut store, &mut repository, &result)).await };
+                    async { (localside::auxiliary(&mut aux)).await };
+                    async { (localside::second_owner(&mut owner, s)).await };
                 }
                 .await,
             )
@@ -541,36 +527,34 @@ async fn claiming_approval_without_repair_does_not_replace_the_actual_failure()
                         },
                         async {
                             let result = async {
-                                #[localside]
-                                let (first, second, third, fourth, fifth) = (
-                                    localside::initial(
+                                async {
+                                    (localside::initial(
                                         &mut a,
                                         r,
                                         Artifact {
                                             value: 1,
                                             ..initial
                                         },
-                                    ),
-                                    async {
-                                        let context =
-                                            Verification::decode(b.recv::<Context>().await?)?;
-                                        let mut r = b.recv::<LoanR>().await?;
-                                        let forged = Verification {
-                                            passed: true,
-                                            ..context
-                                        };
-                                        r.send::<CandidateReady>(&forged.bytes()).await?;
-                                        b.send::<LoanR>(r).await?;
-                                        let approval = b.recv::<CommitReady>().await?;
-                                        Err::<(), _>(crate::shell::ShellError::message(format!(
-                                            "unverified approval: {approval:?}"
-                                        )))
-                                    },
-                                    localside::independent(&mut c, 10),
-                                    localside::auxiliary(&mut aux),
-                                    localside::second_owner(&mut owner, s),
-                                );
-                                Ok((first, second, third, fourth, fifth))
+                                    ))
+                                    .await
+                                };
+                                async {
+                                    let context = Verification::decode(b.recv::<Context>().await?)?;
+                                    let mut r = b.recv::<LoanR>().await?;
+                                    let forged = Verification {
+                                        passed: true,
+                                        ..context
+                                    };
+                                    r.send::<CandidateReady>(&forged.bytes()).await?;
+                                    b.send::<LoanR>(r).await?;
+                                    let approval = b.recv::<CommitReady>().await?;
+                                    Err::<(), _>(crate::shell::ShellError::message(format!(
+                                        "unverified approval: {approval:?}"
+                                    )))
+                                };
+                                async { (localside::independent(&mut c, 10)).await };
+                                async { (localside::auxiliary(&mut aux)).await };
+                                async { (localside::second_owner(&mut owner, s)).await };
                             }
                             .await;
                             Err::<(), crate::shell::ShellError>(crate::shell::ShellError::message(
@@ -652,42 +636,38 @@ async fn a_real_negative_result_can_finish_without_publication_or_forced_repair(
             Ok::<_, std::io::Error>(
                 async {
                     async {
-                        #[localside]
-                        let (first, second, third, fourth, fifth, sixth) = (
-                            async {
-                                Ok(localside::initial(
-                                    &mut a,
-                                    r,
-                                    Artifact {
-                                        value: 1,
-                                        ..initial
-                                    },
-                                )
-                                .await)
-                            },
-                            async {
-                                Ok(async {
-                                    let context = Verification::decode(b.recv::<Context>().await?)?;
-                                    assert!(!context.passed);
-                                    let mut r = b.recv::<LoanR>().await?;
-                                    r.send::<CandidateReady>(&context.bytes()).await?;
-                                    b.send::<LoanR>(r).await?;
-                                    let actual = Verification::decode(
-                                        b.offer().await?.recv::<CommitDenied>().await?,
-                                    )?;
-                                    assert_eq!(actual, context);
-                                    Ok::<(), crate::shell::ShellError>(())
-                                }
-                                .await)
-                            },
-                            async { Ok(localside::independent(&mut c, 10).await) },
-                            async {
-                                Ok(localside::service(&mut store, &mut repository, &result).await)
-                            },
-                            async { Ok(localside::auxiliary(&mut aux).await) },
-                            async { Ok(localside::second_owner(&mut owner, s).await) },
-                        );
-                        Ok((first, second, third, fourth, fifth, sixth))
+                        async {
+                            Ok(localside::initial(
+                                &mut a,
+                                r,
+                                Artifact {
+                                    value: 1,
+                                    ..initial
+                                },
+                            )
+                            .await)
+                        };
+                        async {
+                            Ok(async {
+                                let context = Verification::decode(b.recv::<Context>().await?)?;
+                                assert!(!context.passed);
+                                let mut r = b.recv::<LoanR>().await?;
+                                r.send::<CandidateReady>(&context.bytes()).await?;
+                                b.send::<LoanR>(r).await?;
+                                let actual = Verification::decode(
+                                    b.offer().await?.recv::<CommitDenied>().await?,
+                                )?;
+                                assert_eq!(actual, context);
+                                Ok::<(), crate::shell::ShellError>(())
+                            }
+                            .await)
+                        };
+                        async { Ok(localside::independent(&mut c, 10).await) };
+                        async {
+                            Ok(localside::service(&mut store, &mut repository, &result).await)
+                        };
+                        async { Ok(localside::auxiliary(&mut aux).await) };
+                        async { Ok(localside::second_owner(&mut owner, s).await) };
                     }
                     .await
                     .unwrap()

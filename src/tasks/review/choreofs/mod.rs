@@ -10,7 +10,7 @@ use crate::{
 };
 use hibana::runtime::{SessionKitStorage, ids::SessionId, resolver::ResolverRef};
 
-#[hibana_runtime::localside]
+#[hibana_runtime::scope]
 async fn run_guests(
     module: &[u8],
     bus: &crate::shell::imp::bus::Bus,

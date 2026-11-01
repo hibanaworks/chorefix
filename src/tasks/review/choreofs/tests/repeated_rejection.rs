@@ -82,61 +82,9 @@ async fn a_waiting_developer_does_not_repeat_work_during_the_other_review_loop()
                         async {
                             let () = async {
                                 async {
-                                    #[localside]
-                                    let (first, second, third, fourth) = (
-                                        async {
-                                            let task = &mut a_task;
-                                            for _ in 0..4 {
-                                                a_private
-                                                    .send::<protocol::FdCloseReqMsg>(
-                                                        &protocol::FdCloseReq(
-                                                            protocol::FdRequest::new(4),
-                                                        ),
-                                                    )
-                                                    .await
-                                                    .unwrap();
-                                                a_private.recv::<ClosedFileMsg>().await.unwrap();
-                                                a_private
-                                                    .send::<ResultChunkMsg>(
-                                                        &ResultChunk::new(0, b"{}").unwrap(),
-                                                    )
-                                                    .await
-                                                    .unwrap();
-                                            }
-                                            task.offer()
-                                                .await
-                                                .unwrap()
-                                                .recv::<FirstA>()
-                                                .await
-                                                .unwrap();
-                                            drop(task.offer().await.unwrap());
-                                            task.offer()
-                                                .await
-                                                .unwrap()
-                                                .send::<ImplementA>(&arguments_a)
-                                                .await
-                                                .unwrap();
-                                            let mut resource =
-                                                task.recv::<RepoLoan>().await.unwrap();
-                                            resource
-                                                .send::<ImplementOnRepo>(&arguments_a)
-                                                .await
-                                                .unwrap();
-                                            resource.recv::<RepoResult>().await.unwrap();
-                                            task.send::<RepoLoan>(resource).await.unwrap();
-                                            task.send::<ReadyA>(&b"{}".as_slice()).await.unwrap();
-                                            task.offer()
-                                                .await
-                                                .unwrap()
-                                                .recv::<RejectedA>()
-                                                .await
-                                                .unwrap();
-                                            task.offer()
-                                                .await
-                                                .unwrap()
-                                                .recv::<BDuringARevision>()
-                                                .await
-                                                .unwrap();
+                                    async {
+                                        let task = &mut a_task;
+                                        for _ in 0..4 {
                                             a_private
                                                 .send::<protocol::FdCloseReqMsg>(
                                                     &protocol::FdCloseReq(
@@ -152,322 +100,347 @@ async fn a_waiting_developer_does_not_repeat_work_during_the_other_review_loop()
                                                 )
                                                 .await
                                                 .unwrap();
-                                            drop(task.offer().await.unwrap());
-                                            task.offer()
-                                                .await
-                                                .unwrap()
-                                                .send::<ReviseA>(&arguments_a)
-                                                .await
-                                                .unwrap();
-                                            let mut resource =
-                                                task.recv::<RepoLoan>().await.unwrap();
-                                            resource
-                                                .send::<ImplementOnRepo>(&arguments_a)
-                                                .await
-                                                .unwrap();
-                                            resource.recv::<RepoResult>().await.unwrap();
-                                            task.send::<RepoLoan>(resource).await.unwrap();
-                                            task.send::<ReadyA>(&b"{}".as_slice()).await.unwrap();
-                                            task.offer()
-                                                .await
-                                                .unwrap()
-                                                .recv::<RejectedB>()
-                                                .await
-                                                .unwrap();
-                                            task.offer()
-                                                .await
-                                                .unwrap()
-                                                .recv::<AgainBBeforeAReview>()
-                                                .await
-                                                .unwrap();
-                                            task.offer()
-                                                .await
-                                                .unwrap()
-                                                .recv::<RejectedB>()
-                                                .await
-                                                .unwrap();
-                                            task.offer()
-                                                .await
-                                                .unwrap()
-                                                .recv::<AgainBBeforeA>()
-                                                .await
-                                                .unwrap();
-                                            task.offer()
-                                                .await
-                                                .unwrap()
-                                                .recv::<RejectedB>()
-                                                .await
-                                                .unwrap();
+                                        }
+                                        task.offer().await.unwrap().recv::<FirstA>().await.unwrap();
+                                        drop(task.offer().await.unwrap());
+                                        task.offer()
+                                            .await
+                                            .unwrap()
+                                            .send::<ImplementA>(&arguments_a)
+                                            .await
+                                            .unwrap();
+                                        let mut resource = task.recv::<RepoLoan>().await.unwrap();
+                                        resource
+                                            .send::<ImplementOnRepo>(&arguments_a)
+                                            .await
+                                            .unwrap();
+                                        resource.recv::<RepoResult>().await.unwrap();
+                                        task.send::<RepoLoan>(resource).await.unwrap();
+                                        task.send::<ReadyA>(&b"{}".as_slice()).await.unwrap();
+                                        task.offer()
+                                            .await
+                                            .unwrap()
+                                            .recv::<RejectedA>()
+                                            .await
+                                            .unwrap();
+                                        task.offer()
+                                            .await
+                                            .unwrap()
+                                            .recv::<BDuringARevision>()
+                                            .await
+                                            .unwrap();
+                                        a_private
+                                            .send::<protocol::FdCloseReqMsg>(&protocol::FdCloseReq(
+                                                protocol::FdRequest::new(4),
+                                            ))
+                                            .await
+                                            .unwrap();
+                                        a_private.recv::<ClosedFileMsg>().await.unwrap();
+                                        a_private
+                                            .send::<ResultChunkMsg>(
+                                                &ResultChunk::new(0, b"{}").unwrap(),
+                                            )
+                                            .await
+                                            .unwrap();
+                                        drop(task.offer().await.unwrap());
+                                        task.offer()
+                                            .await
+                                            .unwrap()
+                                            .send::<ReviseA>(&arguments_a)
+                                            .await
+                                            .unwrap();
+                                        let mut resource = task.recv::<RepoLoan>().await.unwrap();
+                                        resource
+                                            .send::<ImplementOnRepo>(&arguments_a)
+                                            .await
+                                            .unwrap();
+                                        resource.recv::<RepoResult>().await.unwrap();
+                                        task.send::<RepoLoan>(resource).await.unwrap();
+                                        task.send::<ReadyA>(&b"{}".as_slice()).await.unwrap();
+                                        task.offer()
+                                            .await
+                                            .unwrap()
+                                            .recv::<RejectedB>()
+                                            .await
+                                            .unwrap();
+                                        task.offer()
+                                            .await
+                                            .unwrap()
+                                            .recv::<AgainBBeforeAReview>()
+                                            .await
+                                            .unwrap();
+                                        task.offer()
+                                            .await
+                                            .unwrap()
+                                            .recv::<RejectedB>()
+                                            .await
+                                            .unwrap();
+                                        task.offer()
+                                            .await
+                                            .unwrap()
+                                            .recv::<AgainBBeforeA>()
+                                            .await
+                                            .unwrap();
+                                        task.offer()
+                                            .await
+                                            .unwrap()
+                                            .recv::<RejectedB>()
+                                            .await
+                                            .unwrap();
+                                        {
+                                            match hibana_runtime::race(
+                                                async {
+                                                    Ok::<_, std::io::Error>(task.offer().await)
+                                                },
+                                                hibana_runtime::host::deadline(
+                                                    Duration::from_millis(20),
+                                                ),
+                                            )
+                                            .await
                                             {
-                                                match hibana_runtime::race(
-                                                    async {
-                                                        Ok::<_, std::io::Error>(task.offer().await)
-                                                    },
-                                                    hibana_runtime::host::deadline(
-                                                        Duration::from_millis(20),
-                                                    ),
-                                                )
-                                                .await
-                                                {
-                                                    Err(error) => assert_eq!(
-                                                        error.kind(),
-                                                        std::io::ErrorKind::TimedOut
-                                                    ),
-                                                    Ok(Ok(branch)) => panic!(
-                                                        "offered {} before a new intent",
-                                                        branch.label()
-                                                    ),
-                                                    Ok(Err(e)) => {
-                                                        panic!("waiting offer failed: {e:?}")
-                                                    }
+                                                Err(error) => assert_eq!(
+                                                    error.kind(),
+                                                    std::io::ErrorKind::TimedOut
+                                                ),
+                                                Ok(Ok(branch)) => panic!(
+                                                    "offered {} before a new intent",
+                                                    branch.label()
+                                                ),
+                                                Ok(Err(e)) => {
+                                                    panic!("waiting offer failed: {e:?}")
+                                                }
+                                            };
+                                            Ok(())
+                                        }
+                                    };
+                                    async {
+                                        let task = &mut b_task;
+                                        task.offer().await.unwrap().recv::<FirstA>().await.unwrap();
+                                        drop(task.offer().await.unwrap());
+                                        task.offer()
+                                            .await
+                                            .unwrap()
+                                            .send::<ImplementB>(&arguments_b)
+                                            .await
+                                            .unwrap();
+                                        let mut resource = task.recv::<RepoLoan>().await.unwrap();
+                                        resource
+                                            .send::<ImplementOnRepo>(&arguments_b)
+                                            .await
+                                            .unwrap();
+                                        resource.recv::<RepoResult>().await.unwrap();
+                                        task.send::<RepoLoan>(resource).await.unwrap();
+                                        task.send::<ReadyB>(&b"{}".as_slice()).await.unwrap();
+                                        task.offer()
+                                            .await
+                                            .unwrap()
+                                            .recv::<RejectedA>()
+                                            .await
+                                            .unwrap();
+                                        task.offer()
+                                            .await
+                                            .unwrap()
+                                            .recv::<BDuringARevision>()
+                                            .await
+                                            .unwrap();
+                                        task.offer()
+                                            .await
+                                            .unwrap()
+                                            .recv::<RejectedB>()
+                                            .await
+                                            .unwrap();
+                                        task.offer()
+                                            .await
+                                            .unwrap()
+                                            .recv::<AgainBBeforeAReview>()
+                                            .await
+                                            .unwrap();
+                                        {
+                                            for iteration in 0..2 {
+                                                drop(task.offer().await.unwrap());
+                                                task.offer()
+                                                    .await
+                                                    .unwrap()
+                                                    .send::<ReviseB>(&arguments_b)
+                                                    .await
+                                                    .unwrap();
+                                                let mut resource =
+                                                    task.recv::<RepoLoan>().await.unwrap();
+                                                resource
+                                                    .send::<ImplementOnRepo>(&arguments_b)
+                                                    .await
+                                                    .unwrap();
+                                                resource.recv::<RepoResult>().await.unwrap();
+                                                task.send::<RepoLoan>(resource).await.unwrap();
+                                                task.send::<ReadyB>(&b"{}".as_slice())
+                                                    .await
+                                                    .unwrap();
+                                                task.offer()
+                                                    .await
+                                                    .unwrap()
+                                                    .recv::<RejectedB>()
+                                                    .await
+                                                    .unwrap();
+                                                if iteration == 0 {
+                                                    task.offer()
+                                                        .await
+                                                        .unwrap()
+                                                        .recv::<AgainBBeforeA>()
+                                                        .await
+                                                        .unwrap();
+                                                }
+                                            }
+                                            Ok(())
+                                        }
+                                    };
+                                    async {
+                                        let task = &mut reviewer_task;
+                                        target.record(FEATURE_A);
+                                        task.offer()
+                                            .await
+                                            .unwrap()
+                                            .send::<FirstA>(&review_arguments_a)
+                                            .await
+                                            .unwrap();
+                                        for _ in 0..4 {
+                                            task.send::<FirstA>(&review_arguments_a).await.unwrap();
+                                        }
+                                        task.recv::<ReadyA>().await.unwrap();
+                                        {
+                                            let [mut review, mut other] = task.par().unwrap();
+                                            async {
+                                                async {
+                                                    review
+                                                        .send::<ReviewA>(&review_arguments_a)
+                                                        .await
+                                                        .unwrap();
+
+                                                    Ok(())
+                                                };
+                                                async {
+                                                    other.recv::<ReadyB>().await.unwrap();
+
+                                                    Ok(())
                                                 };
                                                 Ok(())
                                             }
-                                        },
-                                        async {
-                                            let task = &mut b_task;
-                                            task.offer()
-                                                .await
-                                                .unwrap()
-                                                .recv::<FirstA>()
-                                                .await
-                                                .unwrap();
-                                            drop(task.offer().await.unwrap());
-                                            task.offer()
-                                                .await
-                                                .unwrap()
-                                                .send::<ImplementB>(&arguments_b)
-                                                .await
-                                                .unwrap();
-                                            let mut resource =
-                                                task.recv::<RepoLoan>().await.unwrap();
-                                            resource
-                                                .send::<ImplementOnRepo>(&arguments_b)
+                                            .await
+                                            .unwrap();
+                                        }
+                                        task.offer()
+                                            .await
+                                            .unwrap()
+                                            .recv::<RejectedA>()
+                                            .await
+                                            .unwrap();
+                                        target.record(FEATURE_B);
+                                        task.offer()
+                                            .await
+                                            .unwrap()
+                                            .send::<BDuringARevision>(&review_arguments_b)
+                                            .await
+                                            .unwrap();
+                                        for _ in 0..4 {
+                                            task.send::<BDuringARevision>(&review_arguments_b)
                                                 .await
                                                 .unwrap();
-                                            resource.recv::<RepoResult>().await.unwrap();
-                                            task.send::<RepoLoan>(resource).await.unwrap();
-                                            task.send::<ReadyB>(&b"{}".as_slice()).await.unwrap();
-                                            task.offer()
-                                                .await
-                                                .unwrap()
-                                                .recv::<RejectedA>()
-                                                .await
-                                                .unwrap();
-                                            task.offer()
-                                                .await
-                                                .unwrap()
-                                                .recv::<BDuringARevision>()
-                                                .await
-                                                .unwrap();
-                                            task.offer()
-                                                .await
-                                                .unwrap()
-                                                .recv::<RejectedB>()
-                                                .await
-                                                .unwrap();
-                                            task.offer()
-                                                .await
-                                                .unwrap()
-                                                .recv::<AgainBBeforeAReview>()
-                                                .await
-                                                .unwrap();
-                                            {
-                                                for iteration in 0..2 {
-                                                    drop(task.offer().await.unwrap());
-                                                    task.offer()
-                                                        .await
-                                                        .unwrap()
-                                                        .send::<ReviseB>(&arguments_b)
+                                        }
+                                        {
+                                            let [mut other, mut review] = task.par().unwrap();
+                                            async {
+                                                async {
+                                                    other.recv::<ReadyA>().await.unwrap();
+
+                                                    Ok(())
+                                                };
+                                                async {
+                                                    review
+                                                        .send::<ReviewB>(&review_arguments_b)
                                                         .await
                                                         .unwrap();
-                                                    let mut resource =
-                                                        task.recv::<RepoLoan>().await.unwrap();
-                                                    resource
-                                                        .send::<ImplementOnRepo>(&arguments_b)
-                                                        .await
-                                                        .unwrap();
-                                                    resource.recv::<RepoResult>().await.unwrap();
-                                                    task.send::<RepoLoan>(resource).await.unwrap();
-                                                    task.send::<ReadyB>(&b"{}".as_slice())
-                                                        .await
-                                                        .unwrap();
-                                                    task.offer()
-                                                        .await
-                                                        .unwrap()
-                                                        .recv::<RejectedB>()
-                                                        .await
-                                                        .unwrap();
-                                                    if iteration == 0 {
-                                                        task.offer()
-                                                            .await
-                                                            .unwrap()
-                                                            .recv::<AgainBBeforeA>()
-                                                            .await
-                                                            .unwrap();
-                                                    }
-                                                }
+
+                                                    Ok(())
+                                                };
                                                 Ok(())
                                             }
-                                        },
-                                        async {
-                                            let task = &mut reviewer_task;
-                                            target.record(FEATURE_A);
-                                            task.offer()
-                                                .await
-                                                .unwrap()
-                                                .send::<FirstA>(&review_arguments_a)
+                                            .await
+                                            .unwrap();
+                                        }
+                                        task.offer()
+                                            .await
+                                            .unwrap()
+                                            .recv::<RejectedB>()
+                                            .await
+                                            .unwrap();
+                                        task.offer()
+                                            .await
+                                            .unwrap()
+                                            .send::<AgainBBeforeAReview>(&review_arguments_b)
+                                            .await
+                                            .unwrap();
+                                        for _ in 0..4 {
+                                            task.send::<AgainBBeforeAReview>(&review_arguments_b)
                                                 .await
                                                 .unwrap();
-                                            for _ in 0..4 {
-                                                task.send::<FirstA>(&review_arguments_a)
+                                        }
+                                        task.recv::<ReadyB>().await.unwrap();
+                                        task.send::<ReReviewB>(&review_arguments_b).await.unwrap();
+                                        task.offer()
+                                            .await
+                                            .unwrap()
+                                            .recv::<RejectedB>()
+                                            .await
+                                            .unwrap();
+                                        task.offer()
+                                            .await
+                                            .unwrap()
+                                            .send::<AgainBBeforeA>(&review_arguments_b)
+                                            .await
+                                            .unwrap();
+                                        for _ in 0..4 {
+                                            task.send::<AgainBBeforeA>(&review_arguments_b)
+                                                .await
+                                                .unwrap();
+                                        }
+                                        task.recv::<ReadyB>().await.unwrap();
+                                        task.send::<ReReviewB>(&review_arguments_b).await.unwrap();
+                                        task.offer()
+                                            .await
+                                            .unwrap()
+                                            .recv::<RejectedB>()
+                                            .await
+                                            .unwrap();
+
+                                        Ok(())
+                                    };
+                                    async {
+                                        {
+                                            for _ in 0..5 {
+                                                a_io.offer()
+                                                    .await
+                                                    .unwrap()
+                                                    .recv::<protocol::FdCloseReqMsg>()
+                                                    .await
+                                                    .unwrap();
+                                                a_io.send::<ClosedFileMsg>(&ClosedFile {
+                                                    completion: protocol::FdClosedRet(
+                                                        protocol::FdClosed::new(4),
+                                                    ),
+                                                    path: vec![],
+                                                    bytes: vec![],
+                                                })
+                                                .await
+                                                .unwrap();
+                                                a_io.offer()
+                                                    .await
+                                                    .unwrap()
+                                                    .recv::<ResultChunkMsg>()
                                                     .await
                                                     .unwrap();
                                             }
-                                            task.recv::<ReadyA>().await.unwrap();
-                                            {
-                                                let [mut review, mut other] = task.par().unwrap();
-                                                async {
-                                                    async {
-                                                        review
-                                                            .send::<ReviewA>(&review_arguments_a)
-                                                            .await
-                                                            .unwrap();
-
-                                                        Ok(())
-                                                    };
-                                                    async {
-                                                        other.recv::<ReadyB>().await.unwrap();
-
-                                                        Ok(())
-                                                    };
-                                                    Ok(())
-                                                }
-                                                .await
-                                                .unwrap();
-                                            }
-                                            task.offer()
-                                                .await
-                                                .unwrap()
-                                                .recv::<RejectedA>()
-                                                .await
-                                                .unwrap();
-                                            target.record(FEATURE_B);
-                                            task.offer()
-                                                .await
-                                                .unwrap()
-                                                .send::<BDuringARevision>(&review_arguments_b)
-                                                .await
-                                                .unwrap();
-                                            for _ in 0..4 {
-                                                task.send::<BDuringARevision>(&review_arguments_b)
-                                                    .await
-                                                    .unwrap();
-                                            }
-                                            {
-                                                let [mut other, mut review] = task.par().unwrap();
-                                                async {
-                                                    async {
-                                                        other.recv::<ReadyA>().await.unwrap();
-
-                                                        Ok(())
-                                                    };
-                                                    async {
-                                                        review
-                                                            .send::<ReviewB>(&review_arguments_b)
-                                                            .await
-                                                            .unwrap();
-
-                                                        Ok(())
-                                                    };
-                                                    Ok(())
-                                                }
-                                                .await
-                                                .unwrap();
-                                            }
-                                            task.offer()
-                                                .await
-                                                .unwrap()
-                                                .recv::<RejectedB>()
-                                                .await
-                                                .unwrap();
-                                            task.offer()
-                                                .await
-                                                .unwrap()
-                                                .send::<AgainBBeforeAReview>(&review_arguments_b)
-                                                .await
-                                                .unwrap();
-                                            for _ in 0..4 {
-                                                task.send::<AgainBBeforeAReview>(
-                                                    &review_arguments_b,
-                                                )
-                                                .await
-                                                .unwrap();
-                                            }
-                                            task.recv::<ReadyB>().await.unwrap();
-                                            task.send::<ReReviewB>(&review_arguments_b)
-                                                .await
-                                                .unwrap();
-                                            task.offer()
-                                                .await
-                                                .unwrap()
-                                                .recv::<RejectedB>()
-                                                .await
-                                                .unwrap();
-                                            task.offer()
-                                                .await
-                                                .unwrap()
-                                                .send::<AgainBBeforeA>(&review_arguments_b)
-                                                .await
-                                                .unwrap();
-                                            for _ in 0..4 {
-                                                task.send::<AgainBBeforeA>(&review_arguments_b)
-                                                    .await
-                                                    .unwrap();
-                                            }
-                                            task.recv::<ReadyB>().await.unwrap();
-                                            task.send::<ReReviewB>(&review_arguments_b)
-                                                .await
-                                                .unwrap();
-                                            task.offer()
-                                                .await
-                                                .unwrap()
-                                                .recv::<RejectedB>()
-                                                .await
-                                                .unwrap();
-
                                             Ok(())
-                                        },
-                                        async {
-                                            {
-                                                for _ in 0..5 {
-                                                    a_io.offer()
-                                                        .await
-                                                        .unwrap()
-                                                        .recv::<protocol::FdCloseReqMsg>()
-                                                        .await
-                                                        .unwrap();
-                                                    a_io.send::<ClosedFileMsg>(&ClosedFile {
-                                                        completion: protocol::FdClosedRet(
-                                                            protocol::FdClosed::new(4),
-                                                        ),
-                                                        path: vec![],
-                                                        bytes: vec![],
-                                                    })
-                                                    .await
-                                                    .unwrap();
-                                                    a_io.offer()
-                                                        .await
-                                                        .unwrap()
-                                                        .recv::<ResultChunkMsg>()
-                                                        .await
-                                                        .unwrap();
-                                                }
-                                                Ok(())
-                                            }
-                                        },
-                                    );
-                                    Ok((first, second, third, fourth))
+                                        }
+                                    };
                                 }
                                 .await
                                 .unwrap();

@@ -122,7 +122,7 @@ impl Domain for Effects {
     }
 }
 
-#[hibana_runtime::localside]
+#[hibana_runtime::scope]
 async fn client<
     const TASK: u8,
     const SUBJECT: u8,
@@ -163,34 +163,26 @@ async fn client<
     let (mut first, mut second) = {
         let [mut first_loan, mut second_loan] = task.par()?;
         async {
-            #[localside]
-            let (first, second) = (
-                async {
-                    let mut resource = first_loan.recv::<Loan<FIRST>>().await?;
-                    resource
-                        .send::<CommitRequest<TASK, SUBJECT, FIRST>>(&commit)
-                        .await?;
-                    Ok(resource)
-                },
-                async {
-                    let mut resource = second_loan.recv::<Loan<SECOND>>().await?;
-                    resource
-                        .send::<CommitRequest<TASK, SUBJECT, SECOND>>(&commit)
-                        .await?;
-                    Ok(resource)
-                },
-            );
-            Ok((first, second))
+            async {
+                let mut resource = first_loan.recv::<Loan<FIRST>>().await?;
+                resource
+                    .send::<CommitRequest<TASK, SUBJECT, FIRST>>(&commit)
+                    .await?;
+                Ok(resource)
+            };
+            async {
+                let mut resource = second_loan.recv::<Loan<SECOND>>().await?;
+                resource
+                    .send::<CommitRequest<TASK, SUBJECT, SECOND>>(&commit)
+                    .await?;
+                Ok(resource)
+            };
         }
         .await?
     };
     let (first_result, second_result) = async {
-        #[localside]
-        let (first, second) = (
-            async { Ok(first.recv::<CommitCompleted<FIRST>>().await?.to_vec()) },
-            async { Ok(second.recv::<CommitCompleted<SECOND>>().await?.to_vec()) },
-        );
-        Ok((first, second))
+        async { Ok(first.recv::<CommitCompleted<FIRST>>().await?.to_vec()) };
+        async { Ok(second.recv::<CommitCompleted<SECOND>>().await?.to_vec()) };
     }
     .await?;
     assert_eq!(first_result, second_result);
@@ -251,15 +243,12 @@ macro_rules! fixture {
             };
             hibana_runtime::race(async {
                 $(
-                    #[localside]
-                    localside::developer::run::<$task, $subject, $first, $second>(&mut $service, &effects);
-                    #[localside]
-                    client::<$task, $subject, $vm_role, $first, $second>(&mut $vm);
+                    async { localside::developer::run::<$task, $subject, $first, $second>(&mut $service, &effects).await?; };
+                    async { client::<$task, $subject, $vm_role, $first, $second>(&mut $vm).await?; };
                     async { assert_eq!($io.offer().await?.recv::<Exit>().await?, 0); };
                 )+
                 $(
-                    #[localside]
-                    localside::module::run::<$owner_role, $resource_role>(&mut $owner, $resource);
+                    async { localside::module::run::<$owner_role, $resource_role>(&mut $owner, $resource).await?; };
                 )+
                 Ok(())
             }, hibana_runtime::host::deadline(std::time::Duration::from_secs(5))).await?;
@@ -293,7 +282,7 @@ fixture!(five_guests_commit_disjoint_modules_concurrently, project_1m, roles1m, 
                (api,API,api_resource,API_RESOURCE),
                (payment,PAYMENT,payment_resource,PAYMENT_RESOURCE),
                (notify,NOTIFY,notify_resource,NOTIFY_RESOURCE)]);
-#[hibana_runtime::localside]
+#[hibana_runtime::scope]
 async fn revising_client<
     const TASK: u8,
     const SUBJECT: u8,
@@ -335,34 +324,26 @@ async fn revising_client<
         let (mut first, mut second) = {
             let [mut first_loan, mut second_loan] = task.par()?;
             async {
-                #[localside]
-                let (first, second) = (
-                    async {
-                        let mut resource = first_loan.recv::<Loan<FIRST>>().await?;
-                        resource
-                            .send::<CommitRequest<TASK, SUBJECT, FIRST>>(&commit)
-                            .await?;
-                        Ok(resource)
-                    },
-                    async {
-                        let mut resource = second_loan.recv::<Loan<SECOND>>().await?;
-                        resource
-                            .send::<CommitRequest<TASK, SUBJECT, SECOND>>(&commit)
-                            .await?;
-                        Ok(resource)
-                    },
-                );
-                Ok((first, second))
+                async {
+                    let mut resource = first_loan.recv::<Loan<FIRST>>().await?;
+                    resource
+                        .send::<CommitRequest<TASK, SUBJECT, FIRST>>(&commit)
+                        .await?;
+                    Ok(resource)
+                };
+                async {
+                    let mut resource = second_loan.recv::<Loan<SECOND>>().await?;
+                    resource
+                        .send::<CommitRequest<TASK, SUBJECT, SECOND>>(&commit)
+                        .await?;
+                    Ok(resource)
+                };
             }
             .await?
         };
         let (first_result, second_result) = async {
-            #[localside]
-            let (first, second) = (
-                async { Ok(first.recv::<CommitCompleted<FIRST>>().await?.to_vec()) },
-                async { Ok(second.recv::<CommitCompleted<SECOND>>().await?.to_vec()) },
-            );
-            Ok((first, second))
+            async { Ok(first.recv::<CommitCompleted<FIRST>>().await?.to_vec()) };
+            async { Ok(second.recv::<CommitCompleted<SECOND>>().await?.to_vec()) };
         }
         .await?;
         assert_eq!(first_result, second_result);

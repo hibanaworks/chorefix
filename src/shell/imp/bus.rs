@@ -194,7 +194,7 @@ impl ExternalIo {
         Ok(())
     }
 
-    #[hibana_runtime::localside]
+    #[hibana_runtime::scope]
     pub async fn run(&mut self, bus: &Bus) -> ShellResult<()> {
         let mut input = Io::new(self.input.as_fd().try_clone_to_owned()?)?;
         let mut output = Io::new(self.output.as_fd().try_clone_to_owned()?)?;

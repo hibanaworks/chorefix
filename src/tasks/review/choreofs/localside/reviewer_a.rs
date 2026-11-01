@@ -8,7 +8,7 @@ use crate::{
 use hibana::Endpoint;
 use hibana::runtime::resolver::DecisionArm;
 
-#[hibana_runtime::localside]
+#[hibana_runtime::scope]
 pub async fn run<D: Domain>(
     endpoint: &mut Endpoint<REVIEW_A>,
     domain: &D,

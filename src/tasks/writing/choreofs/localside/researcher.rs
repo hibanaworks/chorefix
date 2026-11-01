@@ -16,7 +16,7 @@ pub(crate) struct Assignment {
     pub sections: [&'static str; 2],
 }
 
-#[hibana_runtime::localside]
+#[hibana_runtime::scope]
 pub(crate) async fn run<const ROLE: u8, const FIRST: u8, const SECOND: u8>(
     endpoint: &mut Endpoint<ROLE>,
     domain: &impl Domain,
@@ -220,12 +220,8 @@ pub(crate) async fn run<const ROLE: u8, const FIRST: u8, const SECOND: u8>(
     let (first, second) = {
         let [mut first, mut second] = endpoint.par()?;
         async {
-            #[localside]
-            let (first, second) = (
-                first.recv::<SectionRequest<FIRST>>(),
-                second.recv::<SectionRequest<SECOND>>(),
-            );
-            Ok((first, second))
+            async { (first.recv::<SectionRequest<FIRST>>()).await };
+            async { (second.recv::<SectionRequest<SECOND>>()).await };
         }
         .await?
     };

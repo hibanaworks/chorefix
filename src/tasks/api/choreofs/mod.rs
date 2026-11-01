@@ -18,7 +18,7 @@ use crate::{
 };
 use hibana::runtime::{SessionKitStorage, ids::SessionId, resolver::ResolverRef};
 use hibana_wasip1_runtime::{GuestMemory, HibanaWasiGuestStorage};
-#[hibana_runtime::localside]
+#[hibana_runtime::scope]
 async fn run_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 3]) -> ShellResult<()> {
     use global::*;
     let p = programs();

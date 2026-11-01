@@ -307,7 +307,7 @@ struct ReviewCase {
     extra_failures: &'static [u32],
 }
 
-#[hibana_runtime::localside]
+#[hibana_runtime::scope]
 async fn run_cases(cases: Vec<ReviewCase>) -> Result<()> {
     std::env::set_current_dir(
         Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -377,24 +377,31 @@ async fn run_cases(cases: Vec<ReviewCase>) -> Result<()> {
                 async {
                     reviewer(&guest, &simulator, review_first, schedule).await?;
                 };
-                #[localside]
-                let (a, b, result) = (
-                    developer(
-                        &guest,
-                        &simulator,
-                        "DEVELOPER_A",
-                        "user_authentication",
-                        "dev_a_feature",
-                    ),
-                    developer(
-                        &guest,
-                        &simulator,
-                        "DEVELOPER_B",
-                        "notification_feature",
-                        "dev_b_feature",
-                    ),
-                    runtime_loop,
-                );
+
+                let (a, b, result) = (async {
+                    async {
+                        (developer(
+                            &guest,
+                            &simulator,
+                            "DEVELOPER_A",
+                            "user_authentication",
+                            "dev_a_feature",
+                        ))
+                        .await
+                    };
+                    async {
+                        (developer(
+                            &guest,
+                            &simulator,
+                            "DEVELOPER_B",
+                            "notification_feature",
+                            "dev_b_feature",
+                        ))
+                        .await
+                    };
+                    async { (runtime_loop).await };
+                })
+                .await?;
                 Ok((a, b, result))
             },
             hibana_runtime::host::deadline(Duration::from_secs(60)),

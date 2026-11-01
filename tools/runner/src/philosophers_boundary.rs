@@ -112,7 +112,7 @@ async fn participant(
     Ok(json!({"kind":"participant","agent":agent,"results":results}))
 }
 
-#[hibana_runtime::localside]
+#[hibana_runtime::scope]
 async fn inputs<const N: usize>(
     guest: &process::Guest,
     simulator: &oracle::Simulator,
@@ -124,9 +124,10 @@ async fn inputs<const N: usize>(
         .each_mut()
         .map(|output| (actors.next().expect("one input per participant"), output));
     async {
-        #[localside]
         for (actor, output) in inputs {
-            *output = participant(guest, simulator, actor).await?;
+            async move {
+                *output = participant(guest, simulator, actor).await?;
+            };
         }
         Ok(())
     }
@@ -176,8 +177,8 @@ async fn all_dining_levels_use_both_resource_endpoints_through_wasi() -> Result<
             .ok_or("original participants")?;
         let (runtime, mut outcomes) = hibana_runtime::race(
             async {
-                #[localside]
-                let (runtime, participants) = (runtime, async {
+                async { (runtime).await };
+                async {
                     match task {
                         "9E" => {
                             inputs(
@@ -208,8 +209,7 @@ async fn all_dining_levels_use_both_resource_endpoints_through_wasi() -> Result<
                         }
                         _ => Err("unknown dining task".into()),
                     }
-                });
-                Ok((runtime, participants))
+                };
             },
             hibana_runtime::host::deadline(Duration::from_secs(120)),
         )

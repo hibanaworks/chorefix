@@ -7,7 +7,7 @@ use hibana_wasip1_runtime::{
     protocol,
 };
 
-#[hibana_runtime::localside]
+#[hibana_runtime::scope]
 pub async fn run<const ROLE: u8, const FIRST: u8, const SECOND: u8>(
     guest: &mut HibanaWasiGuest,
     endpoint: &mut hibana::Endpoint<ROLE>,
@@ -525,46 +525,32 @@ pub async fn run<const ROLE: u8, const FIRST: u8, const SECOND: u8>(
                                 let (mut first, mut second) = {
                                     let [mut first_loan, mut second_loan] = task.par()?;
                                     async {
-                                        #[localside]
-                                        let (first, second) = (
-                                            async {
-                                                let mut section =
-                                                    first_loan.recv::<Loan<FIRST>>().await?;
-                                                section
-                                                    .send::<SectionRequest<FIRST>>(&arguments)
-                                                    .await?;
-                                                Ok(section)
-                                            },
-                                            async {
-                                                let mut section =
-                                                    second_loan.recv::<Loan<SECOND>>().await?;
-                                                section
-                                                    .send::<SectionRequest<SECOND>>(&arguments)
-                                                    .await?;
-                                                Ok(section)
-                                            },
-                                        );
-                                        Ok((first, second))
+                                        async {
+                                            let mut section =
+                                                first_loan.recv::<Loan<FIRST>>().await?;
+                                            section
+                                                .send::<SectionRequest<FIRST>>(&arguments)
+                                                .await?;
+                                            Ok(section)
+                                        };
+                                        async {
+                                            let mut section =
+                                                second_loan.recv::<Loan<SECOND>>().await?;
+                                            section
+                                                .send::<SectionRequest<SECOND>>(&arguments)
+                                                .await?;
+                                            Ok(section)
+                                        };
                                     }
                                     .await?
                                 };
                                 let (first_result, second_result) = async {
-                                    #[localside]
-                                    let (first_result, second_result) = (
-                                        async {
-                                            Ok(first
-                                                .recv::<SectionWritten<FIRST>>()
-                                                .await?
-                                                .to_vec())
-                                        },
-                                        async {
-                                            Ok(second
-                                                .recv::<SectionWritten<SECOND>>()
-                                                .await?
-                                                .to_vec())
-                                        },
-                                    );
-                                    Ok((first_result, second_result))
+                                    async {
+                                        Ok(first.recv::<SectionWritten<FIRST>>().await?.to_vec())
+                                    };
+                                    async {
+                                        Ok(second.recv::<SectionWritten<SECOND>>().await?.to_vec())
+                                    };
                                 }
                                 .await?;
                                 if first_result != second_result {

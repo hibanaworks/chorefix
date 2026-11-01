@@ -19,7 +19,7 @@ use crate::{
 use hibana::runtime::{SessionKitStorage, ids::SessionId};
 use hibana_wasip1_runtime::{GuestMemory, HibanaWasiGuestStorage};
 
-#[hibana_runtime::localside]
+#[hibana_runtime::scope]
 async fn run_9e_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 3]) -> ShellResult<()> {
     use global::*;
     use identity::roles9e::*;
@@ -116,7 +116,7 @@ async fn run_9e_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 3]) -> Sh
     Ok(())
 }
 
-#[hibana_runtime::localside]
+#[hibana_runtime::scope]
 async fn run_9m_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 5]) -> ShellResult<()> {
     use global::*;
     use identity::roles9m::*;
@@ -267,7 +267,7 @@ async fn run_9m_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 5]) -> Sh
     Ok(())
 }
 
-#[hibana_runtime::localside]
+#[hibana_runtime::scope]
 async fn run_9h_guests(module: &[u8], bus: &Bus, terminals: [Terminal; 7]) -> ShellResult<()> {
     use global::*;
     use identity::roles9h::*;

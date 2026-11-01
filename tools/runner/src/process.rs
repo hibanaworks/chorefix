@@ -283,33 +283,35 @@ mod tests {
         let result = hibana_runtime::race(
             async {
                 let guest = &guest;
-                #[localside]
+
                 for actor in actors {
-                    let name = actor["agent"].as_str().ok_or("actor")?;
-                    for call in actor["calls"].as_array().ok_or("calls")? {
-                        let arguments = serde_json::to_string(&call["arguments"])?;
-                        let quote = format!("'{}'", arguments.replace('\'', "'\"'\"'"));
-                        let response = guest
-                            .command(
-                                name,
-                                format!(
-                                    "printf '%s' {quote} > /service/{}; cat /service/result",
-                                    call["tool"].as_str().ok_or("tool")?
-                                ),
-                            )
-                            .await?;
-                        if !response["stdout"]
-                            .as_str()
-                            .ok_or("stdout")?
-                            .contains("\"success\":true")
-                        {
-                            return Err(format!("probe operation failed: {response}").into());
+                    async move {
+                        let name = actor["agent"].as_str().ok_or("actor")?;
+                        for call in actor["calls"].as_array().ok_or("calls")? {
+                            let arguments = serde_json::to_string(&call["arguments"])?;
+                            let quote = format!("'{}'", arguments.replace('\'', "'\"'\"'"));
+                            let response = guest
+                                .command(
+                                    name,
+                                    format!(
+                                        "printf '%s' {quote} > /service/{}; cat /service/result",
+                                        call["tool"].as_str().ok_or("tool")?
+                                    ),
+                                )
+                                .await?;
+                            if !response["stdout"]
+                                .as_str()
+                                .ok_or("stdout")?
+                                .contains("\"success\":true")
+                            {
+                                return Err(format!("probe operation failed: {response}").into());
+                            }
                         }
-                    }
-                    let exit = guest.command(name, "exit 0".into()).await?;
-                    if exit["exit_status"] != 0 {
-                        return Err("probe guest exit failed".into());
-                    }
+                        let exit = guest.command(name, "exit 0".into()).await?;
+                        if exit["exit_status"] != 0 {
+                            return Err("probe guest exit failed".into());
+                        }
+                    };
                 }
                 let result = guest_loop.await?;
                 Ok(result)

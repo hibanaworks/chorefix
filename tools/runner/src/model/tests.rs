@@ -6,7 +6,7 @@ use std::os::unix::net::UnixStream;
 
 // These byte-stream fixtures exercise the same multiplexed client as live runs.
 // They do not replace participants in a benchmark trial.
-#[hibana_runtime::localside]
+#[hibana_runtime::scope]
 async fn exchange(mode: &str) -> Result<(Vec<Conversation>, Vec<Value>)> {
     let count = if mode == "parallel" { 2 } else { 1 };
     let calls = if mode == "parallel_same_thread" {

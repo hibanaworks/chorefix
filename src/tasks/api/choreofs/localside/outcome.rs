@@ -6,7 +6,7 @@ pub mod admin {
     use crate::shell::{ShellError, ShellResult};
     use hibana::Endpoint;
     use serde_json::Value;
-    #[hibana_runtime::localside]
+    #[hibana_runtime::scope]
     pub async fn admin(
         endpoint: &mut Endpoint<ADMIN_OUTCOME>,
         file: &mut OutcomeFile,
@@ -163,7 +163,7 @@ pub mod backend {
     use crate::shell::{ShellError, ShellResult};
     use hibana::Endpoint;
     use serde_json::Value;
-    #[hibana_runtime::localside]
+    #[hibana_runtime::scope]
     pub async fn backend(
         endpoint: &mut Endpoint<BACKEND_OUTCOME>,
         file: &mut OutcomeFile,

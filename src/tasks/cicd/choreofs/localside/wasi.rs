@@ -6,7 +6,7 @@ use hibana_wasip1_runtime::{
     protocol,
 };
 
-#[hibana_runtime::localside]
+#[hibana_runtime::scope]
 pub async fn developer(
     guest: &mut HibanaWasiGuest,
     endpoint: &mut hibana::Endpoint<DEV_WASI>,
@@ -219,7 +219,7 @@ pub async fn developer(
     }
 }
 
-#[hibana_runtime::localside]
+#[hibana_runtime::scope]
 pub async fn tester(
     guest: &mut HibanaWasiGuest,
     endpoint: &mut hibana::Endpoint<TEST_WASI>,
@@ -432,7 +432,7 @@ pub async fn tester(
     }
 }
 
-#[hibana_runtime::localside]
+#[hibana_runtime::scope]
 pub async fn deployer(
     guest: &mut HibanaWasiGuest,
     endpoint: &mut hibana::Endpoint<DEPLOY_WASI>,

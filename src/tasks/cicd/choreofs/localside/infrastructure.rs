@@ -2,7 +2,7 @@ use super::super::global::*;
 use crate::shell::ShellResult;
 use hibana::Endpoint;
 
-#[hibana_runtime::localside]
+#[hibana_runtime::scope]
 pub async fn build_server<'r>(
     endpoint: &mut Endpoint<'r, BUILD_OWNER>,
     build: Endpoint<'r, BUILD_SERVER>,
@@ -14,7 +14,7 @@ pub async fn build_server<'r>(
     Ok(())
 }
 
-#[hibana_runtime::localside]
+#[hibana_runtime::scope]
 pub async fn deploy_env<'r>(
     endpoint: &mut Endpoint<'r, DEPLOY_OWNER>,
     environment: Endpoint<'r, DEPLOY_ENV>,

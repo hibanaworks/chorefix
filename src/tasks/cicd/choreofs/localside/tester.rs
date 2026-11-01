@@ -7,7 +7,7 @@ use hibana::Endpoint;
 use hibana_wasip1_runtime::protocol;
 use serde_json::json;
 
-#[hibana_runtime::localside]
+#[hibana_runtime::scope]
 pub async fn run<D: Domain>(
     endpoint: &mut Endpoint<TESTER>,
     domain: &D,

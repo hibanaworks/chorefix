@@ -4,7 +4,7 @@ use hibana_runtime::host::deadline;
 use std::io;
 use std::time::Duration;
 
-#[hibana_runtime::localside]
+#[hibana_runtime::scope]
 async fn sensitivity_case<const N: usize>(
     directory: &Path,
     name: &str,
@@ -27,9 +27,11 @@ async fn sensitivity_case<const N: usize>(
     });
     async {
         let simulator = &simulator;
-        #[localside]
+
         for (message, output) in inputs {
-            *output = simulator.call(message).await?;
+            async move {
+                *output = simulator.call(message).await?;
+            };
         }
         Ok(())
     }

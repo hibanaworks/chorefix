@@ -233,9 +233,11 @@ async fn real_wasi_cicd_uses_resource_endpoints_and_keeps_shell_freedom() -> Res
         let result = hibana_runtime::race(
             async {
                 let guest = &guest;
-                #[localside]
+
                 for actor in actors {
-                    participant(guest, actor).await?;
+                    async move {
+                        participant(guest, actor).await?;
+                    };
                 }
                 let result = runtime_loop.await?;
                 Ok(result)
@@ -303,12 +305,8 @@ async fn real_wasi_cicd_early_exit_has_no_domain_effect() -> Result<()> {
         process::guest(&runtime, module, "16E", &output, trace, simulator.clone())?;
     let (command, result) = hibana_runtime::race(
         async {
-            #[localside]
-            let (command, result) = (
-                async { Ok(guest.command("DEVELOPER", "exit 0".into()).await) },
-                runtime_loop,
-            );
-            Ok((command, result))
+            async { Ok(guest.command("DEVELOPER", "exit 0".into()).await) };
+            async { (runtime_loop).await };
         },
         hibana_runtime::host::deadline(Duration::from_secs(10)),
     )

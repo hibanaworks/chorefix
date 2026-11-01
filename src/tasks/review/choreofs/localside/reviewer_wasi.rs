@@ -12,7 +12,7 @@ use hibana_wasip1_runtime::{
 };
 use serde_json::{Value, json};
 
-#[hibana_runtime::localside]
+#[hibana_runtime::scope]
 pub async fn run(
     guest: &mut HibanaWasiGuest,
     endpoint: &mut hibana::Endpoint<REVIEW_WASI>,

@@ -105,13 +105,12 @@ async fn repository_receiver_rejects_substitution_and_wrong_target_before_effect
                         )
                         .unwrap();
 
-                        let (result, held) = async {
-                            #[localside]
-                            let (first, second) = (
+                        let (result, held) =
+                            async {
                                 async {
                                     Ok(localside::repo::run(&mut service, repository, &NoEffects)
                                         .await)
-                                },
+                                };
                                 async {
                                     task.send::<ImplementA>(&admitted).await.unwrap();
                                     let mut repository = task.recv::<RepoLoan>().await.unwrap();
@@ -122,12 +121,10 @@ async fn repository_receiver_rejects_substitution_and_wrong_target_before_effect
                                         .await
                                         .unwrap();
                                     Ok(repository)
-                                },
-                            );
-                            Ok((first, second))
-                        }
-                        .await
-                        .unwrap();
+                                };
+                            }
+                            .await
+                            .unwrap();
                         assert_eq!(
                             result.unwrap_err().to_string(),
                             "repository implementation arguments differ"

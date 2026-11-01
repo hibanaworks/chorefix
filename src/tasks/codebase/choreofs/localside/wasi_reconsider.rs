@@ -13,7 +13,7 @@ use hibana_wasip1_runtime::{
     protocol,
 };
 
-#[hibana_runtime::localside]
+#[hibana_runtime::scope]
 pub async fn run<
     const ROLE: u8,
     const SUBJECT: u8,
@@ -522,50 +522,42 @@ pub async fn run<
                                     let (mut first, mut second) = {
                                         let [mut first_loan, mut second_loan] = task.par()?;
                                         async {
-                                            #[localside]
-                                            let (first, second) = (
-                                                async {
-                                                    let mut resource =
-                                                        first_loan.recv::<Loan<FIRST>>().await?;
-                                                    resource
+                                            async {
+                                                let mut resource =
+                                                    first_loan.recv::<Loan<FIRST>>().await?;
+                                                resource
                                                     .send::<CommitRequest<TASK, SUBJECT, FIRST>>(
                                                         &arguments,
                                                     )
                                                     .await?;
-                                                    Ok(resource)
-                                                },
-                                                async {
-                                                    let mut resource =
-                                                        second_loan.recv::<Loan<SECOND>>().await?;
-                                                    resource
+                                                Ok(resource)
+                                            };
+                                            async {
+                                                let mut resource =
+                                                    second_loan.recv::<Loan<SECOND>>().await?;
+                                                resource
                                                     .send::<CommitRequest<TASK, SUBJECT, SECOND>>(
                                                         &arguments,
                                                     )
                                                     .await?;
-                                                    Ok(resource)
-                                                },
-                                            );
-                                            Ok((first, second))
+                                                Ok(resource)
+                                            };
                                         }
                                         .await?
                                     };
                                     let (bytes, second_bytes) = async {
-                                        #[localside]
-                                        let (bytes, second_bytes) = (
-                                            async {
-                                                Ok(first
-                                                    .recv::<CommitCompleted<FIRST>>()
-                                                    .await?
-                                                    .to_vec())
-                                            },
-                                            async {
-                                                Ok(second
-                                                    .recv::<CommitCompleted<SECOND>>()
-                                                    .await?
-                                                    .to_vec())
-                                            },
-                                        );
-                                        Ok((bytes, second_bytes))
+                                        async {
+                                            Ok(first
+                                                .recv::<CommitCompleted<FIRST>>()
+                                                .await?
+                                                .to_vec())
+                                        };
+                                        async {
+                                            Ok(second
+                                                .recv::<CommitCompleted<SECOND>>()
+                                                .await?
+                                                .to_vec())
+                                        };
                                     }
                                     .await?;
                                     if bytes != second_bytes {

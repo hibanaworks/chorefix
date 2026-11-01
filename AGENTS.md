@@ -105,19 +105,24 @@ Tokio-shaped wrappers and application schedulers. The I/O participant owns its
 data and final I/O; hibana-runtime owns polling, cancellation and waiting for
 children. Improve hibana-runtime when natural direct code cannot express a
 required operation; never compensate with application adapters, helpers or flags.
-Do not use a per-branch `#[localside]` or `let ()` list as the standard style.
-Use one function attribute and direct `async { ... };` bodies for inline
-concurrent Endpoint operations. Bind needed parallel results together, without
-application registration, result collection, pinning or completion management.
-Keep only the scope boundaries needed for data dependencies, ownership and borrowing; do not add
-async wrappers or nested scopes merely to hide the same management code.
-An ordinary `async { ... }.await?` may define completion and borrowing. A one-call
-async child may directly express independent work. Do not add custom syntax or
-execution APIs merely to remove these Rust forms. Each result declaration waits
-only for its explicit futures; adjacency never merges its wait with another
-result declaration or an unrelated child.
+Use standalone `async { ... };` children inside one `#[hibana_runtime::scope]`
+function, with Endpoint operations visible in each branch. A one-call async child
+is valid. Do not add per-declaration attributes, task handles, result receivers,
+per-result wakers or tuple-only await syntax. The global and Endpoint::par define
+protocol dependencies; the runtime drives the entire Rust child.
 
-Use one function attribute, `#[hibana_runtime::localside]`, with Rust async/await
+Where values merge or borrows must end, await an async body ending in child
+declarations. One child returns its successful value; several return a tuple in
+declaration order; fixed-array child declarations return arrays of their actual
+N. Explicit parent success retains its own value after finishing registered
+children. Errors destroy unfinished futures in place. Parent effects between
+children must not change output grouping, and ordinary stored futures stay lazy.
+Use `for value in values { async move { ... }; }` for fixed arrays; ordinary loops
+without child declarations remain sequential. Preserve ordinary Future composition
+through variables and function returns. Keep input storage, pinning and child
+completion inside the runtime, with one final slot per input.
+
+Use one function attribute, `#[hibana_runtime::scope]`, with Rust async/await
 as the basic interface. Inside that function, write independent branches directly:
 
 ```rust

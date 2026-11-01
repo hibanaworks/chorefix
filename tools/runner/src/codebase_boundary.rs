@@ -217,7 +217,7 @@ fn output(label: &str) -> Result<std::path::PathBuf> {
     Ok(directory)
 }
 
-#[hibana_runtime::localside]
+#[hibana_runtime::scope]
 async fn case<const N: usize>(
     directory: &Path,
     task: &str,
@@ -273,9 +273,11 @@ async fn case<const N: usize>(
             let drive = &drive;
             let guest = &guest;
             let simulator = &simulator;
-            #[localside]
+
             for (actor, output) in participants {
-                *output = drive(guest, simulator, actor, task).await?;
+                async move {
+                    *output = drive(guest, simulator, actor, task).await?;
+                };
             }
             let result = runtime_loop.await?;
             Ok(result)

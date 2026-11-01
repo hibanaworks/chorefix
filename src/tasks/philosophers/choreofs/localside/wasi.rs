@@ -9,7 +9,7 @@ use hibana_wasip1_runtime::{
     protocol,
 };
 
-#[hibana_runtime::localside]
+#[hibana_runtime::scope]
 pub async fn run<const ROLE: u8, const LEFT: u8, const RIGHT: u8>(
     guest: &mut HibanaWasiGuest,
     endpoint: &mut hibana::Endpoint<ROLE>,
@@ -329,32 +329,24 @@ pub async fn run<const ROLE: u8, const LEFT: u8, const RIGHT: u8>(
                                 let (mut left, mut right) = {
                                     let [mut left_loan, mut right_loan] = task.par()?;
                                     async {
-                                        #[localside]
-                                        let (left, right) = (
-                                            async {
-                                                let mut resource =
-                                                    left_loan.recv::<Loan<LEFT>>().await?;
-                                                resource.send::<Eat<LEFT>>(&arguments).await?;
-                                                Ok(resource)
-                                            },
-                                            async {
-                                                let mut resource =
-                                                    right_loan.recv::<Loan<RIGHT>>().await?;
-                                                resource.send::<Eat<RIGHT>>(&arguments).await?;
-                                                Ok(resource)
-                                            },
-                                        );
-                                        Ok((left, right))
+                                        async {
+                                            let mut resource =
+                                                left_loan.recv::<Loan<LEFT>>().await?;
+                                            resource.send::<Eat<LEFT>>(&arguments).await?;
+                                            Ok(resource)
+                                        };
+                                        async {
+                                            let mut resource =
+                                                right_loan.recv::<Loan<RIGHT>>().await?;
+                                            resource.send::<Eat<RIGHT>>(&arguments).await?;
+                                            Ok(resource)
+                                        };
                                     }
                                     .await?
                                 };
                                 let (left_result, right_result) = async {
-                                    #[localside]
-                                    let (left_result, right_result) = (
-                                        async { Ok(left.recv::<Meal<LEFT>>().await?.to_vec()) },
-                                        async { Ok(right.recv::<Meal<RIGHT>>().await?.to_vec()) },
-                                    );
-                                    Ok((left_result, right_result))
+                                    async { Ok(left.recv::<Meal<LEFT>>().await?.to_vec()) };
+                                    async { Ok(right.recv::<Meal<RIGHT>>().await?.to_vec()) };
                                 }
                                 .await?;
                                 if left_result != right_result {

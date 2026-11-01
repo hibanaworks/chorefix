@@ -7,7 +7,7 @@ use super::super::{
 use crate::shell::{ShellError, ShellResult, imp::service::Domain};
 use hibana::Endpoint;
 
-#[hibana_runtime::localside]
+#[hibana_runtime::scope]
 pub(crate) async fn run<
     const TASK: u8,
     const ROLE: u8,
@@ -74,12 +74,8 @@ pub(crate) async fn run<
         let arguments = {
             let [mut first, mut second] = endpoint.par()?;
             let (first, second) = async {
-                #[localside]
-                let (first, second) = (
-                    first.recv::<CommitRequest<TASK, ROLE, FIRST>>(),
-                    second.recv::<CommitRequest<TASK, ROLE, SECOND>>(),
-                );
-                Ok((first, second))
+                async { (first.recv::<CommitRequest<TASK, ROLE, FIRST>>()).await };
+                async { (second.recv::<CommitRequest<TASK, ROLE, SECOND>>()).await };
             }
             .await?;
             if first.as_bytes() != second.as_bytes() {

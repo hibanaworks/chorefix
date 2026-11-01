@@ -2,7 +2,7 @@ use super::super::global::Loan;
 use crate::shell::ShellResult;
 use hibana::Endpoint;
 
-#[hibana_runtime::localside]
+#[hibana_runtime::scope]
 pub(crate) async fn run<'r, const ROLE: u8, const RESOURCE: u8>(
     endpoint: &mut Endpoint<'r, ROLE>,
     resource: Endpoint<'r, RESOURCE>,

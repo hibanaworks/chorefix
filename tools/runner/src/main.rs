@@ -183,7 +183,7 @@ fn trial_error(outcomes: &[Value]) -> Option<String> {
         })
 }
 
-#[hibana_runtime::localside]
+#[hibana_runtime::scope]
 async fn run(task: &str, depth: u8, output: &Path) -> Result<Value> {
     if ![
         "1E", "1M", "1H", "2E", "2M", "2H", "6E", "8E", "9E", "9M", "9H", "16E",

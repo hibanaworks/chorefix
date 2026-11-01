@@ -107,15 +107,16 @@ async fn participant(guest: &process::Guest, actor: Value, terminal: bool) -> Re
     );
     Ok(())
 }
-#[hibana_runtime::localside]
+#[hibana_runtime::scope]
 async fn inputs<const N: usize>(
     guest: &process::Guest,
     actors: [Value; N],
     terminal: bool,
 ) -> Result<()> {
-    #[localside]
     for actor in actors {
-        participant(guest, actor, terminal).await?;
+        async move {
+            participant(guest, actor, terminal).await?;
+        };
     }
     Ok(())
 }

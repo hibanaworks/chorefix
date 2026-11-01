@@ -2,7 +2,7 @@ use super::super::global::*;
 use crate::shell::{ShellError, ShellResult, imp::service::Domain};
 use hibana::Endpoint;
 
-#[hibana_runtime::localside]
+#[hibana_runtime::scope]
 pub(crate) async fn run<const ROLE: u8, const LEFT: u8, const RIGHT: u8>(
     agent: &'static str,
     endpoint: &mut Endpoint<ROLE>,
@@ -25,9 +25,8 @@ pub(crate) async fn run<const ROLE: u8, const LEFT: u8, const RIGHT: u8>(
     let (left, right) = {
         let [mut left, mut right] = endpoint.par()?;
         async {
-            #[localside]
-            let (left, right) = (left.recv::<Eat<LEFT>>(), right.recv::<Eat<RIGHT>>());
-            Ok((left, right))
+            async { (left.recv::<Eat<LEFT>>()).await };
+            async { (right.recv::<Eat<RIGHT>>()).await };
         }
         .await?
     };

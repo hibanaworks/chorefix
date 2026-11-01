@@ -4,7 +4,7 @@ use super::super::global::*;
 use crate::shell::{ShellError, ShellResult, imp::service::Domain};
 use hibana::Endpoint;
 
-#[hibana_runtime::localside]
+#[hibana_runtime::scope]
 pub async fn run<'r, D: Domain>(
     endpoint: &mut Endpoint<'r, REPO>,
     mut repository: Endpoint<'r, REPO_ENDPOINT>,

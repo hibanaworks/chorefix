@@ -47,7 +47,7 @@ impl Domain for Effects {
     }
 }
 
-#[hibana_runtime::localside]
+#[hibana_runtime::scope]
 async fn client<const ROLE: u8, const LEFT: u8, const RIGHT: u8>(
     endpoint: &mut Endpoint<'_, ROLE>,
     agent: &'static str,
@@ -63,28 +63,25 @@ async fn client<const ROLE: u8, const LEFT: u8, const RIGHT: u8>(
     let (mut left, mut right) = {
         let [mut left_loan, mut right_loan] = task.par()?;
         async {
-            #[localside]
-            let (left, right) = (
-                async {
-                    let mut resource = left_loan.recv::<Loan<LEFT>>().await?;
-                    resource.send::<Eat<LEFT>>(&arguments).await?;
-                    Ok(resource)
-                },
-                async {
-                    let mut resource = right_loan.recv::<Loan<RIGHT>>().await?;
-                    resource.send::<Eat<RIGHT>>(&arguments).await?;
-                    Ok(resource)
-                },
-            );
-            Ok((left, right))
+            async {
+                let mut resource = left_loan.recv::<Loan<LEFT>>().await?;
+                resource.send::<Eat<LEFT>>(&arguments).await?;
+                Ok(resource)
+            };
+            async {
+                let mut resource = right_loan.recv::<Loan<RIGHT>>().await?;
+                resource.send::<Eat<RIGHT>>(&arguments).await?;
+                Ok(resource)
+            };
         }
         .await?
     };
-    #[localside]
-    let (left_result, right_result) = (
-        async { Ok(left.recv::<Meal<LEFT>>().await?.to_vec()) },
-        async { Ok(right.recv::<Meal<RIGHT>>().await?.to_vec()) },
-    );
+
+    let (left_result, right_result) = (async {
+        async { Ok(left.recv::<Meal<LEFT>>().await?.to_vec()) };
+        async { Ok(right.recv::<Meal<RIGHT>>().await?.to_vec()) };
+    })
+    .await?;
     assert_eq!(left_result, right_result);
     assert_eq!(
         serde_json::from_slice::<serde_json::Value>(&left_result).unwrap()["tool"],
@@ -142,36 +139,51 @@ async fn three_guests_use_both_real_fork_endpoints_and_return_them() -> ShellRes
     let mut b_io = runtime.enter(session, &programs.b_io)?;
     let mut c_io = runtime.enter(session, &programs.c_io)?;
     async {
-        #[localside]
-        localside::philosopher::run::<A, FORK_A_RESOURCE, FORK_C_RESOURCE>(
-            "PHILOSOPHER_A",
-            &mut a,
-            &effects,
-        );
-        #[localside]
-        localside::philosopher::run::<B, FORK_B_RESOURCE, FORK_A_RESOURCE>(
-            "PHILOSOPHER_B",
-            &mut b,
-            &effects,
-        );
-        #[localside]
-        localside::philosopher::run::<C, FORK_C_RESOURCE, FORK_B_RESOURCE>(
-            "PHILOSOPHER_C",
-            &mut c,
-            &effects,
-        );
-        #[localside]
-        localside::fork::run::<FORK_A, FORK_A_RESOURCE>(&mut fork_a, resource_a);
-        #[localside]
-        localside::fork::run::<FORK_B, FORK_B_RESOURCE>(&mut fork_b, resource_b);
-        #[localside]
-        localside::fork::run::<FORK_C, FORK_C_RESOURCE>(&mut fork_c, resource_c);
-        #[localside]
-        client::<A_WASI, FORK_A_RESOURCE, FORK_C_RESOURCE>(&mut a_wasi, "PHILOSOPHER_A");
-        #[localside]
-        client::<B_WASI, FORK_B_RESOURCE, FORK_A_RESOURCE>(&mut b_wasi, "PHILOSOPHER_B");
-        #[localside]
-        client::<C_WASI, FORK_C_RESOURCE, FORK_B_RESOURCE>(&mut c_wasi, "PHILOSOPHER_C");
+        async {
+            localside::philosopher::run::<A, FORK_A_RESOURCE, FORK_C_RESOURCE>(
+                "PHILOSOPHER_A",
+                &mut a,
+                &effects,
+            )
+            .await?;
+        };
+        async {
+            localside::philosopher::run::<B, FORK_B_RESOURCE, FORK_A_RESOURCE>(
+                "PHILOSOPHER_B",
+                &mut b,
+                &effects,
+            )
+            .await?;
+        };
+        async {
+            localside::philosopher::run::<C, FORK_C_RESOURCE, FORK_B_RESOURCE>(
+                "PHILOSOPHER_C",
+                &mut c,
+                &effects,
+            )
+            .await?;
+        };
+        async {
+            localside::fork::run::<FORK_A, FORK_A_RESOURCE>(&mut fork_a, resource_a).await?;
+        };
+        async {
+            localside::fork::run::<FORK_B, FORK_B_RESOURCE>(&mut fork_b, resource_b).await?;
+        };
+        async {
+            localside::fork::run::<FORK_C, FORK_C_RESOURCE>(&mut fork_c, resource_c).await?;
+        };
+        async {
+            client::<A_WASI, FORK_A_RESOURCE, FORK_C_RESOURCE>(&mut a_wasi, "PHILOSOPHER_A")
+                .await?;
+        };
+        async {
+            client::<B_WASI, FORK_B_RESOURCE, FORK_A_RESOURCE>(&mut b_wasi, "PHILOSOPHER_B")
+                .await?;
+        };
+        async {
+            client::<C_WASI, FORK_C_RESOURCE, FORK_B_RESOURCE>(&mut c_wasi, "PHILOSOPHER_C")
+                .await?;
+        };
         async {
             assert_eq!(a_io.offer().await?.recv::<Exit>().await?, 0);
         };
@@ -211,7 +223,7 @@ macro_rules! larger_fixture {
       $(($service:ident, $role:ident, $fork:ident, $owner:ident,
          $resource:ident, $resource_role:ident, $vm:ident, $vm_role:ident,
          $io:ident, $io_role:ident, $left:ident, $right:ident, $agent:literal)),+ $(,)?) => {
-        #[hibana_runtime::localside]
+        #[hibana_runtime::scope]
         async fn $name(domain: &impl Domain) -> ShellResult<()> {
             use super::identity::$roles::*;
             let programs = $project();
@@ -230,12 +242,9 @@ macro_rules! larger_fixture {
                 let mut $io = runtime.enter(session, &programs.$io)?;
             )+
             $(
-                #[localside]
-                localside::philosopher::run::<$role, $left, $right>($agent, &mut $service, domain);
-                #[localside]
-                localside::fork::run::<$owner, $resource_role>(&mut $fork, $resource);
-                #[localside]
-                client::<$vm_role, $left, $right>(&mut $vm, $agent);
+                async { localside::philosopher::run::<$role, $left, $right>($agent, &mut $service, domain).await?; };
+                async { localside::fork::run::<$owner, $resource_role>(&mut $fork, $resource).await?; };
+                async { client::<$vm_role, $left, $right>(&mut $vm, $agent).await?; };
                 async { assert_eq!($io.offer().await?.recv::<Exit>().await?, 0); };
             )+
             Ok(())

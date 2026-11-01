@@ -102,12 +102,8 @@ async fn the_actual_1h_database_endpoint_reaches_b_only_after_a_returns_it()
                     .unwrap();
                 let [mut a_auth, mut a_database] = a_task.par().unwrap();
                 let (mut auth_resource, mut database_resource) = async {
-                    #[localside]
-                    let (first, second) = (
-                        a_auth.recv::<Loan<AUTH_RESOURCE>>(),
-                        a_database.recv::<Loan<DATABASE_RESOURCE>>(),
-                    );
-                    Ok((first, second))
+                    async { (a_auth.recv::<Loan<AUTH_RESOURCE>>()).await };
+                    async { (a_database.recv::<Loan<DATABASE_RESOURCE>>()).await };
                 }
                 .await
                 .unwrap();
@@ -146,12 +142,10 @@ async fn the_actual_1h_database_endpoint_reaches_b_only_after_a_returns_it()
                 {
                     let [mut first, mut second] = a.par().unwrap();
                     async {
-                        #[localside]
-                        let (first, second) = (
-                            first.recv::<CommitRequest<HARD, A, AUTH_RESOURCE>>(),
-                            second.recv::<CommitRequest<HARD, A, DATABASE_RESOURCE>>(),
-                        );
-                        Ok((first, second))
+                        async { (first.recv::<CommitRequest<HARD, A, AUTH_RESOURCE>>()).await };
+                        async {
+                            (second.recv::<CommitRequest<HARD, A, DATABASE_RESOURCE>>()).await
+                        };
                     }
                     .await
                     .unwrap();
@@ -175,12 +169,10 @@ async fn the_actual_1h_database_endpoint_reaches_b_only_after_a_returns_it()
                     .unwrap();
                 }
                 async {
-                    #[localside]
-                    let (first, second) = (
-                        auth_resource.recv::<CommitCompleted<AUTH_RESOURCE>>(),
-                        database_resource.recv::<CommitCompleted<DATABASE_RESOURCE>>(),
-                    );
-                    Ok((first, second))
+                    async { (auth_resource.recv::<CommitCompleted<AUTH_RESOURCE>>()).await };
+                    async {
+                        (database_resource.recv::<CommitCompleted<DATABASE_RESOURCE>>()).await
+                    };
                 }
                 .await
                 .unwrap();

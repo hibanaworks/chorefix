@@ -5,7 +5,7 @@ use super::super::{
 use crate::RunError;
 use hibana::{Endpoint, runtime::resolver::DecisionArm};
 
-#[hibana_runtime::localside]
+#[hibana_runtime::scope]
 pub(crate) async fn run<D: Domain>(
     endpoint: &mut Endpoint<EDITOR>,
     domain: &D,

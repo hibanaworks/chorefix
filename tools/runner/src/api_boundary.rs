@@ -136,11 +136,10 @@ async fn real_wasi_outcome_metadata_preserves_all_original_results() -> Result<(
             .map_err(|_| "API worker count")?;
         let (runtime_result, participants) = hibana_runtime::race(
             async {
-                #[localside]
-                let (first, second, runtime_result, tester) = (
-                    participant(&guest, first.clone(), depth),
-                    participant(&guest, second.clone(), depth),
-                    runtime_loop,
+                let (first, second, runtime_result, tester) = (async {
+                    async { (participant(&guest, first.clone(), depth)).await };
+                    async { (participant(&guest, second.clone(), depth)).await };
+                    async { (runtime_loop).await };
                     async {
                         // Hold only the scripted tester input. Both actual WASI reads
                         // must wait at the file owner until the test result exists.
@@ -201,9 +200,10 @@ async fn real_wasi_outcome_metadata_preserves_all_original_results() -> Result<(
                 }, hibana_runtime::host::deadline(Duration::from_secs(10)))
                 .await?;
                         participant(&guest, tester.clone(), depth).await
-                    },
-                );
-                Ok((runtime_result, [first, second, tester]))
+                    };
+                })
+                .await?;
+                Result::Ok((runtime_result, [first, second, tester]))
             },
             hibana_runtime::host::deadline(Duration::from_secs(60)),
         )
