@@ -250,21 +250,31 @@ Pendingで隠さず拒否する。Kani321件・protocol fuzz・32分割・全Mir
 [protocol fuzz](https://github.com/hibanaworks/hibana/actions/runs/41270765157)、
 [並行再入Miri](https://github.com/hibanaworks/hibana/actions/runs/41270766502)も起動した。
 CIの受付・実行中を成功と扱わない。失敗入力とログは保持する。
+同じ本体`c1d9212`のローカルKani321件は成功し、全子孫最大memoryは
+2,638,577,664bytesだった。別seed `20261101`のCI fuzz深さ5〜8と並行再入Miriは成功した。
+深さ4は、不合法な一つのsourceに複数の所有権違反があるとき、生成検査が二つの異なる
+先頭診断を要求する問題で停止した。実際のコンパイルはsource上で裏づけられる違反を拒否した。
+生成検査の修正と停止入力の再検証は未完であり、全gate成功とは扱わない。
 WASIの`378e7d7`は本体`c1d9212`とruntime`4d73bcf`を選択し、二つの利用例と
 八つのEndpoint試験をhibana-runtimeへ書き換えた。Tokioはmanifestとlockから除いた。
 閉じたメモリ内fixtureのdriverを使い、OSのreadinessやI/O性能の検証とは区別する。
 CIのguard追加後の`e9bcf88`を公開し、[WASIのCI](https://github.com/hibanaworks/hibana-wasip1-runtime/actions/runs/41270905426)を起動した。
-検証成功は未確認であり、本体のローカル全gate成功後に同じsourceでWASIのローカル全gateを開始する。
+同CIは成功した。native、Clippy、Pico 2、Lean/Z3と、Miriのlib81試験・実Endpoint利用例8試験を
+通過した。本体のローカル全gate成功後に同じsourceでWASIのローカル全gateを開始する。
 consumerも本体・WASI・runtimeの公開pinを揃えてCIへ渡す。最新handoffと全移行済みfamilyの
 再認定は未完であり、旧pinでの認定結果を流用しない。
 作業版では、隣接する結果bindingの暗黙の並行化へ依存する箇所を、必要な複数の結果を
 一つに束ねる宣言へ書き換えた。結果不要の枝は一呼出しも含めたasyncの子とし、
 六familyの参加者起動とEndpointの並行send/返却から枝ごとの属性を除いた。
-globalの操作順・依存は変更していない。この書換えの型検査・統合認定は未実行である。
+globalの操作順・依存は変更していない。公開版`c1f4885`のCIでは、native、Clippyと
+実receiverのMiriを通過したが、実Wasmのビルドで停止した。guestのビルドscriptだけが
+Rust 1.95.0を指定し、CIが用意したstableのWasm targetを使っていなかったためである。
+hibana-washの`7e69adf`で開発・ビルドを最新stableへ統一した。MSRVの宣言は変えていない。
+新しいguestとruntimeを選択した統合認定は未完である。
 既存pinの機構試験を、新runtimeでの統合認定へ読み替えない。
 全familyの機構検証はRust runnerの`--qualify-wasi`へ集約している。source・binary・
-receiptを保存し、テスト0件や途中のsource変更では成功としない。現在の変更は未検証であり、
-最新pinでの再認定結果を得るまで成功件数へ加えない。
+receiptを保存し、テスト0件や途中のsource変更では成功としない。
+最新pinでの全family再認定結果を得るまで成功件数へ加えない。
 
 runtimeの`61ae78b`は、配列localside宣言の入力式内のasync scopeも変換する。
 修正前に成功・子のエラー・借用値の3試験がすべて失敗することを確認し、同じ試験を修正後に
@@ -287,7 +297,12 @@ Lean/Z3、Clippy、no_std/Pico linkを含む全gateが同じsourceで成功し�
 `8fba570`も実行コードは同じで、Actions再開とmacOS/ARM LinuxのCIを追加した版である。
 最初のCIは検査前に共有scriptの実行権限で停止した。`078ca32`でCIの起動手順を修正し、
 [再実行](https://github.com/hibanaworks/hibana-runtime/actions/runs/41271100947)を起動した。
-runtimeの実行コードは同じであり、CIの成功結果は未確認である。
+同CIではLinuxのroot Future配置によるstack overflowと、ANSI色によるcompile-fail診断の
+誤集計が見つかった。`2c3a75c`でroot Futureをentryの最終領域にpinし、診断を無着色で
+取得するようにした。試験のstack予算・入力数・コンパイル拒否条件は変えていない。
+Macの同一source全gateは成功し、Linuxも同じstack試験を通過した。旧Z3での定数配列の
+logic指定を修正した`3ded31b`は[Mac・Linux両CIの全gate](https://github.com/hibanaworks/hibana-runtime/actions/runs/41272640920)が成功した。
+この修正版をアプリ・runner・handoff検証crateで選択する。
 これらのruntime検証を、現在のcore・WASI・consumerの組合せの認定へ読み替えない。
 関数属性一つとRustのasync/awaitを使い、並行枝の一呼出しasyncも許容する。
 新しい並行構文は増やさず、pin・task handle・joinの組立て・子の完了管理をruntimeへ置く。
