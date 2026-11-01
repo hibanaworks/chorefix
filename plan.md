@@ -331,6 +331,13 @@ globalとEndpoint操作順は変更していない。通常Git依存のhandoff�
 実Wasmの全条件と実モデルの再認定は未完であり、この通常試験に算入しない。
 記録とsource hashは`output/review-occurrence-qualification/runtime-scope-values/`へ保持する。
 
+WASIの`18da231`もruntime `6896654`へ揃え、[同版の全CIゲート](https://github.com/hibanaworks/hibana-wasip1-runtime/actions/runs/41287865228)が成功した。
+実Wasmの標準ライブラリ製シェル、正常・不正なChoreoFS操作、Endpointの貸出・返却、
+native、Clippy、Miri、Lean/Z3、Pico 2の確認を含む。WASIのproduction sourceは
+`e9bcf88`と同じで、変更は開発用runtimeのmanifest/lockだけである。
+アプリとhandoff検証crateもこのWASI pinへ更新する。このCI成功を、ChoreoFix全familyの
+実Wasm再認定や本体の最終source全gate成功へ読み替えない。
+
 runtimeの中核はno_std・割当なし・caller-owned storageである。参加者は借用した値や
 所有値で直接宣言し、runtimeがFutureの配置・poll・キャンセル・子の終了待ちを担当する。
 12課題とrunnerから起動joinツリー、task登録・終了回収、guest/I/Oの二重の終了値管理を

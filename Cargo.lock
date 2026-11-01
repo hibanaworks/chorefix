@@ -38,7 +38,7 @@ dependencies = [
 [[package]]
 name = "hibana-wasip1-runtime"
 version = "0.1.0"
-source = "git+https://github.com/hibanaworks/hibana-wasip1-runtime?rev=e9bcf88d10de0dc92e08fef0f18f42e9d94ba3ad#e9bcf88d10de0dc92e08fef0f18f42e9d94ba3ad"
+source = "git+https://github.com/hibanaworks/hibana-wasip1-runtime?rev=18da2317ee49d3297ef470e501fa115763ffeae2#18da2317ee49d3297ef470e501fa115763ffeae2"
 dependencies = [
  "hibana",
 ]
