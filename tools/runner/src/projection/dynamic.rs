@@ -248,13 +248,13 @@ pub fn check(artifact: &Value, rows: &[Value]) -> Result<Value> {
                 &mut workspace,
             )
             .map_err(|e| format!("EPF dynamic eligibility: {e:?}"))?;
-        let source = audit.path.unfolding();
-        let correspondence: Vec<_> = audit.execution.order.iter().zip(audit.execution.occurrences).map(|(id, occurrence)|
+        let source = audit.path().unfolding();
+        let correspondence: Vec<_> = audit.execution().order.iter().zip(audit.execution().occurrences).map(|(id, occurrence)|
             json!({"producer":streams.keys().nth(id.producer),"ordinal":id.ordinal,"occurrence":occurrence,
                 "source_event":occurrence.and_then(|event| source.origin(event))})
         ).collect();
         let mut intervals = Vec::new();
-        for acceptance in audit.execution.acceptances {
+        for acceptance in audit.execution().acceptances {
             let call =
                 captures[acceptance.first_poll.producer].records()[acceptance.first_poll.ordinal];
             let origin = call.arg1() as u16;

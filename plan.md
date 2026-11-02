@@ -446,6 +446,8 @@ producer間の順序と操作の対応を構成し、動的なsource実行とし
 このconsumer接続のcompile・実Wasm認定、他familyへの展開、最終sourceの全gateは未完である。
 本体のTokio撤去後の通常試験は成功し、同じSHAでprotocol fuzz・Kani等を実行中。
 WASIの依存更新版はCIを通過したが、これをChoreoFix全体の認定へ広げない。
+ChoreoFixの接続準備版のCIは、GitHubの支払・利用上限によりjob開始前に拒否された。
+sourceの検査失敗としては数えず、注記を保存してローカル検証を行う。
 
 runnerは、独立要求、同じ参加者の並列要求、turn/start応答前の要求、guest終了後の
 接続切断・timeout、部分JSON行の受信キャンセルを実I/Oで検査した。
