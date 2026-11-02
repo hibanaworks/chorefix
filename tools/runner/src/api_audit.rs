@@ -532,10 +532,11 @@ pub fn check_mutants(path: &Path, output: &Path) -> Result<Value> {
             }
         }
         let file = output.join(format!("{kind}.jsonl"));
-        let mut out = File::create(&file)?;
+        let mut out = std::io::BufWriter::new(File::create(&file)?);
         for r in &copy {
             send(&mut out, r)?
         }
+        out.flush()?;
         let error = check(&copy, &projection)
             .err()
             .ok_or("accepted a mutant")?

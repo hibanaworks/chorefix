@@ -18,7 +18,8 @@ impl Trace {
         Self::from_file(File::create_new(path)?)
     }
 
-    fn from_file(mut file: File) -> Result<Self> {
+    fn from_file(file: File) -> Result<Self> {
+        let mut file = std::io::BufWriter::new(file);
         let (send, receive) = mpsc::channel::<(String, Value, mpsc::SyncSender<Result<()>>)>();
         let started = Instant::now();
         std::thread::Builder::new()

@@ -439,19 +439,27 @@ EOF待ちを戻すライブ観測の感度検査は`epf/final`へ対応付ける
 黙って既定の観測へ切り替えず拒否する。動的適合の認定やChoreoFixの効果監査との接続は含まない。
 上記は旧版での境界である。現在のEPFには、compiled sourceから有限展開、各visitのroute、
 producer間の順序と操作の対応を構成し、動的なsource実行として照合する入口を追加した。
-通常試験100件は`265c497`のCIで成功し、未使用importを修正して本体と依存版を揃えた
-版の全gateは継続中である。探索の容量不足・不成立は認定を返さず、globalの違法判定としない。
+EPF `2a865a0`は本体`40298f0`を選択し、同一sourceでローカル全gateとCIが成功した。
+通常101試験、strict-provenance Miri 96試験、compile-fail doctest 1件、Lean 50項目、
+17種類の故障対照、Clippyとno_std host/thumbビルドを含み、最大memoryは693,190,656bytesだった。
+探索の容量不足・不成立は認定を返さず、globalの違法判定としない。
 6Eでは全tap記録と独立したproducer checkpointを保存し、runnerからEPFへ渡す接続を実装した。
 受理した各wire callを既存のframe journalへ一対一で対応付け、レビューの効果監査へつなぐ。
-本体`40298f0`、WASI `6930f7a`、EPF `2a865a0`、runtime `f093802`を通常Git依存で
-選択する。本体のTokio撤去は実装済み。EPFのcompact sourceのrollの場合を修正し、
-同じcoreを使った6組50項目のLean検査が成功した（最大882,458,624bytes）。
-この組合せでの全gateと実Wasmによる動的監査の統合認定は、成功記録がそろうまで未完とする。
+依存版はmanifest/lockを正とする。本体のTokio撤去は実装済み。
+WASI `6930f7a`のCIも成功した。この組合せでの本体全gateと実Wasmによる動的監査の
+統合認定は、成功記録がそろうまで未完とする。
 このconsumer接続のcompile・実Wasm認定、他familyへの展開、最終sourceの全gateは未完である。
 本体のTokio撤去後の通常試験は成功し、同じSHAでprotocol fuzz・Kani等を実行中。
 WASIの依存更新版はCIを通過したが、これをChoreoFix全体の認定へ広げない。
 ChoreoFixの接続準備版のCIは、GitHubの支払・利用上限によりjob開始前に拒否された。
 sourceの検査失敗としては数えず、注記を保存してローカル検証を行う。
+
+検証用JSONLの保存では、細かなJSON断片ごとのファイル書込みが負荷になっていた。
+既存のファイル所有者で標準I/Oバッファを使い、記録への応答と監査の前に明示的にflushする。
+同じ保存済み1M記録を使ったローカル1組の比較で、12記録変異の保存・監査は19.88秒から
+2.92秒となり、12ファイルと拒否結果はすべてbyte単位で一致した。実タスクやcoreの
+通信性能の測定には数えない。33通常試験とClippy、成功応答前の可視性・書込み失敗の
+伝播の既存試験は通過し、最終sourceでの実Wasm全条件は再実行する。
 
 runnerは、独立要求、同じ参加者の並列要求、turn/start応答前の要求、guest終了後の
 接続切断・timeout、部分JSON行の受信キャンセルを実I/Oで検査した。

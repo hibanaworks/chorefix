@@ -767,11 +767,12 @@ pub fn check_mutants(path: &Path, output: &Path) -> Result<Value> {
             }
         }
         let mutated = output.join(format!("{mutation}.jsonl"));
-        let mut file = File::create(&mutated)?;
+        let mut file = std::io::BufWriter::new(File::create(&mutated)?);
         for record in &copy {
             serde_json::to_writer(&mut file, record)?;
             writeln!(file)?;
         }
+        file.flush()?;
         let error = check(&copy, &projection)
             .err()
             .ok_or("audit accepted mutated evidence")?

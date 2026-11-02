@@ -686,10 +686,11 @@ pub fn check_mutants(path: &Path, output: &Path) -> Result<Value> {
             }
         }
         let mutant_path = output.join(format!("{mutation}.jsonl"));
-        let mut file = File::create(&mutant_path)?;
+        let mut file = std::io::BufWriter::new(File::create(&mutant_path)?);
         for record in &copy {
             send(&mut file, record)?;
         }
+        file.flush()?;
         let error = check(&copy, &projection)
             .err()
             .ok_or("audit accepted mutated evidence")?

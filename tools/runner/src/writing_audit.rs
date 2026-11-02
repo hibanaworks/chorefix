@@ -646,11 +646,12 @@ pub fn check_mutants(path: &Path, output: &Path) -> Result<Value> {
         }
         let mutant = output.join(format!("{kind}.jsonl"));
         use std::io::Write;
-        let mut file = fs::File::create_new(&mutant)?;
+        let mut file = std::io::BufWriter::new(fs::File::create_new(&mutant)?);
         for row in &copy {
             serde_json::to_writer(&mut file, row)?;
             writeln!(file)?;
         }
+        file.flush()?;
         drop(file);
         let error = check(&copy, &projection)
             .err()
