@@ -74,7 +74,7 @@ async fn run_guests(
         let mut review_store = HibanaWasiGuestStorage::uninit();
         let review_guest =
             review_store.init(module, GuestMemory::new(&mut review_memory), bindings())?;
-        let result = hibana_runtime::race(async {
+        hibana_runtime::race(async {
         async {
             localside::reviewer_a::run(&mut review_a, bus, &review_a_result).await?;
         };
@@ -111,8 +111,7 @@ async fn run_guests(
                 }
                 hibana_runtime::host::sleep(std::time::Duration::from_millis(1)).await?;
             }
-        }).await;
-        result
+        }).await
     }.await;
     let rows: Vec<_> = observations
         .by_ref()
