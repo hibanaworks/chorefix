@@ -690,7 +690,9 @@ fn check(rows: &[Value], projection: &Value) -> Result<Value> {
 }
 pub fn audit(path: &Path) -> Result<Value> {
     let projection = crate::projection::load(path)?;
-    let mut result = check(&records(path)?, &projection)?;
+    let rows = records(path)?;
+    let mut result = check(&rows, &projection)?;
+    result["dynamic_protocol"] = crate::projection::check_dynamic(&projection, &rows)?;
     result["source_events_sha256"] = json!(digest(path)?);
     result["compiled_projection_sha256"] = json!(digest(
         &path
@@ -699,9 +701,8 @@ pub fn audit(path: &Path) -> Result<Value> {
             .join("projection.json")
     )?);
     result["runtime_binary_sha256"] = projection["runtime_binary_sha256"].clone();
-    result["wire_validation"] = json!(
-        "static compiled header membership and review message contracts; dynamic eligibility is not replayed"
-    );
+    result["wire_validation"] =
+        json!("compiled wire membership, review contracts and EPF source-execution interpretation");
     Ok(result)
 }
 

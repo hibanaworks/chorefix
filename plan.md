@@ -437,8 +437,15 @@ source/rawと修正前の結果は`runtime-array-input/epf/commit-fields`に保�
 設定の失敗がpolicy枠を消費する3経路の修正前後の検査は`epf/atomic-configuration`、
 EOF待ちを戻すライブ観測の感度検査は`epf/final`へ対応付ける。観測CLIへpolicyを指定した場合も
 黙って既定の観測へ切り替えず拒否する。動的適合の認定やChoreoFixの効果監査との接続は含まない。
-現EPFは診断VMであり、この動的再生は未実装。現在のtapだけでは全commitと動的出現を
-一意に結ぶ情報が不足するため、先に観測契約とcompilerからの読み取りを補う。
+上記は旧版での境界である。現在のEPFには、compiled sourceから有限展開、各visitのroute、
+producer間の順序と操作の対応を構成し、動的なsource実行として照合する入口を追加した。
+通常試験100件は`265c497`のCIで成功し、未使用importを修正して本体と依存版を揃えた
+版の全gateは継続中である。探索の容量不足・不成立は認定を返さず、globalの違法判定としない。
+6Eでは全tap記録と独立したproducer checkpointを保存し、runnerからEPFへ渡す接続を実装中。
+受理した各wire callを既存のframe journalへ一対一で対応付け、レビューの効果監査へつなぐ。
+このconsumer接続のcompile・実Wasm認定、他familyへの展開、最終sourceの全gateは未完である。
+本体のTokio撤去後の通常試験は成功し、同じSHAでprotocol fuzz・Kani等を実行中。
+WASIの依存更新版はCIを通過したが、これをChoreoFix全体の認定へ広げない。
 
 runnerは、独立要求、同じ参加者の並列要求、turn/start応答前の要求、guest終了後の
 接続切断・timeout、部分JSON行の受信キャンセルを実I/Oで検査した。

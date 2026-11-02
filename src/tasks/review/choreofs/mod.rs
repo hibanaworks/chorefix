@@ -32,74 +32,102 @@ async fn run_guests(
     let mut storage = SessionKitStorage::<&InMemoryTransport>::uninit();
     let kit = storage.init();
     let rv = kit.rendezvous(&mut slab, &bus.transport)?;
-    rv.set_resolver(
-        &p.review_a,
-        ResolverRef::<DECIDE_A>::decision_state(&review_a_result, decide),
-    )
-    .map_err(|e| ShellError::message(format!("{e:?}")))?;
-    rv.set_resolver(
-        &p.review_b,
-        ResolverRef::<DECIDE_B>::decision_state(&review_b_result, decide),
-    )
-    .map_err(|e| ShellError::message(format!("{e:?}")))?;
-    rv.set_resolver(
-        &p.review_wasi,
-        ResolverRef::<SELECT_REVIEW>::decision_state(&selected_review, imp::ReviewTarget::decide),
-    )
-    .map_err(|e| ShellError::message(format!("{e:?}")))?;
+    let mut observations = rv.tap();
     let session = SessionId::new(6);
-    let mut repo = rv.enter(session, &p.repo)?;
-    let repository = rv.enter(session, &p.repo_endpoint)?;
-    let mut a_wasi = rv.enter(session, &p.a_wasi)?;
-    let mut b_wasi = rv.enter(session, &p.b_wasi)?;
-    let mut review_wasi = rv.enter(session, &p.review_wasi)?;
-    let mut review_a = rv.enter(session, &p.review_a)?;
-    let mut review_b = rv.enter(session, &p.review_b)?;
-    let mut a_io = rv.enter(session, &p.a_io)?;
-    let mut b_io = rv.enter(session, &p.b_io)?;
-    let mut review_io = rv.enter(session, &p.review_io)?;
-    let [a_terminal, b_terminal, review_terminal] = terminals;
-    let a_fs = PrivateFs::new(a_terminal, bus);
-    let mut a_memory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
-    let mut a_store = HibanaWasiGuestStorage::uninit();
-    let a_guest = a_store.init(module, GuestMemory::new(&mut a_memory), bindings())?;
-    let b_fs = PrivateFs::new(b_terminal, bus);
-    let mut b_memory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
-    let mut b_store = HibanaWasiGuestStorage::uninit();
-    let b_guest = b_store.init(module, GuestMemory::new(&mut b_memory), bindings())?;
-    let review_fs = PrivateFs::new(review_terminal, bus);
-    let mut review_memory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
-    let mut review_store = HibanaWasiGuestStorage::uninit();
-    let review_guest =
-        review_store.init(module, GuestMemory::new(&mut review_memory), bindings())?;
-    async {
-        localside::reviewer_a::run(&mut review_a, bus, &review_a_result).await?;
-    };
-    async {
-        localside::reviewer_b::run(&mut review_b, bus, &review_b_result).await?;
-    };
-    async {
-        localside::repo::run(&mut repo, repository, bus).await?;
-    };
-    async {
-        localside::developer_wasi::run::<A_WASI>(a_guest, &mut a_wasi).await?;
-    };
-    async {
-        private_io::run(&mut a_io, a_fs).await?;
-    };
-    async {
-        localside::developer_wasi::run::<B_WASI>(b_guest, &mut b_wasi).await?;
-    };
-    async {
-        private_io::run(&mut b_io, b_fs).await?;
-    };
-    async {
-        localside::reviewer_wasi::run(review_guest, &mut review_wasi, &selected_review).await?;
-    };
-    async {
-        private_io::run(&mut review_io, review_fs).await?;
-    };
-    Ok(())
+    let result = async {
+        rv.set_resolver(
+            &p.review_a,
+            ResolverRef::<DECIDE_A>::decision_state(&review_a_result, decide),
+        )
+        .map_err(|e| ShellError::message(format!("{e:?}")))?;
+        rv.set_resolver(
+            &p.review_b,
+            ResolverRef::<DECIDE_B>::decision_state(&review_b_result, decide),
+        )
+        .map_err(|e| ShellError::message(format!("{e:?}")))?;
+        rv.set_resolver(
+            &p.review_wasi,
+            ResolverRef::<SELECT_REVIEW>::decision_state(&selected_review, imp::ReviewTarget::decide),
+        )
+        .map_err(|e| ShellError::message(format!("{e:?}")))?;
+        let mut repo = rv.enter(session, &p.repo)?;
+        let repository = rv.enter(session, &p.repo_endpoint)?;
+        let mut a_wasi = rv.enter(session, &p.a_wasi)?;
+        let mut b_wasi = rv.enter(session, &p.b_wasi)?;
+        let mut review_wasi = rv.enter(session, &p.review_wasi)?;
+        let mut review_a = rv.enter(session, &p.review_a)?;
+        let mut review_b = rv.enter(session, &p.review_b)?;
+        let mut a_io = rv.enter(session, &p.a_io)?;
+        let mut b_io = rv.enter(session, &p.b_io)?;
+        let mut review_io = rv.enter(session, &p.review_io)?;
+        let [a_terminal, b_terminal, review_terminal] = terminals;
+        let a_fs = PrivateFs::new(a_terminal, bus);
+        let mut a_memory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
+        let mut a_store = HibanaWasiGuestStorage::uninit();
+        let a_guest = a_store.init(module, GuestMemory::new(&mut a_memory), bindings())?;
+        let b_fs = PrivateFs::new(b_terminal, bus);
+        let mut b_memory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
+        let mut b_store = HibanaWasiGuestStorage::uninit();
+        let b_guest = b_store.init(module, GuestMemory::new(&mut b_memory), bindings())?;
+        let review_fs = PrivateFs::new(review_terminal, bus);
+        let mut review_memory = vec![0; crate::shell::GUEST_MEMORY_BYTES];
+        let mut review_store = HibanaWasiGuestStorage::uninit();
+        let review_guest =
+            review_store.init(module, GuestMemory::new(&mut review_memory), bindings())?;
+        let result = hibana_runtime::race(async {
+        async {
+            localside::reviewer_a::run(&mut review_a, bus, &review_a_result).await?;
+        };
+        async {
+            localside::reviewer_b::run(&mut review_b, bus, &review_b_result).await?;
+        };
+        async {
+            localside::repo::run(&mut repo, repository, bus).await?;
+        };
+        async {
+            localside::developer_wasi::run::<A_WASI>(a_guest, &mut a_wasi).await?;
+        };
+        async {
+            private_io::run(&mut a_io, a_fs).await?;
+        };
+        async {
+            localside::developer_wasi::run::<B_WASI>(b_guest, &mut b_wasi).await?;
+        };
+        async {
+            private_io::run(&mut b_io, b_fs).await?;
+        };
+        async {
+            localside::reviewer_wasi::run(review_guest, &mut review_wasi, &selected_review).await?;
+        };
+        async {
+            private_io::run(&mut review_io, review_fs).await?;
+        };
+        Ok(())
+        }, async {
+            loop {
+                let rows: Vec<_> = observations.by_ref().map(crate::imp::projection::record).collect();
+                if !rows.is_empty() {
+                    bus.observe(serde_json::json!({"type":"protocol_capture","producer":0,"records":rows}));
+                }
+                hibana_runtime::host::sleep(std::time::Duration::from_millis(1)).await?;
+            }
+        }).await;
+        result
+    }.await;
+    let rows: Vec<_> = observations
+        .by_ref()
+        .map(crate::imp::projection::record)
+        .collect();
+    if !rows.is_empty() {
+        bus.observe(serde_json::json!({"type":"protocol_capture","producer":0,"records":rows}));
+    }
+    // Read the producer's actual head independently of the drained prefix.
+    // A lost ring prefix/suffix or exhausted ordinal cannot pass EPF capture.
+    bus.observe(
+        serde_json::json!({"type":"protocol_checkpoint","producer":0,
+        "session":session.raw(),"checkpoint":observations.checkpoint()}),
+    );
+    result
 }
 
 pub async fn run_stdio(module: &[u8]) -> ShellResult<()> {

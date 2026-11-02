@@ -9,8 +9,12 @@ use std::{
     process::Command,
 };
 
+mod dynamic;
+pub use dynamic::check as check_dynamic;
+
 // The canonical TapEvent identifiers and packed fields are documented by
-// hibana::runtime::tap. The auditor does not link or execute the protocol kernel.
+// hibana::runtime::tap. EPF checks the immutable source and captured history;
+// the auditor never drives application Endpoints.
 const LOCAL: u64 = 0x0300;
 const SEND: u64 = 0x0301;
 const RECV: u64 = 0x0302;
@@ -45,12 +49,7 @@ fn contracts(compiled: &Value) -> Result<BTreeMap<u16, [u8; 6]>> {
         let mut actor_rows = Vec::new();
         let mut actor = None;
         let mut seen = BTreeSet::new();
-        for (ordinal, row) in program["rows"]
-            .as_array()
-            .ok_or("compiled rows")?
-            .iter()
-            .enumerate()
-        {
+        for row in program["rows"].as_array().ok_or("compiled rows")?.iter() {
             let row = row
                 .as_array()
                 .filter(|row| row.len() == 5)
@@ -63,11 +62,16 @@ fn contracts(compiled: &Value) -> Result<BTreeMap<u16, [u8; 6]>> {
                     .ok_or("compiled row word")?;
             }
             let [at, kind, actors, packed, peers] = words;
+            // Static frame membership uses local rows. Complete compiled-source
+            // validation and dynamic eligibility are checked separately by EPF.
+            if !matches!(kind, LOCAL | SEND | RECV) {
+                continue;
+            }
+            let ordinal = actor_rows.len();
             if at != ordinal as u64
                 || actors > u64::from(u16::MAX)
                 || actors & 255 != role
                 || actor.is_some_and(|actor| actor != actors >> 8)
-                || !matches!(kind, LOCAL | SEND | RECV)
             {
                 return Err("invalid compiled row identity or direction".into());
             }
