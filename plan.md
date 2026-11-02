@@ -441,8 +441,12 @@ EOF待ちを戻すライブ観測の感度検査は`epf/final`へ対応付ける
 producer間の順序と操作の対応を構成し、動的なsource実行として照合する入口を追加した。
 通常試験100件は`265c497`のCIで成功し、未使用importを修正して本体と依存版を揃えた
 版の全gateは継続中である。探索の容量不足・不成立は認定を返さず、globalの違法判定としない。
-6Eでは全tap記録と独立したproducer checkpointを保存し、runnerからEPFへ渡す接続を実装中。
+6Eでは全tap記録と独立したproducer checkpointを保存し、runnerからEPFへ渡す接続を実装した。
 受理した各wire callを既存のframe journalへ一対一で対応付け、レビューの効果監査へつなぐ。
+本体`40298f0`、WASI `6930f7a`、EPF `2a865a0`、runtime `f093802`を通常Git依存で
+選択する。本体のTokio撤去は実装済み。EPFのcompact sourceのrollの場合を修正し、
+同じcoreを使った6組50項目のLean検査が成功した（最大882,458,624bytes）。
+この組合せでの全gateと実Wasmによる動的監査の統合認定は、成功記録がそろうまで未完とする。
 このconsumer接続のcompile・実Wasm認定、他familyへの展開、最終sourceの全gateは未完である。
 本体のTokio撤去後の通常試験は成功し、同じSHAでprotocol fuzz・Kani等を実行中。
 WASIの依存更新版はCIを通過したが、これをChoreoFix全体の認定へ広げない。

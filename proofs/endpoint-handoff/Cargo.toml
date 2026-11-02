@@ -5,8 +5,8 @@ edition = "2024"
 publish = false
 
 [dependencies]
-hibana = { git = "https://github.com/hibanaworks/hibana", rev = "036edb76f097d9a07ddfc42ce8997b77178c3617", version = "=0.10.0" }
-hibana-wasip1-runtime = { git = "https://github.com/hibanaworks/hibana-wasip1-runtime", rev = "0f42903b020277ad14b21dbd175e480d821aa8ed" }
+hibana = { git = "https://github.com/hibanaworks/hibana", rev = "40298f0f66c67c51fea2a1d444caf10c241e5fe2", version = "=0.10.0" }
+hibana-wasip1-runtime = { git = "https://github.com/hibanaworks/hibana-wasip1-runtime", rev = "6930f7a439fb89cfc3fb92163475a4e10e88e959" }
 hibana-runtime = { git = "https://github.com/hibanaworks/hibana-runtime", rev = "f09380262f76de8d92f6dd96012cf1704045bc8c", features = ["host"] }
 serde_json = "=1.0.154"
 
