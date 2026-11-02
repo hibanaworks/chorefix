@@ -91,10 +91,10 @@ pub(super) fn snapshots(compiled: &Value) -> Result<Vec<Vec<TapEvent>>> {
 pub fn check(artifact: &Value, rows: &[Value]) -> Result<Value> {
     let compiled = snapshots(&artifact["compiled"])?;
     let snapshot = &compiled[0];
-    let mut workspace =
+    let mut source_storage =
         vec![0; Protocol::workspace_len(snapshot).map_err(|e| format!("EPF workspace: {e:?}"))?];
     let protocol =
-        Protocol::new(snapshot, &mut workspace).map_err(|e| format!("EPF protocol: {e:?}"))?;
+        Protocol::new(snapshot, &mut source_storage).map_err(|e| format!("EPF protocol: {e:?}"))?;
     let mut streams = BTreeMap::<u64, Vec<TapEvent>>::new();
     let mut checkpoints = BTreeMap::<u64, u32>::new();
     let mut sessions = BTreeSet::new();
@@ -226,12 +226,12 @@ pub fn check(artifact: &Value, rows: &[Value]) -> Result<Value> {
             };
             count
         ];
-        workspace.resize(
+        let mut workspace = vec![
+            0;
             protocol
                 .audit_workspace_len(&captures, capacity)
-                .map_err(|e| format!("EPF workspace: {e:?}"))?,
-            0,
-        );
+                .map_err(|e| format!("EPF workspace: {e:?}"))?
+        ];
         let audit = protocol
             .audit(
                 &captures,

@@ -85,7 +85,7 @@ source = "git+https://github.com/hibanaworks/hibana?rev=9b8a3b34409c50c9658f87f8
 [[package]]
 name = "hibana-epf"
 version = "0.1.0"
-source = "git+https://github.com/hibanaworks/hibana-epf?rev=e5e82bf1afab9be1c708fc031610e3f253b7b5a9#e5e82bf1afab9be1c708fc031610e3f253b7b5a9"
+source = "git+https://github.com/hibanaworks/hibana-epf?rev=343d67524206f2a76c8eb39b744ea0c915eb22c8#343d67524206f2a76c8eb39b744ea0c915eb22c8"
 dependencies = [
  "hibana",
 ]

@@ -481,6 +481,16 @@ EPF `7cb148a`はこの通常Git版でnative104試験・Clippyと追加Miri試験
 修正前に実Endpointの回帰試験が失敗し、修正後はtapの11試験・Clippy・同試験のMiriが成功した。
 生成検査にも、選択記録のactor/session/scopeと実際のresolver決定との対応と故障対照を追加した。
 EPFの挿入境界2補題は、命題を変えずに証明の各方向を分け、禁止axiomへの依存を除いた。
+EPF `e5e82bf`は同一sourceでnative104試験、strict-provenance Miri99試験、Lean53命題、
+20種類の欠陥対照、Clippy・doc・no_std・thumbを含むローカル全gateが成功した。
+その後、接続版`670a9d0`の6E実Wasmは完走し、独立checkpointの4,972件をすべて保存したが、
+自動監査の候補生成と再走査が大きく、検証を停止した。この停止を成功には数えない。
+EPF `343d675`は検証済みscope索引を保持し、route両腕の反復数と、後のofferより先に
+実行したtyped操作を候補へ反映する。完成した候補は従来の実行検査へ通し、検査条件は維持する。
+最終の小さい候補生成回帰を加える前の同実装で、保存済み実記録4,972件・送信受理902件を
+通常のEPF CLIが77秒で照合した。これは全consumer認定や採点実験ではない。
+runnerはこの通常Git版を選び、不変source索引と一時検査領域を別々に所有する。
+最終版の全gate、consumerの同記録の再監査、実Wasm全条件は成功記録がそろうまで未完とする。
 `cdf062a`の7補題は厳密なaxiom検査を通過した。修正coreを選ぶ`e5e82bf`の全gateを実行し、
 consumerもその通常Git依存へ揃える。前の2記録の不成立を実Wasm動的監査の成功とは数えない。
 WASI `6930f7a`のCI成功をChoreoFix全体の認定へ広げない。
