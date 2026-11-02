@@ -464,8 +464,18 @@ I/O修正後の`bfe8709`ではcheckpointが届いたが、実Wasmの2経路で�
 診断窓を超える実Endpointの履歴を自動展開・動的照合する試験を含む通常102試験とClippyが成功した。
 6Eのtimerによる回収とそのraceは削除し、同じEndpoint操作を直接並行に駆動する。
 この組合せのcompile検査は成功したが、EPFと本体の最終全gate、consumer実Wasmの再認定は未完。
-WASIの依存更新版はCIを通過したが、これをChoreoFix全体の認定へ広げない。
-ChoreoFixの接続準備版のCIは、GitHubの支払・利用上限によりjob開始前に拒否された。
+接続版`1768896`の実Wasmでは6Eが完走し、独立したcheckpointの5,063件すべてを保存した。
+EPFはその記録の603番目で、resolverの決定記録を伴わない分岐選択を検出した。
+本体`d11c788`は、outgoing `offer()`の後にbranch送信する経路でも、実際のresolver呼出し時に
+決定を一度記録する。commit時の遅延記録と専用の補助field・型を削除した。
+実Endpointの観測28試験、tapの6試験、roll再訪を含むMiri試験が成功し、生成器の両resolver経路で
+記録欠落を戻すと実行試験が失敗した。固定カタログは15種類へ増やし、既存の範囲も維持する。
+EPF `7cb148a`はこの通常Git版でnative104試験・Clippyと追加Miri試験が成功した。
+実Endpointの左右分岐・roll再訪からsource展開と動的監査を自動構築し、resolver記録だけを
+削除した完全なprefixは拒否した。manifest/lockをこの組合せへ揃え、consumerの実Wasmと
+最終sourceの全gateを再実行する。これらの個別成功を全体認定へ流用しない。
+WASI `6930f7a`のCI成功をChoreoFix全体の認定へ広げない。
+過去のChoreoFix接続準備版のCIでは、GitHubの支払・利用上限によりjob開始前に拒否された。
 sourceの検査失敗としては数えず、注記を保存してローカル検証を行う。
 
 検証用JSONLの保存では、細かなJSON断片ごとのファイル書込みが負荷になっていた。
