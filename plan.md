@@ -448,8 +448,14 @@ EPF `2a865a0`は本体`40298f0`を選択し、同一sourceでローカル全gate
 依存版はmanifest/lockを正とする。本体のTokio撤去は実装済み。
 WASI `6930f7a`のCIも成功した。この組合せでの本体全gateと実Wasmによる動的監査の
 統合認定は、成功記録がそろうまで未完とする。
-このconsumer接続のcompile・実Wasm認定、他familyへの展開、最終sourceの全gateは未完である。
-本体のTokio撤去後の通常試験は成功し、同じSHAでprotocol fuzz・Kani等を実行中。
+この接続を実Wasmで動かした際、終了前にqueueへ置いたcheckpointが出力されず、監査が
+不完全な記録として拒否した。外部I/O所有者が書込み済みprefixと未送信bytesを保持し、
+終了通知も同じqueueから出力するよう修正した。通常I/O 6試験とClippyは成功したが、
+修正後の実Wasm動的監査は再検証が必要である。他familyへの展開と最終sourceの全gateも未完。
+runtime `09a803a`の同一sourceのローカル全gateは成功した。consumerはこの通常Git版を選択する。
+本体`40298f0`のCIはKani全321件・生成形状32分割が成功した。final-form内の検査用テストは
+Lean専用へ移行した入口にもZ3起動を要求して失敗したため、`dc043ee`で修正した。
+修正後の当該7試験は成功したが、最終sourceの全gate成功へは読み替えない。
 WASIの依存更新版はCIを通過したが、これをChoreoFix全体の認定へ広げない。
 ChoreoFixの接続準備版のCIは、GitHubの支払・利用上限によりjob開始前に拒否された。
 sourceの検査失敗としては数えず、注記を保存してローカル検証を行う。

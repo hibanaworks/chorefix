@@ -2,6 +2,71 @@ use super::*;
 
 #[hibana_runtime::main]
 #[test]
+async fn cancelled_output_keeps_its_prefix_before_queued_checkpoint_and_verdict() -> ShellResult<()>
+{
+    let (bus, mut owner, _) = Bus::open([], []);
+    let (reader, writer) = std::os::unix::net::UnixStream::pair()?;
+    let mut input = Io::new(reader.into())?;
+    let mut output = Io::new(writer.into())?;
+    let first = json!({"type":"observation","text":"x".repeat(1024 * 1024)});
+    let mut expected = serde_json::to_vec(&first).unwrap();
+    expected.push(b'\n');
+    bus.observe(first);
+    hibana_runtime::race(owner.flush_output(&bus, &mut output), async { Ok(()) }).await?;
+    assert!(owner.output_offset > 0);
+    assert!(owner.output_offset < owner.output_bytes.len());
+    for value in [
+        json!({"type":"protocol_checkpoint","producer":0,"checkpoint":7}),
+        json!({"type":"run_result","status":"complete"}),
+    ] {
+        expected.extend(serde_json::to_vec(&value).unwrap());
+        expected.push(b'\n');
+        bus.observe(value);
+    }
+    let ((), received) = async {
+        async move {
+            owner.flush_output(&bus, &mut output).await?;
+            drop(output);
+        };
+        async {
+            let mut received = Vec::new();
+            let mut bytes = [0; 4096];
+            loop {
+                let count = input.read(&mut bytes).await?;
+                if count == 0 {
+                    break;
+                }
+                received.extend_from_slice(&bytes[..count]);
+            }
+            Ok(received)
+        };
+    }
+    .await?;
+    assert_eq!(received, expected);
+    Ok(())
+}
+
+#[hibana_runtime::main]
+#[test]
+async fn failed_output_cannot_be_reopened_by_a_final_verdict() -> ShellResult<()> {
+    let (bus, mut owner, _) = Bus::open([], []);
+    let (reader, writer) = std::os::unix::net::UnixStream::pair()?;
+    drop(reader);
+    let mut output = Io::new(writer.into())?;
+    bus.observe(json!({"type":"observation"}));
+    assert!(owner.flush_output(&bus, &mut output).await.is_err());
+    assert!(owner.output.is_none());
+    assert!(
+        owner
+            .emit(&bus, json!({"type":"run_result"}))
+            .await
+            .is_err()
+    );
+    Ok(())
+}
+
+#[hibana_runtime::main]
+#[test]
 async fn identical_concurrent_effect_arguments_keep_distinct_rpc_replies() -> ShellResult<()> {
     let (bus, _, _) = Bus::open([], []);
     async {

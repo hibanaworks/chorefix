@@ -41,7 +41,11 @@ struct Reply<'a> {
 
 pub struct ExternalIo {
     input: Stdin,
-    output: Stdout,
+    output: Option<Stdout>,
+    // The accepted byte prefix survives cancellation of the output future.
+    output_bytes: Vec<u8>,
+    output_offset: usize,
+    output_receipt: Option<u64>,
 }
 
 pub struct Terminal {
@@ -84,7 +88,10 @@ impl Bus {
             },
             ExternalIo {
                 input: std::io::stdin(),
-                output: std::io::stdout(),
+                output: Some(std::io::stdout()),
+                output_bytes: Vec::new(),
+                output_offset: 0,
+                output_receipt: None,
             },
             terminals,
         )
@@ -181,23 +188,70 @@ impl Drop for Reply<'_> {
 }
 
 impl ExternalIo {
+    async fn flush_output(&mut self, bus: &Bus, output: &mut Io) -> ShellResult<()> {
+        if self.output.is_none() {
+            return Err(ShellError::message("external output is closed"));
+        }
+        loop {
+            while self.output_offset < self.output_bytes.len() {
+                let count = match output.write(&self.output_bytes[self.output_offset..]).await {
+                    Ok(0) => {
+                        self.output.take();
+                        return Err(std::io::Error::new(
+                            std::io::ErrorKind::WriteZero,
+                            "external output accepted no bytes",
+                        )
+                        .into());
+                    }
+                    Ok(count) => count,
+                    Err(error) => {
+                        self.output.take();
+                        return Err(error.into());
+                    }
+                };
+                self.output_offset += count;
+            }
+            self.output_bytes.clear();
+            self.output_offset = 0;
+            if let Some(id) = self.output_receipt.take() {
+                bus.respond(id, Value::Null)?;
+            }
+            let Some((values, receipt)) =
+                bus.connection(|connection| connection.outgoing.pop_front())
+            else {
+                return Ok(());
+            };
+            let mut bytes = Vec::new();
+            for value in values {
+                serde_json::to_writer(&mut bytes, &value)
+                    .map_err(|error| ShellError::message(error.to_string()))?;
+                bytes.push(b'\n');
+            }
+            self.output_bytes = bytes;
+            self.output_receipt = receipt;
+        }
+    }
+
     pub async fn emit(&mut self, bus: &Bus, value: Value) -> ShellResult<()> {
-        let mut output = Io::new(self.output.as_fd().try_clone_to_owned()?)?;
+        let stdout = self
+            .output
+            .as_ref()
+            .ok_or_else(|| ShellError::message("external output is closed"))?;
+        let mut output = Io::new(stdout.as_fd().try_clone_to_owned()?)?;
         let mut values = bus.transport.take_observations();
         values.push(value);
-        for value in values {
-            let mut bytes = serde_json::to_vec(&value)
-                .map_err(|error| ShellError::message(error.to_string()))?;
-            bytes.push(b'\n');
-            output.write_all(&bytes).await?;
-        }
-        Ok(())
+        bus.enqueue(values, None);
+        self.flush_output(bus, &mut output).await
     }
 
     #[hibana_runtime::scope]
     pub async fn run(&mut self, bus: &Bus) -> ShellResult<()> {
         let mut input = Io::new(self.input.as_fd().try_clone_to_owned()?)?;
-        let mut output = Io::new(self.output.as_fd().try_clone_to_owned()?)?;
+        let stdout = self
+            .output
+            .as_ref()
+            .ok_or_else(|| ShellError::message("external output is closed"))?;
+        let mut output = Io::new(stdout.as_fd().try_clone_to_owned()?)?;
         async {
             let mut buffered = Vec::new();
             let mut bytes = [0; 4096];
@@ -253,10 +307,11 @@ impl ExternalIo {
         };
         async {
             loop {
-                let (values, flushed) = poll_fn(|cx| {
+                self.flush_output(bus, &mut output).await?;
+                poll_fn(|cx| {
                     bus.connection(|connection| {
-                        if let Some(values) = connection.outgoing.pop_front() {
-                            Poll::Ready(values)
+                        if !connection.outgoing.is_empty() {
+                            Poll::Ready(())
                         } else {
                             connection.output_waiter = Some(cx.waker().clone());
                             Poll::Pending
@@ -264,15 +319,6 @@ impl ExternalIo {
                     })
                 })
                 .await;
-                for value in values {
-                    let mut bytes = serde_json::to_vec(&value)
-                        .map_err(|error| ShellError::message(error.to_string()))?;
-                    bytes.push(b'\n');
-                    output.write_all(&bytes).await?;
-                }
-                if let Some(id) = flushed {
-                    bus.respond(id, Value::Null)?;
-                }
             }
         };
         Ok(())
