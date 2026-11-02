@@ -474,6 +474,15 @@ EPF `7cb148a`はこの通常Git版でnative104試験・Clippyと追加Miri試験
 実Endpointの左右分岐・roll再訪からsource展開と動的監査を自動構築し、resolver記録だけを
 削除した完全なprefixは拒否した。manifest/lockをこの組合せへ揃え、consumerの実Wasmと
 最終sourceの全gateを再実行する。これらの個別成功を全体認定へ流用しない。
+接続版`2fe2526`の実Wasmは完走し、checkpointの5,064件すべてを保存した。
+その動的監査は2,082番目で、分岐を受信で知った参加者の返信が、その参加者自身のresolver選択として
+記録されていたため不成立だった。本体`9b8a3b3`では、controllerの新しい選択に記録を限定し、
+保持済みの選択を使う返信の重複記録を除去した。操作の受理や進行の規則は変えていない。
+修正前に実Endpointの回帰試験が失敗し、修正後はtapの11試験・Clippy・同試験のMiriが成功した。
+生成検査にも、選択記録のactor/session/scopeと実際のresolver決定との対応と故障対照を追加した。
+EPFの挿入境界2補題は、命題を変えずに証明の各方向を分け、禁止axiomへの依存を除いた。
+`cdf062a`の7補題は厳密なaxiom検査を通過した。修正coreを選ぶ`e5e82bf`の全gateを実行し、
+consumerもその通常Git依存へ揃える。前の2記録の不成立を実Wasm動的監査の成功とは数えない。
 WASI `6930f7a`のCI成功をChoreoFix全体の認定へ広げない。
 過去のChoreoFix接続準備版のCIでは、GitHubの支払・利用上限によりjob開始前に拒否された。
 sourceの検査失敗としては数えず、注記を保存してローカル検証を行う。
