@@ -28,11 +28,16 @@ async fn run_guests(
     let review_a_result = ReviewInput::default();
     let review_b_result = ReviewInput::default();
     let selected_review = imp::ReviewTarget::default();
+    let capture = |event| {
+        bus.observe(serde_json::json!({"type":"protocol_capture","producer":0,
+            "records":[crate::imp::projection::record(event)]}));
+    };
     let mut slab = vec![0; 1024 * 1024];
     let mut storage = SessionKitStorage::<&InMemoryTransport>::uninit();
     let kit = storage.init();
     let rv = kit.rendezvous(&mut slab, &bus.transport)?;
-    let mut observations = rv.tap();
+    rv.observe(&capture);
+    let observations = rv.tap();
     let session = SessionId::new(6);
     let result = async {
         rv.set_resolver(
@@ -47,7 +52,10 @@ async fn run_guests(
         .map_err(|e| ShellError::message(format!("{e:?}")))?;
         rv.set_resolver(
             &p.review_wasi,
-            ResolverRef::<SELECT_REVIEW>::decision_state(&selected_review, imp::ReviewTarget::decide),
+            ResolverRef::<SELECT_REVIEW>::decision_state(
+                &selected_review,
+                imp::ReviewTarget::decide,
+            ),
         )
         .map_err(|e| ShellError::message(format!("{e:?}")))?;
         let mut repo = rv.enter(session, &p.repo)?;
@@ -74,7 +82,6 @@ async fn run_guests(
         let mut review_store = HibanaWasiGuestStorage::uninit();
         let review_guest =
             review_store.init(module, GuestMemory::new(&mut review_memory), bindings())?;
-        hibana_runtime::race(async {
         async {
             localside::reviewer_a::run(&mut review_a, bus, &review_a_result).await?;
         };
@@ -103,23 +110,8 @@ async fn run_guests(
             private_io::run(&mut review_io, review_fs).await?;
         };
         Ok(())
-        }, async {
-            loop {
-                let rows: Vec<_> = observations.by_ref().map(crate::imp::projection::record).collect();
-                if !rows.is_empty() {
-                    bus.observe(serde_json::json!({"type":"protocol_capture","producer":0,"records":rows}));
-                }
-                hibana_runtime::host::sleep(std::time::Duration::from_millis(1)).await?;
-            }
-        }).await
-    }.await;
-    let rows: Vec<_> = observations
-        .by_ref()
-        .map(crate::imp::projection::record)
-        .collect();
-    if !rows.is_empty() {
-        bus.observe(serde_json::json!({"type":"protocol_capture","producer":0,"records":rows}));
     }
+    .await;
     // Read the producer's actual head independently of the drained prefix.
     // A lost ring prefix/suffix or exhausted ordinal cannot pass EPF capture.
     bus.observe(

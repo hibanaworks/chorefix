@@ -456,6 +456,14 @@ runtime `09a803a`の同一sourceのローカル全gateは成功した。consumer
 本体`40298f0`のCIはKani全321件・生成形状32分割が成功した。final-form内の検査用テストは
 Lean専用へ移行した入口にもZ3起動を要求して失敗したため、`dc043ee`で修正した。
 修正後の当該7試験は成功したが、最終sourceの全gate成功へは読み替えない。
+I/O修正後の`bfe8709`ではcheckpointが届いたが、実Wasmの2経路で記録数が
+3,043/5,063件、5,512/8,568件に不足し、EPFが拒否した。小さい診断リングを1ms間隔で
+回収しても全履歴は保存できないため、本体`194eac8`に借用した記録先へ各eventを同期的に
+渡す入口を追加した。待機のない実Endpoint257操作を含む7試験のMiri、記録先の寿命を
+守るcompile-fail、Clippy、thumbビルドは成功した。EPF `05d4f00`はこの本体を選択し、
+診断窓を超える実Endpointの履歴を自動展開・動的照合する試験を含む通常102試験とClippyが成功した。
+6Eのtimerによる回収とそのraceは削除し、同じEndpoint操作を直接並行に駆動する。
+この組合せのcompile検査は成功したが、EPFと本体の最終全gate、consumer実Wasmの再認定は未完。
 WASIの依存更新版はCIを通過したが、これをChoreoFix全体の認定へ広げない。
 ChoreoFixの接続準備版のCIは、GitHubの支払・利用上限によりjob開始前に拒否された。
 sourceの検査失敗としては数えず、注記を保存してローカル検証を行う。

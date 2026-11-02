@@ -23,7 +23,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: hibanaworks/hibana
-          ref: 40298f0f66c67c51fea2a1d444caf10c241e5fe2
+          ref: 194eac8eb8a3a6aece5cd48b76df8946e9357b31
           path: validation-core
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
