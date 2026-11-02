@@ -9,9 +9,9 @@ use std::{
 };
 
 const FAMILIES: [&str; 6] = [
+    "review",
     "codebase",
     "writing",
-    "review",
     "api",
     "philosophers",
     "cicd",
