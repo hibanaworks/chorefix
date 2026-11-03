@@ -231,10 +231,16 @@ retained-rollの展開文脈と分離証拠を生成側へ補い、モデルの�
 
 続く依存更新では、アプリ・runner・handoffとEPF・WASIが本体`d892df3`だけを選ぶよう揃える。
 本体の必須生成検査48割当と追加21割当は一つの生成・実Endpoint・source照合経路を使い、
-全Kani・追加Miri等を含む[最終認定](https://github.com/hibanaworks/hibana/actions/runs/41624738531)は実行中である。
+全Kani・追加Miri等を含む[最終認定](https://github.com/hibanaworks/hibana/actions/runs/41629197677)は実行中である。
+認定対象の`741b4b0`は、macOS専用TCP試験をLinuxで0件実行して停止したCIの配置修正で、
+選択中の`d892df3`からRust・Leanモデル・manifest・検査scriptは変わっていない。
 同じsourceのローカル追加gateも未完であり、過去の成功をこの版の全検証へ読み替えない。
 EPF`d98822a`は14 CI job、WASI`60b51a9`は通常CIが成功し、それぞれmainへ取り込んだ。
-新しい本体を選ぶEPF`67933c6`とWASI`4f7708f`はmanifestとlockだけの変更で、各CIは未完である。
+新しい本体を選ぶEPF`67933c6`はmanifestとlockだけの変更で、CIは未完である。
+WASI`b4f8d7e`は同じ依存更新に加え、重複したSMT権限モデルをLeanへ集約した。
+権限マスクの一般命題を10から14へ補い、実ChoreoFSの160照合とVMの520照合を維持した。
+Z3入力・呼出し・CI依存を削除し、自然数のbitwise恒等式が使う標準公理も正確に監査する。
+この版のCIとローカル全検証は未完である。
 アプリのglobal・localsideと各libraryのproduction Rustは変更していない。
 この依存更新を、組合せの全gate成功やChoreoFixの実Wasm・動的監査の認定として扱わない。
 
