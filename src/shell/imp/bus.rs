@@ -213,7 +213,11 @@ impl ExternalIo {
             }
             self.output_bytes.clear();
             self.output_offset = 0;
-            if let Some(id) = self.output_receipt.take() {
+            // Cancelling the local flush waiter cannot retract queued bytes.
+            // Complete only a live waiter; external RPC replies remain strict.
+            if let Some(id) = self.output_receipt.take()
+                && bus.connection(|connection| connection.responses.contains_key(&id))
+            {
                 bus.respond(id, Value::Null)?;
             }
             let Some((values, receipt)) =

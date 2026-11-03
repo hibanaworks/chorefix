@@ -489,10 +489,25 @@ EPF `343d675`は検証済みscope索引を保持し、route両腕の反復数と
 実行したtyped操作を候補へ反映する。完成した候補は従来の実行検査へ通し、検査条件は維持する。
 最終の小さい候補生成回帰を加える前の同実装で、保存済み実記録4,972件・送信受理902件を
 通常のEPF CLIが77秒で照合した。これは全consumer認定や採点実験ではない。
-runnerはこの通常Git版を選び、不変source索引と一時検査領域を別々に所有する。
-最終版の全gate、consumerの同記録の再監査、実Wasm全条件は成功記録がそろうまで未完とする。
-`cdf062a`の7補題は厳密なaxiom検査を通過した。修正coreを選ぶ`e5e82bf`の全gateを実行し、
-consumerもその通常Git依存へ揃える。前の2記録の不成立を実Wasm動的監査の成功とは数えない。
+runnerは不変source索引と一時検査領域を別々に所有する。EPF `edddb15`の同一sourceでは、
+通常109試験、strict-provenance Miri104試験、doc2件、Lean53命題、25種類の欠陥対照、
+Clippy・no_std・thumbを含むローカル全gateが成功し、全52追跡ファイルのhashも一致した。
+最大memoryは690,667,520bytesだった。`daa1457`はCIと検査stageの分割だけを変更し、
+Rust・Lean・依存は同じである。同版のCIも通常・単体Miri・統合Miriの3stageすべてが成功した。
+接続版`db82293`は通常Git pinで保存済み4,972件・送信受理902件を68.15秒で再監査し、
+動的監査と既存のframe・効果監査が成功、違反0だった。native・ClippyとhandoffのMiri6試験も
+成功した。この保存記録の再監査を、新しい実Wasm全条件の完走や採点実験には数えない。
+前の2記録の不成立も実Wasm動的監査の成功とは数えない。
+本体`d3f2e22`は`9b8a3b3`から観測試験2ファイルだけを修正し、本番Rust・Lean・依存は同じ。
+commit前にも実際のresolver判断を記録する契約と、通信・分岐のcommitがないことを分けて検査する。
+関連15試験のMiriと通常試験は成功したが、最終sourceのprotocol fuzz・Kani等を含む全gateは未完。
+
+取消された`Bus::emit`の内部receiptへ完了通知を返すと、残りのcapture・checkpoint・終了通知の
+出力が止まる不具合を、修正前の実I/O試験で再現した。出力所有者は取消済みの内部待ち手への
+通知だけを省き、受理済みbytesと後続queueを最後まで送る。外部RPCの不明・取消済み・重複応答は
+引き続き拒否する。キュー内と部分書込み後の取消、後続のlive receipt、出力故障、RPC応答を含む
+I/Oの通常7試験とstrict Clippyが成功した。モデル呼出しは0で、global・localsideの操作順は変えない。
+EPF最終版のローカル全gateと、修正後consumerの実Wasm全条件は成功記録がそろうまで未完とする。
 WASI `6930f7a`のCI成功をChoreoFix全体の認定へ広げない。
 過去のChoreoFix接続準備版のCIでは、GitHubの支払・利用上限によりjob開始前に拒否された。
 sourceの検査失敗としては数えず、注記を保存してローカル検証を行う。

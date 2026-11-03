@@ -2,6 +2,78 @@ use super::*;
 
 #[hibana_runtime::main]
 #[test]
+async fn cancelled_emit_still_flushes_capture_checkpoint_and_final_receipt() -> ShellResult<()> {
+    for partial in [false, true] {
+        let (bus, mut owner, _) = Bus::open([], []);
+        let (reader, writer) = std::os::unix::net::UnixStream::pair()?;
+        let mut input = Io::new(reader.into())?;
+        let mut output = Io::new(writer.into())?;
+        let first = json!({"type":"terminal", "stdout":"x".repeat(1024 * 1024)});
+        let mut expected = serde_json::to_vec(&first).unwrap();
+        expected.push(b'\n');
+
+        hibana_runtime::race(bus.emit(first), async {
+            if partial {
+                hibana_runtime::race(owner.flush_output(&bus, &mut output), async { Ok(()) })
+                    .await?;
+            }
+            Ok(())
+        })
+        .await?;
+        if partial {
+            assert!(owner.output_offset > 0);
+            assert!(owner.output_offset < owner.output_bytes.len());
+            assert!(owner.output_receipt.is_some());
+        } else {
+            assert_eq!(owner.output_offset, 0);
+            assert_eq!(bus.connection(|connection| connection.outgoing.len()), 1);
+        }
+        assert!(bus.connection(|connection| connection.responses.is_empty()));
+
+        for value in [
+            json!({"type":"protocol_capture", "producer":0,"ordinal":7}),
+            json!({"type":"protocol_checkpoint", "producer":0,"checkpoint":8}),
+        ] {
+            expected.extend(serde_json::to_vec(&value).unwrap());
+            expected.push(b'\n');
+            bus.observe(value);
+        }
+        let verdict = json!({"type":"run_result", "status":"failed"});
+        expected.extend(serde_json::to_vec(&verdict).unwrap());
+        expected.push(b'\n');
+        let ((), (), received) = async {
+            async {
+                bus.emit(verdict).await?;
+            };
+            async {
+                hibana_runtime::yield_now().await;
+                owner.flush_output(&bus, &mut output).await?;
+                drop(output);
+            };
+            async {
+                let mut received = Vec::new();
+                let mut bytes = [0; 4096];
+                loop {
+                    let count = input.read(&mut bytes).await?;
+                    if count == 0 {
+                        break;
+                    }
+                    received.extend_from_slice(&bytes[..count]);
+                }
+                Ok(received)
+            };
+        }
+        .await?;
+        assert_eq!(received, expected, "partial={partial}");
+        assert!(bus.connection(|connection| connection.responses.is_empty()));
+        assert!(bus.connection(|connection| connection.outgoing.is_empty()));
+        assert!(owner.output_receipt.is_none());
+    }
+    Ok(())
+}
+
+#[hibana_runtime::main]
+#[test]
 async fn cancelled_output_keeps_its_prefix_before_queued_checkpoint_and_verdict() -> ShellResult<()>
 {
     let (bus, mut owner, _) = Bus::open([], []);
