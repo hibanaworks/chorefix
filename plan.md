@@ -1,6 +1,6 @@
 # ChoreoFix 研究開発計画
 
-更新: 2026-11-01。受領した「ChoreoFix 研究開発計画」計画版1.0を反映した。
+更新: 2026-11-03。受領した「ChoreoFix 研究開発計画」計画版1.0を反映した。
 入力文書のSHA-256は[実験契約](benchmark/experiment-contract.json)に記録する。
 研究の中心は、**実資源の唯一の操作権、残存手順、実際の共有効果を結ぶ保証**である。
 委譲、投影、並行処理、prefix safety、版の照合をそれぞれ単独の新規性とはしない。
@@ -222,6 +222,16 @@ Globalを唯一の連携仕様にし、localsideへEndpointの操作を直接書
 この計画書へ「現在のpin」を重複して転記しない。各認定は、その実行のsource manifest・
 dependency tree・binary hashへ対応付け、下記では検査した版を個別に示す。
 通常のGit依存を使い、診断用のpath patchを認定へ流用しない。
+
+11月3日の依存更新では、本体・EPF・WASIとアプリ、runner、handoff検証crateが、
+同じ公開済み本体を選ぶよう揃えた。本体`e22c0b9`は外部executor依存と旧試験経路を除去した版で、
+最終sourceのローカル全gateを実行中である。必須の並行分離条件に追随していなかった6個の
+Lean証明テンプレートを修正し、実Endpoint6試験と既存の135命題は通過した。
+モデルの条件・命題は弱めていない。EPF`48a835e`とWASI`60b51a9`の変更は依存と検査入口で、
+各production Rustは直前版と同じである。WASIの検査専用の旧本体checkoutを除去し、
+実際に選択した依存からmemory guardを使う。この依存更新を、新しい組合せの全gate成功や
+ChoreoFixの実Wasm・動的監査の認定として扱わない。
+
 本体の`8792e63`ではKani321件が成功し、全子孫の最大memoryは2,248,671,568bytesだった。
 この版はlane mismatchの観測値の説明を訂正し、tap記録の標準変換を追加した。
 EPFはフィールド解釈を複製せずに完全な記録を読める。
@@ -494,6 +504,14 @@ runnerは不変source索引と一時検査領域を別々に所有する。EPF `
 Clippy・no_std・thumbを含むローカル全gateが成功し、全52追跡ファイルのhashも一致した。
 最大memoryは690,667,520bytesだった。`daa1457`はCIと検査stageの分割だけを変更し、
 Rust・Lean・依存は同じである。同版のCIも通常・単体Miri・統合Miriの3stageすべてが成功した。
+EPF `85b90b3`は、commitされなかったresolver判断と、その後の反対側の送信試行を
+一つの確定済み分岐へ押し込めていた検査側の不足を修正した。実Endpointによる両順序の
+取消試行を受理し、commit後の反対側への変更、完了済み操作の再利用、判断とpollの不一致は
+拒否する。各試行を、確定済みprefixを保つ検査済みsource選択へ対応付ける。
+同一sourceの通常113試験、strict-provenance Miri108試験、doc2件、Lean57命題、
+29種類の欠陥対照、Clippy・no_std・thumbを含むローカル全gateが成功し、全sourceのhashも
+一致した。全子孫の最大memoryは698,318,848bytesだった。この版を公開してrunnerのGit pinへ
+選択した。consumerのビルド・実Wasm・動的監査の再認定はまだ成功として扱わない。
 接続版`db82293`は通常Git pinで保存済み4,972件・送信受理902件を68.15秒で再監査し、
 動的監査と既存のframe・効果監査が成功、違反0だった。native・ClippyとhandoffのMiri6試験も
 成功した。この保存記録の再監査を、新しい実Wasm全条件の完走や採点実験には数えない。
@@ -507,7 +525,8 @@ commit前にも実際のresolver判断を記録する契約と、通信・分岐
 通知だけを省き、受理済みbytesと後続queueを最後まで送る。外部RPCの不明・取消済み・重複応答は
 引き続き拒否する。キュー内と部分書込み後の取消、後続のlive receipt、出力故障、RPC応答を含む
 I/Oの通常7試験とstrict Clippyが成功した。モデル呼出しは0で、global・localsideの操作順は変えない。
-EPF最終版のローカル全gateと、修正後consumerの実Wasm全条件は成功記録がそろうまで未完とする。
+EPF `85b90b3`のローカル全gateは上記のとおり完了した。修正後consumerの実Wasm全条件は、
+成功記録がそろうまで未完とする。
 WASI `6930f7a`のCI成功をChoreoFix全体の認定へ広げない。
 過去のChoreoFix接続準備版のCIでは、GitHubの支払・利用上限によりjob開始前に拒否された。
 sourceの検査失敗としては数えず、注記を保存してローカル検証を行う。
@@ -868,7 +887,7 @@ M3では旧nativeの進行管理・不要な入口・自作Pythonを除去し、
 
 既存のdirty sourceを保ち、同名packageの別checkoutでtarget directoryを共有しない。
 本体等の検証済み修正は開発branchへpushする。研究repoの現在sourceはGitHubの
-`development/endpoint-delegation`へ公開し、旧検証ログ・sourceコピー・build生成物は追加しない。
+`development/source-capture-preparation`へ公開し、旧検証ログ・sourceコピー・build生成物は追加しない。
 GitHub Actionsも利用し、公開したSHAに対する必須検査を起動する。以前のActions予算を
 理由に`[skip ci]`を常用しない。ローカル検証は引き続き実施し、CIの受付・実行中と成功を区別する。
 古いbuild・不要cache・未使用の実験成果物は削除し、profilerと論文に必要なraw証拠は保持する。

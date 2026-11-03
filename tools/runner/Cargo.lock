@@ -80,12 +80,12 @@ dependencies = [
 [[package]]
 name = "hibana"
 version = "0.10.0"
-source = "git+https://github.com/hibanaworks/hibana?rev=9b8a3b34409c50c9658f87f8d7fb6208e93b5d43#9b8a3b34409c50c9658f87f8d7fb6208e93b5d43"
+source = "git+https://github.com/hibanaworks/hibana?rev=e22c0b9e6a97997ab43e733890487950465c9251#e22c0b9e6a97997ab43e733890487950465c9251"
 
 [[package]]
 name = "hibana-epf"
 version = "0.1.0"
-source = "git+https://github.com/hibanaworks/hibana-epf?rev=edddb15d9137edd794c9e2f044f24a949e5b14b0#edddb15d9137edd794c9e2f044f24a949e5b14b0"
+source = "git+https://github.com/hibanaworks/hibana-epf?rev=48a835e3261221d17388147bcbb0c45dd009b518#48a835e3261221d17388147bcbb0c45dd009b518"
 dependencies = [
  "hibana",
 ]
