@@ -223,14 +223,20 @@ Globalを唯一の連携仕様にし、localsideへEndpointの操作を直接書
 dependency tree・binary hashへ対応付け、下記では検査した版を個別に示す。
 通常のGit依存を使い、診断用のpath patchを認定へ流用しない。
 
-11月3日の依存更新では、本体・EPF・WASIとアプリ、runner、handoff検証crateが、
-同じ公開済み本体を選ぶよう揃えた。本体`e22c0b9`は外部executor依存と旧試験経路を除去した版で、
-最終sourceのローカル全gateを実行中である。必須の並行分離条件に追随していなかった6個の
-Lean証明テンプレートを修正し、実Endpoint6試験と既存の135命題は通過した。
-モデルの条件・命題は弱めていない。EPF`48a835e`とWASI`60b51a9`の変更は依存と検査入口で、
-各production Rustは直前版と同じである。WASIの検査専用の旧本体checkoutを除去し、
-実際に選択した依存からmemory guardを使う。この依存更新を、新しい組合せの全gate成功や
-ChoreoFixの実Wasm・動的監査の認定として扱わない。
+11月3日の先行依存更新では、本体`e22c0b9`へ外部executor依存と旧試験経路の除去をまとめ、
+実際に選択した本体からmemory guardを使うよう統一した。並行分離条件に追随していなかった
+Lean証明テンプレートを修正し、実Endpoint6試験と既存135命題を通した。後続`82efe26`では
+retained-rollの展開文脈と分離証拠を生成側へ補い、モデルの条件・命題は弱めずに
+全生成Lean gateを通した。source適合検査は12,310試行・4,936 cutで不一致0件だった。
+
+続く依存更新では、アプリ・runner・handoffとEPF・WASIが本体`d892df3`だけを選ぶよう揃える。
+本体の必須生成検査48割当と追加21割当は一つの生成・実Endpoint・source照合経路を使い、
+全Kani・追加Miri等を含む[最終認定](https://github.com/hibanaworks/hibana/actions/runs/41624738531)は実行中である。
+同じsourceのローカル追加gateも未完であり、過去の成功をこの版の全検証へ読み替えない。
+EPF`d98822a`は14 CI job、WASI`60b51a9`は通常CIが成功し、それぞれmainへ取り込んだ。
+新しい本体を選ぶEPF`67933c6`とWASI`4f7708f`はmanifestとlockだけの変更で、各CIは未完である。
+アプリのglobal・localsideと各libraryのproduction Rustは変更していない。
+この依存更新を、組合せの全gate成功やChoreoFixの実Wasm・動的監査の認定として扱わない。
 
 本体の`8792e63`ではKani321件が成功し、全子孫の最大memoryは2,248,671,568bytesだった。
 この版はlane mismatchの観測値の説明を訂正し、tap記録の標準変換を追加した。
@@ -798,7 +804,9 @@ Clippy・buildが成功した。最大memoryは705,511,424bytes、モデル呼�
 
 ## 本体・統合の保証
 
-本体は`feature/endpoint-delegation`で開発し、mainの変更・リリースはレビュー後に扱う。
+本体の現在の検証対象は`feature/checker-resumption-preparation`で公開する。
+ユーザーの指示に従い、固定したsourceのCI成功後にmainへ取り込み、不要な開発branchを削除する。
+リリースと論文artifactの認定は、実際に完走した検証・consumerの組合せへ別に対応付ける。
 coreのRust 2024、no_std、heap割当なし、caller storage、lockなしを維持する。
 採用Pico/Pico 2のstack/SRAM/flash予算、命令数・コンパイル容量gateを保つ。
 `long_running_const_eval`のallow/expectは禁止し、元のglobalとforbidで検査する。

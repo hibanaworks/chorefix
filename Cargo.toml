@@ -8,8 +8,8 @@ license = "MIT OR Apache-2.0"
 
 [dependencies]
 hibana-runtime = { git = "https://github.com/hibanaworks/hibana-runtime", rev = "09a803afdfb45945febed46145a68ff92a03d9e4", features = ["host"] }
-hibana = { git = "https://github.com/hibanaworks/hibana", rev = "e22c0b9e6a97997ab43e733890487950465c9251", version = "=0.10.0" }
-hibana-wasip1-runtime = { git = "https://github.com/hibanaworks/hibana-wasip1-runtime", rev = "60b51a9a20c6d55ca0108fd08dcca7eef6973a94" }
+hibana = { git = "https://github.com/hibanaworks/hibana", rev = "d892df33205fd8c04be205948e24dd9daa9f022c", version = "=0.10.0" }
+hibana-wasip1-runtime = { git = "https://github.com/hibanaworks/hibana-wasip1-runtime", rev = "4f7708ffd10237fea2513656b8501474b0594b06" }
 serde_json = "1.0.154"
 
 [lints.rust]
