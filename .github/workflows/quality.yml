@@ -15,16 +15,10 @@ jobs:
       RUST_TEST_THREADS: '1'
       PYTHONHASHSEED: '0'
       PYO3_PYTHON: ${{ github.workspace }}/.venv/bin/python
-      HIBANA_RESOURCE_GUARD: ${{ github.workspace }}/validation-core/.github/scripts/lib/resource_guard.sh
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           submodules: true
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          repository: hibanaworks/hibana
-          ref: 194eac8eb8a3a6aece5cd48b76df8946e9357b31
-          path: validation-core
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
           python-version: '3.14'
@@ -32,6 +26,17 @@ jobs:
         run: |
           rustup toolchain install stable --profile minimal --component clippy --component rustfmt
           rustup target add --toolchain stable wasm32-wasip1
+      - name: Select the locked core's memory guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          core_manifest="$(cargo +stable metadata --locked --format-version 1 | jq -er '
+            [.packages[] | select(.name == "hibana")] |
+            if length == 1 then .[0].manifest_path else error("expected one selected Hibana") end
+          ')"
+          guard="$(dirname "$core_manifest")/.github/scripts/lib/resource_guard.sh"
+          test -f "$guard"
+          printf 'HIBANA_RESOURCE_GUARD=%s\n' "$guard" >> "$GITHUB_ENV"
       - name: Restore the recorded upstream sources
         run: >-
           bash "$HIBANA_RESOURCE_GUARD"
